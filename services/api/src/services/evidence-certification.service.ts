@@ -233,6 +233,18 @@ export async function attestEvidenceCertification(params: {
     throw error;
   }
 
+  // D35 — a signed declaration is final for its version. Attesting it again
+  // replaced the signer, statement and hash of a record already relied on
+  // (the report renders it). A new signature needs a new request.
+  if (latest.status === PrismaCertificationStatus.ATTESTED) {
+    const error = new Error(
+      "Certification is already signed; request a new version to sign again"
+    ) as Error & { statusCode?: number; code?: string };
+    error.statusCode = 409;
+    error.code = "CERTIFICATION_ALREADY_ATTESTED";
+    throw error;
+  }
+
   const attestorName = normalizeOptionalText(params.attestorName, 160);
   const attestorTitle = normalizeOptionalText(params.attestorTitle, 160);
   const attestorEmail = normalizeOptionalText(params.attestorEmail, 320);
@@ -262,22 +274,41 @@ export async function attestEvidenceCertification(params: {
     signatureText,
   });
 
-  const updated = await prisma.evidenceCertification.update({
-    where: { id: latest.id },
-    data: {
-      status: PrismaCertificationStatus.ATTESTED,
-      attestedByUserId: params.attestedByUserId,
-      attestedAtUtc: new Date(),
-      attestorName,
-      attestorTitle,
-      attestorEmail,
-      attestorOrganization,
-      statementMarkdown,
-      statementSnapshot,
-      signatureText,
-      certificationHash,
-    },
-  });
+  // The status filter makes the transition atomic: of two concurrent
+  // signers, the second finds no signable row (P2025) and is refused.
+  const updated = await prisma.evidenceCertification
+    .update({
+      where: {
+        id: latest.id,
+        status: {
+          in: [PrismaCertificationStatus.DRAFT, PrismaCertificationStatus.REQUESTED],
+        },
+      },
+      data: {
+        status: PrismaCertificationStatus.ATTESTED,
+        attestedByUserId: params.attestedByUserId,
+        attestedAtUtc: new Date(),
+        attestorName,
+        attestorTitle,
+        attestorEmail,
+        attestorOrganization,
+        statementMarkdown,
+        statementSnapshot,
+        signatureText,
+        certificationHash,
+      },
+    })
+    .catch((err: unknown) => {
+      if ((err as { code?: string })?.code === "P2025") {
+        const error = new Error(
+          "Certification is no longer awaiting a signature"
+        ) as Error & { statusCode?: number; code?: string };
+        error.statusCode = 409;
+        error.code = "CERTIFICATION_ALREADY_ATTESTED";
+        throw error;
+      }
+      throw err;
+    });
 
   return serializeCertification(updated);
 }

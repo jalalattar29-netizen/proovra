@@ -121,6 +121,24 @@ describe("attestEvidenceCertification — service behaviour", () => {
     expect(H.updates).toHaveLength(0);
   });
 
+  it("refuses with 409 when the certification is already signed, and changes nothing (D35)", async () => {
+    H.latest = baseRow({ status: "ATTESTED", attestorName: "Original Signer" });
+    await expect(attestEvidenceCertification(ATTEST_INPUT)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "CERTIFICATION_ALREADY_ATTESTED",
+    });
+    expect(H.updates).toHaveLength(0);
+  });
+
+  it("the signing write only matches a record still awaiting a signature (D35)", async () => {
+    H.latest = baseRow();
+    await attestEvidenceCertification(ATTEST_INPUT);
+    expect(H.updates[0]!.where).toMatchObject({
+      id: "cert-1",
+      status: { in: ["DRAFT", "REQUESTED"] },
+    });
+  });
+
   it("attests the requested certification and persists a certification hash", async () => {
     H.latest = baseRow();
     const result = await attestEvidenceCertification(ATTEST_INPUT);
