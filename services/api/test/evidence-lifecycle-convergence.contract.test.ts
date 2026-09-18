@@ -128,8 +128,9 @@ describe("only the canonical executor performs physical Evidence deletion", () =
   });
 
   it("no other module deletes Evidence storage objects", () => {
+    // Pure destruction paths must never touch storage directly — physical
+    // deletion of Evidence objects is the canonical executor's job alone.
     for (const [label, source] of [
-      ["purge processor", PURGE],
       ["destruction orchestrator", ORCHESTRATOR],
       ["Phase-4B destruction governance", PHASE4B],
       ["destruction review service", REVIEW_SERVICE],
@@ -142,6 +143,24 @@ describe("only the canonical executor performs physical Evidence deletion", () =
         code(source),
         `${label} must not call deleteObjectIfExists`,
       ).not.toMatch(/deleteObjectIfExists\s*\(/);
+    }
+    // The purge processor is also the worker's general job dispatcher: it hosts
+    // the verification-package publication job, which deletes its OWN private
+    // staging temp object (`stagingKey`) on failure/cleanup. That is NOT Evidence
+    // destruction. So the constraint on this module is stricter than a blanket
+    // ban: it must never call deleteObjectIfExists, and EVERY deleteObject it
+    // makes must target the verification-package staging temp (`key: stagingKey`)
+    // — never an evidence or canonical object key. Evidence deletion still routes
+    // exclusively through the canonical executor.
+    expect(
+      code(PURGE),
+      "purge processor must not call deleteObjectIfExists",
+    ).not.toMatch(/deleteObjectIfExists\s*\(/);
+    for (const m of code(PURGE).matchAll(/\bawait\s+deleteObject\s*\(\s*\{[^}]*\}/g)) {
+      expect(
+        m[0],
+        "purge processor may only delete the verification-package staging temp (never an evidence object)",
+      ).toMatch(/key:\s*stagingKey\b/);
     }
   });
 
