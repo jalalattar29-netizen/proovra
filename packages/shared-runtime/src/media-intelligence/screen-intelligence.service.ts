@@ -416,14 +416,24 @@ export async function runAndPersistScreenIntelligence(
     observedInFrames: b.observedInFrames,
   }));
 
+  // reconstructionCoverageLabel already downgrades an interrupted acquisition;
+  // fold its own limitations into the set so coverage reflects them.
   const baseCoverage = reconstructionCoverageLabel(
     input.acquisitionComplete,
     reconstruction.coverage,
   );
-  // OCR disabled ⇒ no reconstruction was possible ⇒ never COMPLETE.
-  const coverage: "COMPLETE" | "PARTIAL" = !deps.ocr.enabled
-    ? "PARTIAL"
-    : baseCoverage;
+  // DERIVED coverage is COMPLETE only when NOTHING degraded it: OCR ran, the
+  // acquisition was complete, the reconstruction proved continuity, AND no bound
+  // was hit and no source part failed extraction (both recorded as limitations).
+  // A failed ffmpeg pass on a part, a hit bound, or disabled OCR each make the
+  // DERIVED result truthfully PARTIAL — it NEVER over-claims a complete review.
+  const coverage: "COMPLETE" | "PARTIAL" =
+    deps.ocr.enabled &&
+    input.acquisitionComplete &&
+    baseCoverage === "COMPLETE" &&
+    limitations.size === 0
+      ? "COMPLETE"
+      : "PARTIAL";
 
   const descriptor: ScreenIntelligenceDescriptor = {
     schemaVersion: SCREEN_INTELLIGENCE_DESCRIPTOR_VERSION,

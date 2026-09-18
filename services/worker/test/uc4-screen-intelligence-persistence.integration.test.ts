@@ -327,6 +327,124 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
     expect(text).toBe(0);
   });
 
+  it("failure matrix: ffmpeg unsupported → PARTIAL, no keyframes, ORIGINAL untouched (§62)", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: "f0".repeat(32), bytes: Buffer.from("v") }],
+    });
+    const d: ScreenIntelligenceDeps = {
+      prisma,
+      holdActive: false,
+      ...store.port(),
+      produceKeyframes: async () => ({ status: "unsupported", reason: "ffmpeg_absent" }),
+      ocr: fakeOcr(true),
+    };
+    const res = await runAndPersistScreenIntelligence(
+      { teamId, evidenceId, parts, acquisitionComplete: true },
+      d,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.keyframeCount).toBe(0);
+    expect(res.blockCount).toBe(0);
+    // ORIGINAL part row is untouched.
+    const orig = await prisma.evidencePart.findFirst({ where: { evidenceId }, select: { sha256: true } });
+    expect(orig!.sha256).toBe("f0".repeat(32));
+  });
+
+  it("failure matrix: ffmpeg failed on a part → PARTIAL, possible-gap limitation (§62)", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: "f1".repeat(32), bytes: Buffer.from("v") }],
+    });
+    const d: ScreenIntelligenceDeps = {
+      prisma,
+      holdActive: false,
+      ...store.port(),
+      produceKeyframes: async () => ({ status: "failed", reason: "ffmpeg_exit_1" }),
+      ocr: fakeOcr(true),
+    };
+    const res = await runAndPersistScreenIntelligence(
+      { teamId, evidenceId, parts, acquisitionComplete: true },
+      d,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.limitations).toContain("RECONSTRUCTION_POSSIBLE_GAP");
+  });
+
+  it("failure matrix: OCR throws on a frame → that frame degrades, run still COMPLETEs (§62)", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: "f2".repeat(32), bytes: Buffer.from("v") }],
+    });
+    let calls = 0;
+    const d: ScreenIntelligenceDeps = {
+      prisma,
+      holdActive: false,
+      ...store.port(),
+      produceKeyframes: fakeKeyframeProducer([
+        { offsetMs: 0, rows: ["A", "B"] },
+        { offsetMs: 1500, rows: ["B", "C"] },
+      ]),
+      ocr: {
+        name: "tesseract-fake",
+        version: "test",
+        local: true,
+        enabled: true,
+        extractFromBytes: async (bytes: Buffer) => {
+          calls += 1;
+          if (calls === 1) throw new Error("ocr_timeout"); // first keyframe fails
+          const parsed = JSON.parse(bytes.toString("utf8")) as { rows: string[] };
+          return { regions: parsed.rows.map((text, i) => ({ text, kind: "TEXT" as const, rowOrder: i })) };
+        },
+      },
+    };
+    const res = await runAndPersistScreenIntelligence(
+      { teamId, evidenceId, parts, acquisitionComplete: true },
+      d,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // The keyframes were still persisted; one frame produced no observations.
+    expect(res.keyframeCount).toBe(2);
+    // Descriptor records the failed-OCR frame count.
+    const reconRow = (await prisma.$queryRawUnsafe(
+      `SELECT storage_bucket, storage_key FROM evidence_part_derived_assets WHERE evidence_id=$1 AND asset_kind='screen_reconstruction' LIMIT 1`,
+      evidenceId,
+    )) as Array<{ storage_bucket: string; storage_key: string }>;
+    const descriptor = JSON.parse(
+      store.objs.get(`${reconRow[0]!.storage_bucket}::${reconRow[0]!.storage_key}`)!.toString("utf8"),
+    );
+    expect(descriptor.stats.ocrFailedKeyframes).toBe(1);
+  });
+
+  it("failure matrix: source storage failure throws (transient → BullMQ retry), no false COMPLETE (§62)", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: "f3".repeat(32), bytes: Buffer.from("v") }],
+    });
+    const d: ScreenIntelligenceDeps = {
+      prisma,
+      holdActive: false,
+      ...store.port(),
+      getSourceBytes: async () => {
+        throw new Error("s3_503");
+      },
+      produceKeyframes: fakeKeyframeProducer([{ offsetMs: 0, rows: ["A"] }]),
+      ocr: fakeOcr(true),
+    };
+    await expect(
+      runAndPersistScreenIntelligence(
+        { teamId, evidenceId, parts, acquisitionComplete: true },
+        d,
+      ),
+    ).rejects.toThrow(/source_fetch_failed/);
+    // No reconstruction descriptor was written (no false COMPLETE).
+    const recon = await prisma.evidencePartDerivedAsset.count({
+      where: { evidenceId, assetKind: "screen_reconstruction" as never },
+    });
+    expect(recon).toBe(0);
+  });
+
   it("destruction/hold coverage: the executor's own queries sweep every UC-4 row + object (§53)", async () => {
     const { teamId, evidenceId, parts, store } = await seed({
       parts: [{ mime: "video/mp4", sha256: "e".repeat(64), bytes: Buffer.from("v") }],
