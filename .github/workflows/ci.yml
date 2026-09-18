@@ -280,9 +280,22 @@ jobs:
             # annotated nothing. `✖` is node:test's spec-reporter marker.
             # GitHub keeps only ten error annotations per step, so the last
             # ten matches are sent — the summary lines are at the end.
-            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
-              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
-              | tail -10 \
+            #
+            # `node --test` (mobile) can also ABORT before emitting any summary
+            # — an uncaught load-time throw (module resolution, a rejected
+            # data-URL import) prints a Node stack trace whose lines match none
+            # of the structured markers above. So the match set includes crash
+            # markers (Error:/Cannot find/MODULE_NOT_FOUND/throw/node:internal),
+            # and if even those miss, the raw non-empty tail is surfaced — a red
+            # step must never annotate nothing.
+            STRIPPED=$(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log)
+            MATCHES=$(printf '%s\n' "$STRIPPED" \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|Error:|Cannot find|MODULE_NOT_FOUND|not ok|Test Files|Tests |Errors|Unhandled|throw |node:internal|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10)
+            if [ -z "$MATCHES" ]; then
+              MATCHES=$(printf '%s\n' "$STRIPPED" | grep -aE '[^[:space:]]' | tail -15)
+            fi
+            printf '%s\n' "$MATCHES" \
               | while IFS= read -r line; do echo "::error::proovra-mobile: $line"; done
           fi
           exit $rc
