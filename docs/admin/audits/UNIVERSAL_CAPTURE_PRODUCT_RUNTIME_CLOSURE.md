@@ -307,3 +307,94 @@ proven compile) may a closure record state **UC-5 MAY BEGIN**. Today it does not
 No production deploy, no production DB mutation, no migration, no extension publication, no Play Store
 submission, no iOS work, no customer-evidence access, and no destructive jobs were performed. All work is on
 the isolated feature branch/worktree; main was not merged or pushed by this session.
+
+---
+
+# ADDENDUM — SESSION 2 (2026-09-18): PWA-vs-native truth, F10 build attempt, merge gate
+
+## A. What the website "Install app" actually installs — **PWA (NOT the native app)**
+Repository truth (evidence, not assumption):
+- `apps/web/public/manifest.webmanifest` exists: `"display": "standalone"`, name PROOVRA, one maskable icon,
+  `start_url:"/"`. It is linked from `apps/web/app/layout.tsx:67` (`manifest: "/manifest.webmanifest"`).
+- **No service worker** (no `next-pwa`/workbox/`sw.js` anywhere), **no `beforeinstallprompt`/custom install
+  UI**, **no `.well-known/assetlinks.json`/Digital Asset Links**, **no TWA**, **no `.apk` link**, **no
+  `play.google.com` link** anywhere in `apps/web`.
+
+**Classification: PWA.** When an Android user opens PROOVRA and chooses the browser's "Install app / Add to
+Home screen", Chrome installs a **standalone PWA / WebAPK** driven by that manifest, launching
+`app.proovra.com` in a browser-managed standalone surface.
+- **Does the website install `apps/mobile`? NO.**
+- It installs a **web app (PWA)** with **no** access to the `proovra-screen-capture` MediaProjection native
+  module, so it **cannot** run UC-2/UC-3. This is exactly why the user's "app" showed the web `/capture`
+  surface — the reported Android symptom is a PWA rendering the web product, not the native app.
+- It is **not** a TWA, **not** a direct APK, **not** a Play Store native app.
+
+**Product-truthfulness (F14/F15 review):** the PWA (= the web product) shows web upload + the truthful
+Direct Web Capture card only; the native UC-2/UC-3 controls exist solely in `apps/mobile` and never render on
+web (enforced by the mobile boot guard). There is **no** native-screen-capture claim and **no** dead/fake
+"Get the Android app"/APK/Play CTA on the web to correct. No web code change was required. **Recommended
+future distribution (documented, not implemented — no links invented):** keep Website → *Install web app*
+(PWA) for web capabilities, and, only when an official native channel exists, add a separate *Get PROOVRA for
+Android* pointing at a real native distribution (Play Store or a signed internal APK). Do not silently swap
+the PWA install for an APK download without a security/update review.
+
+## B. F10 native compile/package — attempted; **blocked at the toolchain / EAS-auth boundary**
+- Local toolchain re-probed: `java`/`javac`/`adb` **not found**, `ANDROID_HOME`/`ANDROID_SDK_ROOT` **empty**
+  → local Gradle/Kotlin compile impossible.
+- **EAS CLI IS installed** (`eas-cli/18.0.3`) but **NOT authenticated** (`eas whoami` → "Not logged in", no
+  `EXPO_TOKEN`). An `eas build` cannot run without an interactive login/token, which must not be fabricated.
+- **New evidence obtained (GENERATED_NATIVE_PROJECT, partial):** `expo prebuild -p android` **succeeded** —
+  it generated the native `android/` project, wrote `useExpoModules()` autolinking into `settings.gradle`,
+  and produced the app manifest with applicationId **`com.jalalattar29.proovra`**. It also confirms
+  **OTA is disabled** (`expo.modules.updates.ENABLED=false`), so JS can never drift from the native binary.
+  (The generated project + package.json edit were reverted afterwards to keep the branch pristine.)
+- **Still unproven (require Gradle + Android SDK, or an authorized EAS build):** Kotlin compilation of
+  `ProovraScreenCaptureModule.kt` / `ScreenCaptureService.kt` / `ContinuousScreenCaptureService.kt`; the
+  **library-manifest merge** that lands both `mediaProjection` services into the final APK manifest; and the
+  APK/AAB packaging + install.
+
+### F10 status ladder
+`SOURCE_PRESENT ✅ · AUTOLINKED ✅ · GENERATED_NATIVE_PROJECT ✅(app project + autolink wiring) ·
+KOTLIN_COMPILED ❌ · PACKAGED ❌`. **F10 remains OPEN.**
+
+## C. Merge gate — **main NOT merged (correctly)**
+Per the closure gate, main must not be merged while F10 is uncompiled/unpackaged. F10 is blocked at an
+external authorization boundary (EAS login) with no local Android toolchain, so **this session does not merge
+to main**. All automated gates are green and the branch is ready to merge the instant a native build proves
+COMPILED+PACKAGED. origin/main is unchanged at `9d6e4580`; the branch remains 5 ahead / 1 behind (trivial).
+
+## D. Exact action required to unblock F10 (external authorization)
+On a machine/CI with EAS access (no Android SDK needed for a remote EAS build):
+```bash
+# 1) Authenticate EAS (interactive login, or set a token):
+eas login                      # or: export EXPO_TOKEN=<token from expo.dev>
+# 2) From the feature branch, build the installable preview APK (build only — NOT submit):
+cd apps/mobile
+eas build --platform android --profile preview
+```
+This compiles the Kotlin module, merges the library manifest (both services), and produces an installable
+APK — closing F10's COMPILED+PACKAGED. **Do not run `eas submit`** (Play Store publication is not authorized).
+
+## E. Exact on-device acceptance the user must perform (after installing that APK)
+1. Confirm it is the **native app**, not the PWA: Android Settings → Apps → a package named
+   **`com.jalalattar29.proovra`** with its own app info (a PWA has no such package; it appears as a Chrome
+   shortcut/WebAPK). The native app shows native camera + two Android screen-capture buttons on Home.
+2. **UC-2:** Home → Direct Screen Capture → Start → approve the MediaProjection consent dialog → confirm the
+   foreground-capture notification → switch to another app → Capture Frame (×2) → return → Stop & Review →
+   Finalize → verify ONE Evidence with N ORIGINAL `screen_frame` parts, acquisition mode
+   `DIRECT_SCREEN_CAPTURE_ANDROID`, visible in Library and eligible for UC-4 Derived Review.
+3. **UC-3:** Home → Continuous Screen Capture → Start → approve consent → record across an app switch (and,
+   if practical, one orientation change) to produce multiple segments → Stop & Review → Finalize → verify ONE
+   Evidence with N ORIGINAL `screen_segment` parts, mode `DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS`, no
+   missing/duplicate sequence, visible in Library and UC-4-eligible.
+
+## F. UC-4 downstream (re-confirmed) — unchanged
+No `services/worker`/`services/api` source changed on this branch; the shared acquisition + ORIGINAL/DERIVED
+contracts are green (986/986). UC-4 continues to accept UC-2 `screen_frame` / UC-3 `screen_segment` as
+ORIGINAL and emits DERIVED keyframes/OCR/reconstruction. No UC-4 change required.
+
+## G. Verdict (session 2)
+**UNIVERSAL CAPTURE F10 + MAIN INTEGRATION CLOSURE NOT COMPLETE.** All F1–F9/F11/F12 remain closed and green;
+F10 advanced to GENERATED_NATIVE_PROJECT but is not COMPILED/PACKAGED; main is intentionally not merged; UC-5
+must not begin. The single remaining blocker is the external EAS authentication in §D — a login action, not
+code.
