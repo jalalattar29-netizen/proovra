@@ -609,6 +609,23 @@ async function runCaptureDraftReaper(trigger: string) {
   captureReaperRunning = true;
   try {
     await reapExpiredCaptureDrafts({ trigger });
+    // Also reclaim any orphaned private verification-package staging objects left by
+    // an interrupted publication attempt. Bounded, idempotent, best-effort: a failure
+    // here must never disturb the capture-draft reaper's own outcome.
+    try {
+      const bucket = process.env.S3_BUCKET;
+      if (bucket) {
+        const { reconcileStaleStaging } = await import("./verification-package-staging.js");
+        const { listObjects, deleteObject } = await import("./storage.js");
+        const res = await reconcileStaleStaging({ bucket, listObjects, deleteObject });
+        if (res.deleted > 0) logger.info({ ...res, trigger }, "package_staging.reconciled");
+      }
+    } catch (stagingErr) {
+      logger.warn(
+        { err: stagingErr instanceof Error ? stagingErr.message.slice(0, 200) : "unknown", trigger },
+        "package_staging.reconcile_failed",
+      );
+    }
   } catch (err) {
     logger.error({ err, trigger }, "capture.reaper.failed");
     captureException(err, { trigger });

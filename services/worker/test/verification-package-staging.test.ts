@@ -7,6 +7,10 @@ import {
   streamZipToTempFile,
   cleanupStagedTemp,
   stagingPackageKey,
+  isStaleStagingObject,
+  reconcileStaleStaging,
+  STAGING_PREFIX,
+  STAGING_RECONCILE_TTL_MS,
   type StreamingPackageEntry,
 } from "../src/verification-package-staging.js";
 
@@ -79,6 +83,40 @@ describe("streaming verification-package staging writer", () => {
     await cleanupStagedTemp(staged);
     await expect(stat(staged.tempPath)).rejects.toThrow();
     await cleanupStagedTemp(staged); // idempotent, no throw
+  });
+
+  it("isStaleStagingObject flags only objects older than the TTL, never unknown-age", () => {
+    const now = 1_000_000_000_000;
+    expect(isStaleStagingObject(new Date(now - STAGING_RECONCILE_TTL_MS - 1), now)).toBe(true);
+    expect(isStaleStagingObject(new Date(now - 1000), now)).toBe(false); // fresh
+    expect(isStaleStagingObject(null, now)).toBe(false); // unknown age → never delete
+    expect(isStaleStagingObject(new Date(now - 10), now, 5)).toBe(true); // custom ttl
+  });
+
+  it("reconcileStaleStaging deletes ONLY stale staging orphans, bounded and idempotent", async () => {
+    const now = 2_000_000_000_000;
+    const listed = [
+      { key: `${STAGING_PREFIX}ev-1/v1.zip`, lastModified: new Date(now - STAGING_RECONCILE_TTL_MS - 1), sizeBytes: 10 }, // stale
+      { key: `${STAGING_PREFIX}ev-2/v1.zip`, lastModified: new Date(now - 1000), sizeBytes: 10 }, // fresh — keep
+      { key: `${STAGING_PREFIX}ev-3/v1.zip`, lastModified: null, sizeBytes: 10 }, // unknown — keep
+    ];
+    const deletedKeys: string[] = [];
+    const res = await reconcileStaleStaging({
+      bucket: "b",
+      now,
+      listObjects: async ({ prefix }) => {
+        expect(prefix).toBe(STAGING_PREFIX); // only ever scans the private staging prefix
+        return listed;
+      },
+      deleteObject: async ({ key }) => {
+        deletedKeys.push(key);
+      },
+    });
+    expect(res.scanned).toBe(3);
+    expect(res.deleted).toBe(1);
+    expect(deletedKeys).toEqual([`${STAGING_PREFIX}ev-1/v1.zip`]);
+    // Never touches the canonical `verification/` namespace or fresh/unknown objects.
+    expect(deletedKeys.some((k) => k.startsWith("verification/"))).toBe(false);
   });
 
   it("staging keys live under a private namespace, idempotent per (evidence, version)", () => {

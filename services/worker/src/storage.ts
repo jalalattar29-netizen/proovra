@@ -3,6 +3,7 @@ import {
   CopyObjectCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
@@ -449,6 +450,33 @@ export async function copyObject(params: {
       return { copied: true };
     },
   );
+}
+
+/**
+ * Bounded listing of objects under a key prefix (a single ListObjectsV2 page, capped
+ * by `maxKeys`). Used by stale-staging reconciliation to find orphaned private
+ * package-staging objects; never lists an unbounded number of keys in one call.
+ */
+export async function listObjects(params: {
+  bucket: string;
+  prefix: string;
+  maxKeys?: number;
+}): Promise<Array<{ key: string; lastModified: Date | null; sizeBytes: number }>> {
+  const bucket = mustClean(params.bucket, "bucket");
+  const res = await s3.send(
+    new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: params.prefix,
+      MaxKeys: Math.max(1, Math.min(params.maxKeys ?? 1000, 1000)),
+    }),
+  );
+  return (res.Contents ?? [])
+    .filter((o) => typeof o.Key === "string")
+    .map((o) => ({
+      key: o.Key as string,
+      lastModified: o.LastModified ?? null,
+      sizeBytes: Number(o.Size ?? 0),
+    }));
 }
 
 export async function applyObjectRetention(params: {

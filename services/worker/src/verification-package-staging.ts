@@ -125,3 +125,56 @@ export async function cleanupStagedTemp(staged: Pick<StagedPackage, "tempDir">):
     /* temp hygiene only */
   }
 }
+
+/** The private prefix all package-staging objects live under. */
+export const STAGING_PREFIX = "internal/package-staging/";
+
+/**
+ * How long a private staging object may survive before reconciliation treats it as
+ * a crash orphan. A publication attempt promotes-and-deletes within one job, so any
+ * staging object older than this is residue from an interrupted attempt. Comfortably
+ * longer than the worst-case package generation + promotion.
+ */
+export const STAGING_RECONCILE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/** PURE: is a staging object old enough to be an abandoned crash orphan? */
+export function isStaleStagingObject(
+  lastModified: Date | null,
+  now: number,
+  ttlMs: number = STAGING_RECONCILE_TTL_MS,
+): boolean {
+  if (!lastModified) return false; // unknown age → never delete on a guess
+  return now - lastModified.getTime() >= ttlMs;
+}
+
+export type StagingReconcileDeps = {
+  bucket: string;
+  listObjects: (p: { bucket: string; prefix: string; maxKeys?: number }) => Promise<
+    Array<{ key: string; lastModified: Date | null; sizeBytes: number }>
+  >;
+  deleteObject: (p: { bucket: string; key: string }) => Promise<unknown>;
+  now?: number;
+  ttlMs?: number;
+  limit?: number;
+};
+
+/**
+ * Bounded, idempotent reconciliation of orphaned private staging objects. Lists a
+ * single bounded page under the staging prefix and deletes only those OLDER than the
+ * TTL (crash residue) — it never touches a fresh in-flight staging object, never a
+ * canonical package (different prefix), and never an ORIGINAL artifact. Safe to run
+ * repeatedly; returns how many orphans it reclaimed.
+ */
+export async function reconcileStaleStaging(deps: StagingReconcileDeps): Promise<{ scanned: number; deleted: number }> {
+  const now = deps.now ?? Date.now();
+  const ttlMs = deps.ttlMs ?? STAGING_RECONCILE_TTL_MS;
+  const objects = await deps.listObjects({ bucket: deps.bucket, prefix: STAGING_PREFIX, maxKeys: deps.limit ?? 1000 });
+  let deleted = 0;
+  for (const o of objects) {
+    if (isStaleStagingObject(o.lastModified, now, ttlMs)) {
+      await deps.deleteObject({ bucket: deps.bucket, key: o.key });
+      deleted += 1;
+    }
+  }
+  return { scanned: objects.length, deleted };
+}

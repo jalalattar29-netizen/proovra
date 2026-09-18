@@ -28,8 +28,10 @@ import { env } from "../src/config.js";
 import {
   streamZipToTempFile,
   cleanupStagedTemp,
+  reconcileStaleStaging,
   type StreamingPackageEntry,
 } from "../src/verification-package-staging.js";
+import { listObjects } from "../src/storage.js";
 
 const BUCKET = env.S3_BUCKET;
 const RUN = `uc3pub-${randomUUID()}`;
@@ -130,6 +132,21 @@ describe("UC-3 streaming package publication — disposable MinIO", () => {
     await copyObject({ sourceBucket: BUCKET, sourceKey: stagingKey, destBucket: BUCKET, destKey: canonicalKey, contentType: "application/zip" });
     const head = await headObject({ bucket: BUCKET, key: canonicalKey });
     expect(Number(head.sizeBytes)).toBe(staged.sizeBytes);
+  });
+
+  it("E. stale-staging reconciliation reclaims an orphaned staging object (crash residue)", async () => {
+    // Simulate a crashed publication: a staging object exists but was never promoted.
+    const staged = await streamZipToTempFile([{ name: "m.json", buffer: Buffer.from("{}") }]);
+    const stagingKey = `internal/package-staging/${RUN}-orphan/v1.zip`;
+    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
+    await cleanupStagedTemp(staged);
+    expect(await exists(stagingKey)).toBe(true);
+
+    // Reconcile with ttlMs=0 (everything under the staging prefix is "stale") →
+    // the orphan is reclaimed; a canonical `verification/` object would be untouched.
+    const res = await reconcileStaleStaging({ bucket: BUCKET, listObjects, deleteObject, ttlMs: 0 });
+    expect(res.deleted).toBeGreaterThanOrEqual(1);
+    expect(await exists(stagingKey)).toBe(false);
   });
 
   it("D. many-artifact package streams from storage without buffering all parts", async () => {
