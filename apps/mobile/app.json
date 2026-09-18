@@ -45,8 +45,7 @@
     },
     "plugins": [
       "expo-asset",
-      "@sentry/react-native/expo",
-      "./plugins/withProovraIosScreenBroadcast.cjs"
+      "@sentry/react-native/expo"
     ]
   }
 }

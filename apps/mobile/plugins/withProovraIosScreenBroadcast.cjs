@@ -1,5 +1,14 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 /**
+ * NOTE (2026-09-18): This plugin is AUTHORED but NOT yet enabled in app.json.
+ * Its App Group + prebuild + file-copy steps run correctly on EAS macOS, but the
+ * pbxproj app-extension TARGET creation still produces a dangling build-file
+ * reference in the main app's resources phase (seen only at CocoaPods post-install
+ * on macOS). Finalising/validating the extension TARGET requires iterating with
+ * macOS/Xcode (Windows cannot `expo prebuild -p ios` to test a pbxproj plugin),
+ * so it is the documented remaining macOS step. The main app + the native iOS
+ * module compile without it; the App Group entitlement is set in app.json.
+ *
  * UC-5 — Expo config plugin that adds the PROOVRA iOS Broadcast Upload Extension
  * target to the generated Xcode project during `expo prebuild`.
  *
