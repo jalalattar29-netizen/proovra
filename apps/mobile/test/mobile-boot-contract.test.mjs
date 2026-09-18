@@ -59,6 +59,15 @@ test("Android screen-capture entries are platform-gated in the Home screen", () 
   assert.ok(gateIdx >= 0 && gateIdx < scIdx, "native capture entries must sit under the Android gate");
 });
 
+test("Home has no hardcoded placeholder evidence row / dead link", () => {
+  const home = readFileSync(join(APP_DIR, "(tabs)", "index.tsx"), "utf8");
+  // The former defect: an empty list rendered a fake row linking to /evidence/1.
+  assert.doesNotMatch(home, /router\.push\(["']\/evidence\/1["']\)/, "no dead /evidence/1 link");
+  assert.doesNotMatch(home, /3 minutes ago/, "no hardcoded placeholder subtitle");
+  // The empty branch must render a real empty state, not a fabricated record.
+  assert.match(home, /No evidence yet/, "Home must show a truthful empty state");
+});
+
 test("the web-only Direct Web Capture surface never appears in the native app", () => {
   const offenders = [];
   const scan = (dir) => {
