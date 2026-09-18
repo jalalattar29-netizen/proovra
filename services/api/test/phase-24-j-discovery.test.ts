@@ -301,6 +301,17 @@ describe("Phase 24-J — schema validation registrations", () => {
         if (full.replace(/\\/g, "/").endsWith("apps/web/lib/runbooks/catalog.generated.ts")) {
           continue;
         }
+        // UC-4 — the local Tesseract OCR adapter runs the binary in its `tsv`
+        // OUTPUT mode (`tesseract <img> stdout -l <lang> --psm 6 tsv`) and parses
+        // that TSV. The bare `"tsv"` token is the tesseract output format, NOT the
+        // retired PostgreSQL `tsv` full-text-search column — a different subsystem
+        // entirely. Exempted by name (one file, not a pattern) so the FTS-consumer
+        // gate stays exact for real PG FTS reads.
+        if (
+          full.replace(/\\/g, "/").endsWith("services/worker/src/tesseract-ocr-provider.ts")
+        ) {
+          continue;
+        }
         const code = readFileSync(full, "utf8")
           .replace(/\/\*[\s\S]*?\*\//g, "")
           .replace(/^\s*\/\/.*$/gm, "");

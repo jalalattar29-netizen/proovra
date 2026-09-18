@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1155
-RegisteredRoutes                            1156
+ProductionRegisteredRoutes                  1157
+RegisteredRoutes                            1158
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1252
+TerminalWriters                             1267
 ROUTE_ATTRIBUTED_REACHABLE                  1121
-JOB_ATTRIBUTED_REACHABLE                     113
+JOB_ATTRIBUTED_REACHABLE                     128
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          14
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        954
+ProductConsumedRoutes                        956
 NonProductDispositionedRoutes                201
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
@@ -172,11 +172,16 @@ admitted by EXPAND constraint-swap migration
 `20280640000000_uc3_continuous_screen_capture_acquisition_mode` (registered in
 every gate; NOT applied to Production).
 
-Result deltas from the pre-UC-3 tree: ProductionRegisteredRoutes 1154→1155,
-RegisteredRoutes 1155→1156, ProductConsumedRoutes 953→954, TerminalWriters
-1251→1252, ROUTE_ATTRIBUTED_REACHABLE 1120→1121. UndisposedRoutes 0,
-DynamicUnresolvedConsumers 0, MutationClosurePass true, AuditEngineIntegrity
-PASS.
+Result deltas after UC-4 DERIVED screen intelligence (2026-09-18): two new
+media-intelligence routes (GET/POST derived-review) take ProductionRegisteredRoutes
+to 1157, RegisteredRoutes to 1158, ProductConsumedRoutes to 956; the UC-4 worker
+handler + persistence service add job-attributed writers, taking
+JOB_ATTRIBUTED_REACHABLE to 128 and TerminalWriters to 1267 (ROUTE_ATTRIBUTED_REACHABLE
+unchanged at 1121). UC-4 rides the existing media-intelligence queue as run kind
+`reconstruct_screen`, admitted by EXPAND constraint-swap migration
+`20280650000000_uc4_screen_intelligence` (registered in every gate; NOT applied to
+Production). UndisposedRoutes 0, DynamicUnresolvedConsumers 0, MutationClosurePass
+true, AuditEngineIntegrity PASS.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

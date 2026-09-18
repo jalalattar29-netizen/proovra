@@ -31,7 +31,10 @@ ALTER TABLE "media_intelligence_runs"
     'extract_transcript_deepgram',
     'extract_technical_metadata',
     'reconcile_ocr_similarity',
-    'reconcile_transcript_similarity'
+    'reconcile_transcript_similarity',
+    -- UC-4 (mirrors migration 20280650000000_uc4_screen_intelligence): the
+    -- DERIVED screen-intelligence run kind. Superset-only, idempotent.
+    'reconstruct_screen'
   ));
 
 COMMIT;

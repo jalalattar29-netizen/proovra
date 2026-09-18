@@ -98,6 +98,110 @@ export type FfmpegProducerResult =
   | { status: "unsupported"; reason: string }
   | { status: "failed"; reason: string };
 
+// UC-4 — a keyframe is a bounded WebP, same output ceiling as a video frame.
+const MAX_KEYFRAME_OUTPUT_BYTES = MAX_OUTPUT_BYTES.video_frame;
+
+export type ProducedKeyframe = {
+  index: number;
+  offsetMs: number;
+  bytes: Buffer;
+  contentType: string;
+  derivedSha256: string;
+  sizeBytes: number;
+};
+
+export type KeyframesProducerResult =
+  | { status: "ok"; keyframes: ProducedKeyframe[]; boundsReached: boolean }
+  | { status: "unsupported"; reason: string }
+  | { status: "failed"; reason: string };
+
+/**
+ * UC-4 — REAL bounded keyframe extraction from ONE ORIGINAL screen_segment MP4.
+ *
+ * A single ffmpeg pass samples frames at a fixed interval (`fps = 1000/intervalMs`),
+ * scaled to a bounded WebP, capped at `maxKeyframes` (`-frames:v`) — so a segment is
+ * processed once, bounded in CPU, output count and per-frame bytes, never decoding
+ * the whole Evidence into RAM. Each keyframe's offset is derived from its interval
+ * index. The bytes are DERIVED; the ORIGINAL segment is never mutated. No face /
+ * object / identity detection — pixel sampling only.
+ */
+export async function produceVideoKeyframes(
+  input: FfmpegProducerInput & { intervalMs: number; maxKeyframes: number },
+): Promise<KeyframesProducerResult> {
+  const mt = (input.sourceMimeType ?? "").toLowerCase();
+  if (!mt.startsWith("video/")) return { status: "unsupported", reason: "non_video_mime" };
+  const cap = await detectFfmpegCapability();
+  if (!cap.ok) return { status: "unsupported", reason: cap.reason };
+
+  const intervalMs = Math.max(250, Math.trunc(input.intervalMs));
+  const maxKeyframes = Math.max(1, Math.min(Math.trunc(input.maxKeyframes), 2000));
+
+  let dir: string | null = null;
+  try {
+    dir = await mkdtemp(path.join(os.tmpdir(), "proovra-uc4kf-"));
+  } catch {
+    return { status: "failed", reason: "tmpdir_unavailable" };
+  }
+  const inFile = path.join(dir, `in-${randomUUID()}`);
+  const pattern = path.join(dir, "kf-%04d.webp");
+  try {
+    try {
+      await writeFile(inFile, input.sourceBytes);
+    } catch {
+      return { status: "failed", reason: "tmp_write_failed" };
+    }
+    // fps as a rational avoids float drift; extract ≤ maxKeyframes frames.
+    const spawnResult = await spawnBounded(cap.ffmpegPath, [
+      "-y",
+      "-i",
+      inFile,
+      "-vf",
+      `fps=1000/${intervalMs},scale='min(256,iw)':-2`,
+      "-frames:v",
+      String(maxKeyframes),
+      "-vcodec",
+      "libwebp",
+      "-q:v",
+      "75",
+      pattern,
+    ]);
+    if (!spawnResult.ok) return { status: "failed", reason: `ffmpeg_${spawnResult.reason}`.slice(0, 80) };
+
+    const keyframes: ProducedKeyframe[] = [];
+    for (let i = 1; i <= maxKeyframes; i += 1) {
+      const file = path.join(dir, `kf-${String(i).padStart(4, "0")}.webp`);
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(file);
+      } catch {
+        break; // no more frames produced (source shorter than the sampling window)
+      }
+      if (bytes.length === 0) break;
+      if (bytes.length > MAX_KEYFRAME_OUTPUT_BYTES) {
+        return { status: "failed", reason: "keyframe_output_oversize" };
+      }
+      keyframes.push({
+        index: i - 1,
+        offsetMs: (i - 1) * intervalMs,
+        bytes,
+        contentType: "image/webp",
+        derivedSha256: createHash("sha256").update(bytes).digest("hex"),
+        sizeBytes: bytes.length,
+      });
+    }
+    if (keyframes.length === 0) return { status: "failed", reason: "no_keyframes_produced" };
+    return { status: "ok", keyframes, boundsReached: keyframes.length >= maxKeyframes };
+  } finally {
+    if (dir) {
+      try {
+        await rm(dir, { recursive: true, force: true });
+      } catch {
+        /* OS tmp sweep */
+      }
+    }
+  }
+}
+
 /**
  * Produce a representative video frame as bounded WebP. Single
  * frame at ~10% into the source so we avoid the (often-black)

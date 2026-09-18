@@ -48,6 +48,8 @@ export type EvidenceDetailTab =
   | "review"
   | "artifacts"
   | "discussion"
+  // UC-4 — DERIVED screen-intelligence reviewer surface.
+  | "derived"
   | "technical";
 
 // ---------------------------------------------------------------------------

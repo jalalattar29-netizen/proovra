@@ -70,7 +70,10 @@ export type IntelligencePackageInput = {
       | "image_thumbnail"
       | "video_frame"
       | "audio_waveform"
-      | "low_res_proxy";
+      | "low_res_proxy"
+      // UC-4 — DERIVED screen intelligence artifacts.
+      | "video_keyframe"
+      | "screen_reconstruction";
     sourceEvidenceId: string;
     sourceMaterialId: string | null;
     sha256: string;
@@ -78,6 +81,30 @@ export type IntelligencePackageInput = {
     contentType: string;
     createdAtUtc: string;
   }>;
+  /**
+   * UC-4 — bounded reconstruction lineage manifest (no reconstructed prose, no
+   * OCR text). Carries the derivative identity, transformation versions,
+   * coverage, and per-block SOURCE lineage so a validator can prove lineage.
+   */
+  reconstruction?: {
+    descriptorSha256: string;
+    descriptorSizeBytes: number;
+    coverage: "COMPLETE" | "PARTIAL";
+    ocrEnabled: boolean;
+    acquisitionComplete: boolean;
+    transformationVersions: { keyframe: string; ocr: string; reconstruction: string };
+    sources: ReadonlyArray<{ evidencePartId: string; sourceSha256: string | null }>;
+    keyframeCount: number;
+    blockCount: number;
+    blocks: ReadonlyArray<{
+      blockId: string;
+      sequence: number;
+      kind: string;
+      sourceEvidencePartIds: ReadonlyArray<string>;
+      sourceOffsetMsRange: [number, number];
+      observedInFrames: number;
+    }>;
+  } | null;
   /** OCR + transcript availability + indexing state. Provenance
    *  only — raw extracted text/prose is NEVER included here. */
   ocrTranscript?: {
@@ -157,7 +184,11 @@ const ALLOWED_DERIVED_KINDS = new Set([
   "video_frame",
   "audio_waveform",
   "low_res_proxy",
+  // UC-4.
+  "video_keyframe",
+  "screen_reconstruction",
 ]);
+const MAX_RECONSTRUCTION_BLOCKS = 5000;
 const ALLOWED_AVAILABILITY = new Set([
   "AVAILABLE",
   "PENDING",
@@ -211,6 +242,14 @@ export function buildIntelligencePackageManifests(
     out.push({
       path: "intelligence/derived_assets_manifest.json",
       json: buildDerivedAssetsManifest(input.derivedAssets),
+    });
+  }
+  // UC-4 — the reconstruction lineage manifest (DERIVED_RECONSTRUCTED). Lineage
+  // + integrity metadata only; never reconstructed prose or OCR text.
+  if (input.reconstruction) {
+    out.push({
+      path: "intelligence/screen_reconstruction_manifest.json",
+      json: buildReconstructionManifest(input.reconstruction),
     });
   }
   if (
@@ -287,6 +326,9 @@ function buildDerivedAssetsManifest(
       assetKind: ALLOWED_DERIVED_KINDS.has(a.assetKind)
         ? a.assetKind
         : "low_res_proxy",
+      // The transformation that produced it — so a validator can assert the
+      // declared transformation/version of each derivative (§46).
+      transformation: transformationForKind(a.assetKind),
       sourceEvidenceId: bound(a.sourceEvidenceId, IDENT_CHAR_MAX),
       sourceMaterialId: a.sourceMaterialId
         ? bound(a.sourceMaterialId, IDENT_CHAR_MAX)
@@ -295,6 +337,74 @@ function buildDerivedAssetsManifest(
       sizeBytes: clampInt(a.sizeBytes, 0, Number.MAX_SAFE_INTEGER),
       contentType: bound(a.contentType, 80),
       createdAtUtc: bound(a.createdAtUtc, 40),
+    })),
+  };
+}
+
+/** Local kind→transformation map (keeps this manifest module dependency-free). */
+function transformationForKind(kind: string): string {
+  switch (kind) {
+    case "image_thumbnail":
+      return "image-thumbnail/v1";
+    case "video_frame":
+      return "video-frame/v1";
+    case "audio_waveform":
+      return "audio-waveform/v1";
+    case "low_res_proxy":
+      return "low-res-proxy/v1";
+    case "video_keyframe":
+      return "video-keyframe/v1";
+    case "screen_reconstruction":
+      return "screen-conversation-reconstruction/v1";
+    default:
+      return "unspecified";
+  }
+}
+
+/**
+ * UC-4 — the reconstruction lineage manifest. Bounded; carries derivative
+ * identity, transformation versions, coverage and per-block SOURCE lineage so a
+ * validator can prove lineage. NEVER carries reconstructed prose or OCR text.
+ */
+function buildReconstructionManifest(
+  r: NonNullable<IntelligencePackageInput["reconstruction"]>,
+) {
+  return {
+    schema: "PROOVRA_PACKAGE_SCREEN_RECONSTRUCTION",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    classification: "DERIVED_RECONSTRUCTED",
+    advisory:
+      "This is machine-DERIVED, source-linked review material reconstructed from the ORIGINAL screen evidence. It is not acquired evidence: a visible label is not a verified identity and a displayed timestamp is not a provider-verified time. This manifest carries lineage and integrity metadata only — never the reconstructed conversation or OCR text.",
+    algorithm: "SHA-256",
+    descriptorSha256: bound(r.descriptorSha256, 64),
+    descriptorSizeBytes: clampInt(r.descriptorSizeBytes, 0, Number.MAX_SAFE_INTEGER),
+    coverage: r.coverage === "COMPLETE" ? "COMPLETE" : "PARTIAL",
+    ocrEnabled: r.ocrEnabled === true,
+    acquisitionComplete: r.acquisitionComplete === true,
+    transformationVersions: {
+      keyframe: bound(r.transformationVersions.keyframe, 80),
+      ocr: bound(r.transformationVersions.ocr, 80),
+      reconstruction: bound(r.transformationVersions.reconstruction, 80),
+    },
+    sources: r.sources.slice(0, MAX_DERIVED_ASSETS).map((s) => ({
+      evidencePartId: bound(s.evidencePartId, IDENT_CHAR_MAX),
+      sourceSha256: s.sourceSha256 ? bound(s.sourceSha256, 64) : null,
+    })),
+    keyframeCount: clampInt(r.keyframeCount, 0, Number.MAX_SAFE_INTEGER),
+    blockCount: clampInt(r.blockCount, 0, Number.MAX_SAFE_INTEGER),
+    blocks: r.blocks.slice(0, MAX_RECONSTRUCTION_BLOCKS).map((b) => ({
+      blockId: bound(b.blockId, IDENT_CHAR_MAX),
+      sequence: clampInt(b.sequence, 0, Number.MAX_SAFE_INTEGER),
+      kind: bound(b.kind, 40),
+      sourceEvidencePartIds: b.sourceEvidencePartIds
+        .slice(0, 100)
+        .map((id) => bound(id, IDENT_CHAR_MAX)),
+      sourceOffsetMsRange: [
+        clampInt(b.sourceOffsetMsRange[0], 0, Number.MAX_SAFE_INTEGER),
+        clampInt(b.sourceOffsetMsRange[1], 0, Number.MAX_SAFE_INTEGER),
+      ] as [number, number],
+      observedInFrames: clampInt(b.observedInFrames, 0, Number.MAX_SAFE_INTEGER),
     })),
   };
 }

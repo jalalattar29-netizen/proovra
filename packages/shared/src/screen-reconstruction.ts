@@ -133,6 +133,27 @@ export function scrollOverlap(prev: ScreenObservation[], next: ScreenObservation
   return 0;
 }
 
+/**
+ * Does geometry corroborate that a full-frame overlap is genuinely the SAME
+ * rendered screen (rather than two screens with identical text)? True only when
+ * every one of the `k` overlapped rows carries a visual fingerprint on BOTH
+ * sides and they agree. Absent fingerprints, text equality alone never proves it.
+ */
+function geometryCorroborates(
+  prev: ScreenObservation[],
+  next: ScreenObservation[],
+  k: number,
+): boolean {
+  for (let i = 0; i < k; i += 1) {
+    const a = prev[prev.length - k + i];
+    const b = next[i];
+    if (!a.fingerprint || !b.fingerprint || a.fingerprint !== b.fingerprint) {
+      return false;
+    }
+  }
+  return true;
+}
+
 class UnionFind {
   private parent = new Map<string, string>();
   find(x: string): string {
@@ -183,6 +204,21 @@ export function reconstructScreenConversation(
     const k = scrollOverlap(prev, next);
     if (k === 0) {
       // No shared content across this boundary — continuity cannot be proven.
+      possibleGap = true;
+      continue;
+    }
+    // CONSERVATIVE DEDUP GUARD (§29). A "full-frame overlap" — the overlap run
+    // spans the ENTIRE prev frame AND the ENTIRE next frame — carries no scroll
+    // delta: there is no residual content on either side to prove that content
+    // actually scrolled. That is indistinguishable from two independent screens
+    // that happen to show identical text (two distinct "OK" messages), and text
+    // equality is NEVER sufficient to merge. Such a boundary merges ONLY when
+    // geometry corroborates it (a visual fingerprint agrees on every overlapped
+    // row — the same rendered screen). Otherwise the rows stay distinct and the
+    // boundary is flagged as a possible gap, because a full page could have
+    // scrolled past between the two keyframes.
+    const fullFrameOverlap = k === prev.length && k === next.length;
+    if (fullFrameOverlap && !geometryCorroborates(prev, next, k)) {
       possibleGap = true;
       continue;
     }

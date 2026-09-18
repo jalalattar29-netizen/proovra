@@ -37,6 +37,7 @@ import {
   MessageSquare,
   Package,
   ShieldCheck,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useToast } from "../../../../components/ui";
@@ -95,6 +96,7 @@ import { AppListbox } from "../../../../components/app-primitives";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
+import { EvidenceDerivedReviewTab } from "./_tabs/EvidenceDerivedReviewTab";
 import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixTab";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
@@ -104,6 +106,7 @@ const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIco
   { id: "review", label: "Review", icon: ClipboardCheck },
   { id: "artifacts", label: "Artifacts", icon: Package },
   { id: "discussion", label: "Discussion", icon: MessageSquare },
+  { id: "derived", label: "Derived Review", icon: Sparkles },
   { id: "technical", label: "Technical Appendix", icon: FileText },
 ];
 
@@ -938,7 +941,10 @@ function EvidenceDetailPageInner() {
         : null;
 
   const visibleTabs = DETAIL_TABS.filter(
-    (t) => !(t.id === "discussion" && !canSeeDiscussion),
+    (t) =>
+      !(t.id === "discussion" && !canSeeDiscussion) &&
+      // UC-4 — the Derived Review surface is an Enterprise intelligence affordance.
+      !(t.id === "derived" && !canSeeIntelligence),
   );
 
   // Single context bag passed into every tab. Adding a new field
@@ -1369,6 +1375,12 @@ function EvidenceDetailPageInner() {
             {activeTab === "review" ? <EvidenceReviewTab ctx={ctx} /> : null}
             {activeTab === "artifacts" ? <EvidenceArtifactsTab ctx={ctx} /> : null}
             {activeTab === "discussion" ? <EvidenceDiscussionTab ctx={ctx} /> : null}
+            {activeTab === "derived" ? (
+              <EvidenceDerivedReviewTab
+                ctx={ctx}
+                onGoToArtifacts={() => setActiveTab("artifacts")}
+              />
+            ) : null}
             {activeTab === "technical" ? (
               <EvidenceTechnicalAppendixTab
                 ctx={ctx}

@@ -32,12 +32,26 @@ const PACKAGE_ASSET_KINDS = new Set([
   "video_frame",
   "audio_waveform",
   "low_res_proxy",
+  // UC-4 — DERIVED screen intelligence artifacts.
+  "video_keyframe",
+  "screen_reconstruction",
 ]);
 type PackageAssetKind =
   | "image_thumbnail"
   | "video_frame"
   | "audio_waveform"
-  | "low_res_proxy";
+  | "low_res_proxy"
+  | "video_keyframe"
+  | "screen_reconstruction";
+// The manifest carries METADATA (identity/digest/size/source), never bytes, so
+// UC-4 keyframes and the reconstruction descriptor are listed regardless of
+// size — the thumbnail byte cap only guards the older embedding-oriented kinds.
+const SIZE_CAPPED_KINDS = new Set([
+  "image_thumbnail",
+  "video_frame",
+  "audio_waveform",
+  "low_res_proxy",
+]);
 
 export async function buildVerificationPackageIntelligence(input: {
   teamId: string | null | undefined;
@@ -72,9 +86,10 @@ export async function buildVerificationPackageIntelligence(input: {
           a.status === "COMPLETED" &&
           a.derivedSha256 != null &&
           a.sizeBytes != null &&
-          a.sizeBytes <= MAX_PACKAGE_THUMBNAIL_BYTES &&
           a.contentType != null &&
-          PACKAGE_ASSET_KINDS.has(a.assetKind),
+          PACKAGE_ASSET_KINDS.has(a.assetKind) &&
+          (!SIZE_CAPPED_KINDS.has(a.assetKind) ||
+            a.sizeBytes <= MAX_PACKAGE_THUMBNAIL_BYTES),
       )
       .map((a) => ({
         id: a.id,
@@ -98,13 +113,83 @@ export async function buildVerificationPackageIntelligence(input: {
       createdAtUtc: s.createdAtUtc,
     }));
 
-    if (mediaSignals.length === 0 && derivedAssets.length === 0) {
+    // 3. UC-4 — reconstruction lineage manifest, read from the ONE descriptor.
+    let reconstruction: IntelligencePackageInput["reconstruction"] = null;
+    try {
+      const { readScreenReconstructionDescriptor } = await import(
+        "@proovra/shared-runtime/media-intelligence"
+      );
+      const { UC4_RESOURCE_BOUNDS } = await import("@proovra/shared");
+      const read = await readScreenReconstructionDescriptor(
+        input.teamId,
+        input.evidenceId,
+        {
+          prisma,
+          getObjectBytes: async ({ bucket, key }) => {
+            const { getObjectStream } = await import("./storage.js");
+            const stream = (await getObjectStream({ bucket, key })) as unknown as AsyncIterable<
+              Buffer | string
+            >;
+            const chunks: Buffer[] = [];
+            let total = 0;
+            for await (const chunk of stream) {
+              const buf =
+                typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
+              total += buf.byteLength;
+              if (total > UC4_RESOURCE_BOUNDS.maxDescriptorBytes) {
+                throw new Error("descriptor_too_large");
+              }
+              chunks.push(buf);
+            }
+            return Buffer.concat(chunks);
+          },
+        },
+      );
+      if (read) {
+        const d = read.descriptor;
+        // Find the descriptor derivative row for its digest + size.
+        const descRow = derivedRows.find(
+          (a) => a.assetKind === "screen_reconstruction" && a.status === "COMPLETED",
+        );
+        reconstruction = {
+          descriptorSha256: descRow?.derivedSha256 ?? "",
+          descriptorSizeBytes: descRow?.sizeBytes ?? 0,
+          coverage: d.coverage,
+          ocrEnabled: d.ocrEnabled,
+          acquisitionComplete: d.acquisitionComplete,
+          transformationVersions: {
+            keyframe: d.transformationVersions.keyframe,
+            ocr: d.transformationVersions.ocr,
+            reconstruction: d.transformationVersions.reconstruction,
+          },
+          sources: d.sources.map((s) => ({
+            evidencePartId: s.evidencePartId,
+            sourceSha256: s.sourceSha256,
+          })),
+          keyframeCount: d.stats.keyframeCount,
+          blockCount: d.stats.blockCount,
+          blocks: d.blocks.map((b) => ({
+            blockId: b.blockId,
+            sequence: b.sequence,
+            kind: b.kind,
+            sourceEvidencePartIds: b.sourceEvidencePartIds,
+            sourceOffsetMsRange: b.sourceOffsetMsRange,
+            observedInFrames: b.observedInFrames,
+          })),
+        };
+      }
+    } catch {
+      reconstruction = null;
+    }
+
+    if (mediaSignals.length === 0 && derivedAssets.length === 0 && !reconstruction) {
       return null;
     }
 
     return {
       mediaSignals,
       derivedAssets,
+      reconstruction,
     };
   } catch (err) {
     logger.warn(

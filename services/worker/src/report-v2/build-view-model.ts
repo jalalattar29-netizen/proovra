@@ -1832,6 +1832,9 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     // Phase 4A Final Closure — intelligence summary carried verbatim.
     intelligenceSummary: input.intelligenceSummary ?? null,
 
+    // UC-4 — DERIVED screen-review summary carried verbatim.
+    derivedReview: input.derivedReview ?? null,
+
     // Phase 4B Final Closure (I2) — lifecycle summary carried verbatim.
     lifecycleSummary: input.lifecycleSummary ?? null,
 

@@ -202,8 +202,13 @@ export function sanitiseSearchTags(
  *     from it instead of the overwritten `captureMethod`), and machine-
  *     extracted text is marked DERIVED (`textProvenance` + a `derived_text`
  *     tag) so a hit on it never reads as original content.
+ * 5 → UC-4: reconstructed screen-review text (SCREEN_RECONSTRUCTION) is
+ *     distinguished from machine-extracted OCR — it carries a
+ *     `derived_reconstructed` tag and a `reconstructedProvenance` metadata
+ *     marker, so a search surface can tell DERIVED_RECONSTRUCTED apart from
+ *     DERIVED_MACHINE_EXTRACTED. The bump reindexes every existing document.
  */
-export const SEARCH_PROJECTION_VERSION = 4;
+export const SEARCH_PROJECTION_VERSION = 5;
 
 /**
  * WHERE RECIPIENT CONTACT LIVES IN A SEARCH DOCUMENT.
@@ -414,6 +419,7 @@ export type EvidenceProjectionInput = {
 import { isSearchIndexableLifecycle } from "./search-readiness.js";
 import {
   DERIVED_TEXT_PROVENANCE,
+  DERIVED_RECONSTRUCTED_PROVENANCE,
   resolveEvidenceAcquisition,
 } from "./evidence-acquisition.js";
 
@@ -468,9 +474,17 @@ export function buildEvidenceProjection(
 
   const legalHoldState = evidence.storageObjectLockLegalHoldStatus ?? null;
   const publicVerifyState = evidence.publicVerifyState ?? null;
-  const extracted = (input.extractedTextChunks ?? [])
-    .filter((s): s is string => typeof s === "string" && s.length > 0)
-    .join("\n");
+  const extractedChunks = (input.extractedTextChunks ?? []).filter(
+    (s): s is string => typeof s === "string" && s.length > 0,
+  );
+  const extracted = extractedChunks.join("\n");
+  // UC-4 — reconstructed review text (DERIVED_RECONSTRUCTED) is a distinct
+  // provenance from machine-extracted OCR (DERIVED_MACHINE_EXTRACTED). The
+  // indexer prefixes each chunk with its `[kind]`, so the reconstruction chunk
+  // is identifiable without a second query.
+  const hasReconstructed = extractedChunks.some((c) =>
+    c.startsWith("[SCREEN_RECONSTRUCTION]"),
+  );
   const acquisition = resolveEvidenceAcquisition({
     acquisitionMode: evidence.acquisitionMode ?? null,
   });
@@ -536,6 +550,11 @@ export function buildEvidenceProjection(
       // Machine-extracted text (OCR / transcript) in the body is DERIVED from
       // the source parts — never original content.
       textProvenance: extracted.length > 0 ? DERIVED_TEXT_PROVENANCE : null,
+      // UC-4 — marks that some of the derived body is RECONSTRUCTED review
+      // material, not merely machine-extracted. Distinct provenance (§40).
+      reconstructedProvenance: hasReconstructed
+        ? DERIVED_RECONSTRUCTED_PROVENANCE
+        : null,
       publicVerifyState,
       retentionPolicySource: evidence.retentionPolicySource ?? null,
       lifecycleState: lifecycle,
@@ -565,6 +584,7 @@ export function buildEvidenceProjection(
       lifecycle === "ON_HOLD" ? "on_hold" : null,
       lifecycle === "RETENTION_LOCKED" ? "retention_locked" : null,
       extracted.length > 0 ? "derived_text" : null,
+      hasReconstructed ? "derived_reconstructed" : null,
     ]),
     visibilityScope: { publicVerifyState },
     governanceScope: {

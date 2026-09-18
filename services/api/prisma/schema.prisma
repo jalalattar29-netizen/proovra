@@ -2471,7 +2471,14 @@ model ExtensionAuthCode {
   expiresAtUtc  DateTime  @map("expires_at_utc") @db.Timestamptz(6)
   usedAtUtc     DateTime? @map("used_at_utc") @db.Timestamptz(6)
   createdAtUtc  DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Deleting a user removes their outstanding authorization codes (ON DELETE
+  // CASCADE — the intended security semantic). onUpdate is pinned to NoAction
+  // to match the shipped migration (20280620000000), which created the FK with
+  // PostgreSQL's default ON UPDATE NO ACTION; user ids are immutable UUID PKs so
+  // ON UPDATE never fires. Without this pin the datamodel's implicit
+  // onUpdate: Cascade drifts from the released FK and raw-schema-verify reports
+  // a phantom drop+recreate of this constraint.
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([expiresAtUtc])
   @@map("extension_auth_codes")
@@ -5133,6 +5140,10 @@ enum EvidenceExtractedTextKind {
   PDF_TEXT
   TRANSCRIPT_AUDIO
   TRANSCRIPT_VIDEO
+  // UC-4 — DERIVED screen intelligence text, persisted through the canonical
+  // extracted-text authority with honest provenance.
+  OCR_SCREEN // DERIVED_MACHINE_EXTRACTED — local Tesseract OCR of DERIVED keyframes
+  SCREEN_RECONSTRUCTION // DERIVED_RECONSTRUCTED — reconstructed review material
 }
 
 enum EvidenceExtractedTextStatus {

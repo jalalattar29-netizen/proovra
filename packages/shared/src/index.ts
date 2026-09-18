@@ -2411,3 +2411,4 @@ export * from "./screen-continuous-manifest.js";
 export * from "./screen-reconstruction.js";
 export * from "./screen-keyframes.js";
 export * from "./screen-intelligence.js";
+export * from "./screen-intelligence-descriptor.js";

@@ -1515,4 +1515,123 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // ===========================================================================
+  // UC-4 — DERIVED screen intelligence (Derived Review)
+  // ===========================================================================
+
+  // POST /v1/evidence/:evidenceId/derived-review/generate?teamId=…
+  //
+  // Enqueue (or regenerate) the DERIVED screen-intelligence run for one
+  // evidence. Reuses the durable MediaIntelligenceRun lifecycle via the
+  // `reconstruct_screen` kind on the media-intelligence queue. Idempotent: a
+  // duplicate trigger collapses on the run's `${kind}:${evidenceId}` key while a
+  // run is in flight; `regenerate=true` starts a fresh run once the prior one
+  // settled.
+  app.post(
+    "/v1/evidence/:evidenceId/derived-review/generate",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { evidenceId } = ParamsEvidenceId.parse(req.params);
+      const Body = z
+        .object({ teamId: z.string().uuid(), regenerate: z.boolean().optional() })
+        .strict();
+      const body = Body.parse(req.body ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "intelligence.run",
+        resourceKind: "evidence",
+        resourceId: evidenceId,
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+
+      const evidence = await prisma.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { id: true, teamId: true, deletedAt: true },
+      });
+      if (!evidence || evidence.teamId !== body.teamId || evidence.deletedAt) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      // Regeneration: allow a fresh run only when the prior one has settled, so
+      // a live run is never duplicated. A settled (COMPLETED/FAILED/DISMISSED)
+      // prior run is dismissed first so the idempotency key can be reused.
+      if (body.regenerate) {
+        const { listRecentRunsForEvidence, dismissRun } = await import(
+          "@proovra/shared-runtime/media-intelligence"
+        );
+        const runs = await listRecentRunsForEvidence(body.teamId, evidenceId, prisma);
+        const prior = runs.find((r) => r.kind === "reconstruct_screen");
+        if (prior && (prior.status === "PENDING" || prior.status === "PROCESSING")) {
+          return reply.code(409).send({ error: { code: "run_in_progress" } });
+        }
+        if (prior) await dismissRun(prior.id, body.teamId, prisma);
+      }
+
+      const { enqueueMediaIntelligenceAnalysis } = await import(
+        "../queue/media-intelligence-queue.js"
+      );
+      const enq = await enqueueMediaIntelligenceAnalysis({
+        teamId: body.teamId,
+        evidenceId,
+        kind: "reconstruct_screen",
+      });
+      if (!enq.enqueued && !String(enq.reason ?? "").startsWith("job_")) {
+        return reply.code(503).send({
+          error: { code: "queue_unavailable", detail: enq.reason },
+        });
+      }
+      return reply.code(202).send({
+        evidenceId,
+        queued: enq.enqueued,
+        reason: enq.enqueued ? null : enq.reason,
+      });
+    },
+  );
+
+  // GET /v1/evidence/:evidenceId/derived-review?teamId=…&offset=&limit=
+  //
+  // Read the bounded, source-linked DERIVED review projection + run status. The
+  // response carries reconstructed blocks (DERIVED_RECONSTRUCTED) with per-block
+  // source links (ORIGINAL part ids + keyframe bytes-proxy URLs) — never storage
+  // keys, never OCR internals beyond the reviewed text.
+  app.get(
+    "/v1/evidence/:evidenceId/derived-review",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { evidenceId } = ParamsEvidenceId.parse(req.params);
+      const Query = z.object({
+        teamId: z.string().uuid(),
+        offset: z.coerce.number().int().min(0).optional(),
+        limit: z.coerce.number().int().min(1).max(500).optional(),
+      });
+      const q = Query.parse(req.query ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: q.teamId,
+        permission: "evidence.read",
+        resourceKind: "evidence",
+        resourceId: evidenceId,
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+
+      const evidence = await prisma.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { id: true, teamId: true },
+      });
+      if (!evidence || evidence.teamId !== q.teamId) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      const { getScreenIntelligenceReview } = await import(
+        "../services/media-intelligence/screen-intelligence-read.service.js"
+      );
+      const review = await getScreenIntelligenceReview(q.teamId, evidenceId, {
+        offset: q.offset,
+        limit: q.limit,
+      });
+      return reply.code(200).send({ evidenceId, ...review });
+    },
+  );
 }

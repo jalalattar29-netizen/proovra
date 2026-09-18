@@ -1314,6 +1314,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // UC-1 (2026-09-17) — one new table extension_auth_codes for the
       // extension OAuth PKCE flow. No `security_events` column/index/enum/mapping.
       "20280620000000_uc1_extension_oauth_codes",
+      // UC-4 (2026-09-18) — DERIVED screen intelligence: widens the
+      // media_intelligence_runs + evidence_part_derived_assets kind CHECKs
+      // (constraint swaps) and adds two EvidenceExtractedTextKind labels. No
+      // `security_events` column, index, enum or mapping.
+      "20280650000000_uc4_screen_intelligence",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

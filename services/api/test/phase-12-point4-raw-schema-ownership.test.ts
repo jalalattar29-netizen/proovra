@@ -657,3 +657,81 @@ describe("raw-schema ownership — the platform-incident partial UNIQUE index", 
     expect(body).toMatch(/@@unique\(\[\s*teamId\s*,\s*fingerprint\s*\]\)/);
   });
 });
+
+// ===========================================================================
+// THE EXTENSION-AUTH-CODES FOREIGN KEY (onUpdate)
+// ===========================================================================
+//
+// `clean-db-boot` failed on a freshly migrated database with TWO lines for one
+// object:
+//
+//   FAIL — 2 UNREGISTERED schema divergence(s) appeared:
+//     + extension_auth_codes::-::Removed foreign key on columns (user_id)
+//     + extension_auth_codes::+::Added foreign key on columns (user_id)
+//
+// A drop+recreate of the SAME foreign key is `migrate diff`'s way of saying a
+// referential action differs — the compact output does not print which. Proven
+// against a live PostgreSQL 16 (`--script`, and `pg_constraint.confupdtype`):
+// the only difference is ON UPDATE. The migration (20280620000000) created the
+// FK with bare `ON DELETE CASCADE`, which leaves PostgreSQL's default
+// `ON UPDATE NO ACTION`; the datamodel relation relied on Prisma's implicit
+// `onUpdate: Cascade`. `ON DELETE CASCADE` — the intended security semantic,
+// so deleting a user removes their outstanding authorization codes — is
+// IDENTICAL on both sides and is preserved.
+//
+// The fix pins the datamodel to the shipped reality (`onUpdate: NoAction`)
+// rather than rewriting a released, checksum-registered migration. user ids are
+// immutable UUID PKs, so ON UPDATE never fires either way. These assertions
+// hold the datamodel and the migration in agreement so the drift cannot return.
+describe("raw-schema ownership — the extension_auth_codes user_id foreign key", () => {
+  const OAUTH_MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20280620000000_uc1_extension_oauth_codes/migration.sql",
+  );
+
+  it("the datamodel pins the relation to ON DELETE CASCADE and ON UPDATE NoAction", () => {
+    const start = SCHEMA.indexOf("model ExtensionAuthCode {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    // The delete action is the security semantic and must stay CASCADE.
+    expect(body).toMatch(/onDelete:\s*Cascade/);
+    // The update action must be pinned to NoAction, or Prisma's implicit
+    // onUpdate: Cascade drifts from the released FK and clean-db-boot fails
+    // with the phantom drop+recreate above.
+    expect(
+      body,
+      "onUpdate must be pinned to NoAction to match the shipped FK; without it " +
+        "the implicit Cascade default reintroduces the extension_auth_codes drift",
+    ).toMatch(/onUpdate:\s*NoAction/);
+  });
+
+  it("the creating migration still writes ON DELETE CASCADE and no ON UPDATE clause", () => {
+    const sql = readFileSync(OAUTH_MIGRATION, "utf8");
+    // The FK is created with the delete cascade and PostgreSQL's default update
+    // behaviour. If a future edit adds `ON UPDATE CASCADE` here, the datamodel
+    // pin above must change to match — the two are asserted together on purpose.
+    expect(sql).toMatch(
+      /FOREIGN KEY \("user_id"\) REFERENCES "users"\("id"\) ON DELETE CASCADE/,
+    );
+    expect(
+      sql,
+      "the shipped migration does not declare ON UPDATE; the datamodel pin " +
+        "encodes that. If this changes, update ExtensionAuthCode.user together.",
+    ).not.toMatch(/ON UPDATE/i);
+  });
+
+  it("the FK is not registered in the raw-schema manifest — the datamodel owns it fully", () => {
+    // Prisma CAN express this FK exactly (unlike the partial indexes above), so
+    // it must NOT appear as a MIGRATION_MANAGED_RAW_SQL entry. A registration
+    // here would mean two authorities for one expressible constraint.
+    const registered = manifest.objects.filter(
+      (o) => o.table === "extension_auth_codes",
+    );
+    expect(
+      registered,
+      "extension_auth_codes FK is datamodel-expressible and must not be in the " +
+        "raw-schema manifest:\n" +
+        registered.map((o) => `${o.sign} ${o.object}`).join("\n"),
+    ).toEqual([]);
+  });
+});

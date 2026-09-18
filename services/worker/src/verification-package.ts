@@ -8,7 +8,6 @@ import { readFileSync, createWriteStream } from "node:fs";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pipeline } from "node:stream/promises";
 import { type Readable } from "stream";
 import { getObjectStream } from "./storage.js";
 import { HashingMeter, cleanupStagedTemp, type StagedPackage } from "./verification-package-staging.js";

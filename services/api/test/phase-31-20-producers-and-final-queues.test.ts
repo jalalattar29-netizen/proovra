@@ -186,17 +186,19 @@ const FFMPEG_PRODUCERS_SRC = readSource(
 );
 
 describe("Phase 31.20 — ffmpeg-derived asset producers", () => {
-  it("exports the three producers", () => {
+  it("exports the producers (3 Phase-31.20 + UC-4 keyframe)", () => {
     expect(FFMPEG_PRODUCERS_SRC).toMatch(/export async function produceVideoFrame/);
     expect(FFMPEG_PRODUCERS_SRC).toMatch(/export async function produceAudioWaveform/);
     expect(FFMPEG_PRODUCERS_SRC).toMatch(/export async function produceLowResProxy/);
+    // UC-4 added a real bounded keyframe producer in this same module.
+    expect(FFMPEG_PRODUCERS_SRC).toMatch(/export async function produceVideoKeyframes/);
   });
 
   it("each producer probes ffmpeg capability before spawning", () => {
     const code = stripComments(FFMPEG_PRODUCERS_SRC);
     const calls = code.match(/await detectFfmpegCapability\(\)/g) ?? [];
-    // Three producers × one probe call each.
-    expect(calls.length).toBe(3);
+    // Three Phase-31.20 producers + the UC-4 keyframe producer × one probe each.
+    expect(calls.length).toBe(4);
   });
 
   it("each producer returns UNSUPPORTED (not FAILED) when ffmpeg is missing", () => {

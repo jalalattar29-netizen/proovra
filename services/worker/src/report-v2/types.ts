@@ -7,6 +7,7 @@ import type {
   ReviewerArtifactRoleSource,
 } from "@proovra/shared";
 import type { IntelligenceSummarySection } from "./sections/intelligence-summary.js";
+import type { DerivedReviewSection } from "./sections/derived-review.js";
 import type { LifecycleSummaryData } from "./sections/lifecycle-summary.js";
 
 export type ReportArtifactMode = "external" | "internal";
@@ -410,6 +411,11 @@ export type ReportV2Input = {
    */
   intelligenceSummary?: IntelligenceSummarySection | null;
   /**
+   * UC-4 — OPTIONAL bounded DERIVED screen-review summary (provenance-only
+   * counts + coverage). When null/omitted, NO new HTML is emitted.
+   */
+  derivedReview?: DerivedReviewSection | null;
+  /**
    * Phase 4B Final Closure (I2) — OPTIONAL bounded lifecycle summary.
    * When null/omitted, NO new HTML is emitted.
    */
@@ -732,6 +738,12 @@ export type ReportViewModel = {
    * `ReportV2Input.intelligenceSummary`.
    */
   intelligenceSummary: IntelligenceSummarySection | null;
+
+  /**
+   * UC-4 — bounded DERIVED screen-review summary. `null` => renderer emits NO
+   * new HTML. Carried verbatim from `ReportV2Input.derivedReview`.
+   */
+  derivedReview: DerivedReviewSection | null;
 
   /**
    * Phase 4B Final Closure (I2) — bounded lifecycle summary projection.

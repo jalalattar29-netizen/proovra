@@ -426,7 +426,13 @@ export type DerivedAssetTransformation =
 export const DEFAULT_DERIVED_ASSET_VARIANT_KEY = "default" as const;
 
 /** UC-4 — new DERIVED asset kinds (free-text `assetKind`, no schema/CHECK change). */
-export const UC4_DERIVED_ASSET_KINDS = ["video_keyframe", "screen_crop"] as const;
+export const UC4_DERIVED_ASSET_KINDS = [
+  "video_keyframe",
+  "screen_crop",
+  // The reconstruction PRODUCT: one bounded versioned JSON descriptor per run,
+  // stored as this derived asset's object bytes (variantKey recon-vN).
+  "screen_reconstruction",
+] as const;
 export type Uc4DerivedAssetKind = (typeof UC4_DERIVED_ASSET_KINDS)[number];
 
 const TRANSFORMATION_BY_KIND: Readonly<Record<string, DerivedAssetTransformation>> = {
@@ -437,6 +443,7 @@ const TRANSFORMATION_BY_KIND: Readonly<Record<string, DerivedAssetTransformation
   compact_review_preview: "review-preview/v1",
   video_keyframe: "video-keyframe/v1",
   screen_crop: "screen-crop/v1",
+  screen_reconstruction: "screen-conversation-reconstruction/v1",
 };
 
 export function derivedAssetTransformationForKind(

@@ -497,7 +497,8 @@ describe("Phase 31 — route source contract", () => {
     // Phase 31.18: GET /v1/investigation/reviewers = 1 more (total 8).
     // Wave 2 Phase 6: POST /v1/investigation/media-intelligence/refresh
     // adds one more authorizeOrFail call → total 9.
-    expect(calls.length).toBe(9);
+    // UC-4: POST derived-review/generate + GET derived-review = 2 more → total 11.
+    expect(calls.length).toBe(11);
     for (const c of calls) {
       expect(c).toMatch(/antiEnumeration:\s*true/);
     }
