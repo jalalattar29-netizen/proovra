@@ -1,5 +1,6 @@
 import {
   S3Client,
+  CopyObjectCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
   PutObjectCommand,
@@ -9,6 +10,8 @@ import {
   type ObjectLockMode,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { env } from "./config.js";
 // Phase O1.4 — instrument S3 calls with bounded PROOVRA spans so the
@@ -330,6 +333,120 @@ export async function putObjectBuffer(params: {
           // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
         }),
       );
+    },
+  );
+}
+
+/**
+ * Stream a LOCAL FILE to object storage without buffering it in RAM. The file is
+ * read as a bounded disk stream and its byte length is supplied as ContentLength,
+ * so the S3 client streams it directly. Used to upload a streamed verification
+ * package from its private temp file to a private STAGING key — peak memory stays
+ * O(stream chunk), never O(package bytes). Checksums are computed by streaming over
+ * the same file (a second bounded pass), never by materialising it.
+ */
+export async function putObjectFromFile(params: {
+  bucket: string;
+  key: string;
+  filePath: string;
+  contentType: string;
+  contentLength?: number;
+  sha256Base64?: string;
+  contentMd5Base64?: string;
+  metadata?: Record<string, string | null | undefined>;
+  tags?: Record<string, string | null | undefined>;
+  immutable?: boolean;
+}) {
+  const bucket = mustClean(params.bucket, "bucket");
+  const key = mustClean(params.key, "key");
+  const size = params.contentLength ?? (await stat(params.filePath)).size;
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new Error("putObjectFromFile: file is empty");
+  }
+  const metadata = normalizeMetadata(params.metadata);
+  const tagging = normalizeTagging(params.tags);
+  const objectLock =
+    params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_PUT_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "put_object_from_file",
+      "proovra.size_bytes": size,
+      "proovra.immutable": Boolean(params.immutable),
+    },
+    async () => {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: createReadStream(params.filePath),
+          ContentType: normalizeContentType(params.contentType),
+          ContentLength: size,
+          Metadata: metadata,
+          ...(params.sha256Base64 ? { ChecksumSHA256: params.sha256Base64 } : {}),
+          ...(params.contentMd5Base64 ? { ContentMD5: params.contentMd5Base64 } : {}),
+          ...(tagging ? { Tagging: tagging } : {}),
+          ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+          ...(objectLock.retainUntilDate
+            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+            : {}),
+        }),
+      );
+      return { sizeBytes: size };
+    },
+  );
+}
+
+/**
+ * Server-side copy (promote) of one object to another key. The bytes never travel
+ * through worker RAM — S3 copies them internally. Used to PROMOTE a gated
+ * verification-package staging object to its canonical key after the allowance gate
+ * passes, so the package never becomes canonical before it is allowed.
+ */
+export async function copyObject(params: {
+  sourceBucket: string;
+  sourceKey: string;
+  destBucket: string;
+  destKey: string;
+  contentType?: string;
+  metadata?: Record<string, string | null | undefined>;
+  tags?: Record<string, string | null | undefined>;
+  immutable?: boolean;
+}) {
+  const sourceBucket = mustClean(params.sourceBucket, "sourceBucket");
+  const sourceKey = mustClean(params.sourceKey, "sourceKey");
+  const destBucket = mustClean(params.destBucket, "destBucket");
+  const destKey = mustClean(params.destKey, "destKey");
+  const metadata = normalizeMetadata(params.metadata);
+  const tagging = normalizeTagging(params.tags);
+  const objectLock =
+    params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_PUT_OBJECT,
+    {
+      "proovra.bucket": destBucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(destKey),
+      "proovra.operation": "copy_object",
+      "proovra.immutable": Boolean(params.immutable),
+    },
+    async () => {
+      await s3.send(
+        new CopyObjectCommand({
+          Bucket: destBucket,
+          Key: destKey,
+          CopySource: `${sourceBucket}/${sourceKey}`,
+          ...(params.contentType ? { ContentType: normalizeContentType(params.contentType) } : {}),
+          ...(metadata ? { Metadata: metadata, MetadataDirective: "REPLACE" } : {}),
+          ...(tagging ? { Tagging: tagging, TaggingDirective: "REPLACE" } : {}),
+          ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+          ...(objectLock.retainUntilDate
+            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+            : {}),
+        }),
+      );
+      return { copied: true };
     },
   );
 }

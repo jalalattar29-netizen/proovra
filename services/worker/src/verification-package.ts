@@ -4,8 +4,14 @@ import path from "node:path";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 void buildLifecycleAndExchangeManifests; // tree-shake guard
 import { createHash, sign as cryptoSign } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { PassThrough } from "stream";
+import { readFileSync, createWriteStream } from "node:fs";
+import { mkdtemp, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
+import { type Readable } from "stream";
+import { getObjectStream } from "./storage.js";
+import { HashingMeter, cleanupStagedTemp, type StagedPackage } from "./verification-package-staging.js";
 // Phase O1.5C — bounded verification package pipeline spans.
 // NEVER proof contents / signatures / TSA tokens / OTS proof bytes /
 // private keys in attributes.
@@ -55,7 +61,9 @@ import { assertWorkerSignerUsable } from "./signing/signer-control-guard.js";
 
 type VerificationEvidenceFile = {
   name: string;
-  buffer: Buffer;
+  /** Optional: present only on legacy/in-memory callers. ORIGINAL parts are
+   *  STREAMED from storage (storageBucket/storageKey + sha256 + sizeBytes). */
+  buffer?: Buffer | null;
   sha256?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
@@ -275,11 +283,12 @@ type CustodyEventRecord = {
   eventHash?: string | null;
 };
 
-type PackageEntry = {
-  name: string;
-  buffer: Buffer;
-  contentType?: string;
-};
+type PackageEntry =
+  | { name: string; buffer: Buffer; contentType?: string }
+  // A STREAMED entry (an ORIGINAL evidence part) whose bytes were streamed from
+  // storage into the archive, never buffered. Its digest/size are the canonical
+  // values already computed at ingest, recorded here for the checksums index.
+  | { name: string; streamed: true; sha256: string; sizeBytes: number; contentType?: string };
 
 function splitCustodyEvents(
   custody: unknown
@@ -904,6 +913,69 @@ function appendPackageEntry(
   archive.append(buffer, { name });
 }
 
+/**
+ * Append ONE ORIGINAL evidence part. Prefers STREAMING from storage (never
+ * buffering the bytes); falls back to an in-memory buffer only for legacy callers
+ * that still supply one. The canonical ingest digest + size are recorded for the
+ * checksums index and match the bytes placed in the archive.
+ */
+async function appendEvidencePart(
+  archive: archiver.Archiver,
+  entries: PackageEntry[],
+  name: string,
+  file: {
+    buffer?: Buffer | null;
+    sha256?: string | null;
+    sizeBytes?: number | null;
+    storageBucket?: string | null;
+    storageKey?: string | null;
+    mimeType?: string | null;
+  },
+): Promise<void> {
+  const contentType = file.mimeType ?? "application/octet-stream";
+  if (file.storageBucket && file.storageKey && file.sha256 && file.sizeBytes != null) {
+    const body = await getObjectStream({ bucket: file.storageBucket, key: file.storageKey });
+    appendStreamedPartEntry(
+      archive,
+      entries,
+      name,
+      body as unknown as Readable,
+      file.sha256,
+      Number(file.sizeBytes),
+      contentType,
+    );
+    return;
+  }
+  if (file.buffer) {
+    appendPackageEntry(archive, entries, name, file.buffer, contentType);
+    return;
+  }
+  throw new Error(`evidence part '${name}' has neither storage coordinates nor buffer bytes`);
+}
+
+/**
+ * Append an ORIGINAL evidence part by STREAMING its bytes from storage into the
+ * archive — the part is never materialised as a Buffer. Its canonical ingest digest
+ * and size (already verified upstream) are recorded for the checksums index, exactly
+ * matching the bytes that flow into the ZIP.
+ */
+function appendStreamedPartEntry(
+  archive: archiver.Archiver,
+  entries: PackageEntry[],
+  name: string,
+  source: Readable,
+  sha256: string,
+  sizeBytes: number,
+  contentType?: string
+): void {
+  entries.push(
+    contentType === undefined
+      ? { name, streamed: true, sha256, sizeBytes }
+      : { name, streamed: true, sha256, sizeBytes, contentType },
+  );
+  archive.append(source, { name });
+}
+
 function buildPackageChecksums(entries: PackageEntry[]) {
   return {
     schema: "PROOVRA_PACKAGE_CHECKSUMS",
@@ -914,8 +986,10 @@ function buildPackageChecksums(entries: PackageEntry[]) {
     files: entries
       .map((entry) => ({
         path: entry.name,
-        sizeBytes: entry.buffer.length,
-        sha256: sha256Hex(entry.buffer),
+        sizeBytes: "buffer" in entry ? entry.buffer.length : entry.sizeBytes,
+        // Streamed ORIGINAL parts use their canonical ingest digest (identical to
+        // the bytes streamed into the archive); buffer entries are hashed inline.
+        sha256: "buffer" in entry ? sha256Hex(entry.buffer) : entry.sha256,
         contentType: entry.contentType ?? null,
       }))
       .sort((a, b) => a.path.localeCompare(b.path)),
@@ -1408,7 +1482,7 @@ function buildEvidenceManifest(
       sourceLabel: file.sourceLabel ?? null,
       // UC-0 — original vs capture record. Derivatives are never listed here.
       artifactClass: normalizePartArtifactClass(file.artifactClass),
-      sizeBytes: file.buffer.length,
+      sizeBytes: file.sizeBytes ?? file.buffer?.length ?? 0,
       mimeType: file.mimeType ?? null,
       sha256:
         typeof file.sha256 === "string" && /^[a-f0-9]{64}$/i.test(file.sha256)
@@ -1453,7 +1527,7 @@ function buildDuplicateDigests(
       // still carry raw paths; defensive strip here protects them too.
       originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,
-      sizeBytes: file.sizeBytes ?? file.buffer.length,
+      sizeBytes: file.sizeBytes ?? file.buffer?.length ?? 0,
     });
     groups.set(sha256, existing);
   });
@@ -1551,7 +1625,7 @@ export function buildOriginalLinkage(
       // Phase D Blocker 2 — strip path components before exposing.
       originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,
-      sizeBytes: file.sizeBytes ?? file.buffer.length,
+      sizeBytes: file.sizeBytes ?? file.buffer?.length ?? 0,
       sha256: file.sha256 ?? null,
       storageBucket: file.storageBucket ?? null,
       storageKey: file.storageKey ?? null,
@@ -2299,7 +2373,7 @@ export async function createVerificationPackage(data: {
    * only the bounded projection (hashes + fingerprints + bounded labels).
    */
   provenanceChain?: import("@proovra/shared").ProvenanceChain | null;
-}): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
+}): Promise<{ staged: StagedPackage; artifactPresence: VerificationPackageArtifactPresence }> {
   // THE SIGNING BOUNDARY for the verification package.
   //
   // Every package this function returns carries a signed manifest —
@@ -2375,10 +2449,17 @@ export async function createVerificationPackage(data: {
   // `assertWorkspaceAllowsVerificationPackageArtifact` after the
   // package is built.
 
+  // STREAMING OUTPUT SINK (UC-3 streaming closure): the archive is piped through a
+  // hashing/byte-counting meter into a PRIVATE TEMP FILE — never accumulated as one
+  // in-RAM Buffer. On completion we know the EXACT byte size + incremental SHA-256,
+  // which the caller measures BEFORE the canonical allowance gate.
+  const tempDir = await mkdtemp(join(tmpdir(), "proovra-vpkg-"));
+  const tempPath = join(tempDir, "package.zip");
+
   return new Promise((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
-    const stream = new PassThrough();
-    const chunks: Buffer[] = [];
+    const meter = new HashingMeter();
+    const out = createWriteStream(tempPath);
     const packageEntries: PackageEntry[] = [];
     const artifactPresence: VerificationPackageArtifactPresence = {
       manifestPresent: false,
@@ -2394,21 +2475,39 @@ export async function createVerificationPackage(data: {
     const fail = (error: unknown) => {
       if (settled) return;
       settled = true;
+      // Fail closed: no half-written temp file survives a generation failure.
+      void cleanupStagedTemp({ tempDir });
       reject(error instanceof Error ? error : new Error(String(error)));
     };
 
     const succeed = () => {
       if (settled) return;
       settled = true;
-      resolve({ buffer: Buffer.concat(chunks), artifactPresence });
+      void (async () => {
+        try {
+          const { size } = await stat(tempPath);
+          const digest = meter.hash.digest();
+          resolve({
+            staged: {
+              tempPath,
+              tempDir,
+              sizeBytes: size,
+              sha256Hex: digest.toString("hex"),
+              sha256Base64: digest.toString("base64"),
+            },
+            artifactPresence,
+          });
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      })();
     };
 
-    stream.on("data", (chunk) => {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    });
-
-    stream.on("end", succeed);
-    stream.on("error", fail);
+    // out 'finish' is the authoritative completion signal — it fires only once the
+    // whole archive has flowed through the meter and been flushed to disk.
+    out.on("finish", succeed);
+    out.on("error", fail);
+    meter.on("error", fail);
     archive.on("error", fail);
     archive.on("warning", (warning) => {
       const code = (warning as Error & { code?: string }).code;
@@ -2419,7 +2518,7 @@ export async function createVerificationPackage(data: {
       fail(warning);
     });
 
-    archive.pipe(stream);
+    archive.pipe(meter).pipe(out);
     void (async () => {
   try {
 
@@ -2499,23 +2598,11 @@ export async function createVerificationPackage(data: {
 
     if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
-      appendPackageEntry(
-        archive,
-        packageEntries,
-        file.finalName,
-        file.buffer,
-        file.mimeType ?? "application/octet-stream"
-      );
+      await appendEvidencePart(archive, packageEntries, file.finalName, file);
     } else {
-      evidenceFilesWithFinalName.forEach((file) => {
-        appendPackageEntry(
-          archive,
-          packageEntries,
-          `evidence-parts/${file.finalName}`,
-          file.buffer,
-          file.mimeType ?? "application/octet-stream"
-        );
-      });
+      for (const file of evidenceFilesWithFinalName) {
+        await appendEvidencePart(archive, packageEntries, `evidence-parts/${file.finalName}`, file);
+      }
 
       appendPackageEntry(
         archive,

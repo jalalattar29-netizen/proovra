@@ -36,10 +36,12 @@ const REMOVED_FILES = [
 ];
 
 describe("Offline Verifier decommission — package generator", () => {
-  it("appendPackageEntry is the only archive-write path (contents = its call set)", () => {
-    // The single archive.append lives inside appendPackageEntry.
+  it("archive writes are confined to the two entry helpers (buffer + streamed part)", () => {
+    // UC-3 streaming closure: buffer entries append via appendPackageEntry; ORIGINAL
+    // parts stream from storage via appendStreamedPartEntry. Both are the ONLY
+    // archive.append sites — no ad-hoc appends elsewhere.
     const appends = (generator.match(/archive\.append\(/g) ?? []).length;
-    expect(appends).toBe(1);
+    expect(appends).toBe(2);
   });
 
   it("no appendPackageEntry call emits any offline verifier file", () => {
