@@ -410,6 +410,14 @@ export const DERIVED_ASSET_TRANSFORMATIONS = [
   "audio-waveform/v1",
   "low-res-proxy/v1",
   "review-preview/v1",
+  // UC-4 — DERIVED evidence intelligence transformations. Keyframes/crops are
+  // ordinary EvidencePartDerivedAsset rows (destruction + storage accounting already
+  // cover them); their per-keyframe identity is the derived-asset variantKey.
+  "video-keyframe/v1",
+  "screen-crop/v1",
+  "screen-ocr/v1",
+  "screen-overlap-analysis/v1",
+  "screen-conversation-reconstruction/v1",
   "unspecified-legacy",
 ] as const;
 export type DerivedAssetTransformation =
@@ -417,12 +425,18 @@ export type DerivedAssetTransformation =
 
 export const DEFAULT_DERIVED_ASSET_VARIANT_KEY = "default" as const;
 
+/** UC-4 — new DERIVED asset kinds (free-text `assetKind`, no schema/CHECK change). */
+export const UC4_DERIVED_ASSET_KINDS = ["video_keyframe", "screen_crop"] as const;
+export type Uc4DerivedAssetKind = (typeof UC4_DERIVED_ASSET_KINDS)[number];
+
 const TRANSFORMATION_BY_KIND: Readonly<Record<string, DerivedAssetTransformation>> = {
   image_thumbnail: "image-thumbnail/v1",
   video_frame: "video-frame/v1",
   audio_waveform: "audio-waveform/v1",
   low_res_proxy: "low-res-proxy/v1",
   compact_review_preview: "review-preview/v1",
+  video_keyframe: "video-keyframe/v1",
+  screen_crop: "screen-crop/v1",
 };
 
 export function derivedAssetTransformationForKind(
@@ -433,6 +447,16 @@ export function derivedAssetTransformationForKind(
 
 /** Search/package marker for text that PROOVRA derived from a source artifact. */
 export const DERIVED_TEXT_PROVENANCE = "DERIVED_MACHINE_EXTRACTED" as const;
+
+/** UC-4 — marker for review content PROOVRA RECONSTRUCTED (never directly acquired). */
+export const DERIVED_RECONSTRUCTED_PROVENANCE = "DERIVED_RECONSTRUCTED" as const;
+
+/** The provenance markers a search/package surface may attach to derived text. */
+export const DERIVED_TEXT_PROVENANCES = [
+  DERIVED_TEXT_PROVENANCE,
+  DERIVED_RECONSTRUCTED_PROVENANCE,
+] as const;
+export type DerivedTextProvenance = (typeof DERIVED_TEXT_PROVENANCES)[number];
 
 // =============================================================================
 // Public Verify acquisition contract (the ONE typed shape the web consumes)

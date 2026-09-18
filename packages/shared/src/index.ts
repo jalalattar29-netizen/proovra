@@ -2409,3 +2409,4 @@ export * from "./web-capture-manifest.js";
 export * from "./screen-capture-manifest.js";
 export * from "./screen-continuous-manifest.js";
 export * from "./screen-reconstruction.js";
+export * from "./screen-keyframes.js";
