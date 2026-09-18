@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "3bac000a27b54b5cb5d93fa2f289293508372f4566003d736343ac67212204bc",
-  "routeInventoryHash": "8f295f914e42e852ffca34d198868e273e5ec6edcde9e19e68cfa1132d78d154",
-  "consumerInventoryHash": "be2e69b95e0913408f8678e7693f62c7368d87b38036ba111dfacad3eae57318",
+  "routeInventoryHash": "7fbe7888a37dd57ef91a11852bcbdf74f594f5715d1d536b7e3348ed21202690",
+  "consumerInventoryHash": "26c34f0f2ce58246d9880865cb386da3ab348ab963c1ebefd5513ce93940e5bc",
   "dispositionsHash": "3d02fe259d3b7e3c281aec0df6da9194403d68cc7d98c8a482b54864296cd965",
   "totals": {
-    "RegisteredRoutes": 1156,
-    "ProductionRegisteredRoutes": 1155,
+    "RegisteredRoutes": 1158,
+    "ProductionRegisteredRoutes": 1157,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 954,
+    "ProductConsumedRoutes": 956,
     "NonProductDispositionedRoutes": 201,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 954,
+    "ProductConsumerRoutes": 956,
     "MachineOnlyConsumerRoutes": 6,
     "NoConsumerRoutes": 196,
     "AuthorizationUnresolved": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1252,
-    "ReachableSensitiveMutations": 1245,
-    "ClassifiedSensitiveMutations": 1245,
+    "TerminalWriters": 1267,
+    "ReachableSensitiveMutations": 1260,
+    "ClassifiedSensitiveMutations": 1260,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 7,
@@ -77,7 +77,7 @@
       "WORKSPACE": 55,
       "WORKSPACE_MEMBERSHIP_INVITATION": 52,
       "CASE": 79,
-      "EVIDENCE_CUSTODY_FINALIZATION": 289,
+      "EVIDENCE_CUSTODY_FINALIZATION": 304,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 62,
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1121,
-      "JOB_ATTRIBUTED_REACHABLE": 113,
+      "JOB_ATTRIBUTED_REACHABLE": 128,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 14,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8660,
-      "UNRESOLVED_IDENTIFIER": 1087
+      "METHOD_ON_VALUE": 8789,
+      "UNRESOLVED_IDENTIFIER": 1145
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 957,
+      "PRODUCT_CONNECTED": 959,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1154,
+    "TenantBindingResolved": 1156,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 16,
       "GLOBAL_USER_SELF": 58,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 690,
+      "WORKSPACE_SCOPED": 692,
       "ORGANIZATION_SCOPED": 105,
       "MULTI_TENANT_PLATFORM_ADMIN": 119,
       "TOKEN_SCOPED": 45,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1154,
+    "ClassifiedSecurityRoutes": 1156,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -183,8 +183,8 @@
         "tagged": 413
       },
       "WORKSPACE_AUTHORIZED": {
-        "primary": 379,
-        "tagged": 379
+        "primary": 381,
+        "tagged": 381
       },
       "ORGANIZATION_AUTHORIZED": {
         "primary": 105,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1156,
+  "totalRoutes": 1158,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 17,
     "INTERNAL_REQUIRED": 185,
-    "TARGET_COMPLETE": 954
+    "TARGET_COMPLETE": 956
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 224
+    "UNPROVEN": 226
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 430,
+    "PLATFORM_CORE": 432,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -351,7 +351,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/evidence/:evidenceId",
       "registeringFile": "services/api/src/routes/cases.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:764",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:767",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -435,7 +435,7 @@
       "method": "DELETE",
       "route": "/v1/evidence/:id",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:708",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:711",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -483,7 +483,7 @@
       "method": "DELETE",
       "route": "/v1/evidence/:id/relationships/:relationshipId",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:525",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:528",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2578,6 +2578,18 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "GET:/v1/evidence/:evidenceId/derived-review",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/evidence/:evidenceId/derived-review",
+      "registeringFile": "services/api/src/routes/media-intelligence.routes.ts",
+      "productConsumer": "apps/web/lib/media-intelligence/useDerivedReview.ts:122",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/evidence/:evidenceId/media-intelligence",
       "vertical": "OPERATIONS_INTELLIGENCE",
       "method": "GET",
@@ -2739,7 +2751,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/original",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:573",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:576",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2799,7 +2811,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/review-workspace",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:285",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:288",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2823,7 +2835,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/reviewer-workflow/events",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:225",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:228",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7059,7 +7071,7 @@
       "method": "PATCH",
       "route": "/v1/evidence/:id/label",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:549",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:552",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8523,7 +8535,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/evidence",
       "registeringFile": "services/api/src/routes/cases.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:742",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:745",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9310,6 +9322,18 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "POST:/v1/evidence/:evidenceId/derived-review/generate",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/evidence/:evidenceId/derived-review/generate",
+      "registeringFile": "services/api/src/routes/media-intelligence.routes.ts",
+      "productConsumer": "apps/web/lib/media-intelligence/useDerivedReview.ts:148",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "POST:/v1/evidence/:evidenceId/media-intelligence/run",
       "vertical": "OPERATIONS_INTELLIGENCE",
       "method": "POST",
@@ -9351,7 +9375,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/archive",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1782",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1794",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9435,7 +9459,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/lock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1670",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1682",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9459,7 +9483,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/relationships",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:493",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:496",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9507,7 +9531,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/unlock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1716",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1728",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14174,49 +14198,49 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:2040"
+        "services/worker/src/index.ts:2057"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2055"
+        "services/worker/src/index.ts:2072"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2070"
+        "services/worker/src/index.ts:2087"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2086"
+        "services/worker/src/index.ts:2103"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:2106"
+        "services/worker/src/index.ts:2123"
       ],
       "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:2126"
+        "services/worker/src/index.ts:2143"
       ],
       "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:2146"
+        "services/worker/src/index.ts:2163"
       ],
       "exifQueueName": [
-        "services/worker/src/index.ts:2169"
+        "services/worker/src/index.ts:2186"
       ],
       "miSearchIndexQueueName": [
-        "services/worker/src/index.ts:2205"
+        "services/worker/src/index.ts:2222"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2220"
+        "services/worker/src/index.ts:2237"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2239"
+        "services/worker/src/index.ts:2256"
       ],
       "graphDomainSyncQueueName": [
-        "services/worker/src/index.ts:2258"
+        "services/worker/src/index.ts:2275"
       ],
       "graphTimelineSyncQueueName": [
-        "services/worker/src/index.ts:2273"
-      ],
-      "graphSearchProjectionQueueName": [
         "services/worker/src/index.ts:2290"
       ],
+      "graphSearchProjectionQueueName": [
+        "services/worker/src/index.ts:2307"
+      ],
       "orgHealthRefreshQueueName": [
-        "services/worker/src/index.ts:2311"
+        "services/worker/src/index.ts:2328"
       ]
     },
     "registryEntries": 34,
@@ -14244,9 +14268,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1519#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1528#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1518#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -14286,8 +14310,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14327,8 +14351,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14368,8 +14392,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14409,8 +14433,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14450,8 +14474,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14491,8 +14515,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14532,8 +14556,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14573,8 +14597,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14614,8 +14638,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14655,8 +14679,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14696,8 +14720,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14737,8 +14761,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14778,8 +14802,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14819,8 +14843,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14860,8 +14884,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14901,8 +14925,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14935,8 +14959,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -14969,8 +14993,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15003,8 +15027,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15037,8 +15061,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15071,8 +15095,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15105,8 +15129,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15139,8 +15163,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -15877,8 +15901,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts#evidence_part_derived_assets.$queryRawUnsafe@138",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:138",
+      "writerId": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts#evidence_part_derived_assets.$queryRawUnsafe@145",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:145",
       "file": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
       "enclosingDeclaration": "recordDerivedAsset",
       "kind": "RAW_SQL",
@@ -15888,7 +15912,9 @@
       "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [
-        "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob"
+        "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob",
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -16015,7 +16041,8 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/media-intelligence.processor.ts#processExifQueueJob",
-        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob"
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -16047,7 +16074,8 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/media-intelligence.processor.ts#processExifQueueJob",
-        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob"
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -16077,15 +16105,17 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/ops/media-intelligence/runs/:runId/dismiss"
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/ops.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -16114,6 +16144,7 @@
         "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/complete",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
@@ -16157,7 +16188,8 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/media-intelligence.processor.ts#processExifQueueJob",
-        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob"
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -16170,6 +16202,198 @@
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@649",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:649",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "persistDerivedText",
+      "kind": "DATABASE",
+      "target": "evidenceExtractedText",
+      "mutationKind": "create",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@674",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:674",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "persistDerivedText",
+      "kind": "DATABASE",
+      "target": "evidenceExtractedText",
+      "mutationKind": "create",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.deleteMany@636",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:636",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "persistDerivedText",
+      "kind": "DATABASE",
+      "target": "evidenceExtractedText",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@295",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:295",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "runAndPersistScreenIntelligence",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@509",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:509",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "runAndPersistScreenIntelligence",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@539",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:539",
+      "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+      "enclosingDeclaration": "runAndPersistScreenIntelligence",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -16238,15 +16462,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1082#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1155#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -16290,15 +16514,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1082#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1155#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -16342,15 +16566,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1082#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1155#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -16399,8 +16623,8 @@
         "MODULE services/api/src/routes/ops.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -16493,6 +16717,7 @@
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -16651,6 +16876,7 @@
         "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/complete",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
@@ -18045,8 +18271,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@5549",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5549",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@5562",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5562",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18078,8 +18304,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5557",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5557",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5570",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5570",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18111,8 +18337,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11530",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11530",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11543",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11543",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18144,8 +18370,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12929",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12929",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12942",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12942",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18177,8 +18403,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13295",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13295",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13308",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13308",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18210,8 +18436,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5498",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5498",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5511",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5511",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18243,8 +18469,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5815",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5815",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5828",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5828",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18276,8 +18502,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6391",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6391",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6404",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6404",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18309,8 +18535,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6503",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6503",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6516",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6516",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18342,8 +18568,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6313",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6313",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6326",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6326",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18375,8 +18601,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8697",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8697",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8710",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8710",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18408,8 +18634,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7666",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7666",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7679",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7679",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18441,8 +18667,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7742",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7742",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7755",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7755",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18474,8 +18700,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7821",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7821",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7834",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7834",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18507,8 +18733,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7493",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7493",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7506",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7506",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18540,8 +18766,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7549",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7549",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7562",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7562",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18573,8 +18799,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7604",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7604",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7617",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7617",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18606,8 +18832,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@6056",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6056",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@6069",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6069",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18639,8 +18865,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7335",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7335",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7348",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7348",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18672,8 +18898,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7391",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7391",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7404",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7404",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18705,8 +18931,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7446",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7446",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7459",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7459",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18738,8 +18964,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6318",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6318",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6331",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6331",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -18771,8 +18997,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13299",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13299",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13312",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13312",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -24706,6 +24932,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id",
         "GET /v1/evidence/:id/artifacts/status",
@@ -25143,6 +25370,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -25694,6 +25922,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id",
         "GET /v1/evidence/:id/artifacts/status",
@@ -26131,6 +26360,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -26682,6 +26912,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id",
         "GET /v1/evidence/:id/artifacts/status",
@@ -27119,6 +27350,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -28803,6 +29035,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id",
         "GET /v1/evidence/:id/artifacts/status",
@@ -29228,6 +29461,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -47474,6 +47708,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -47879,6 +48114,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -48403,6 +48639,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -48805,6 +49042,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -49329,6 +49567,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -49734,6 +49973,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -50258,6 +50498,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -50660,6 +50901,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -51184,6 +51426,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -51586,6 +51829,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -52110,6 +52354,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -52512,6 +52757,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -53036,6 +53282,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -53438,6 +53685,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -53962,6 +54210,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -54364,6 +54613,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -54888,6 +55138,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -55293,6 +55544,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -55817,6 +56069,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -56219,6 +56472,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -57257,6 +57511,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -57659,6 +57914,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -58183,6 +58439,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -58585,6 +58842,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -59109,6 +59367,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -59511,6 +59770,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -60035,6 +60295,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -60437,6 +60698,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -60961,6 +61223,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -61363,6 +61626,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -61887,6 +62151,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -62289,6 +62554,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -62813,6 +63079,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -63215,6 +63482,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -63739,6 +64007,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -64144,6 +64413,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -64668,6 +64938,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -65073,6 +65344,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -65597,6 +65869,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -65999,6 +66272,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -66523,6 +66797,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -66928,6 +67203,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -67452,6 +67728,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -67854,6 +68131,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -68378,6 +68656,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -68783,6 +69062,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -71472,6 +71752,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id",
         "GET /v1/evidence/:id/artifacts/status",
@@ -71939,6 +72220,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -77500,6 +77782,7 @@
         "GET /v1/evidence/:evidenceId/custody/attestations",
         "GET /v1/evidence/:evidenceId/derived-assets",
         "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
+        "GET /v1/evidence/:evidenceId/derived-review",
         "GET /v1/evidence/:evidenceId/media-intelligence",
         "GET /v1/evidence/:id/external-intake-summary",
         "GET /v1/evidence/:id/governance-snapshot",
@@ -77899,6 +78182,7 @@
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence/:evidenceId/custody/attestations/sign",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
+        "POST /v1/evidence/:evidenceId/derived-review/generate",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
         "POST /v1/evidence/:id/archive",
         "POST /v1/evidence/:id/certifications/attest",
@@ -81351,7 +81635,7 @@
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:611#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:625#startCaptureDraftReaperScheduler"
+        "SCHEDULE services/worker/src/index.ts:642#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81383,7 +81667,7 @@
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:611#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:625#startCaptureDraftReaperScheduler"
+        "SCHEDULE services/worker/src/index.ts:642#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81477,9 +81761,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1519#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1528#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1518#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81510,9 +81794,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1519#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1528#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1518#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81545,8 +81829,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1413#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1431#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1430#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1448#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81579,8 +81863,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81613,8 +81897,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81647,8 +81931,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81681,8 +81965,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81715,8 +81999,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81749,8 +82033,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81783,8 +82067,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81817,8 +82101,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81851,8 +82135,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81885,8 +82169,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81919,8 +82203,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81953,8 +82237,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81991,12 +82275,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82033,12 +82317,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82075,12 +82359,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82117,12 +82401,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82157,12 +82441,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82197,12 +82481,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82237,12 +82521,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82275,8 +82559,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82309,8 +82593,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82343,8 +82627,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82377,8 +82661,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82411,8 +82695,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82445,8 +82729,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82479,8 +82763,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82513,8 +82797,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82547,8 +82831,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82581,8 +82865,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82615,8 +82899,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82711,8 +82995,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1198#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1209#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82745,8 +83029,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1198#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1209#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82764,8 +83048,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@1092",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1092",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@1107",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1107",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processComputePerceptualHashesJob",
       "kind": "RAW_SQL",
@@ -82795,8 +83079,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@900",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:900",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@915",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:915",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processExtractTechnicalMetadataJob",
       "kind": "RAW_SQL",
@@ -82826,8 +83110,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$executeRawUnsafe@1391",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1391",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$executeRawUnsafe@1406",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1406",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -82857,8 +83141,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$queryRawUnsafe@1320",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1320",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$queryRawUnsafe@1335",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1335",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -82888,8 +83172,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence.$executeRawUnsafe@916",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:916",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence.$executeRawUnsafe@931",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:931",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processExtractTechnicalMetadataJob",
       "kind": "RAW_SQL",
@@ -82919,8 +83203,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#investigation_graph_edges.$queryRawUnsafe@1367",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1367",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#investigation_graph_edges.$queryRawUnsafe@1382",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1382",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -82965,7 +83249,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:872#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82998,7 +83282,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:872#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83031,7 +83315,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:872#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83064,7 +83348,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83097,7 +83381,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83130,7 +83414,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83163,7 +83447,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83196,7 +83480,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83229,7 +83513,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83262,7 +83546,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83295,7 +83579,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83328,7 +83612,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83361,7 +83645,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83394,7 +83678,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83427,7 +83711,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83460,7 +83744,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83493,7 +83777,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:932#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83732,8 +84016,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3437",
-      "terminalLocation": "services/worker/src/processor.ts:3437",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3475",
+      "terminalLocation": "services/worker/src/processor.ts:3475",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83763,8 +84047,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4213",
-      "terminalLocation": "services/worker/src/processor.ts:4213",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4257",
+      "terminalLocation": "services/worker/src/processor.ts:4257",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83794,8 +84078,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4339",
-      "terminalLocation": "services/worker/src/processor.ts:4339",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4429",
+      "terminalLocation": "services/worker/src/processor.ts:4429",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83825,8 +84109,163 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@3622",
-      "terminalLocation": "services/worker/src/processor.ts:3622",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.copyObject@4369",
+      "terminalLocation": "services/worker/src/processor.ts:4369",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "copyObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4349",
+      "terminalLocation": "services/worker/src/processor.ts:4349",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4364",
+      "terminalLocation": "services/worker/src/processor.ts:4364",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4568",
+      "terminalLocation": "services/worker/src/processor.ts:4568",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4574",
+      "terminalLocation": "services/worker/src/processor.ts:4574",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#report.create@3666",
+      "terminalLocation": "services/worker/src/processor.ts:3666",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83856,8 +84295,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@4364",
-      "terminalLocation": "services/worker/src/processor.ts:4364",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@4454",
+      "terminalLocation": "services/worker/src/processor.ts:4454",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83887,8 +84326,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4315",
-      "terminalLocation": "services/worker/src/processor.ts:4315",
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4405",
+      "terminalLocation": "services/worker/src/processor.ts:4405",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -83935,6 +84374,7 @@
         "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
         "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob",
         "SWEEP services/worker/src/search-index-reconciler.ts#runSearchIndexReconciler",
         "SWEEP services/worker/src/subsystem-queue-processors.ts#processGraphReconcileJob",
         "SWEEP services/worker/src/subsystem-queue-processors.ts#processGraphSearchProjectionJob",
@@ -83942,15 +84382,15 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
-        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
-        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1022#runTrashGraceReconciliation",
+        "BOOT services/worker/src/index.ts:1082#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1198#runIntelligenceRunReconciler",
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:1035#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1155#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1209#startIntelligenceRunReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83985,8 +84425,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84176,8 +84616,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84242,8 +84682,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84254,6 +84694,38 @@
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/screen-intelligence.handler.ts#OBJECT_STORAGE.deleteObject@192",
+      "terminalLocation": "services/worker/src/screen-intelligence.handler.ts:192",
+      "file": "services/worker/src/screen-intelligence.handler.ts",
+      "enclosingDeclaration": "processReconstructScreenJob",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -84277,9 +84749,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1082#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1155#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84576,18 +85048,18 @@
       }
     },
     {
-      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.DeleteObjectCommand@427",
-      "terminalLocation": "services/worker/src/storage.ts:427",
+      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.CopyObjectCommand@437",
+      "terminalLocation": "services/worker/src/storage.ts:437",
       "file": "services/worker/src/storage.ts",
-      "enclosingDeclaration": "deleteObject",
+      "enclosingDeclaration": "copyObject",
       "kind": "EXTERNAL",
       "target": "OBJECT_STORAGE",
-      "mutationKind": "DeleteObjectCommand",
+      "mutationKind": "CopyObjectCommand",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [
-        "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -84607,8 +85079,44 @@
       }
     },
     {
-      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.PutObjectCommand@316",
-      "terminalLocation": "services/worker/src/storage.ts:316",
+      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.DeleteObjectCommand@572",
+      "terminalLocation": "services/worker/src/storage.ts:572",
+      "file": "services/worker/src/storage.ts",
+      "enclosingDeclaration": "deleteObject",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "DeleteObjectCommand",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob",
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "SCHEDULE services/worker/src/index.ts:642#startCaptureDraftReaperScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.PutObjectCommand@320",
+      "terminalLocation": "services/worker/src/storage.ts:320",
       "file": "services/worker/src/storage.ts",
       "enclosingDeclaration": "putObjectBuffer",
       "kind": "EXTERNAL",
@@ -84619,15 +85127,48 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob",
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
         "SWEEP services/worker/src/processor.ts#processGenerateReport",
-        "SWEEP services/worker/src/redaction/redaction-derivative.processor.ts#processRedactionDerivativeJob"
+        "SWEEP services/worker/src/redaction/redaction-derivative.processor.ts#processRedactionDerivativeJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1519#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1528#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1518#startExchangePackageBuilderScheduler"
       ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.PutObjectCommand@382",
+      "terminalLocation": "services/worker/src/storage.ts:382",
+      "file": "services/worker/src/storage.ts",
+      "enclosingDeclaration": "putObjectFromFile",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "PutObjectCommand",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
         "authorizationBeforeMutation": "NOT_APPLICABLE",
@@ -84657,7 +85198,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84688,7 +85229,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84699,6 +85240,39 @@
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/verification-package-staging.ts#OBJECT_STORAGE.deleteObject@175",
+      "terminalLocation": "services/worker/src/verification-package-staging.ts:175",
+      "file": "services/worker/src/verification-package-staging.ts",
+      "enclosingDeclaration": "reconcileStaleStaging",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/verification-package-staging.ts#reconcileStaleStaging"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "SCHEDULE services/worker/src/index.ts:642#startCaptureDraftReaperScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -84721,9 +85295,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1461#runWebhookDispatcherTick",
-        "BOOT services/worker/src/index.ts:1468#runWebhookDispatcherTick",
-        "SCHEDULE services/worker/src/index.ts:1460#startWebhookDispatcherScheduler"
+        "BOOT services/worker/src/index.ts:1478#runWebhookDispatcherTick",
+        "BOOT services/worker/src/index.ts:1485#runWebhookDispatcherTick",
+        "SCHEDULE services/worker/src/index.ts:1477#startWebhookDispatcherScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84754,7 +85328,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84785,7 +85359,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84816,7 +85390,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84847,7 +85421,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2676#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -85373,7 +85947,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 764,
+          "line": 767,
           "caller": "removeCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -85391,7 +85965,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:764 (removeCase, WEB); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1062 (EvidenceTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:767 (removeCase, WEB); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1062 (EvidenceTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85784,7 +86358,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6700",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6713",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -85795,7 +86369,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 708,
+          "line": 711,
           "caller": "moveToTrash",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -85805,7 +86379,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:708 (moveToTrash, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:711 (moveToTrash, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85852,7 +86426,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7797",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7810",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -85914,7 +86488,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7425",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7438",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -85976,7 +86550,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7583",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7596",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86038,7 +86612,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8433",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8446",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86049,7 +86623,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 525,
+          "line": 528,
           "caller": "handleRemoveRelationship",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86059,7 +86633,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:525 (handleRemoveRelationship, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:528 (handleRemoveRelationship, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87934,7 +88508,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12326",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12339",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -93593,7 +94167,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 286,
+          "line": 289,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -93619,7 +94193,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/cases.tsx:15 (CasesScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:286 (EvidenceDetailPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:416 (EvidenceLibraryPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/cases.tsx:15 (CasesScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:289 (EvidenceDetailPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:416 (EvidenceLibraryPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -96690,7 +97264,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6744",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6757",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -97305,6 +97879,73 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/evidence/:evidenceId/derived-review",
+      "method": "GET",
+      "path": "/v1/evidence/:evidenceId/derived-review",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1599",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
+          "line": 122,
+          "caller": "useDerivedReview",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/lib/media-intelligence/useDerivedReview.ts:122 (useDerivedReview, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "authenticatedSession",
+        "evidence",
+        "revokedSession",
+        "supportAccessGrant",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/evidence/:evidenceId/media-intelligence",
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/media-intelligence",
@@ -97376,7 +98017,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9872",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9885",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97494,7 +98135,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8474",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8487",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97561,7 +98202,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7620",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7633",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97620,7 +98261,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10585",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10598",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97716,7 +98357,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12128",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12141",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97787,7 +98428,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7304",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7317",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97846,7 +98487,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7837",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7850",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97909,7 +98550,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7921",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7934",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97972,7 +98613,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8279",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8292",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -98116,7 +98757,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7462",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7475",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98235,7 +98876,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11441",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11454",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98246,7 +98887,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 573,
+          "line": 576,
           "caller": "openOriginal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98254,7 +98895,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 592,
+          "line": 595,
           "caller": "downloadOriginal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98272,7 +98913,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:573 (openOriginal, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:592 (downloadOriginal, WEB); apps/web/app/(app)/evidence/page.tsx:533 (EvidenceLibraryPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:576 (openOriginal, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:595 (downloadOriginal, WEB); apps/web/app/(app)/evidence/page.tsx:533 (EvidenceLibraryPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -98318,7 +98959,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6157",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6170",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98381,7 +99022,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8333",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8346",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98432,7 +99073,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10898",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10911",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98571,7 +99212,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11225",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11238",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98639,7 +99280,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8751",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8764",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98650,7 +99291,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 285,
+          "line": 288,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98676,7 +99317,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:285 (EvidenceDetailPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:539 (EvidenceLibraryPageInner, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:293 (ReviewScopePicker, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:288 (EvidenceDetailPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:539 (EvidenceLibraryPageInner, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:293 (ReviewScopePicker, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -98743,7 +99384,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8125",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8138",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98811,7 +99452,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8310",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8323",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98822,7 +99463,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 225,
+          "line": 228,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98832,7 +99473,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:225 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:228 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -98872,7 +99513,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5738",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5751",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98929,7 +99570,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11667",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11680",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99030,7 +99671,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11329",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11342",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99098,7 +99739,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6906",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6919",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -121654,7 +122295,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7717",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7730",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121707,7 +122348,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7369",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7382",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121769,7 +122410,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5771",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5784",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121780,7 +122421,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 549,
+          "line": 552,
           "caller": "handleSaveLabel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121790,7 +122431,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:549 (handleSaveLabel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:552 (handleSaveLabel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121832,7 +122473,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7527",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7540",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121894,7 +122535,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8386",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8399",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121948,7 +122589,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8137",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8150",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -121977,7 +122618,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 446,
+          "line": 449,
           "caller": "saveWorkflow",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121987,7 +122628,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:334 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:446 (saveWorkflow, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:334 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:449 (saveWorkflow, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130699,7 +131340,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 742,
+          "line": 745,
           "caller": "assignCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130717,7 +131358,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:742 (assignCase, WEB); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1477 (AttachEvidenceModal, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:745 (assignCase, WEB); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1477 (AttachEvidenceModal, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134026,7 +134667,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5260",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135108,6 +135749,73 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "POST /v1/evidence/:evidenceId/derived-review/generate",
+      "method": "POST",
+      "path": "/v1/evidence/:evidenceId/derived-review/generate",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1531",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
+          "line": 148,
+          "caller": "useDerivedReview",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/lib/media-intelligence/useDerivedReview.ts:148 (useDerivedReview, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "authenticatedSession",
+        "evidence",
+        "revokedSession",
+        "supportAccessGrant",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "POST /v1/evidence/:evidenceId/media-intelligence/run",
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/media-intelligence/run",
@@ -135188,7 +135896,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8549",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8562",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135260,7 +135968,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7653",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7666",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135322,7 +136030,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6656",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6669",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135333,7 +136041,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1782,
+          "line": 1794,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -135343,7 +136051,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1782 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1794 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135390,7 +136098,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12215",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12228",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135454,7 +136162,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12158",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12171",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135518,7 +136226,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12273",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12286",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135582,7 +136290,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7329",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7342",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135643,7 +136351,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10046",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10059",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135782,7 +136490,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7487",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7500",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135843,7 +136551,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6349",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6362",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135854,7 +136562,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1670,
+          "line": 1682,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -135864,7 +136572,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1670 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1682 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135907,7 +136615,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5874",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5887",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135979,7 +136687,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8347",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8360",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135990,7 +136698,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 493,
+          "line": 496,
           "caller": "saveRelationship",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -136000,7 +136708,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:493 (saveRelationship, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:496 (saveRelationship, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136047,7 +136755,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10710",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10723",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136147,7 +136855,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6719",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6732",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136166,7 +136874,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 724,
+          "line": 727,
           "caller": "restoreTrash",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -136176,7 +136884,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/deleted.tsx:104 (DeletedEvidenceScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:724 (restoreTrash, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/deleted.tsx:104 (DeletedEvidenceScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:727 (restoreTrash, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136223,7 +136931,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6675",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6688",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136242,7 +136950,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1825,
+          "line": 1837,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -136252,7 +136960,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1825 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1837 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136299,7 +137007,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6462",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6475",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136310,7 +137018,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1716,
+          "line": 1728,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -136320,7 +137028,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1716 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1728 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136361,7 +137069,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7059",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7072",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136439,7 +137147,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6268",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6281",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

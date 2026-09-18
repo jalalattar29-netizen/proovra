@@ -65,8 +65,12 @@ const PROCESSOR_SRC = read(
  * copied from the other, the reconciliation would prove nothing.
  */
 const DB_ALLOWED_KINDS: ReadonlyArray<string> = (() => {
+  // Read from the LATEST migration that redefines the constraint. Point 5's
+  // 20271114 catalog established it; UC-4's 20280650000000 widens it again with
+  // `reconstruct_screen`, and on a clean boot the last ADD CONSTRAINT wins — so
+  // the effective DB catalog is this migration's list.
   const sql = read(
-    "services/api/prisma/migrations/20271114000000_point5_media_intelligence_kind_catalog/migration.sql",
+    "services/api/prisma/migrations/20280650000000_uc4_screen_intelligence/migration.sql",
   );
   const check = sql.slice(
     sql.indexOf('ADD CONSTRAINT "media_intelligence_runs_kind_bounded"'),
@@ -154,6 +158,9 @@ const DISPOSITIONS: Record<
   // Registered and drained without work, pending a future processor.
   extract_assets: "reserved_drain",
   reindex: "reserved_drain",
+  // UC-4 — the derived screen-intelligence run. A producer (the derived-review
+  // generate route) emits it and an explicit processor branch handles it.
+  reconstruct_screen: "produced_and_processed",
   // Not in the queue vocabulary at all. Historical rows only.
   compute_duplicates: "legacy_only",
   compute_lineage: "legacy_only",
@@ -164,11 +171,13 @@ const DISPOSITIONS: Record<
 // ===========================================================================
 
 describe("Point 5 — media-intelligence job-kind reconciliation", () => {
-  it("the two reported numbers are 12 queue kinds and 14 run-row kinds", () => {
-    // Both figures were right; they measured different vocabularies.
-    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toHaveLength(12);
-    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toHaveLength(14);
-    expect(DB_ALLOWED_KINDS).toHaveLength(14);
+  it("the two reported numbers are 13 queue kinds and 15 run-row kinds", () => {
+    // Both figures measure different vocabularies. Point 5 established 12/14;
+    // UC-4 added `reconstruct_screen` to the queue vocabulary + the DB catalog,
+    // so the counts are now 13 queue kinds and 15 run-row / DB-allowed kinds.
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toHaveLength(13);
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toHaveLength(15);
+    expect(DB_ALLOWED_KINDS).toHaveLength(15);
   });
 
   it("the difference is exactly the two legacy-only kinds", () => {

@@ -408,7 +408,7 @@ export async function processMediaIntelligenceJob(
   // as DERIVED assets. Owns its own claim/lease/fence inside the handler.
   if (kind === "reconstruct_screen") {
     const { processReconstructScreenJob } = await import(
-      "./screen-intelligence.processor.js"
+      "./screen-intelligence.handler.js"
     );
     return processReconstructScreenJob({
       jobId: job.id,
