@@ -14,6 +14,7 @@ await build({
     "capture-plan": join(HERE, "src/lib/capture-plan.ts"),
     sanitizer: join(HERE, "src/lib/sanitizer.ts"),
     "manifest-builder": join(HERE, "src/lib/manifest-builder.ts"),
+    "denial-copy": join(HERE, "src/lib/denial-copy.ts"),
   },
   outdir: join(HERE, "test/dist"),
   bundle: true,
