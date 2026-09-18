@@ -154,7 +154,8 @@ type VerificationEvidenceFile = {
   /** UC-0 — EvidencePart.artifactClass. */
   artifactClass?: string | null;
   name: string;
-  buffer: Buffer;
+  /** Optional: ORIGINAL parts are streamed from storage, not buffered. */
+  buffer?: Buffer | null;
   sha256?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
@@ -180,7 +181,10 @@ type LoadedEvidenceArtifact = {
   originalFileName: string | null;
   mimeType: string | null;
   kind: ReportEvidenceAssetKind;
-  buffer: Buffer;
+  // Report byte-loading closure: ORIGINAL bytes are NOT held here. The preview loop
+  // fetches ONE artifact at a time from storage, so peak memory is one part.
+  storageBucket: string;
+  storageKey: string;
 };
 
 type VerificationPackageArtifactPresence = {
@@ -1181,6 +1185,19 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+/**
+ * Incrementally SHA-256 a stream WITHOUT materialising it — the integrity re-hash
+ * gate reads each ORIGINAL part exactly once, in bounded chunks, so a large UC-3
+ * continuous Evidence is verified without buffering any part in RAM.
+ */
+async function sha256HexFromStream(stream: Readable): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of stream) {
+    hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return hash.digest("hex");
 }
 
 async function applyRetentionOrThrow(
@@ -2206,8 +2223,9 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         key: part.storageKey,
       });
 
-      const partBuffer = await streamToBuffer(body as unknown as Readable);
-      const partSha = createHash("sha256").update(partBuffer).digest("hex");
+      // Integrity re-hash by STREAMING — each ORIGINAL part is read once in bounded
+      // chunks and never materialised as a Buffer.
+      const partSha = await sha256HexFromStream(body as unknown as Readable);
       hashes.push(partSha);
 
       verificationEvidenceFiles.push({
@@ -2221,10 +2239,9 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
               part.mimeType
             )}`
           ),
-        buffer: partBuffer,
         sha256: partSha,
         mimeType: part.mimeType ?? null,
-        sizeBytes: Number(part.sizeBytes ?? BigInt(partBuffer.length)),
+        sizeBytes: Number(part.sizeBytes ?? 0),
         originalFileName: part.originalFileName ?? null,
         partIndex: part.partIndex,
         storageBucket: part.storageBucket,
@@ -2252,7 +2269,8 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         originalFileName: part.originalFileName ?? null,
         mimeType: part.mimeType ?? null,
         kind: detectEvidenceAssetKind(part.mimeType),
-        buffer: partBuffer,
+        storageBucket: part.storageBucket,
+        storageKey: part.storageKey,
       });
     }
 
@@ -2304,13 +2322,8 @@ if (
       key: evidence.storageKey!,
     });
 
-    const singleEvidenceBuffer = await streamToBuffer(
-      body as unknown as Readable
-    );
-
-    const singleSha256 = createHash("sha256")
-      .update(singleEvidenceBuffer)
-      .digest("hex");
+    // Integrity re-hash by STREAMING — never buffer the whole single file.
+    const singleSha256 = await sha256HexFromStream(body as unknown as Readable);
 
     if (singleSha256 !== evidence.fileSha256) {
       // Phase A0 — integrity hard-gate (single-file path). See the
@@ -2335,10 +2348,9 @@ if (
         evidence.storageKey,
         `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
       ),
-      buffer: singleEvidenceBuffer,
       sha256: singleSha256,
       mimeType: evidence.mimeType ?? null,
-      sizeBytes: Number(evidence.sizeBytes ?? BigInt(singleEvidenceBuffer.length)),
+      sizeBytes: Number(evidence.sizeBytes ?? 0),
       originalFileName: basenameFromStorageKey(
         evidence.storageKey!,
         `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
@@ -2368,7 +2380,8 @@ if (
       ),
       mimeType: evidence.mimeType ?? null,
       kind: detectEvidenceAssetKind(evidence.mimeType),
-      buffer: singleEvidenceBuffer,
+      storageBucket: evidence.storageBucket!,
+      storageKey: evidence.storageKey!,
     });
 
     storageBucket = evidence.storageBucket ?? storageBucket;
@@ -2385,10 +2398,16 @@ if (
   const previewMap = new Map<string, ExtractedPreview>();
 
   for (const artifact of loadedArtifacts) {
+    // Report byte-loading closure: fetch ONE artifact's bytes at a time for preview
+    // extraction, then let it go — peak memory is a single part, not all parts. (A
+    // future UC-4 keyframe derivative would replace even this bounded read.)
+    const previewBuffer = await streamToBuffer(
+      (await getObjectStream({ bucket: artifact.storageBucket, key: artifact.storageKey })) as unknown as Readable,
+    );
     const extracted = await extractPreviewForAsset({
       kind: artifact.kind,
       mimeType: artifact.mimeType,
-      buffer: artifact.buffer,
+      buffer: previewBuffer,
     });
 
     previewMap.set(artifact.id, extracted);
