@@ -13,8 +13,17 @@
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
   <application>
+    <!-- UC-2 deliberate-frame capture service. -->
     <service
       android:name="com.proovra.screencapture.ScreenCaptureService"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection" />
+    <!-- UC-3 continuous (segmented) capture service. F6: this was missing, so
+         starting the continuous foreground service threw at runtime. Both
+         MediaProjection services are internal (exported=false) and typed
+         mediaProjection as Android 10+/14+ require. -->
+    <service
+      android:name="com.proovra.screencapture.ContinuousScreenCaptureService"
       android:exported="false"
       android:foregroundServiceType="mediaProjection" />
   </application>
