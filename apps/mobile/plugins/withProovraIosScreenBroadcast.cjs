@@ -18,7 +18,9 @@
  */
 const fs = require("fs");
 const path = require("path");
-const { withXcodeProject, withDangerousMod } = require("@expo/config-plugins");
+// Import via `expo/config-plugins` (expo is a direct dependency and always
+// resolvable from here); `@expo/config-plugins` is not hoisted under pnpm.
+const { withXcodeProject, withDangerousMod } = require("expo/config-plugins");
 
 const EXT_NAME = "ProovraBroadcast";
 const EXT_SUFFIX = "broadcast";
