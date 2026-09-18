@@ -62,14 +62,34 @@ class SampleHandler: RPBroadcastSampleHandler {
     let elapsedMs = Int(CMTimeGetSeconds(CMTimeSubtract(pts, segmentStartPts)) * 1000)
     if elapsedMs >= segmentMs {
       finalizeSegment(durationMs: elapsedMs)
-      if sequence >= maxSegments { finishBroadcastWithError(nil) }
+      if sequence >= maxSegments {
+        stopBroadcast(reason: "BOUNDS_REACHED", completeness: "COMPLETE_SESSION")
+      }
     }
   }
 
   override func broadcastFinished() {
+    guard !stopped else { return }
     stopped = true
     finalizeSegment(durationMs: 0, force: true)
     writeResult(reason: "USER_STOPPED", completeness: "COMPLETE_SESSION")
+  }
+
+  /// End the broadcast from within the extension. `RPBroadcastSampleHandler`
+  /// exposes only `finishBroadcastWithError(_:)` (a non-optional `Error`) — there
+  /// is no nil "finish gracefully" — so reaching the recording cap is signalled
+  /// with a user-facing error while the authoritative outcome is the
+  /// `result.json` the app reads (a complete, bounded session).
+  private func stopBroadcast(reason: String, completeness: String) {
+    guard !stopped else { return }
+    stopped = true
+    writeResult(reason: reason, completeness: completeness)
+    let error = NSError(
+      domain: "com.proovra.broadcast",
+      code: 0,
+      userInfo: [NSLocalizedDescriptionKey: "PROOVRA reached the recording limit and saved your evidence."]
+    )
+    finishBroadcastWithError(error)
   }
 
   // MARK: - Segment writing
