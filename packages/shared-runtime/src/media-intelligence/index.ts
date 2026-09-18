@@ -8,3 +8,5 @@ export * from "./derived-assets.service.js";
 export * from "./report-projection.service.js";
 export * from "./ocr-transcript-indexer.service.js";
 export * from "./analyzer.service.js";
+export * from "./screen-intelligence.service.js";
+export * from "./screen-ocr-policy.js";

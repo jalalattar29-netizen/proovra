@@ -403,6 +403,21 @@ export async function processMediaIntelligenceJob(
     });
   }
 
+  // UC-4 — DERIVED screen intelligence. Bounded ffmpeg keyframes from ORIGINAL
+  // screen frames/segments → LOCAL OCR → source-linked reconstruction, persisted
+  // as DERIVED assets. Owns its own claim/lease/fence inside the handler.
+  if (kind === "reconstruct_screen") {
+    const { processReconstructScreenJob } = await import(
+      "./screen-intelligence.processor.js"
+    );
+    return processReconstructScreenJob({
+      jobId: job.id,
+      teamId,
+      evidenceId,
+      runId,
+    });
+  }
+
   // Reserved job kinds — drain cleanly without retries. Each
   // returns success so BullMQ doesn't accumulate failures. The
   // run row (if any) stays in PENDING until the future processor

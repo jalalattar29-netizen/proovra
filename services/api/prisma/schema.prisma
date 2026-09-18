@@ -5140,6 +5140,10 @@ enum EvidenceExtractedTextKind {
   PDF_TEXT
   TRANSCRIPT_AUDIO
   TRANSCRIPT_VIDEO
+  // UC-4 — DERIVED screen intelligence text, persisted through the canonical
+  // extracted-text authority with honest provenance.
+  OCR_SCREEN // DERIVED_MACHINE_EXTRACTED — local Tesseract OCR of DERIVED keyframes
+  SCREEN_RECONSTRUCTION // DERIVED_RECONSTRUCTED — reconstructed review material
 }
 
 enum EvidenceExtractedTextStatus {

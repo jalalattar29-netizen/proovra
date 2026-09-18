@@ -190,6 +190,14 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
   // can see from the run row which pass ran.
   "reconcile_ocr_similarity",
   "reconcile_transcript_similarity",
+  // UC-4 — DERIVED screen intelligence. ONE run per evidence that extracts
+  // bounded DERIVED keyframes from ORIGINAL screen frames/segments, runs LOCAL
+  // OCR, and persists a source-linked reconstruction. It rides the existing
+  // `media-intelligence` queue as a run kind (like the OCR/transcript kinds) so
+  // it reuses the durable MediaIntelligenceRun claim/lease/fence lifecycle — no
+  // second queue. The processor reads teamId/evidenceId/kind from the run row,
+  // never the wire; the DB `media_intelligence_runs_kind_bounded` CHECK admits it.
+  "reconstruct_screen",
 ] as const;
 
 export type MediaIntelligenceJobKind =
