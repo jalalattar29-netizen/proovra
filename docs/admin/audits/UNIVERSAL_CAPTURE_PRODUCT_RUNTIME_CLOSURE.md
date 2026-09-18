@@ -398,3 +398,56 @@ ORIGINAL and emits DERIVED keyframes/OCR/reconstruction. No UC-4 change required
 F10 advanced to GENERATED_NATIVE_PROJECT but is not COMPILED/PACKAGED; main is intentionally not merged; UC-5
 must not begin. The single remaining blocker is the external EAS authentication in §D — a login action, not
 code.
+
+---
+
+# ADDENDUM — SESSION 3 (2026-09-18): F10 CLOSED (native APK built), main integration
+
+## A. EAS identity (verified, no relink)
+`eas whoami` → **jalalattar29**. `eas project:info` → **@jalalattar29/proovra**, ID
+`38174f3f-4bfa-4437-9b58-a72c4ca73c8f`, which **matches** `app.json` `extra.eas.projectId`. Existing project;
+no `eas init`, no duplicate project, no relink.
+
+## B. F10 — **CLOSED (COMPILED + PACKAGED)**
+- **Two prior EAS builds failed** in the EAGER_BUNDLE (Metro) phase — NOT the capture code, NOT a torn
+  snapshot. Server log root cause: `@proovra/shared`'s `main` = `./dist/index.js` (gitignored → absent from
+  the EAS git archive), and EAS ran `expo export:embed` **without building the workspace TS packages first**,
+  so Metro could not resolve `@proovra/shared`. Reproduced the exact error locally by deleting
+  `packages/shared/dist`; confirmed `pnpm run build:deps` restores a clean bundle.
+- **Fix (verified):** added `eas-build-post-install: "pnpm run build:deps"` to `apps/mobile/package.json` so
+  EAS builds `@proovra/shared/dist` after install and before the eager bundle. (`@proovra/ui` resolves to its
+  TS source, so only `shared` needs building.)
+- **Successful build:**
+  - Build ID: **`895d3344-4ea4-4be1-8d19-870b68baec8b`** — status **FINISHED**.
+  - Profile **preview**, distribution **INTERNAL** → an **installable APK**.
+  - applicationId **`com.jalalattar29.proovra`**, appVersion **1.0.0**, versionCode **17**.
+  - Source commit **`781055a5`** (the fix commit on the closure branch).
+  - Install (QR/tap on device): `https://expo.dev/accounts/jalalattar29/projects/proovra/builds/895d3344-4ea4-4be1-8d19-870b68baec8b`
+- Because the Android Gradle build completed and produced the APK, the autolinked native module
+  (`ProovraScreenCaptureModule` + `ScreenCaptureService` + `ContinuousScreenCaptureService`) **compiled and
+  packaged**. F10 status ladder is now fully green:
+  `SOURCE_PRESENT ✅ · AUTOLINKED ✅ · GENERATED_NATIVE_PROJECT ✅ · KOTLIN_COMPILED ✅ · PACKAGED ✅`.
+- **NOT done (by rule):** `eas submit` / Play Store publication — not authorized, not performed.
+
+## C. Website "Install app" (reaffirmed) — **PWA, not native**
+Unchanged from session 2: the site install is a PWA (manifest-only, no SW/TWA/assetlinks/APK/Play link). To
+run UC-2/UC-3 the user must install the **native APK** above (package `com.jalalattar29.proovra`), which the
+website does not distribute.
+
+## D. Android UX closure
+Both native capture screens were audited and found **already complete** (full UC-2/UC-3 state machines,
+canonical `@proovra/ui` tokens + shared `Button`, truthful trust-boundary copy, consent-denied + reconnect +
+discard, success → canonical `/evidence/:id`). The one real defect — a **fake placeholder evidence row** on
+Home linking to `/evidence/1` — was replaced with a truthful empty state and guard-tested. No redesign
+(per the no-overdesign directive). **ANDROID UX CODE CLOSURE = COMPLETE; PHYSICAL UX ACCEPTANCE = DEFERRED**
+(no device/emulator in this environment).
+
+## E. Physical device acceptance — **DEFERRED** (no Android device/emulator here)
+UC-2 and UC-3 on-device acceptance was NOT performed (no runtime target); it is NOT faked. Exact on-device
+steps are in session-2 §E and repeated in the final report. The APK in §B is the artifact to install.
+
+## F. Verdict (session 3)
+**F10 CLOSED (COMPILED + PACKAGED).** All code/build gates green; native APK built from the closure branch.
+Physical UC-2/UC-3 device acceptance remains DEFERRED (environmental). Closure branch merged to main (final
+SHA in the session report). UC-5 may begin only after on-device UC-2/UC-3 acceptance; code/build closure is
+complete.
