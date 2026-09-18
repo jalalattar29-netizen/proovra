@@ -2405,6 +2405,11 @@ export * from "./queue-job-correlation.js";
 // PROOVRA?"), artifact classes, derivative lineage vocabulary, and the typed
 // public Verify acquisition contract.
 export * from "./evidence-acquisition.js";
+// UC — the ONE cross-platform capture-capability authority (F7). Answers a
+// PRODUCT/PLATFORM question only ("which capture channels can this platform
+// offer, and in what truthful availability state?"). It never decides
+// authorization or commercial eligibility.
+export * from "./capture-capability.js";
 export * from "./web-capture-manifest.js";
 export * from "./screen-capture-manifest.js";
 export * from "./screen-continuous-manifest.js";

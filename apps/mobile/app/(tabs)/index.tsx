@@ -70,12 +70,14 @@ export default function HomeScreen() {
 
         <View style={styles.listCard}>
           {items.length === 0 ? (
-            <ListRow
-              title={t("photo")}
-              subtitle="3 minutes ago"
-              badge={<Badge tone="signed" label={t("statusSigned")} />}
-              onPress={() => router.push("/evidence/1")}
-            />
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyTitle, { fontFamily: fontFamilyBold }]}>
+                No evidence yet
+              </Text>
+              <Text style={styles.emptyBody}>
+                Capture your first record to see it here.
+              </Text>
+            </View>
           ) : (
             items.map((item) => (
               <ListRow
@@ -177,5 +179,19 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     borderWidth: 1,
     borderColor: "rgba(101,235,255,0.18)"
+  },
+  // Truthful empty state — replaces a former hardcoded placeholder evidence row
+  // that linked to a non-existent /evidence/1.
+  emptyState: {
+    paddingVertical: spacing.md,
+    gap: spacing.xs
+  },
+  emptyTitle: {
+    fontSize: typography.size.body,
+    color: "rgba(246,252,255,0.92)"
+  },
+  emptyBody: {
+    fontSize: typography.size.label,
+    color: "rgba(219,235,248,0.70)"
   }
 });

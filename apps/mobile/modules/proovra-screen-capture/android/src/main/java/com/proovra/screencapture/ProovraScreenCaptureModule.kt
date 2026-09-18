@@ -98,7 +98,11 @@ class ProovraScreenCaptureModule : Module() {
       ScreenCaptureService.requestCaptureFrame(ctx)
     }
 
-    AsyncFunction("stop") { promise: Promise ->
+    // F5 — the native name MUST match the JS binding's public method
+    // (`ProovraScreenCapture.stopCapture()` in modules/.../index.ts). It was
+    // "stop", so `stopScreenCapture()` invoked a native method that did not
+    // exist and rejected at runtime. Aligned to the one canonical name.
+    AsyncFunction("stopCapture") { promise: Promise ->
       val ctx = appContext.reactContext?.applicationContext
       if (!ScreenCaptureService.isActive() || ctx == null) {
         promise.resolve(ScreenCaptureService.lastOutcome()?.toJsMap() ?: emptyMap<String, Any?>()); return@AsyncFunction

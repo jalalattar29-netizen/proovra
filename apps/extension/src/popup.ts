@@ -5,6 +5,7 @@
  */
 import { getStoredToken, isSignedIn, signIn, signOut } from "./lib/auth.js";
 import { CONFIG } from "./lib/config.js";
+import { denialToMessage } from "./lib/denial-copy.js";
 
 type Workspace = { id: string; name: string };
 
@@ -73,10 +74,13 @@ async function preserve(mode: "VIEWPORT" | "FULL_PAGE") {
     })) as { ok: boolean; evidenceId?: string; error?: string; denial?: string | null };
     if (result.ok) {
       setStatus("Preserved. The record is in your PROOVRA workspace.", "ok");
-    } else if (result.denial === "TEAM_PLAN_REQUIRED" || result.denial === "ENTITLEMENT_REQUIRED") {
-      setStatus("Direct Web Capture isn't available on this workspace's plan.", "error");
     } else {
-      setStatus(result.error ?? "Capture could not be completed.", "error");
+      // Capture is plan-blind: a server refusal is surfaced as the evidence
+      // -creation / quota / entitlement reason it actually is, never as a
+      // capture-specific plan restriction. Unknown codes (auth, not-found,
+      // faults) fall back to the generic error line.
+      const denialMessage = denialToMessage(result.denial);
+      setStatus(denialMessage ?? result.error ?? "Capture could not be completed.", "error");
     }
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Capture failed.", "error");

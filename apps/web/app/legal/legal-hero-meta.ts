@@ -197,6 +197,14 @@ export const LEGAL_HERO_META: Record<string, LegalHeroMeta> = {
       "PROOVRA's accessibility commitment, feedback process, and ongoing effort to improve usability across public pages and product experiences.",
     meta: "Accessibility document · Feedback and improvement process",
   },
+  "direct-web-capture": {
+    label: "Capture",
+    title: "How Direct Web Capture Works.",
+    highlight: "Direct Web Capture Works.",
+    summary:
+      "What the PROOVRA browser extension records when it preserves a web page through a server-issued capture session, how integrity is established after ingestion, and what capture does and does not establish.",
+    meta: "Capture disclosure · Records how and when, not that content is true",
+  },
   dmca: {
     label: "Legal",
     title: "Copyright and DMCA Policy.",
