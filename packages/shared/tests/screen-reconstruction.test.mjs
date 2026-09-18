@@ -31,12 +31,34 @@ test("scrollOverlap finds the largest suffix/prefix run (bottom of A = top of B)
   assert.equal(scrollOverlap(a, frame(1, 0, 0, ["9", "8"])), 0); // no overlap
 });
 
-test("STATIC screen: two identical frames → each block corroborated in 2 frames, COMPLETE", () => {
+test("STATIC screen WITHOUT geometry: identical frames stay DISTINCT (§29 — text equality is never enough)", () => {
   idc = 0;
+  // Two identical [A,B,C] frames with NO fingerprints: the overlap spans the
+  // ENTIRE prev AND next frame, so there is no scroll delta proving continuity.
+  // That is indistinguishable from two screens that happen to show identical
+  // text, and text equality alone must NEVER merge (§29). Conservative result:
+  // the rows stay distinct and the boundary is a possible gap (PARTIAL).
   const obs = [...frame(0, 0, 0, ["A", "B", "C"]), ...frame(1, 0, 6000, ["A", "B", "C"])];
   const r = reconstructScreenConversation(obs);
   assert.equal(r.transformation, SCREEN_RECONSTRUCTION_TRANSFORMATION);
-  assert.equal(r.blockCount, 3); // A,B,C merged across frames
+  assert.equal(r.blockCount, 6); // NOT merged on text alone
+  assert.equal(r.coverage, "PARTIAL");
+  assert.ok(r.limitations.includes("RECONSTRUCTION_POSSIBLE_GAP"));
+});
+
+test("STATIC screen WITH matching geometry: identical frames merge (fingerprints corroborate same screen)", () => {
+  idc = 0;
+  // The same two identical frames, now carrying matching visual fingerprints per
+  // row — geometry corroborates that this is the SAME rendered screen, so the
+  // full-frame overlap is a legitimate dedup: 3 blocks, corroborated in 2 frames.
+  const rows = [
+    { text: "A", fp: "fpA" },
+    { text: "B", fp: "fpB" },
+    { text: "C", fp: "fpC" },
+  ];
+  const obs = [...frame(0, 0, 0, rows), ...frame(1, 0, 6000, rows)];
+  const r = reconstructScreenConversation(obs);
+  assert.equal(r.blockCount, 3); // A,B,C merged — geometry proves it
   assert.equal(r.coverage, "COMPLETE");
   assert.ok(r.blocks.every((b) => b.confidence === "HIGH_OVERLAP" && b.observedInFrames === 2));
   assert.deepEqual(r.blocks.map((b) => b.text), ["A", "B", "C"]);
