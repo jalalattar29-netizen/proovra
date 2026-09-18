@@ -170,7 +170,18 @@ RUN apk-install \
     harfbuzz \
     fontconfig \
     ttf-freefont \
-    ffmpeg
+    ffmpeg \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-ara
+# UC-4 — `tesseract-ocr` provides the LOCAL, self-hosted OCR engine on PATH for
+# derived screen/keyframe text extraction. It runs entirely in-image: no network,
+# no external OCR processor, no training on evidence. Language data is bounded to the
+# scripts UC-4 advertises (English + Arabic/RTL, matching PROOVRA locales); add more
+# `tesseract-ocr-data-*` packs deliberately (each adds image size). The worker probes
+# it via `detectTesseractCapability()` and degrades OCR to PARTIAL when absent —
+# evidence completion never depends on it.
+#
 # `ffmpeg` (Alpine package) provides BOTH the `ffmpeg` and `ffprobe`
 # binaries on PATH. ffprobe powers deterministic video/audio technical
 # metadata extraction (codec / duration / dimensions / frame rate). The
