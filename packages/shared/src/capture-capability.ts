@@ -209,10 +209,14 @@ export function resolveCaptureCapabilities(input: CaptureCapabilityInput): Captu
   const isWeb = platform === "WEB_DESKTOP" || platform === "WEB_MOBILE";
   const isNativeApp = platform === "ANDROID_NATIVE" || platform === "IOS_NATIVE";
 
+  // Deliberate-frame screen capture (UC-2) is Android-only. Continuous screen
+  // capture is native on BOTH Android (UC-3, MediaProjection) and iOS (UC-5,
+  // Apple system broadcast); iOS has no deliberate-frame mode.
   const canDirectScreenCapture =
     platform === "ANDROID_NATIVE" && input.nativeScreenCaptureSupported === true;
   const canContinuousScreenCapture =
-    platform === "ANDROID_NATIVE" && input.nativeContinuousCaptureSupported === true;
+    (platform === "ANDROID_NATIVE" || platform === "IOS_NATIVE") &&
+    input.nativeContinuousCaptureSupported === true;
 
   return {
     platform,

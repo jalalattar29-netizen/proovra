@@ -22,6 +22,7 @@ const kotlin = readFileSync(
   resolve(MODULE_DIR, "android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt"),
   "utf8",
 );
+const swift = readFileSync(resolve(MODULE_DIR, "ios/ProovraScreenCaptureModule.swift"), "utf8");
 
 function uniq(arr) {
   return [...new Set(arr)];
@@ -67,6 +68,36 @@ test("stopCapture is the canonical UC-2 stop name on both sides (no stale alias)
   assert.ok(jsNativeCalls.includes("stopCapture"), "JS must call stopCapture()");
   assert.ok(kotlinMethods.includes("stopCapture"), "Kotlin must expose stopCapture");
   assert.ok(!kotlinMethods.includes("stop"), "the old 'stop' name must be gone");
+});
+
+// UC-5 — the iOS Swift module must expose the CONTINUOUS methods + events the
+// shared JS continuous binding calls (the frame API is Android-only).
+const swiftMethods = uniq([...swift.matchAll(/\b(?:Async)?Function\(\s*"([^"]+)"/g)].map((m) => m[1]));
+const swiftEventsDecl = swift.match(/Events\(([^)]*)\)/);
+const swiftEvents = swiftEventsDecl
+  ? uniq([...swiftEventsDecl[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]))
+  : [];
+
+test("the iOS Swift module exposes the continuous methods the JS binding calls (UC-5)", () => {
+  for (const name of [
+    "isContinuousSupported",
+    "getContinuousState",
+    "startContinuousCapture",
+    "stopContinuousCapture",
+  ]) {
+    assert.ok(
+      swiftMethods.includes(name),
+      `iOS Swift must expose "${name}"; found: ${swiftMethods.join(", ")}`,
+    );
+  }
+  // The name is "ProovraScreenCapture" on BOTH platforms so requireNativeModule works.
+  assert.match(swift, /Name\("ProovraScreenCapture"\)/);
+});
+
+test("the iOS Swift module declares the continuous events the JS listens to", () => {
+  for (const name of ["onScreenSegment", "onScreenContinuousStopped"]) {
+    assert.ok(swiftEvents.includes(name), `iOS Swift must declare event "${name}"`);
+  }
 });
 
 test("every event the JS binding listens to is declared by the Kotlin module", () => {
