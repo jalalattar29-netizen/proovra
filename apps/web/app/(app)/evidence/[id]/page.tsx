@@ -125,10 +125,9 @@ function EvidenceDetailPageInner() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
-  // Track 1A (surface-tier removal) — reviewer-ops / governance /
-  // intelligence / investigation affordances belong to the Enterprise
-  // workspace experience; the gate is the SERVER-projected
-  // `flags.isEnterpriseWorkspace` / `platform.isPlatformAdmin` booleans.
+  // Track 1A (surface-tier removal) — reviewer-ops / governance / intelligence
+  // / investigation affordances belong to the Enterprise experience; the gate
+  // is the SERVER-projected isEnterpriseWorkspace / isPlatformAdmin booleans.
   const enterpriseSurfaces = useEnterpriseSurfaceAccess();
   const canSeeReviewerOps = enterpriseSurfaces;
   const canSeeGovernance = enterpriseSurfaces;
@@ -136,13 +135,9 @@ function EvidenceDetailPageInner() {
   // Intake links are a COMMERCIAL entitlement — the SERVER-projected
   // `planFeatures.intakeIncluded` boolean decides (platform admins pass).
   const canSeeIntakeLinks = usePlanFeatureGate("intakeIncluded");
-  // Phase EVIDENCE-RELATIONSHIPS-GATE — Manage Relationships is an
-  // evidence-graph workflow useful for enterprise / legal / investigation
-  // setups, but noisy for Personal / small-team workspaces. When the user
-  // isn't in the enterprise experience AND has no existing relationships
-  // on this record, the Manage button + per-row Remove buttons are
-  // hidden; the read-only Linked-evidence list still shows if items
-  // already exist.
+  // Phase EVIDENCE-RELATIONSHIPS-GATE — Manage Relationships (evidence-graph)
+  // is enterprise machinery: outside it, the Manage + per-row Remove buttons
+  // are hidden while the read-only Linked-evidence list still shows.
   const canSeeInvestigation = enterpriseSurfaces;
 
   const initialTab: EvidenceDetailTab = (() => {
@@ -943,7 +938,12 @@ function EvidenceDetailPageInner() {
   const visibleTabs = DETAIL_TABS.filter(
     (t) =>
       !(t.id === "discussion" && !canSeeDiscussion) &&
-      !(t.id === "derived" && !canSeeIntelligence),
+      // UC-4 — Derived Review is a RECORD property (screen-capture originals
+      // only), never a workspace-kind gate: the tab set stays kind-invariant.
+      !(
+        t.id === "derived" &&
+        workspace?.sourceContext?.acquisition?.category !== "DIRECT_SCREEN_CAPTURE"
+      ),
   );
 
   // Single context bag passed into every tab. Adding a new field
