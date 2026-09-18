@@ -1,6 +1,14 @@
 import { Stack } from "expo-router";
 import React from "react";
 
+// Crash telemetry MUST initialize from the REAL entry (this root layout is the
+// one ancestor of every route). It is a no-op without a DSN and never throws,
+// so it is safe to run before anything else. (The former App.tsx that tried to
+// do startup init was dead code — package.json main is expo-router/entry — and
+// has been removed.)
+import { initSentry } from "../src/sentry";
+initSentry();
+
 import { DeepLinkGate } from "../src/DeepLinkGate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { AuthProvider } from "../src/auth-context";

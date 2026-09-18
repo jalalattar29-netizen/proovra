@@ -4,17 +4,31 @@
     "slug": "proovra",
     "scheme": "proovra",
     "sdkVersion": "52.0.0",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#050b18",
+      "resizeMode": "contain"
+    },
     "extra": {
       "eas": {
         "projectId": "38174f3f-4bfa-4437-9b58-a72c4ca73c8f"
       }
     },
     "android": {
-      "package": "com.jalalattar29.proovra"
+      "package": "com.jalalattar29.proovra",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#050b18"
+      }
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "@sentry/react-native/expo"
     ]
   }
 }
