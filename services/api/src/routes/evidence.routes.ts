@@ -640,6 +640,10 @@ type VerificationPackageArtifactPresence = {
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
+  // UC-4 — DERIVED review-material manifests. Absent (false) for every package
+  // built before UC-4 and for evidence with no derived intelligence.
+  derivedAssetsManifestPresent: boolean;
+  reconstructionManifestPresent: boolean;
 };
 
 const PACKAGE_ARTIFACT_FILE_NAMES = {
@@ -649,6 +653,9 @@ const PACKAGE_ARTIFACT_FILE_NAMES = {
   auditExport: "audit-access-report.json",
   custodyExport: "custody.json",
   accessExport: "access-activity.json",
+  // UC-4 — the two DERIVED manifests emitted under intelligence/.
+  derivedAssetsManifest: "intelligence/derived_assets_manifest.json",
+  reconstructionManifest: "intelligence/screen_reconstruction_manifest.json",
 } as const;
 
 function parseZipCentralDirectoryEntries(buffer: Buffer): Set<string> {
@@ -742,6 +749,12 @@ async function inspectVerificationPackageArtifacts(
       auditExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.auditExport),
       custodyExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.custodyExport),
       accessExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.accessExport),
+      derivedAssetsManifestPresent: entries.has(
+        PACKAGE_ARTIFACT_FILE_NAMES.derivedAssetsManifest,
+      ),
+      reconstructionManifestPresent: entries.has(
+        PACKAGE_ARTIFACT_FILE_NAMES.reconstructionManifest,
+      ),
     };
   } catch (error) {
     console.warn(
