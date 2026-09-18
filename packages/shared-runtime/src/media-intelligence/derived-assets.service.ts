@@ -40,6 +40,13 @@ export const DERIVED_ASSET_KINDS = [
   "audio_waveform",
   "low_res_proxy",
   "compact_review_preview",
+  // UC-4 — DERIVED evidence intelligence. Keyframes are one derived asset per
+  // extracted frame (variantKey kf-NNNN + sourceOffsetMs); the reconstruction is a
+  // single bounded versioned JSON descriptor (variantKey recon-vN). Destruction and
+  // storage accounting already cover both — `asset_kind` is a free VARCHAR (no CHECK),
+  // so this is a code-only extension, no migration.
+  "video_keyframe",
+  "screen_reconstruction",
 ] as const;
 export type DerivedAssetKind = (typeof DERIVED_ASSET_KINDS)[number];
 
