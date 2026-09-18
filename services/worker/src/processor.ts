@@ -118,6 +118,7 @@ import {
   normalizeCustodyEventPayloadForPresentation,
 } from "./report-v2/normalizers.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
+import { buildReportDerivedReview } from "./report-v2/derived-review-bridge.js";
 import {
   buildReportTechnicalSummary,
   buildReportAcquisitionContext,
@@ -342,6 +343,8 @@ type ReportBuildParams = {
   // Evidence Acquisition context — OPTIONAL public-safe acquisition
   // table in the Executive Summary. NULL = no acquisition table.
   acquisition?: Parameters<typeof buildReportPdfV2>[0]["acquisition"];
+  // UC-4 — OPTIONAL bounded DERIVED screen-review summary. NULL = no section.
+  derivedReview?: Parameters<typeof buildReportPdfV2>[0]["derivedReview"];
 };
 
 type PreparedReportArtifacts = {
@@ -2779,6 +2782,13 @@ const trustDecision = buildTrustDecision({
     evidenceId,
   });
 
+  // UC-4 — bounded DERIVED screen-review summary (provenance-only). Null when
+  // no reconstruction exists, so the report is byte-identical for non-UC-4.
+  const reportDerivedReview = await buildReportDerivedReview({
+    teamId: evidence.teamId ?? null,
+    evidenceId,
+  });
+
   const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
@@ -2791,6 +2801,7 @@ const trustDecision = buildTrustDecision({
     mediaIntelligence: reportMediaIntelligence,
     technicalSummary: reportTechnicalSummary,
     acquisition: reportAcquisition,
+    derivedReview: reportDerivedReview,
   };
 
 // Phase A2 — call the signature-aware variant so the Report row
@@ -3564,6 +3575,11 @@ const effectiveReportEvidencePayload = {
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
         });
+        // UC-4 — bounded DERIVED screen-review summary for the finalized report.
+        const finalizedReportDerivedReview = await buildReportDerivedReview({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
 
         // Phase O1.5C — bounded report.render.pdf span.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
@@ -3579,6 +3595,7 @@ const effectiveReportEvidencePayload = {
           mediaIntelligence: finalizedReportMediaIntelligence,
           technicalSummary: finalizedReportTechnicalSummary,
           acquisition: finalizedReportAcquisition,
+          derivedReview: finalizedReportDerivedReview,
         });
 
         await assertWorkspaceAllowsReportArtifact({

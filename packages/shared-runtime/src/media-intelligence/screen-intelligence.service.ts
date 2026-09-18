@@ -548,6 +548,62 @@ export async function runAndPersistScreenIntelligence(
 }
 
 // =============================================================================
+// Descriptor read (ONE authority, used by the API Inspector + worker report)
+// =============================================================================
+
+export type ScreenDescriptorReader = {
+  prisma?: PrismaClient;
+  /** Fetch the descriptor object bytes (bounded by the caller). */
+  getObjectBytes(ref: { bucket: string; key: string }): Promise<Buffer>;
+};
+
+/**
+ * Read + parse the ONE persisted `screen_reconstruction` descriptor for an
+ * evidence (team-anchored), or null when none exists. The single reader both the
+ * API Inspector and the worker report bridge use, so the storage-ref lookup and
+ * the schema check live in exactly one place.
+ */
+export async function readScreenReconstructionDescriptor(
+  teamId: string,
+  evidenceId: string,
+  reader: ScreenDescriptorReader,
+): Promise<{ assetId: string; descriptor: ScreenIntelligenceDescriptor } | null> {
+  const prisma = reader.prisma ?? getRegisteredPrisma();
+  let rows: Array<{ id: string; storage_bucket: string | null; storage_key: string | null }>;
+  try {
+    rows = (await prisma.$queryRawUnsafe(
+      `SELECT "id", "storage_bucket", "storage_key"
+         FROM "evidence_part_derived_assets"
+        WHERE "team_id" = $1 AND "evidence_id" = $2
+          AND "asset_kind" = 'screen_reconstruction'
+          AND "variant_key" = 'recon-v1'
+          AND "status" = 'COMPLETED'
+        ORDER BY "updated_at_utc" DESC
+        LIMIT 1`,
+      teamId,
+      evidenceId,
+    )) as typeof rows;
+  } catch {
+    return null;
+  }
+  const row = rows[0];
+  if (!row || !row.storage_bucket || !row.storage_key) return null;
+  let bytes: Buffer;
+  try {
+    bytes = await reader.getObjectBytes({ bucket: row.storage_bucket, key: row.storage_key });
+  } catch {
+    return null;
+  }
+  try {
+    const descriptor = JSON.parse(bytes.toString("utf8")) as ScreenIntelligenceDescriptor;
+    if (descriptor.schemaVersion !== SCREEN_INTELLIGENCE_DESCRIPTOR_VERSION) return null;
+    return { assetId: row.id, descriptor };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
 // DERIVED text persistence (canonical extracted-text authority)
 // =============================================================================
 

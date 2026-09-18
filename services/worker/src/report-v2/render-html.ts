@@ -8,6 +8,7 @@ import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js"
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
 import { renderTechnicalSummarySection } from "./sections/technical-summary.js";
 import { renderIntelligenceSummarySection } from "./sections/intelligence-summary.js";
+import { renderDerivedReviewSection } from "./sections/derived-review.js";
 import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
@@ -51,6 +52,13 @@ export function renderReportHtml(vm: ReportViewModel): string {
     vm.intelligenceSummary
       ? renderIntelligenceSummarySection(vm.intelligenceSummary)
       : "",
+    // UC-4 — bounded "Machine-Derived Review Materials" section. Returns "" when
+    // vm.derivedReview is null or carries no keyframes/blocks, so legacy byte
+    // output is preserved. Provenance-only counts; never reconstructed prose or
+    // OCR text. Positioned after intelligence-summary — it is derived material,
+    // read alongside the AI-assisted-intelligence chain, distinct from the
+    // ORIGINAL acquisition/integrity facts above.
+    renderDerivedReviewSection(vm.derivedReview ?? null),
     // Phase 4B Final Closure (I2) — bounded "Evidence Lifecycle Summary"
     // section. Returns "" when vm.lifecycleSummary is null or the workspace
     // has no lifecycle activity, so legacy byte output is preserved for

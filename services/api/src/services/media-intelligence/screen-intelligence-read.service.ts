@@ -81,51 +81,27 @@ export async function readScreenIntelligenceDescriptor(
   teamId: string,
   evidenceId: string,
 ): Promise<{ assetId: string; descriptor: ScreenIntelligenceDescriptor } | null> {
-  const rows = (await prisma.$queryRawUnsafe(
-    `SELECT "id"
-       FROM "evidence_part_derived_assets"
-      WHERE "team_id" = $1 AND "evidence_id" = $2
-        AND "asset_kind" = 'screen_reconstruction'
-        AND "variant_key" = 'recon-v1'
-        AND "status" = 'COMPLETED'
-      ORDER BY "updated_at_utc" DESC
-      LIMIT 1`,
-    teamId,
-    evidenceId,
-  )) as Array<{ id: string }>;
-  const assetId = rows[0]?.id;
-  if (!assetId) return null;
-
-  const { _getDerivedAssetStorageReference } = await import(
-    "./derived-assets.service.js"
+  const { readScreenReconstructionDescriptor } = await import(
+    "@proovra/shared-runtime/media-intelligence"
   );
-  const ref = await _getDerivedAssetStorageReference(teamId, assetId);
-  if (!ref) return null;
-
-  let bytes: Buffer;
-  try {
-    const { getObjectStream } = await import("../../storage.js");
-    const stream = await getObjectStream({ bucket: ref.bucket, key: ref.key });
-    const chunks: Buffer[] = [];
-    let total = 0;
-    for await (const chunk of stream) {
-      const buf = typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
-      total += buf.byteLength;
-      if (total > UC4_RESOURCE_BOUNDS.maxDescriptorBytes) return null;
-      chunks.push(buf);
-    }
-    bytes = Buffer.concat(chunks);
-  } catch {
-    return null;
-  }
-
-  try {
-    const descriptor = JSON.parse(bytes.toString("utf8")) as ScreenIntelligenceDescriptor;
-    if (descriptor.schemaVersion !== "PROOVRA_SCREEN_INTELLIGENCE_V1") return null;
-    return { assetId, descriptor };
-  } catch {
-    return null;
-  }
+  return readScreenReconstructionDescriptor(teamId, evidenceId, {
+    prisma,
+    getObjectBytes: async ({ bucket, key }) => {
+      const { getObjectStream } = await import("../../storage.js");
+      const stream = await getObjectStream({ bucket, key });
+      const chunks: Buffer[] = [];
+      let total = 0;
+      for await (const chunk of stream) {
+        const buf = typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
+        total += buf.byteLength;
+        if (total > UC4_RESOURCE_BOUNDS.maxDescriptorBytes) {
+          throw new Error("descriptor_too_large");
+        }
+        chunks.push(buf);
+      }
+      return Buffer.concat(chunks);
+    },
+  });
 }
 
 export type ScreenIntelligenceReview = {
