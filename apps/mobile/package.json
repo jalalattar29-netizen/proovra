@@ -11,7 +11,8 @@
     "test": "node --test",
     "build:deps": "pnpm --filter @proovra/shared build",
     "prebuild": "pnpm run build:deps",
-    "pretypecheck": "pnpm run build:deps"
+    "pretypecheck": "pnpm run build:deps",
+    "eas-build-post-install": "pnpm run build:deps"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
