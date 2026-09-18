@@ -93,6 +93,7 @@ const UPLOAD_KIND_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, strin
   DIRECT_WEB_CAPTURE_EXTENSION: "direct_web_capture_authorization",
   DIRECT_SCREEN_CAPTURE_ANDROID: "direct_screen_capture_authorization",
   DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "direct_continuous_capture_authorization",
+  DIRECT_SCREEN_CAPTURE_IOS: "direct_ios_screen_capture_authorization",
 };
 const UPLOAD_LOCATION_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, string>> = {
   PROOVRA_WEB_UPLOAD: "browser upload",
@@ -101,6 +102,7 @@ const UPLOAD_LOCATION_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, s
   DIRECT_WEB_CAPTURE_EXTENSION: "web capture",
   DIRECT_SCREEN_CAPTURE_ANDROID: "screen capture",
   DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "continuous screen capture",
+  DIRECT_SCREEN_CAPTURE_IOS: "iOS screen capture",
 };
 
 function sanitizeFileName(value: string | null | undefined): string | null {

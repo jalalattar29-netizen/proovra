@@ -22,8 +22,12 @@
  *      session, whatever the segment count.
  *   5. ONLY after the seal succeeds, class the manifest part CAPTURE_MANIFEST.
  *
- * The app cannot grant itself DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: the mode
- * lives on the server-issued session, and this path refuses any other mode.
+ * The app cannot grant itself a continuous screen-capture mode: the mode lives on
+ * the server-issued session, and this path refuses any non-continuous mode. Both
+ * DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS (UC-3, Android MediaProjection) and
+ * DIRECT_SCREEN_CAPTURE_IOS (UC-5, Apple system broadcast) are ordered-segment
+ * continuous sessions with an identical continuity manifest, so they share this
+ * ONE pipeline — there is no iOS-specific completion path or Evidence authority.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -59,7 +63,13 @@ export async function completeContinuousCaptureSession(
   const db = input.prisma ?? defaultPrisma;
 
   const session = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
-  if (session.acquisitionMode !== "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS") {
+  // Both continuous screen-capture modes seal through this one pipeline (UC-3
+  // Android + UC-5 iOS); every other mode is refused. The mode is authoritative
+  // on the server-issued session, never asserted by the client.
+  if (
+    session.acquisitionMode !== "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" &&
+    session.acquisitionMode !== "DIRECT_SCREEN_CAPTURE_IOS"
+  ) {
     throw new DirectCaptureError("UNSUPPORTED_MODE");
   }
 
