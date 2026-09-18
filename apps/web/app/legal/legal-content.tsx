@@ -32,6 +32,11 @@ export const ALLOWED_LEGAL_SLUGS = new Set([
   "privacy-requests",
   "refund-policy",
   "accessibility",
+  // Capture-channel disclosure. A "how it works" page for the browser
+  // extension's Direct Web Capture (UC-1) — NOT the extension install
+  // target. Explains what the channel records, its integrity model, and
+  // the trust boundary, reusing the canonical acquisition boundary voice.
+  "direct-web-capture",
 ]);
 
 export function titleFromSlug(slug: string) {
@@ -62,6 +67,7 @@ export function titleFromSlug(slug: string) {
     "privacy-requests": "Privacy Requests",
     "refund-policy": "Consumer Cancellation and Refund Policy",
     accessibility: "Accessibility Statement",
+    "direct-web-capture": "How Direct Web Capture Works",
   };
 
   return map[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
