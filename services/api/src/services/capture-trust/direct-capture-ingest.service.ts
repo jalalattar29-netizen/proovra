@@ -66,6 +66,11 @@ export const DIRECT_CAPTURE_SESSION_MODES = [
   // UC-3 — the PROOVRA Android app recorded a CONTINUOUS screen session (ordered
   // segments) via MediaProjection, in an unbound session.
   "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+  // UC-5 — the PROOVRA iOS app recorded the device screen through Apple's
+  // user-authorised system broadcast (ReplayKit + a PROOVRA Broadcast Upload
+  // Extension), preserved as ordered segments, in an unbound session — the iOS
+  // analogue of the Android continuous mode.
+  "DIRECT_SCREEN_CAPTURE_IOS",
 ] as const;
 export type DirectCaptureSessionMode = (typeof DIRECT_CAPTURE_SESSION_MODES)[number];
 

@@ -28,6 +28,17 @@
         "EXPO_USE_WORKSPACE_ROOT": "1",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
+    },
+    "ios-simulator": {
+      "distribution": "internal",
+      "node": "20.19.0",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_USE_WORKSPACE_ROOT": "1",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     }
   },
   "submit": {

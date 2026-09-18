@@ -1,5 +1,6 @@
 /**
- * UC-3 — the mobile app's client for Android CONTINUOUS Screen Capture.
+ * UC-3 / UC-5 — the mobile app's client for CONTINUOUS Screen Capture, shared by
+ * Android (MediaProjection) and iOS (Apple system broadcast).
  *
  * The native recording is SEGMENTED and STREAMING: each finalized segment fires an
  * event, and this client uploads it through the SAME canonical direct-capture
@@ -13,6 +14,7 @@
  * the bounded session (<= maxSegments * segmentMs) fits inside the capture-session
  * TTL. It creates NO second evidence path.
  */
+import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
 
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
@@ -130,7 +132,12 @@ export async function cleanupContinuousTempFiles(
 
 /** Open the PROOVRA session + reserve ONE Evidence for the whole session. */
 export async function beginContinuousSession(): Promise<{ session: DirectCaptureSession; evidenceId: string }> {
-  const session = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
+  // The server-issued session carries the platform-correct canonical mode:
+  // iOS (UC-5, Apple system broadcast) vs Android (UC-3, MediaProjection). Both
+  // seal through the ONE canonical continuous pipeline; the server is authoritative.
+  const mode =
+    Platform.OS === "ios" ? "DIRECT_SCREEN_CAPTURE_IOS" : "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
+  const session = await openDirectCaptureSession(mode);
   const evidenceId = await reserveDirectCaptureEvidence(session, {
     type: "VIDEO",
     mimeType: "video/mp4",

@@ -71,6 +71,22 @@ export const EVIDENCE_ACQUISITION_MODES = [
    * continuity manifest records.
    */
   "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+  /**
+   * UC-5 — the PROOVRA iOS app captured the device screen directly through
+   * Apple's user-authorized system screen broadcast (ReplayKit
+   * `RPSystemBroadcastPickerView` + a PROOVRA Broadcast Upload Extension), in a
+   * server-issued capture session started BEFORE the capture. Like the Android
+   * direct-screen modes this is `isDirectCapture: true` and the server recomputes
+   * every segment's digest. It is a DISTINCT mode from the Android screen modes
+   * because the provenance differs: iOS capture is a SYSTEM-CONTROLLED broadcast
+   * — the user starts and stops it from Apple's own broadcast UI, protected/DRM
+   * content is omitted by the OS, and the app does not observe frames outside the
+   * authorised broadcast. It never proves the displayed content, source app,
+   * device integrity, or that no gap occurred beyond what the continuity manifest
+   * records. A single iOS mode (not two) reflects that Apple exposes ONE
+   * user-authorised system-broadcast path, which is inherently continuous.
+   */
+  "DIRECT_SCREEN_CAPTURE_IOS",
 ] as const;
 export type EvidenceAcquisitionMode = (typeof EVIDENCE_ACQUISITION_MODES)[number];
 
@@ -158,6 +174,11 @@ export const ACQUISITION_LIMITATION_CODES = [
   "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
   // UC-3 Android continuous screen capture.
   "SCREEN_SESSION_CONTINUITY_LIMITED",
+  // UC-5 iOS system screen broadcast.
+  "SCREEN_IOS_CONTENT_TRUTH_NOT_PROVEN",
+  "SCREEN_IOS_SOURCE_APP_NOT_PROVEN",
+  "SCREEN_IOS_DEVICE_INTEGRITY_NOT_VERIFIED",
+  "SCREEN_IOS_SYSTEM_BROADCAST_SCOPE",
 ] as const;
 export type AcquisitionLimitationCode =
   (typeof ACQUISITION_LIMITATION_CODES)[number];
@@ -187,6 +208,14 @@ export const ACQUISITION_LIMITATION_TEXT: Readonly<
     "The integrity of the Android device and OS was not independently verified. A rooted, emulated or otherwise modified device cannot be ruled out; protected content (secure windows) may appear blank or be omitted.",
   SCREEN_SESSION_CONTINUITY_LIMITED:
     "A continuous screen capture is preserved as a sequence of segments. PROOVRA records the segment order and any interruptions it detected (a stop, an OS revocation, a device or orientation change); it does not guarantee that nothing occurred in a gap, and an interrupted session is recorded as such rather than as a complete one.",
+  SCREEN_IOS_CONTENT_TRUTH_NOT_PROVEN:
+    "A screen capture preserves what was shown on the iOS device's screen. It does not establish that the displayed content is true, who authored it, or that any person or account shown is genuine.",
+  SCREEN_IOS_SOURCE_APP_NOT_PROVEN:
+    "PROOVRA does not prove which app produced what was on screen, or that the underlying app or server actually supplied the displayed data. Content displayed by a modified app, a mock-up or an overlay cannot be ruled out.",
+  SCREEN_IOS_DEVICE_INTEGRITY_NOT_VERIFIED:
+    "The integrity of the iOS device and OS was not independently verified. A jailbroken or otherwise modified device cannot be ruled out.",
+  SCREEN_IOS_SYSTEM_BROADCAST_SCOPE:
+    "iOS screen capture runs as an Apple system broadcast that the user starts and stops from Apple's own broadcast controls. The operating system omits protected (DRM) content and can end the broadcast at any time; PROOVRA records only the frames Apple delivered to its broadcast extension during the authorised session, preserved as ordered segments, and marks an interrupted session as such rather than as a complete one.",
 };
 
 const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = {
@@ -253,6 +282,19 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "SCREEN_SOURCE_APP_NOT_PROVEN",
       "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
       "SCREEN_SESSION_CONTINUITY_LIMITED",
+    ],
+  },
+  DIRECT_SCREEN_CAPTURE_IOS: {
+    category: "DIRECT_SCREEN_CAPTURE",
+    label: "Recorded from an iOS screen with PROOVRA",
+    statement:
+      "PROOVRA recorded this iOS device screen through Apple's user-authorised system screen broadcast, in a server-issued capture session started before the capture. The broadcast is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+    isDirectCapture: true,
+    limitations: [
+      "SCREEN_IOS_CONTENT_TRUTH_NOT_PROVEN",
+      "SCREEN_IOS_SOURCE_APP_NOT_PROVEN",
+      "SCREEN_IOS_DEVICE_INTEGRITY_NOT_VERIFIED",
+      "SCREEN_IOS_SYSTEM_BROADCAST_SCOPE",
     ],
   },
   LEGACY_NOT_RECORDED: {
@@ -353,6 +395,9 @@ export function acquisitionTimestampLabel(
   }
   if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS") {
     return "Recorded from an Android screen at (server UTC)";
+  }
+  if (mode === "DIRECT_SCREEN_CAPTURE_IOS") {
+    return "Recorded from an iOS screen at (server UTC)";
   }
   return "Recorded at submission (server UTC)";
 }

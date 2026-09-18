@@ -1,6 +1,9 @@
 {
-  "platforms": ["android"],
+  "platforms": ["android", "ios"],
   "android": {
     "modules": ["com.proovra.screencapture.ProovraScreenCaptureModule"]
+  },
+  "ios": {
+    "modules": ["ProovraScreenCaptureModule"]
   }
 }

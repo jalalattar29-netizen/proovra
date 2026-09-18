@@ -122,6 +122,22 @@ test("desktop unknown browser is never offered an install control", () => {
   assert.equal(cap.canInstallBrowserExtension, false);
 });
 
+test("iOS native supports CONTINUOUS screen capture (UC-5) but not deliberate frames", () => {
+  const cap = resolveCaptureCapabilities({
+    platform: "IOS_NATIVE",
+    nativeScreenCaptureSupported: true, // even if a probe claims it, iOS has no frame mode
+    nativeContinuousCaptureSupported: true,
+  });
+  assert.equal(cap.canContinuousScreenCapture, true);
+  assert.equal(cap.canDirectScreenCapture, false); // no iOS deliberate-frame mode
+  // iOS still never gets the browser-extension install.
+  assert.equal(cap.canInstallBrowserExtension, false);
+  assert.equal(cap.directWebCapture.state, "UNSUPPORTED_PLATFORM");
+
+  const noProbe = resolveCaptureCapabilities({ platform: "IOS_NATIVE" });
+  assert.equal(noProbe.canContinuousScreenCapture, false);
+});
+
 test("Android native screen capture requires the platform AND the native probe", () => {
   const supported = resolveCaptureCapabilities({
     platform: "ANDROID_NATIVE",

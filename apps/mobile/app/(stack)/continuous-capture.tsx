@@ -54,7 +54,9 @@ export default function ContinuousCaptureScreen() {
   const personalSpace = usePersonalSpaceAllowed();
   const [state, dispatch] = useReducer(continuousFlowReducer, INITIAL_CONTINUOUS_FLOW);
   const [busy, setBusy] = useState(false);
-  const supported = Platform.OS === "android" && isScreenContinuousSupported();
+  const isIOS = Platform.OS === "ios";
+  const supported =
+    (Platform.OS === "android" || isIOS) && isScreenContinuousSupported();
 
   // The ONE canonical session + evidence for the whole recording, and the segments
   // declared so far. Refs, not state, so the segment listener always sees the
@@ -304,8 +306,8 @@ export default function ContinuousCaptureScreen() {
   if (!supported) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Android only</Text>
-        <Text style={styles.body}>Continuous Screen Capture uses Android's screen-capture system and is not available on this device.</Text>
+        <Text style={styles.title}>Not available on this device</Text>
+        <Text style={styles.body}>Continuous Screen Capture uses the device's system screen-capture and is not available on this device.</Text>
         <Button label="Back" variant="secondary" onPress={() => router.back()} />
       </View>
     );
@@ -321,7 +323,11 @@ export default function ContinuousCaptureScreen() {
             PROOVRA will record what is shown on your screen as a continuous session, using Android's own
             screen-capture permission. Before it starts:
           </Text>
-          <Text style={styles.bullet}>• Android will ask you to allow screen capture.</Text>
+          <Text style={styles.bullet}>
+            {isIOS
+              ? "• Apple will show its system broadcast picker — tap Start Broadcast to begin, and stop it from the same control or the status bar."
+              : "• Android will ask you to allow screen capture."}
+          </Text>
           <Text style={styles.bullet}>• Recording continues until you stop it — anything visible can become evidence, including sensitive information.</Text>
           <Text style={styles.bullet}>• The session is split into short segments that upload as they are recorded.</Text>
           <Text style={styles.bullet}>• Protected content may be unavailable because of Android restrictions.</Text>

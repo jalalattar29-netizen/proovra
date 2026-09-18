@@ -47,7 +47,8 @@ export type DirectCaptureItemSource =
 export type DirectCaptureSessionMode =
   | "PROOVRA_MOBILE_APP"
   | "DIRECT_SCREEN_CAPTURE_ANDROID"
-  | "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
+  | "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS"
+  | "DIRECT_SCREEN_CAPTURE_IOS";
 
 export async function openDirectCaptureSession(
   mode: DirectCaptureSessionMode = "PROOVRA_MOBILE_APP",

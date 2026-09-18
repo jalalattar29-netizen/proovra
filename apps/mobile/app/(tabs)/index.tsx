@@ -57,6 +57,19 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
+
+          {/* UC-5 — iOS native screen capture (Apple system broadcast) reuses the
+              same continuous capture screen + canonical pipeline. */}
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={styles.heroSecondaryButton}
+              onPress={() => router.push("/continuous-capture")}
+            >
+              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
+                Screen Capture
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Text

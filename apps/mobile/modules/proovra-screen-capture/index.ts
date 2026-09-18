@@ -226,8 +226,15 @@ function continuousModule(): ContinuousNativeModule {
   return nativeModule() as unknown as ContinuousNativeModule;
 }
 
+// Continuous screen capture is the shared surface for BOTH Android MediaProjection
+// (UC-3) and iOS system broadcast (UC-5). The deliberate-frame API above stays
+// Android-only. `isContinuousScreenPlatform` is the ONE platform gate for it.
+function isContinuousScreenPlatform(): boolean {
+  return Platform.OS === "android" || Platform.OS === "ios";
+}
+
 export function isScreenContinuousSupported(): boolean {
-  if (Platform.OS !== "android") return false;
+  if (!isContinuousScreenPlatform()) return false;
   try {
     return continuousModule().isContinuousSupported();
   } catch {
@@ -236,7 +243,7 @@ export function isScreenContinuousSupported(): boolean {
 }
 
 export function getScreenContinuousState(): ScreenContinuousState {
-  if (Platform.OS !== "android") return { active: false, segmentCount: 0 };
+  if (!isContinuousScreenPlatform()) return { active: false, segmentCount: 0 };
   try {
     return continuousModule().getContinuousState();
   } catch {
@@ -250,7 +257,8 @@ const DEFAULT_MAX_SEGMENTS = SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments;
 export async function startContinuousCapture(
   options: ScreenContinuousOptions = {},
 ): Promise<ScreenContinuousStarted> {
-  if (Platform.OS !== "android") throw new Error("Continuous Screen Capture is available on Android only.");
+  if (!isContinuousScreenPlatform())
+    throw new Error("Continuous Screen Capture is available on Android and iOS only.");
   const B = SCREEN_CONTINUOUS_STREAM_BOUNDS;
   return continuousModule().startContinuousCapture({
     segmentMs: Math.max(B.minSegmentMs, Math.min(options.segmentMs ?? DEFAULT_SEGMENT_MS, B.maxSegmentMs)),
@@ -259,7 +267,7 @@ export async function startContinuousCapture(
 }
 
 export async function stopContinuousCapture(): Promise<ScreenContinuousResult> {
-  if (Platform.OS !== "android") throw new Error("Android only.");
+  if (!isContinuousScreenPlatform()) throw new Error("Android/iOS only.");
   return continuousModule().stopContinuousCapture();
 }
 

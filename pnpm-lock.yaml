@@ -136,6 +136,9 @@ importers:
       '@eslint/js':
         specifier: ^8.57.1
         version: 8.57.1
+      '@sentry/cli':
+        specifier: 2.42.4
+        version: 2.42.4
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3

@@ -19,6 +19,23 @@
         "projectId": "38174f3f-4bfa-4437-9b58-a72c4ca73c8f"
       }
     },
+    "ios": {
+      "bundleIdentifier": "com.jalalattar29.proovra",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.jalalattar29.proovra"
+        ]
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "PROOVRA uses the camera only when you capture a photo or video as evidence.",
+        "NSMicrophoneUsageDescription": "PROOVRA uses the microphone only when you record audio or video as evidence.",
+        "NSPhotoLibraryUsageDescription": "PROOVRA reads your photo library only when you choose an existing photo or video to submit as evidence.",
+        "NSLocationWhenInUseUsageDescription": "PROOVRA can attach your location to evidence you capture, only when you consent at capture time.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "package": "com.jalalattar29.proovra",
       "adaptiveIcon": {

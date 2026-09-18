@@ -56,6 +56,14 @@ test("every persisted mode resolves to itself, recorded at creation by default",
       assert.ok(a.limitations.includes("SCREEN_CONTENT_TRUTH_NOT_PROVEN"));
       assert.ok(a.limitations.includes("SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED"));
       assert.ok(a.limitations.includes("SCREEN_SESSION_CONTINUITY_LIMITED"));
+    } else if (mode === "DIRECT_SCREEN_CAPTURE_IOS") {
+      // UC-5 — iOS system screen broadcast. PROOVRA's own broadcast extension
+      // produced the segment bytes; its iOS screen-capture limitations apply,
+      // including the system-broadcast scope caveat.
+      assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
+      assert.ok(a.limitations.includes("SCREEN_IOS_CONTENT_TRUTH_NOT_PROVEN"));
+      assert.ok(a.limitations.includes("SCREEN_IOS_DEVICE_INTEGRITY_NOT_VERIFIED"));
+      assert.ok(a.limitations.includes("SCREEN_IOS_SYSTEM_BROADCAST_SCOPE"));
     } else {
       assert.equal(a.isDirectCapture, false, `${mode} is not a direct capture in UC-0`);
       assert.ok(a.limitations.includes("CREATION_NOT_OBSERVED_BY_PROOVRA"));
