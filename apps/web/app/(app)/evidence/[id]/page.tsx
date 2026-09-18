@@ -943,7 +943,6 @@ function EvidenceDetailPageInner() {
   const visibleTabs = DETAIL_TABS.filter(
     (t) =>
       !(t.id === "discussion" && !canSeeDiscussion) &&
-      // UC-4 — the Derived Review surface is an Enterprise intelligence affordance.
       !(t.id === "derived" && !canSeeIntelligence),
   );
 
@@ -1376,10 +1375,7 @@ function EvidenceDetailPageInner() {
             {activeTab === "artifacts" ? <EvidenceArtifactsTab ctx={ctx} /> : null}
             {activeTab === "discussion" ? <EvidenceDiscussionTab ctx={ctx} /> : null}
             {activeTab === "derived" ? (
-              <EvidenceDerivedReviewTab
-                ctx={ctx}
-                onGoToArtifacts={() => setActiveTab("artifacts")}
-              />
+              <EvidenceDerivedReviewTab ctx={ctx} onGoToArtifacts={() => setActiveTab("artifacts")} />
             ) : null}
             {activeTab === "technical" ? (
               <EvidenceTechnicalAppendixTab

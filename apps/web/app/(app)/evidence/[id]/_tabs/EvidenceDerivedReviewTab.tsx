@@ -10,6 +10,9 @@
  * It is deliberately NOT styled to imitate a messaging/provider UI: it is a
  * PROOVRA reviewer reconstruction. A visible label is not a verified identity and
  * a displayed timestamp is not a provider-verified time.
+ *
+ * Presentation is class-only (evidence-detail.css / .uc4-derived-*): the route
+ * forbids inline style objects and raw hex (evidence-shell-cleanup.test).
  */
 
 "use client";
@@ -65,7 +68,7 @@ export function EvidenceDerivedReviewTab({
       </h3>
 
       {/* Standing DERIVED disclaimer — this is not original acquisition. */}
-      <p className="evidence-detail-muted" style={{ marginTop: 4 }}>
+      <p className="evidence-detail-muted uc4-derived-intro">
         Machine-derived, source-linked review material reconstructed from the
         original screen evidence. It is <strong>not</strong> original acquisition:
         a visible sender label is not a verified identity, a displayed timestamp
@@ -74,7 +77,7 @@ export function EvidenceDerivedReviewTab({
       </p>
 
       {/* Status + actions matrix */}
-      <div className="evidence-detail-extract-card" style={{ marginTop: 12 }}>
+      <div className="evidence-detail-extract-card uc4-derived-card">
         <DerivedStatusRow
           status={status}
           coverageLabel={coverageLabel}
@@ -83,7 +86,7 @@ export function EvidenceDerivedReviewTab({
           loading={state.loading}
           errorCode={state.error?.code ?? null}
         />
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+        <div className="uc4-derived-actions">
           {status === "NOT_REQUESTED" && (
             <button
               type="button"
@@ -119,7 +122,7 @@ export function EvidenceDerivedReviewTab({
 
       {/* Coverage + limitations + transformation versions */}
       {projection && (
-        <div className="evidence-detail-extract-card" style={{ marginTop: 12 }}>
+        <div className="evidence-detail-extract-card uc4-derived-card">
           <p className="evidence-detail-muted">
             Coverage <strong>{coverageLabel}</strong> · OCR{" "}
             {projection.ocrEnabled ? "enabled" : "disabled by policy"} · Acquisition{" "}
@@ -132,7 +135,7 @@ export function EvidenceDerivedReviewTab({
               Limitations: {projection.limitations.join(", ")}
             </p>
           )}
-          <p className="evidence-detail-muted" style={{ fontSize: 12, opacity: 0.8 }}>
+          <p className="evidence-detail-muted uc4-derived-versions">
             {projection.transformationVersions.keyframe} ·{" "}
             {projection.transformationVersions.ocr} ·{" "}
             {projection.transformationVersions.reconstruction}
@@ -143,7 +146,7 @@ export function EvidenceDerivedReviewTab({
       {/* Reconstructed blocks */}
       {projection && projection.blocks.length > 0 ? (
         <>
-          <ol className="uc4-block-list" style={{ marginTop: 12, listStyle: "none", padding: 0 }}>
+          <ol className="uc4-derived-block-list">
             {projection.blocks.map((b) => (
               <DerivedBlockRow
                 key={b.blockId}
@@ -154,7 +157,7 @@ export function EvidenceDerivedReviewTab({
             ))}
           </ol>
           {projection.blockTotal > PAGE_SIZE && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <div className="uc4-derived-pager">
               <button
                 type="button"
                 className="app-btn"
@@ -163,7 +166,7 @@ export function EvidenceDerivedReviewTab({
               >
                 Previous
               </button>
-              <span className="evidence-detail-muted" style={{ alignSelf: "center" }}>
+              <span className="evidence-detail-muted uc4-derived-pageinfo">
                 {offset + 1}–{Math.min(offset + PAGE_SIZE, projection.blockTotal)} of{" "}
                 {projection.blockTotal}
               </span>
@@ -179,13 +182,13 @@ export function EvidenceDerivedReviewTab({
           )}
         </>
       ) : projection && projection.blocks.length === 0 ? (
-        <p className="evidence-detail-muted" style={{ marginTop: 12 }}>
+        <p className="evidence-detail-muted uc4-derived-card">
           {projection.ocrEnabled
             ? "No reconstructed text — the source produced no machine-readable content."
             : "OCR is disabled for this workspace, so no text was reconstructed. Keyframes were still derived."}
         </p>
       ) : status === "NOT_REQUESTED" ? (
-        <p className="evidence-detail-muted" style={{ marginTop: 12 }}>
+        <p className="evidence-detail-muted uc4-derived-card">
           No derived review has been generated for this evidence yet.
         </p>
       ) : null}
@@ -228,12 +231,10 @@ function DerivedStatusRow({
         {ocrEnabled === false ? " · OCR disabled" : ""}
       </span>
       {status === "FAILED" && lastError && (
-        <p className="evidence-detail-muted" style={{ color: "var(--app-danger, #b91c1c)" }}>
-          {lastError}
-        </p>
+        <p className="evidence-detail-muted uc4-derived-error">{lastError}</p>
       )}
       {errorCode && (
-        <p className="evidence-detail-muted" style={{ color: "var(--app-danger, #b91c1c)" }}>
+        <p className="evidence-detail-muted uc4-derived-error">
           Could not load derived review ({errorCode}).
         </p>
       )}
@@ -257,42 +258,39 @@ function DerivedBlockRow({
     .filter((u): u is string => !!u);
 
   return (
-    <li className="evidence-detail-extract-card" style={{ marginBottom: 8 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-        <span className="app-status-text" style={{ fontSize: 11, opacity: 0.7 }}>
-          {block.kind}
-        </span>
-        <span style={{ flex: 1, whiteSpace: "pre-wrap" }}>{block.text || "—"}</span>
+    <li className="evidence-detail-extract-card uc4-derived-block">
+      <div className="uc4-derived-block-head">
+        <span className="app-status-text uc4-derived-block-kind">{block.kind}</span>
+        <span className="uc4-derived-block-text">{block.text || "—"}</span>
       </div>
-      <div className="evidence-detail-muted" style={{ fontSize: 12, marginTop: 4 }}>
+      <div className="evidence-detail-muted uc4-derived-block-meta">
         Observed in {block.observedInFrames} frame(s) · overlap {block.confidence}
         {" · "}
         <button
           type="button"
-          className="app-link"
+          className="uc4-derived-linkbtn"
           onClick={() => setShowSource((v) => !v)}
-          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
         >
           {showSource ? "Hide source" : "View source"}
         </button>
       </div>
       {showSource && (
-        <div style={{ marginTop: 8 }}>
+        <div className="uc4-derived-source">
           {block.sources.map((s, i) => (
-            <div key={`${s.evidencePartId}-${i}`} className="evidence-detail-muted" style={{ fontSize: 12 }}>
+            <div key={`${s.evidencePartId}-${i}`} className="evidence-detail-muted uc4-derived-source-line">
               Source part <code>{s.evidencePartId.slice(0, 8)}…</code> ·{" "}
               {(s.offsetMsRange[0] / 1000).toFixed(1)}s–{(s.offsetMsRange[1] / 1000).toFixed(1)}s
             </div>
           ))}
           {kfUrls.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+            <div className="uc4-derived-thumbs">
               {kfUrls.slice(0, 6).map((u) => (
                 <img
                   key={u}
                   src={u}
                   alt="Derived source keyframe"
                   loading="lazy"
-                  style={{ maxWidth: 120, maxHeight: 120, borderRadius: 6, border: "1px solid var(--app-border, #e5e7eb)" }}
+                  className="uc4-derived-thumb"
                 />
               ))}
             </div>
@@ -300,8 +298,7 @@ function DerivedBlockRow({
           {onOpenOriginal && (
             <button
               type="button"
-              className="app-btn"
-              style={{ marginTop: 6 }}
+              className="app-btn uc4-derived-open-original"
               onClick={onOpenOriginal}
             >
               Open Original
