@@ -288,7 +288,10 @@ describe("R8.1.3 — durable MFA pending challenge model + enforcement", () => {
     const auth = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     // Allowed: auth.routes.ts, sso-auth.routes.ts, saml-auth.routes.ts (R8.2 additive).
     // mfa.routes.ts is identity sub-domain (R8.1.1), not parallel auth.
-    expect(auth.sort()).toEqual(["auth.routes.ts", "saml-auth.routes.ts", "sso-auth.routes.ts"]);
+    // UC-1 extension OAuth (PKCE) added extension-oauth.routes.ts — a legitimate
+    // auth-family route (mints an ordinary short-lived AUTH_JWT), not a parallel
+    // admin-auth/MFA route. The negative assertions below remain the real guard.
+    expect(auth.sort()).toEqual(["auth.routes.ts", "extension-oauth.routes.ts", "saml-auth.routes.ts", "sso-auth.routes.ts"]);
     // The login MFA verify endpoint lives in the canonical
     // auth.routes.ts, not a separate "auth-mfa.routes.ts".
     expect(AUTH_SRC).toMatch(/app\.post\(\s*["']\/v1\/auth\/mfa\/verify["']/);

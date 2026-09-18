@@ -179,11 +179,15 @@ describe("Phase 32.6 — bounded observability counters", () => {
     expect(PROC_SRC).toMatch(/bump\("package_generation_started_total"\)/);
   });
 
-  it("package_generation_completed_total is bumped only after the package buffer is materialised", () => {
+  it("package_generation_completed_total is bumped only after the package is materialised", () => {
     const PROC_SRC = readSource("../../worker/src/processor.ts");
-    // The completion bump sits AFTER `finalizedVerificationZip = ...buffer;`.
-    // From the assignment to the end of the block that holds it.
-    const marker = "finalizedVerificationZip = finalizedVerificationPackage.buffer";
+    // UC-3 streaming package publication replaced whole-ZIP buffering
+    // (`finalizedVerificationZip = ...buffer`) with a staged→promote flow, so the
+    // materialisation point is now `finalizedVerificationStaged = ...staged`. The
+    // invariant is unchanged and still holds: `createVerificationPackage()` →
+    // `.staged` assignment → `bump("package_generation_completed_total")` (the
+    // completion bump sits AFTER the package is materialised).
+    const marker = "finalizedVerificationStaged = finalizedVerificationPackage.staged";
     const block = enclosingSource(PROC_SRC, marker, "block", {
       unique: true,
       fileName: "processor.ts",

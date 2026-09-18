@@ -318,6 +318,7 @@ describe("R8.1.6 — scope guards: no parallel auth / workflow / tenant leak", (
     // mfa.routes.ts is identity sub-domain (R8.1.1), counted separately.
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",
+      "extension-oauth.routes.ts", // UC-1 extension OAuth (PKCE) — legitimate auth route, not a parallel admin-auth
       "saml-auth.routes.ts",
       "sso-auth.routes.ts",
     ]);

@@ -1194,7 +1194,11 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // either would make the other import from a sibling route module, and the
 // sunset date — the one thing that must not drift between them — would have a
 // home that reads as belonging to one family.
-const ROUTE_COUNT_PHASE_2_BASELINE = 130;
+// Re-baselined 130 -> 131 for UC-1's extension-oauth.routes.ts (the extension
+// OAuth Authorization Code + PKCE token endpoint — a legitimate auth-family
+// route on main, not a Phase-2 addition). The guard still catches an unexplained
+// new route file; the count tracks legitimate cross-phase growth.
+const ROUTE_COUNT_PHASE_2_BASELINE = 131;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

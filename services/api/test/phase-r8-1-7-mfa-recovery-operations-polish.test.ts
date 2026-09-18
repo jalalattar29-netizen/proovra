@@ -409,6 +409,7 @@ describe("R8.1.7 — scope guards", () => {
     const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",
+      "extension-oauth.routes.ts", // UC-1 extension OAuth (PKCE) — legitimate auth route, not a parallel admin-auth
       "saml-auth.routes.ts",
       "sso-auth.routes.ts",
     ]);

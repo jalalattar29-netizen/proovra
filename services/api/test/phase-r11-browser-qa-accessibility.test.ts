@@ -192,7 +192,9 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // beside the report request, and its failure cannot roll back a signature.
       // UC-0 rebaseline (2026-09-17): 52,223 -> 55,830 — direct-capture
       // session completion guard; see phase-cr5-capture-safety.test.ts.
-    ).toBe(55830);
+      // UC-3 Part I hardening rebaseline (5e20dc77): 55,830 -> 55,620 — orientation
+      // transitions + worker size backstop shrank the finalize path (11 lines).
+    ).toBe(55620);
   });
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
     const src = readFileSync(

@@ -366,6 +366,7 @@ describe("R8.1.4 — no parallel auth / workflow / tenant regression", () => {
     // R8.2 additive: saml-auth.routes.ts alongside the OIDC route.
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",
+      "extension-oauth.routes.ts", // UC-1 extension OAuth (PKCE) — legitimate auth route, not a parallel admin-auth
       "saml-auth.routes.ts",
       "sso-auth.routes.ts",
     ]);

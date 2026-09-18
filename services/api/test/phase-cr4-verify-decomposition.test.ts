@@ -229,7 +229,11 @@ describe("CR4 Group 1 — file-size guards", () => {
     // own stream hash BEFORE signing (a mismatch refuses the seal). The growth is
     // that guard plus its explanation; the finalize transaction, custody chain,
     // signing, TSA and OTS steps are unchanged.
-    expect(sz).toBe(55830);
+    // UC-3 PART I HARDENING rebaseline (5e20dc77, 2026-09-17): 55,830 -> 55,620.
+    // Deterministic orientation transitions + a worker size backstop — an 11-line
+    // change to the finalize path (git show 5e20dc77~1..5e20dc77). Finalize-tx,
+    // custody chain, signing, TSA and OTS semantics unchanged; the file SHRANK.
+    expect(sz).toBe(55620);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {
