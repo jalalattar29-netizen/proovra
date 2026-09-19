@@ -1,210 +1,136 @@
-import { Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { spacing, typography } from "@proovra/ui";
-import { Badge, BottomNav, ListRow, TopBar } from "../../components/ui";
-import { useLocale } from "../../src/locale-context";
+import { Platform, View, StyleSheet } from "react-native";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
+import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
+import { theme } from "../../src/theme/theme";
+import {
+  ProovraShell,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraBadge,
+  ProovraListRow,
+  ProovraEmptyState,
+  ProovraErrorState,
+  ProovraLoadingState,
+} from "../../src/ui";
+import type { ProovraStatusTone } from "@proovra/ui";
+
+type EvidenceItem = { id: string; type: string; status: string; createdAt: string };
+type LoadState = "loading" | "ready" | "error";
+
+function toneFor(status: string): ProovraStatusTone {
+  if (status === "SIGNED" || status === "REPORTED") return "verified";
+  if (status === "PROCESSING" || status === "UPLOADING") return "pending";
+  return "neutral";
+}
 
 export default function HomeScreen() {
-  const { t, fontFamilyBold, isRTL } = useLocale();
+  const { t } = useLocale();
   const router = useRouter();
-  const [items, setItems] = useState<
-    Array<{ id: string; type: string; status: string; createdAt: string }>
-  >([]);
+  const [items, setItems] = useState<EvidenceItem[]>([]);
+  const [state, setState] = useState<LoadState>("loading");
+  const [error, setError] = useState<SafeError | null>(null);
 
-  useEffect(() => {
-    apiFetch("/v1/evidence?scope=active")
-      .then((data) => setItems(data.items ?? []))
-      .catch(() => setItems([]));
+  const load = useCallback(async () => {
+    setState("loading");
+    setError(null);
+    try {
+      const data = await apiFetch("/v1/evidence?scope=active");
+      setItems((data.items ?? []) as EvidenceItem[]);
+      setState("ready");
+    } catch (err) {
+      // Honest failure — never a silent catch → empty (audit §I / drift register).
+      setError(toSafeUserError(err));
+      setState("error");
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
-    <View style={styles.container}>
-      <TopBar title={t("brand")} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCard}>
-          <Text style={[styles.heroTitle, { fontFamily: fontFamilyBold }]}>Capture truth.</Text>
-          <Text style={[styles.heroSubtitle, { textAlign: isRTL ? "right" : "left" }]}>
-            Prove it forever.
-          </Text>
-
-          <Pressable style={styles.heroButton} onPress={() => router.push("/capture")}>
-            <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
-              + {t("ctaCapture")}
-            </Text>
-          </Pressable>
-
+    <ProovraShell>
+      <ProovraCard style={styles.hero}>
+        <ProovraText variant="h1" weight="bold">
+          {t("brand")}
+        </ProovraText>
+        <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.heroSub}>
+          Capture truth. Prove it forever.
+        </ProovraText>
+        <View style={styles.heroActions}>
+          <ProovraButton label={`+ ${t("ctaCapture")}`} onPress={() => router.push("/capture")} />
           {Platform.OS === "android" && (
-            <Pressable
-              style={styles.heroSecondaryButton}
-              onPress={() => router.push("/screen-capture")}
-            >
-              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
-                Direct Screen Capture
-              </Text>
-            </Pressable>
+            <>
+              <ProovraButton
+                label="Direct Screen Capture"
+                variant="secondary"
+                onPress={() => router.push("/screen-capture")}
+              />
+              <ProovraButton
+                label="Continuous Screen Capture"
+                variant="secondary"
+                onPress={() => router.push("/continuous-capture")}
+              />
+            </>
           )}
-
-          {Platform.OS === "android" && (
-            <Pressable
-              style={styles.heroSecondaryButton}
-              onPress={() => router.push("/continuous-capture")}
-            >
-              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
-                Continuous Screen Capture
-              </Text>
-            </Pressable>
-          )}
-
-          {/* UC-5 — iOS native screen capture (Apple system broadcast) reuses the
-              same continuous capture screen + canonical pipeline. */}
           {Platform.OS === "ios" && (
-            <Pressable
-              style={styles.heroSecondaryButton}
+            <ProovraButton
+              label="Screen Capture"
+              variant="secondary"
               onPress={() => router.push("/continuous-capture")}
-            >
-              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
-                Screen Capture
-              </Text>
-            </Pressable>
+            />
           )}
         </View>
+      </ProovraCard>
 
-        <Text
-          style={[
-            styles.sectionTitle,
-            { fontFamily: fontFamilyBold, textAlign: isRTL ? "right" : "left" }
-          ]}
-        >
-          {t("recentEvidence")}
-        </Text>
-
-        <View style={styles.listCard}>
-          {items.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyTitle, { fontFamily: fontFamilyBold }]}>
-                No evidence yet
-              </Text>
-              <Text style={styles.emptyBody}>
-                Capture your first record to see it here.
-              </Text>
-            </View>
-          ) : (
-            items.map((item) => (
-              <ListRow
+      <ProovraSection title={t("recentEvidence")}>
+        {state === "loading" ? (
+          <ProovraLoadingState label={t("recentEvidence")} />
+        ) : state === "error" && error ? (
+          <ProovraErrorState message={error.message} onRetry={load} />
+        ) : items.length === 0 ? (
+          <ProovraEmptyState
+            title="No evidence yet"
+            message="Capture your first record to see it here."
+            action={<ProovraButton label={`+ ${t("ctaCapture")}`} fullWidth={false} onPress={() => router.push("/capture")} />}
+          />
+        ) : (
+          <ProovraCard>
+            {items.map((item) => (
+              <ProovraListRow
                 key={item.id}
                 title={item.type}
                 subtitle={formatUserDateTime(item.createdAt)}
-                badge={
-                  item.status === "SIGNED" ? (
-                    <Badge tone="signed" label={t("statusSigned")} />
-                  ) : item.status === "PROCESSING" ? (
-                    <Badge tone="processing" label={t("statusProcessing")} />
-                  ) : (
-                    <Badge tone="ready" label={t("statusReady")} />
-                  )
+                trailing={
+                  <ProovraBadge
+                    tone={toneFor(item.status)}
+                    label={
+                      item.status === "SIGNED"
+                        ? t("statusSigned")
+                        : item.status === "PROCESSING"
+                        ? t("statusProcessing")
+                        : t("statusReady")
+                    }
+                  />
                 }
                 onPress={() => router.push(`/evidence/${item.id}`)}
               />
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      <BottomNav />
-    </View>
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+    </ProovraShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050b18"
-  },
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl
-  },
-
-  // Hero = نفس إحساس web header (navy + glass overlay)
-  heroCard: {
-    borderRadius: 20,
-    padding: spacing.xl,
-    marginTop: spacing.md,
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
-    shadowColor: "#000",
-    shadowOpacity: 0.30,
-    shadowRadius: 26,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 3
-  },
-  heroTitle: {
-    fontSize: typography.size.h2,
-    color: "rgba(245,251,255,0.96)"
-  },
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    color: "rgba(219,235,248,0.78)",
-    fontSize: typography.size.bodyLg
-  },
-
-  // CTA button = glass + neon border (مثل الويب)
-  heroButton: {
-    marginTop: spacing.lg,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(6, 13, 31, 0.58)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.22)",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999
-  },
-  heroSecondaryButton: {
-    marginTop: spacing.sm,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.22)",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999
-  },
-  heroButtonText: {
-    color: "rgba(245,251,255,0.92)",
-    fontSize: 12
-  },
-
-  sectionTitle: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-    fontSize: typography.size.h3,
-    color: "rgba(246,252,255,0.92)"
-  },
-
-  // List card = dark glass (الـ ListRow نفسه صار جاهز من ui.tsx)
-  listCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 20,
-    padding: spacing.lg,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)"
-  },
-  // Truthful empty state — replaces a former hardcoded placeholder evidence row
-  // that linked to a non-existent /evidence/1.
-  emptyState: {
-    paddingVertical: spacing.md,
-    gap: spacing.xs
-  },
-  emptyTitle: {
-    fontSize: typography.size.body,
-    color: "rgba(246,252,255,0.92)"
-  },
-  emptyBody: {
-    fontSize: typography.size.label,
-    color: "rgba(219,235,248,0.70)"
-  }
+  hero: { marginTop: theme.space.s4, marginBottom: theme.space.s5 },
+  heroSub: { marginTop: theme.space.s2 },
+  heroActions: { marginTop: theme.space.s5, gap: theme.space.s3 },
 });

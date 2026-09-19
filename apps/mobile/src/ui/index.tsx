@@ -24,6 +24,8 @@ import { useLocale } from "../locale-context";
 import { theme, statusTone } from "../theme/theme";
 import type { ProovraStatusTone } from "@proovra/ui";
 
+export * from "./shell";
+
 const MIN_TOUCH = 44; // WCAG / platform minimum touch target
 
 /* ------------------------------------------------------------------ Screen */
