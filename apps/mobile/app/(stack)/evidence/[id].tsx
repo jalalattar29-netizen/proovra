@@ -13,6 +13,7 @@ import {
   ProovraText,
   ProovraButton,
   ProovraBadge,
+  ProovraListRow,
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
@@ -21,7 +22,22 @@ import {
   evidenceStatusDisplay,
   evidenceTypeLabel,
   verificationStatusDisplay,
+  humanizeEnum,
 } from "../../../src/product/domain-display";
+import {
+  projectCustodyEvents,
+  projectPreservation,
+  projectRelationships,
+  projectProvenance,
+  projectTechnical,
+  projectCertifications,
+  type CustodyEvent,
+  type PreservationView,
+  type RelationshipView,
+  type ProvenanceView,
+  type TechnicalView,
+  type CertificationView,
+} from "../../../src/product/evidence-detail";
 
 /**
  * P2-3 CLOSURE — one sentence per canonical output state. TOTAL over
@@ -52,7 +68,7 @@ function reportStateMessage(state: EvidenceOutputState | null): string {
   }
 }
 
-type Tab = "overview" | "integrity" | "custody" | "artifacts";
+type Tab = "overview" | "integrity" | "custody" | "technical" | "links" | "artifacts";
 type LoadState = "loading" | "ready" | "error" | "notfound";
 
 interface Core {
@@ -79,8 +95,14 @@ export default function EvidenceDetailScreen() {
   const [core, setCore] = useState<Core | null>(null);
   const [reportState, setReportState] = useState<EvidenceOutputState | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
-  const [rw, setRw] = useState<Record<string, unknown> | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  // Real review-workspace projections (bound from the CURRENT documented shape).
+  const [custody, setCustody] = useState<{ forensic: CustodyEvent[]; access: CustodyEvent[] }>({ forensic: [], access: [] });
+  const [preservation, setPreservation] = useState<PreservationView | null>(null);
+  const [relationships, setRelationships] = useState<RelationshipView[]>([]);
+  const [provenance, setProvenance] = useState<ProvenanceView | null>(null);
+  const [technical, setTechnical] = useState<TechnicalView | null>(null);
+  const [certifications, setCertifications] = useState<CertificationView[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -134,12 +156,34 @@ export default function EvidenceDetailScreen() {
       setReportUrl(null);
     }
 
-    // Rich review-workspace projection (defensive: render only what is present;
-    // never fabricate integrity/custody facts).
+    // Rich review-workspace projection — bind the REAL documented shape
+    // (custody events, TSA/OTS, signature, relationships, provenance). Defensive:
+    // render only what is present; never fabricate integrity/custody facts.
     try {
-      setRw(await apiFetch(`/v1/evidence/${id}/review-workspace`));
+      const rw = await apiFetch(`/v1/evidence/${id}/review-workspace`);
+      setCustody(projectCustodyEvents(rw));
+      setPreservation(projectPreservation(rw));
+      setRelationships(projectRelationships(rw));
+      setProvenance(projectProvenance(rw));
     } catch {
-      setRw(null);
+      setCustody({ forensic: [], access: [] });
+      setPreservation(null);
+      setRelationships([]);
+      setProvenance(null);
+    }
+
+    // Technical metadata + EXIF (separate endpoint; Personal/PRO-applicable).
+    try {
+      setTechnical(projectTechnical(await apiFetch(`/v1/evidence/${id}/technical-metadata`)));
+    } catch {
+      setTechnical(null);
+    }
+
+    // Declarations / certifications (separate endpoint; read = read-access only).
+    try {
+      setCertifications(projectCertifications(await apiFetch(`/v1/evidence/${id}/certifications`)));
+    } catch {
+      setCertifications([]);
     }
   }, [id]);
 
@@ -200,9 +244,10 @@ export default function EvidenceDetailScreen() {
     [id, load],
   );
 
-  const parts = useMemo(() => (Array.isArray(rw?.parts) ? (rw!.parts as unknown[]) : []), [rw]);
-  const integrity = (rw?.integrity ?? null) as Record<string, unknown> | null;
-  const publicVerification = (rw?.publicVerification ?? null) as Record<string, unknown> | null;
+  const custodyEvents = useMemo(
+    () => [...custody.forensic, ...custody.access].sort((a, b) => a.sequence - b.sequence),
+    [custody],
+  );
 
   if (state === "loading") {
     return (
@@ -231,6 +276,8 @@ export default function EvidenceDetailScreen() {
     { key: "overview", label: "Overview" },
     { key: "integrity", label: "Integrity" },
     { key: "custody", label: "Custody" },
+    { key: "technical", label: "Technical" },
+    ...(relationships.length > 0 ? ([{ key: "links", label: "Links" }] as Array<{ key: Tab; label: string }>) : []),
     { key: "artifacts", label: "Artifacts" },
   ];
 
@@ -286,8 +333,11 @@ export default function EvidenceDetailScreen() {
               <Row k="Verification" v={c.verificationStatusLabel?.trim() || verificationStatusDisplay(c.verificationStatus).label} />
             ) : null}
             <Row k="Created" v={c.createdAt ? formatUserDateTime(c.createdAt) : "—"} />
-            {parts.length > 0 ? <Row k="Parts" v={String(parts.length)} /> : null}
+            {provenance?.label ? <Row k="Source" v={provenance.label} /> : null}
           </ProovraCard>
+          {provenance?.statement ? (
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>{provenance.statement}</ProovraText>
+          ) : null}
           <View style={styles.actions}>
             <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { path: "lock" })} />
             <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { path: "archive" })} />
@@ -301,9 +351,29 @@ export default function EvidenceDetailScreen() {
           <ProovraCard>
             <Row k="SHA-256" v={c.fileSha256 ?? "—"} mono />
             <Row k="Ed25519 fingerprint" v={c.fingerprintHash ?? "—"} mono />
-            {integrity ? <Row k="Sealed" v={integrity.sealed ? "Yes" : "See record"} /> : null}
-            {publicVerification ? <Row k="Public verification" v={publicVerification.state ? String(publicVerification.state) : "—"} /> : null}
+            {preservation ? (
+              <>
+                {preservation.signature.recorded ? <Row k="Signature" v={preservation.signature.valid === false ? "Recorded (invalid)" : "Recorded"} /> : null}
+                <Row k="Trusted timestamp (TSA)" v={preservation.tsa.status ? `${humanizeEnum(preservation.tsa.status)}${preservation.tsa.provider ? ` · ${preservation.tsa.provider}` : ""}` : "Not timestamped"} />
+                <Row k="Blockchain anchor (OTS)" v={preservation.ots.effectiveStatus || preservation.ots.status ? humanizeEnum((preservation.ots.effectiveStatus || preservation.ots.status) as string) : "Not anchored"} />
+                {preservation.ots.bitcoinTxid ? <Row k="Bitcoin tx" v={preservation.ots.bitcoinTxid} mono /> : null}
+                {preservation.custodyChain.valid !== null ? <Row k="Custody chain" v={preservation.custodyChain.valid ? "Valid" : `Broken${preservation.custodyChain.reason ? ` — ${preservation.custodyChain.reason}` : ""}`} /> : null}
+              </>
+            ) : null}
           </ProovraCard>
+          {certifications.length > 0 ? (
+            <ProovraCard style={styles.stackCard}>
+              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Declarations</ProovraText>
+              {certifications.map((cert) => (
+                <ProovraListRow
+                  key={cert.id}
+                  title={humanizeEnum(cert.declarationType)}
+                  subtitle={[cert.attestorName, cert.attestedAtUtc ? formatUserDateTime(cert.attestedAtUtc) : null].filter(Boolean).join(" · ") || undefined}
+                  trailing={<ProovraBadge tone={cert.revoked ? "risk" : cert.status === "ATTESTED" ? "verified" : "neutral"} label={cert.revoked ? "Revoked" : humanizeEnum(cert.status)} />}
+                />
+              ))}
+            </ProovraCard>
+          ) : null}
           <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
             Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.
           </ProovraText>
@@ -315,16 +385,68 @@ export default function EvidenceDetailScreen() {
 
       {tab === "custody" ? (
         <ProovraSection title="Custody & access">
-          {parts.length === 0 && !rw ? (
-            <ProovraEmptyState title="Custody detail unavailable" message="Open this record on the web app for the full custody timeline." />
+          {custodyEvents.length === 0 ? (
+            <ProovraEmptyState title="No custody events yet" message="The forensic and access timeline for this record will appear here." />
           ) : (
             <ProovraCard>
-              <Row k="Parts sealed" v={String(parts.length)} />
-              <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
-                The full forensic custody and access-history timeline is available on the web app.
-              </ProovraText>
+              {custodyEvents.map((ev) => (
+                <ProovraListRow
+                  key={`${ev.category}-${ev.sequence}`}
+                  title={humanizeEnum(ev.eventType)}
+                  subtitle={[ev.summary, ev.atUtc ? formatUserDateTime(ev.atUtc) : null].filter(Boolean).join(" · ") || undefined}
+                  trailing={<ProovraBadge tone={ev.category === "forensic" ? "governance" : "neutral"} label={ev.category === "forensic" ? "Forensic" : "Access"} />}
+                />
+              ))}
             </ProovraCard>
           )}
+        </ProovraSection>
+      ) : null}
+
+      {tab === "technical" ? (
+        <ProovraSection title="Technical metadata">
+          {!technical ? (
+            <ProovraEmptyState title="No technical metadata" message="Technical metadata for this record isn’t available." />
+          ) : (
+            <>
+              <ProovraCard>
+                {technical.primaryMediaType ? <Row k="Media type" v={humanizeEnum(technical.primaryMediaType)} /> : null}
+                {technical.resolutionSummary ? <Row k="Resolution" v={technical.resolutionSummary} /> : null}
+                {technical.filesTotal !== null ? <Row k="Files analyzed" v={`${technical.filesAnalyzed ?? 0}/${technical.filesTotal}`} /> : null}
+                {technical.capture.captureMethod ? <Row k="Capture method" v={humanizeEnum(technical.capture.captureMethod)} /> : null}
+                {technical.capture.deviceClass ? <Row k="Device" v={humanizeEnum(technical.capture.deviceClass)} /> : null}
+                {technical.capture.osName ? <Row k="OS" v={technical.capture.osName} /> : null}
+                {technical.capture.timezone ? <Row k="Timezone" v={technical.capture.timezone} /> : null}
+              </ProovraCard>
+              {technical.exif && technical.exif.present ? (
+                <ProovraCard style={styles.stackCard}>
+                  <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>EXIF</ProovraText>
+                  {technical.exif.camera ? <Row k="Camera" v={technical.exif.camera} /> : null}
+                  {technical.exif.lensModel ? <Row k="Lens" v={technical.exif.lensModel} /> : null}
+                  {technical.exif.originalCaptureTime ? <Row k="Captured" v={technical.exif.originalCaptureTime} /> : null}
+                  {technical.exif.iso ? <Row k="ISO" v={technical.exif.iso} /> : null}
+                  {technical.exif.aperture ? <Row k="Aperture" v={technical.exif.aperture} /> : null}
+                  {technical.exif.exposureTime ? <Row k="Exposure" v={technical.exif.exposureTime} /> : null}
+                  <Row k="GPS" v={technical.exif.gpsPresent ? "Present" : "Not present"} />
+                </ProovraCard>
+              ) : null}
+            </>
+          )}
+        </ProovraSection>
+      ) : null}
+
+      {tab === "links" ? (
+        <ProovraSection title="Related evidence">
+          <ProovraCard>
+            {relationships.map((rel) => (
+              <ProovraListRow
+                key={rel.id}
+                title={rel.linkedTitle}
+                subtitle={[humanizeEnum(rel.relationshipType), rel.direction].filter(Boolean).join(" · ") || undefined}
+                trailing={<ProovraBadge tone={evidenceStatusDisplay(rel.linkedStatus).tone} label={evidenceStatusDisplay(rel.linkedStatus).label} />}
+                onPress={() => router.push(`/evidence/${rel.linkedId}`)}
+              />
+            ))}
+          </ProovraCard>
         </ProovraSection>
       ) : null}
 
@@ -369,4 +491,5 @@ const styles = StyleSheet.create({
   detailValue: { marginTop: 2 },
   actions: { marginTop: theme.space.s4, gap: theme.space.s2 },
   note: { marginTop: theme.space.s3 },
+  stackCard: { marginTop: theme.space.s3, gap: theme.space.s1 },
 });
