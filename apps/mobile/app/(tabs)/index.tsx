@@ -56,6 +56,12 @@ export default function HomeScreen() {
 
   return (
     <ProovraShell>
+      <ProovraCard style={styles.searchBar} onPress={() => router.push("/search")} accessibilityLabel="Search evidence and cases">
+        <ProovraText variant="body" color={theme.color.ink.muted}>
+          Search evidence, cases…
+        </ProovraText>
+      </ProovraCard>
+
       <ProovraCard style={styles.hero}>
         <ProovraText variant="h1" weight="bold">
           {t("brand")}
@@ -130,7 +136,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { marginTop: theme.space.s4, marginBottom: theme.space.s5 },
+  searchBar: { marginTop: theme.space.s4, paddingVertical: theme.space.s3 },
+  hero: { marginTop: theme.space.s3, marginBottom: theme.space.s5 },
   heroSub: { marginTop: theme.space.s2 },
   heroActions: { marginTop: theme.space.s5, gap: theme.space.s3 },
 });

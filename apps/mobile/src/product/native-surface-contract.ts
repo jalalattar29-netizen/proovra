@@ -130,6 +130,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
 
   // --- reachable stack ---
   {
+    surfaceId: "search",
+    routeFile: "(stack)/search.tsx",
+    title: "Global Search",
+    classification: "NATIVE-CORE",
+    reachability: "REACHABLE",
+    target: "Workspace-scoped GET /v1/search; cross-entity results → native detail; reached from Home (N1).",
+  },
+  {
     surfaceId: "auth",
     routeFile: "(stack)/auth.tsx",
     title: "Sign In / Auth Gateway",
