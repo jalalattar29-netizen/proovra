@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch, setAuthToken } from "./api";
 import { isAuthError } from "./errors/safe-error";
+import type { BootPhase } from "./bootstrap/bootstrap-machine";
 import * as SecureStore from "expo-secure-store";
 
 type AuthUser = { id: string; email?: string | null; displayName?: string | null };
@@ -19,6 +20,8 @@ type AuthContextValue = {
   setSession: (payload: { token: string; user?: AuthUser | null; mode: AuthMode }) => void;
   authReady: boolean;
   loading: boolean;
+  /** Canonical boot phase driving root navigation (bootstrap machine). */
+  bootPhase: BootPhase;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -112,6 +115,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Derive the canonical boot phase (bootstrap-machine vocabulary). A token
+  // with no resolved user after restore means /me failed on the network path
+  // (the token was kept) → offline-authenticated; an auth failure cleared the
+  // token → anonymous → gateway. Never a dead authenticated shell.
+  const bootPhase: BootPhase = !authReady
+    ? "restoring"
+    : !token
+    ? "anonymous"
+    : user
+    ? "authenticated"
+    : "offlineAuthed";
+
   const value = useMemo<AuthContextValue>(
     () => ({
       token,
@@ -121,9 +136,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken,
       setSession,
       authReady,
-      loading
+      loading,
+      bootPhase
     }),
-    [token, user, authMode, authReady, loading]
+    [token, user, authMode, authReady, loading, bootPhase]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

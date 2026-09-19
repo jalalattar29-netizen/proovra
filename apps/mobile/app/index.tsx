@@ -1,18 +1,26 @@
 import { Redirect } from "expo-router";
-import { View, ActivityIndicator } from "react-native";
 import { useAuth } from "../src/auth-context";
-import { colors } from "@proovra/ui";
+import { bootDestination } from "../src/bootstrap/bootstrap-machine";
+import { ProovraScreen, ProovraLoadingState } from "../src/ui";
 
+/**
+ * Boot gate. Root navigation is driven by the deterministic bootstrap machine's
+ * decision function — an expired/invalid token can never land in the main app
+ * (it is cleared → gateway), and an offline session opens the app rather than
+ * being treated as invalid credentials.
+ */
 export default function Index() {
-  const { token, authReady } = useAuth();
-  if (!authReady) {
+  const { token, bootPhase } = useAuth();
+  const dest = bootDestination({ phase: bootPhase, hasToken: !!token });
+
+  if (dest === "pending") {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.primaryNavy} />
-      </View>
+      <ProovraScreen scroll={false}>
+        <ProovraLoadingState label="Restoring your session" />
+      </ProovraScreen>
     );
   }
-  if (!token) {
+  if (dest === "gateway") {
     return <Redirect href="/(stack)/auth" />;
   }
   return <Redirect href="/(tabs)" />;
