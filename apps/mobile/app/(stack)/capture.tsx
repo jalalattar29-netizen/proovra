@@ -41,6 +41,7 @@ import {
   type DirectCaptureSession,
 } from "../../src/direct-capture";
 import { formatUserDateTime } from "../../src/lib/date";
+import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 // UC-0 — every item goes through ONE server-issued direct-capture session
 // (src/direct-capture.ts): the record is reserved by the session, each file's
 // digest is declared to it, the bytes go to storage, and the server re-hashes
@@ -938,19 +939,17 @@ setSessionState(
           <ProovraText variant="bodySm" color={theme.color.ink.muted}>No evidence yet.</ProovraText>
         ) : (
           <ProovraCard>
-            {recent.map((item) => (
-              <ProovraListRow
-                key={item.id}
-                title={item.type}
-                subtitle={formatUserDateTime(item.createdAt)}
-                trailing={
-                  <ProovraBadge
-                    tone={item.status === "SIGNED" ? "verified" : item.status === "PROCESSING" ? "pending" : "neutral"}
-                    label={item.status === "SIGNED" ? t("statusSigned") : item.status === "PROCESSING" ? t("statusProcessing") : t("statusReady")}
-                  />
-                }
-              />
-            ))}
+            {recent.map((item) => {
+              const status = evidenceStatusDisplay(item.status);
+              return (
+                <ProovraListRow
+                  key={item.id}
+                  title={evidenceTypeLabel(item.type)}
+                  subtitle={formatUserDateTime(item.createdAt)}
+                  trailing={<ProovraBadge tone={status.tone} label={status.label} />}
+                />
+              );
+            })}
           </ProovraCard>
         )}
       </ProovraSection>

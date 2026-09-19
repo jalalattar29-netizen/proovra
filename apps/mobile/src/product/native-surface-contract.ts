@@ -321,5 +321,6 @@ export const PRODUCT_DECISIONS: readonly ProductDecision[] = [
   { id: "native-analytics", status: "DEFERRED", decision: "No product analytics for parity. Crash telemetry is separate and consent-gated (§4.5)." },
   { id: "idle-lock", status: "DEFERRED", decision: "No new idle-lock policy. Fix session restore/expiry/401/re-auth only (§4.6)." },
   { id: "device-attestation", status: "DECIDED", decision: "Backend attestation fails closed; no real verifier. Never claim hardware-attested provenance; keep honest claims (§4.7)." },
+  { id: "audio-capture", status: "DECIDED", decision: "AUDIO is a valid Evidence TYPE, so display labels are retained (never stale). Native audio CAPTURE is NOT offered: the protected direct-capture sealing client accepts PHOTO/VIDEO/DOCUMENT only; widening it + adding a recorder is a §5 protected change needing device validation. No fabricated audio capability exists (§12)." },
   { id: "workspace-scope", status: "DECIDED", decision: "Native stays Personal-Space-oriented for capture; no fake workspace switcher; server authority canonical. Read-only PRO/TEAM collaboration surfaces are in scope where the backend grants them (N4/§4.8)." },
 ] as const;
