@@ -93,6 +93,7 @@ export default function SettingsScreen() {
           <ProovraListRow title="Terms of Service" onPress={() => void Linking.openURL("https://www.proovra.com/terms")} />
           <ProovraListRow title="Privacy Policy" onPress={() => void Linking.openURL("https://www.proovra.com/privacy")} />
           <ProovraListRow title="Trust Center" onPress={() => void Linking.openURL("https://www.proovra.com/trust")} />
+          <ProovraListRow title="Verify a record" subtitle="Check the authenticity of a PROOVRA verification link" onPress={() => router.push("/verify")} />
         </ProovraCard>
 
         {/* Security (web-managed) */}

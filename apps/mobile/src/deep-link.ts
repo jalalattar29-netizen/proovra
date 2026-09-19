@@ -67,6 +67,34 @@ export function parseCanonicalMobileDeepLink(url: string): ParsedMobileDeepLink 
   };
 }
 
+/**
+ * Extract a public verification id from whatever the user pastes: a full web
+ * verification URL (…/verify/<id> or ?id=<id>), a proovra://verify?id=<id> link,
+ * or a bare id. Public/read-only — it does NOT go through the tenant resolve gate
+ * (that is only for evidence/cases). Returns null when nothing usable is present.
+ */
+export function extractVerificationId(input: string): string | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+  // Try to parse as a URL first.
+  try {
+    const u = new URL(raw);
+    const qp = u.searchParams.get("id");
+    if (qp && qp.trim()) return qp.trim();
+    const segs =
+      u.protocol === "proovra:"
+        ? [u.hostname, ...u.pathname.split("/").filter(Boolean)]
+        : u.pathname.split("/").filter(Boolean);
+    const vi = segs.lastIndexOf("verify");
+    if (vi >= 0 && segs[vi + 1]) return decodeURIComponent(segs[vi + 1]).trim();
+    // A URL with no verify segment/param carries no id.
+    return null;
+  } catch {
+    // Not a URL — treat as a bare id, but reject anything with whitespace/slashes.
+    return /^[\w.-]+$/.test(raw) ? raw : null;
+  }
+}
+
 export type MobileDeepLinkOutcome =
   | { status: "navigate"; route: string; workspaceId: string }
   | { status: "denied" } // anti-enum: covers missing / mismatch / membership / suspension

@@ -264,8 +264,8 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     routeFile: "verify.tsx",
     title: "Public Verification",
     classification: "NATIVE-OPTIONAL",
-    reachability: "ORPHANED",
-    target: "Server-authoritative /public/verify view (mock removed, Phase 11); wire as a deep-link target in Phase 11G.",
+    reachability: "REACHABLE",
+    target: "Server-authoritative /public/verify view; reached from Settings and by public verify links (route+param, like verify-email) — accepts a pasted link/id (N5).",
   },
 ] as const;
 

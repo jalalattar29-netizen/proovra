@@ -4,6 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { apiFetch } from "../src/api";
 import { toSafeUserError, type SafeError } from "../src/errors/safe-error";
 import { formatUserDateTime } from "../src/lib/date";
+import { extractVerificationId } from "../src/deep-link";
 import { theme } from "../src/theme/theme";
 import {
   ProovraScreen,
@@ -12,11 +13,13 @@ import {
   ProovraText,
   ProovraButton,
   ProovraBadge,
+  ProovraInput,
+  ProovraFormField,
   ProovraListRow,
-  ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
 } from "../src/ui";
+import { AuthBrandHeader } from "../src/ui/brand";
 
 type CustodyEvent = { eventType: string; atUtc: string };
 type VerifyData = {
@@ -36,30 +39,56 @@ type VerifyData = {
  */
 export default function VerifyScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const id = params.id ?? "";
-  const [state, setState] = useState<"loading" | "ready" | "error" | "empty">("loading");
+  const paramId = params.id ?? "";
+  const [id, setId] = useState(paramId);
+  const [manual, setManual] = useState("");
+  const [state, setState] = useState<"loading" | "ready" | "error" | "empty">(paramId ? "loading" : "empty");
   const [error, setError] = useState<SafeError | null>(null);
   const [data, setData] = useState<VerifyData | null>(null);
 
-  const load = useCallback(async () => {
-    if (!id) { setState("empty"); return; }
+  const verify = useCallback(async (verificationId: string) => {
     setState("loading");
     setError(null);
     try {
-      const res = (await apiFetch(`/public/verify/${id}`)) as VerifyData;
+      const res = (await apiFetch(`/public/verify/${encodeURIComponent(verificationId)}`)) as VerifyData;
       setData(res);
       setState("ready");
     } catch (err) {
       setError(toSafeUserError(err));
       setState("error");
     }
-  }, [id]);
+  }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (paramId) void verify(paramId);
+  }, [paramId, verify]);
+
+  const submitManual = useCallback(() => {
+    const extracted = extractVerificationId(manual);
+    if (!extracted) {
+      setError({ kind: "input", title: "Check the details", message: "Paste a PROOVRA verification link or id." });
+      return;
+    }
+    setId(extracted);
+    void verify(extracted);
+  }, [manual, verify]);
 
   if (state === "loading") return <ProovraScreen scroll={false}><ProovraLoadingState label="Verifying" /></ProovraScreen>;
-  if (state === "empty") return <ProovraScreen scroll={false}><ProovraEmptyState title="No verification link" message="Open a PROOVRA verification link to view a record's authenticity." /></ProovraScreen>;
-  if (state === "error" && error) return <ProovraScreen scroll={false}><ProovraErrorState message={error.message} onRetry={load} /></ProovraScreen>;
+  // No id yet: let the user paste a public verification link/id (server-authoritative).
+  if (state === "empty" || (state === "error" && !id)) {
+    return (
+      <ProovraScreen width="form">
+        <AuthBrandHeader tagline="Verify the authenticity of a PROOVRA record." />
+        <ProovraCard>
+          <ProovraFormField label="Verification link or id" error={error ? error.message : null}>
+            <ProovraInput value={manual} onChangeText={setManual} placeholder="https://proovra.com/verify/…" onSubmitEditing={submitManual} />
+          </ProovraFormField>
+          <ProovraButton label="Verify" onPress={submitManual} />
+        </ProovraCard>
+      </ProovraScreen>
+    );
+  }
+  if (state === "error" && error) return <ProovraScreen scroll={false}><ProovraErrorState message={error.message} onRetry={() => void verify(id)} /></ProovraScreen>;
 
   const d = data ?? {};
   const events = Array.isArray(d.custodyEvents) ? d.custodyEvents : [];
