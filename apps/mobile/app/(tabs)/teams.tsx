@@ -1,40 +1,119 @@
 /**
- * Workspaces — intentional stub (WEB-ONLY-INTENTIONAL).
- *
- * The approved mobile scope is CITIZEN CAPTURE, Personal-Space-only
- * (src/personal-space.ts: no workspace switcher, no Organization target). This
- * screen makes NO API call and is non-interactive: it explains where workspace
- * management lives and names no tenancy. It is not linked from navigation; the
- * route is kept so a restored nav-state / deep link resolves to an explanation.
- * Converged onto the canonical kit (Phase 12).
+ * COLLABORATION (Native Convergence §15, N4). Replaces the old dead "managed on
+ * web" stub with the real PRO/TEAM collaboration list: GET /v1/collaboration-
+ * teams (the server resolves the active workspace from the session). A workspace
+ * without the collaboration capability answers 403 → an honest "not available"
+ * state, never a fabricated list. Personal-only capture is unaffected; this is a
+ * read surface, not a workspace switcher (§4.8).
  */
-import { StyleSheet } from "react-native";
-import { useLocale } from "../../src/locale-context";
+import { useCallback, useEffect, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { apiFetch } from "../../src/api";
+import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
+import {
+  parseCollaborationTeams,
+  parseCollaborationNextCursor,
+  collaborationTeamSubtitle,
+  collaborationRoleLabel,
+  type CollaborationTeamRow,
+} from "../../src/product/collaboration";
 import { theme } from "../../src/theme/theme";
-import { ProovraScreen, ProovraCard, ProovraSection, ProovraText } from "../../src/ui";
+import {
+  ProovraShell,
+  ProovraCard,
+  ProovraSection,
+  ProovraButton,
+  ProovraBadge,
+  ProovraListRow,
+  ProovraEmptyState,
+  ProovraErrorState,
+  ProovraLoadingState,
+} from "../../src/ui";
 
-const NOTICE_TITLE = "Workspaces are managed on the web";
-const NOTICE_BODY =
-  "This app captures evidence into your Personal Space. Creating workspaces, inviting members and managing access are done in the PROOVRA web app on a browser.";
-const NOTICE_FOOTNOTE =
-  "Evidence you capture here stays in your Personal Space and is unaffected.";
+type Phase = "loading" | "ready" | "error" | "unavailable";
 
-export default function WorkspacesInfoScreen() {
-  const { t } = useLocale();
+export default function CollaborationScreen() {
+  const [teams, setTeams] = useState<CollaborationTeamRow[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [error, setError] = useState<SafeError | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const load = useCallback(async (nextCursor: string | null, existing: CollaborationTeamRow[]) => {
+    if (nextCursor) setLoadingMore(true);
+    else setPhase("loading");
+    setError(null);
+    try {
+      const path = nextCursor
+        ? `/v1/collaboration-teams?cursor=${encodeURIComponent(nextCursor)}`
+        : "/v1/collaboration-teams";
+      const data = await apiFetch(path);
+      const rows = parseCollaborationTeams(data);
+      setTeams(nextCursor ? [...existing, ...rows] : rows);
+      setCursor(parseCollaborationNextCursor(data));
+      setPhase("ready");
+    } catch (err) {
+      const safe = toSafeUserError(err);
+      // 403 = this workspace has no collaboration capability (Personal/plan) —
+      // an honest unavailable state, not a scary error.
+      if (safe.kind === "forbidden") setPhase("unavailable");
+      else {
+        setError(safe);
+        setPhase("error");
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(null, []);
+  }, [load]);
+
   return (
-    <ProovraScreen>
-      <ProovraSection title={t("teams")}>
-        <ProovraCard>
-          <ProovraText variant="h3" weight="semibold">{NOTICE_TITLE}</ProovraText>
-          <ProovraText variant="bodySm" color={theme.color.ink.secondary} style={styles.body}>{NOTICE_BODY}</ProovraText>
-          <ProovraText variant="label" color={theme.color.ink.muted} style={styles.footnote}>{NOTICE_FOOTNOTE}</ProovraText>
-        </ProovraCard>
+    <ProovraShell>
+      <ProovraSection title="Collaboration">
+        {phase === "loading" ? (
+          <ProovraLoadingState label="Loading collaboration groups" />
+        ) : phase === "unavailable" ? (
+          <ProovraEmptyState
+            title="Collaboration isn’t available here"
+            message="Collaboration groups are part of Team plans. Your evidence in Personal Space is unaffected."
+          />
+        ) : phase === "error" && error ? (
+          <ProovraErrorState message={error.message} onRetry={() => void load(null, [])} />
+        ) : teams.length === 0 ? (
+          <ProovraEmptyState
+            title="No collaboration groups yet"
+            message="Groups you belong to in this workspace will appear here. Create and manage groups in the PROOVRA web app."
+          />
+        ) : (
+          <>
+            <ProovraCard>
+              {teams.map((team) => {
+                const role = collaborationRoleLabel(team.viewerRole);
+                return (
+                  <ProovraListRow
+                    key={team.id}
+                    title={team.name}
+                    subtitle={collaborationTeamSubtitle(team)}
+                    trailing={role ? <ProovraBadge tone="governance" label={role} /> : undefined}
+                  />
+                );
+              })}
+            </ProovraCard>
+            {cursor ? (
+              <View style={styles.more}>
+                <ProovraButton label="Load more" variant="secondary" loading={loadingMore} onPress={() => void load(cursor, teams)} />
+              </View>
+            ) : null}
+          </>
+        )}
       </ProovraSection>
-    </ProovraScreen>
+    </ProovraShell>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { marginTop: theme.space.s2 },
-  footnote: { marginTop: theme.space.s2 },
+  more: { marginTop: theme.space.s4 },
 });

@@ -244,14 +244,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     target: "Restyle UI only; engine protected (Phase 10).",
   },
 
-  // --- intentional stub ---
+  // --- collaboration (PRO/TEAM) ---
   {
     surfaceId: "teams",
     routeFile: "(tabs)/teams.tsx",
-    title: "Workspaces (managed on web)",
-    classification: "WEB-ONLY-INTENTIONAL",
-    reachability: "ORPHANED",
-    target: "Keep as an explanatory stub; workspace/org admin stays web (§4.8).",
+    title: "Collaboration Groups",
+    classification: "NATIVE-OPTIONAL",
+    reachability: "REACHABLE",
+    target: "Real PRO/TEAM collaboration list from GET /v1/collaboration-teams; reached from Settings; read-only, no workspace switcher (N4/§4.8).",
   },
 
   // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
@@ -321,5 +321,5 @@ export const PRODUCT_DECISIONS: readonly ProductDecision[] = [
   { id: "native-analytics", status: "DEFERRED", decision: "No product analytics for parity. Crash telemetry is separate and consent-gated (§4.5)." },
   { id: "idle-lock", status: "DEFERRED", decision: "No new idle-lock policy. Fix session restore/expiry/401/re-auth only (§4.6)." },
   { id: "device-attestation", status: "DECIDED", decision: "Backend attestation fails closed; no real verifier. Never claim hardware-attested provenance; keep honest claims (§4.7)." },
-  { id: "workspace-scope", status: "DECIDED", decision: "Native stays Personal-Space-oriented; no fake workspace switcher; server authority canonical (§4.8)." },
+  { id: "workspace-scope", status: "DECIDED", decision: "Native stays Personal-Space-oriented for capture; no fake workspace switcher; server authority canonical. Read-only PRO/TEAM collaboration surfaces are in scope where the backend grants them (N4/§4.8)." },
 ] as const;

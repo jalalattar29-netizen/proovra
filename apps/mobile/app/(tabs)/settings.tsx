@@ -105,6 +105,16 @@ export default function SettingsScreen() {
           />
         </ProovraCard>
 
+        {/* Collaboration */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Collaboration</ProovraText>
+          <ProovraListRow
+            title="Collaboration groups"
+            subtitle="Groups you belong to in this workspace"
+            onPress={() => router.push("/teams")}
+          />
+        </ProovraCard>
+
         {/* Billing */}
         <ProovraCard style={styles.card}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Plan</ProovraText>
