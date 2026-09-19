@@ -1,43 +1,34 @@
-import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
-import { spacing, typography } from "@proovra/ui";
-import { Badge, BottomNav, Button, Card, StatusPill } from "../../../components/ui";
-import { useLocale } from "../../../src/locale-context";
-import { useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../src/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Linking, Pressable, View, StyleSheet } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import type { EvidenceOutputState } from "@proovra/shared";
+import { apiFetch } from "../../../src/api";
+import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
+import { formatUserDateTime } from "../../../src/lib/date";
+import { theme } from "../../../src/theme/theme";
+import {
+  ProovraScreen,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraBadge,
+  ProovraEmptyState,
+  ProovraErrorState,
+  ProovraLoadingState,
+} from "../../../src/ui";
+import type { ProovraStatusTone } from "@proovra/ui";
 
 /**
- * Phase 12 Point 4 (Pass E) — the on-screen "AI Analysis" section was
- * removed. It called `GET /v1/evidence/:id/analysis` and
- * `POST /v1/evidence/:id/analyze`, neither of which is registered on the
- * API. The GET's rejection was swallowed with a "not yet available"
- * comment, so a removed endpoint rendered as an empty state inviting the
- * operator to press "Analyze Evidence" — a visible product action that
- * could only ever fail. The canonical intelligence projection is
- * `GET /v1/intelligence/evidence/:id` (workspace-scoped, advisory,
- * entities/extracted-text shaped); it is a different contract than this
- * screen rendered, so no mobile surface is claimed here. Re-adding a
- * mobile intelligence surface is product work, not dead-code cleanup.
- */
-
-/**
- * P2-3 CLOSURE (2026-09-10) — one sentence per canonical output state.
- *
- * TOTAL over `EvidenceOutputState` (imported from @proovra/shared — mobile
- * holds no vocabulary of its own), so a state added to the product is a
- * compile error here rather than a blank card on a phone.
- *
- * `null` is the honest "we could not read the status" case, and it is
- * deliberately not folded into any real state: not knowing is not the same as
- * knowing there is nothing.
+ * P2-3 CLOSURE — one sentence per canonical output state. TOTAL over
+ * EvidenceOutputState (from @proovra/shared — mobile holds no vocabulary of its
+ * own). `null` is the honest "could not read status" case. Preserved verbatim.
  */
 function reportStateMessage(state: EvidenceOutputState | null): string {
   switch (state) {
     case null:
       return "Report status is unavailable right now. Pull to refresh, or open this record on the web app.";
     case "READY":
-      // Reached only if the URL could not be minted; the button is hidden.
       return "The report is ready. Open this record on the web app to download it.";
     case "NOT_INCLUDED":
       return "A report and verification package are not included for this record. Its integrity materials and public verification are unaffected.";
@@ -57,224 +48,280 @@ function reportStateMessage(state: EvidenceOutputState | null): string {
   }
 }
 
-export default function EvidenceDetailScreen() {
-  const { t, fontFamilyBold, fontFamily, isRTL } = useLocale();
-  const params = useLocalSearchParams<{ id?: string }>();
+type Tab = "overview" | "integrity" | "custody" | "artifacts";
+type LoadState = "loading" | "ready" | "error" | "notfound";
 
-  const [status, setStatus] = useState<string>("SIGNED");
+interface Core {
+  status: string;
+  createdAt: string | null;
+  type: string;
+  fileSha256: string | null;
+  fingerprintHash: string | null;
+}
+
+function toneFor(status: string): ProovraStatusTone {
+  if (status === "SIGNED" || status === "REPORTED") return "verified";
+  if (status === "PROCESSING" || status === "UPLOADING") return "pending";
+  if (status === "FAILED" || status === "FAILED_HASH_MISMATCH") return "risk";
+  return "neutral";
+}
+
+export default function EvidenceDetailScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const id = params.id ?? "";
+
+  const [tab, setTab] = useState<Tab>("overview");
+  const [state, setState] = useState<LoadState>("loading");
+  const [error, setError] = useState<SafeError | null>(null);
+  const [core, setCore] = useState<Core | null>(null);
+  const [reportState, setReportState] = useState<EvidenceOutputState | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
-  /*
-   * P2-3 CLOSURE (2026-09-10) — THE SERVER'S CANONICAL OUTPUT STATE.
-   *
-   * This screen had only `reportUrl`, and it rendered an ALWAYS-ENABLED
-   * "Download Report" whose handler was `if (reportUrl) …`. On every record
-   * without a report — which is every record on Free — pressing it did nothing
-   * at all, with no message. A control that silently no-ops is worse than an
-   * absent one: the customer concludes the app is broken rather than that the
-   * artifact does not exist.
-   *
-   * The state comes from the SAME projection web reads
-   * (`GET /v1/evidence/:id/artifacts/status`). Mobile reimplements no plan
-   * logic and holds no enum of its own — `EvidenceOutputState` is imported
-   * from @proovra/shared, which this app already depends on.
-   */
-  const [reportState, setReportState] = useState<EvidenceOutputState | null>(
-    null,
-  );
-  const [createdAt, setCreatedAt] = useState<string | null>(null);
-  const [type, setType] = useState<string>("Evidence");
-  const [fileSha, setFileSha] = useState<string | null>(null);
-  const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
+  const [rw, setRw] = useState<Record<string, unknown> | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    setState("loading");
+    setError(null);
+    try {
+      const data = await apiFetch(`/v1/evidence/${id}`);
+      const ev = (data.evidence ?? {}) as Record<string, unknown>;
+      setCore({
+        status: (ev.status as string) ?? "SIGNED",
+        createdAt: (ev.createdAt as string) ?? null,
+        type: (ev.type as string) ?? "Evidence",
+        fileSha256: (ev.fileSha256 as string) ?? null,
+        fingerprintHash: (ev.fingerprintHash as string) ?? null,
+      });
+      setState("ready");
+    } catch (err) {
+      const safe = toSafeUserError(err);
+      if (safe.kind === "notFound") {
+        setState("notfound");
+      } else {
+        setError(safe);
+        setState("error");
+      }
+      return;
+    }
+
+    // STATUS BEFORE URL — side-effect-free status first; only mint the report
+    // URL (which records a custody/audit download) once the server says READY.
+    try {
+      const st = await apiFetch(`/v1/evidence/${id}/artifacts/status`);
+      const next = (st?.outputs?.report?.state ?? null) as EvidenceOutputState | null;
+      setReportState(next);
+      if (next === "READY") {
+        try {
+          const report = await apiFetch(`/v1/evidence/${id}/report/latest`);
+          setReportUrl((report.url as string) ?? null);
+        } catch {
+          setReportUrl(null);
+        }
+      } else {
+        setReportUrl(null);
+      }
+    } catch {
+      setReportState(null);
+      setReportUrl(null);
+    }
+
+    // Rich review-workspace projection (defensive: render only what is present;
+    // never fabricate integrity/custody facts).
+    try {
+      setRw(await apiFetch(`/v1/evidence/${id}/review-workspace`));
+    } catch {
+      setRw(null);
+    }
+  }, [id]);
 
   useEffect(() => {
-    if (!params.id) return;
+    void load();
+  }, [load]);
 
-    apiFetch(`/v1/evidence/${params.id}`)
-      .then((data) => {
-        setStatus(data.evidence?.status ?? "SIGNED");
-        setCreatedAt(data.evidence?.createdAt ?? null);
-        setType(data.evidence?.type ?? "Evidence");
-        setFileSha(data.evidence?.fileSha256 ?? null);
-        setFingerprintHash(data.evidence?.fingerprintHash ?? null);
-      })
-      .catch(() => setStatus("SIGNED"));
+  const runAction = useCallback(
+    (label: string, opts: { path?: string; method?: "POST" | "DELETE"; body?: object; destructive?: boolean }) => {
+      Alert.alert(label, `${label} this record?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: label,
+          style: opts.destructive ? "destructive" : "default",
+          onPress: () => {
+            void (async () => {
+              setActionBusy(true);
+              try {
+                const suffix = opts.path ? `/${opts.path}` : "";
+                await apiFetch(`/v1/evidence/${id}${suffix}`, {
+                  method: opts.method ?? "POST",
+                  body: opts.body ? JSON.stringify(opts.body) : undefined,
+                });
+                await load(); // reconcile after mutation
+              } catch (err) {
+                Alert.alert("Action failed", toSafeUserError(err).message);
+              } finally {
+                setActionBusy(false);
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [id, load],
+  );
 
-    /*
-     * P2-3 — the STATE first, then the URL only when the state says READY.
-     *
-     * `/report/latest` emits custody and audit events for a real download, so
-     * calling it speculatively on every screen open recorded a download that
-     * nobody performed. The status endpoint is explicitly side-effect free and
-     * is the one this screen should have been reading.
-     */
-    apiFetch(`/v1/evidence/${params.id}/artifacts/status`)
-      .then((data) => {
-        const next = data?.outputs?.report?.state ?? null;
-        setReportState(next);
-        if (next !== "READY") {
-          setReportUrl(null);
-          return;
-        }
-        return apiFetch(`/v1/evidence/${params.id}/report/latest`)
-          .then((report) => setReportUrl(report.url ?? null))
-          .catch(() => setReportUrl(null));
-      })
-      .catch(() => {
-        setReportState(null);
-        setReportUrl(null);
-      });
-  }, [params.id]);
+  const parts = useMemo(() => (Array.isArray(rw?.parts) ? (rw!.parts as unknown[]) : []), [rw]);
+  const integrity = (rw?.integrity ?? null) as Record<string, unknown> | null;
+  const publicVerification = (rw?.publicVerification ?? null) as Record<string, unknown> | null;
 
-  const statusTone = useMemo(() => {
-    if (status === "SIGNED") return "signed" as const;
-    if (status === "PROCESSING") return "processing" as const;
-    return "ready" as const;
-  }, [status]);
+  if (state === "loading") {
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraLoadingState label="Loading record" />
+      </ProovraScreen>
+    );
+  }
+  if (state === "notfound") {
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState title="Record not found" message="This evidence record is no longer available." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
+      </ProovraScreen>
+    );
+  }
+  if (state === "error" && error) {
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraErrorState message={error.message} onRetry={load} />
+      </ProovraScreen>
+    );
+  }
+
+  const c = core!;
+  const TABS: Array<{ key: Tab; label: string }> = [
+    { key: "overview", label: "Overview" },
+    { key: "integrity", label: "Integrity" },
+    { key: "custody", label: "Custody" },
+    { key: "artifacts", label: "Artifacts" },
+  ];
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerIcon}>‹</Text>
-        <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>
-          Evidence #{params.id ?? "A3F9"}
-        </Text>
-        <Text style={styles.headerIcon}>⋮</Text>
+    <ProovraScreen>
+      <View style={styles.headerRow}>
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.banner}>
-          <StatusPill label={status === "SIGNED" ? "SIGNED" : status} />
-          <Text style={[styles.bannerType, { fontFamily: fontFamilyBold }]}>{type}</Text>
-          <Text style={[styles.bannerSub, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
-            {createdAt ? `Created ${new Date(createdAt).toISOString()}` : "—"}
-          </Text>
-        </View>
+      <ProovraCard style={styles.hero}>
+        <ProovraBadge tone={toneFor(c.status)} label={c.status} />
+        <ProovraText variant="h1" weight="bold" style={styles.heroTitle}>
+          {c.type}
+        </ProovraText>
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {c.createdAt ? `Created ${formatUserDateTime(c.createdAt)}` : "—"}
+        </ProovraText>
+      </ProovraCard>
 
-        <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
-          <View style={styles.detailsTop}>
-            <Text style={[styles.detailsTitle, { fontFamily: fontFamilyBold }]}>Details</Text>
-            <Badge label={status === "SIGNED" ? t("statusSigned") : status} tone={statusTone} />
-          </View>
-
-          <View style={styles.row}>
-            <Text style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
-              SHA-256
-            </Text>
-            <Text style={[styles.v, { fontFamily: fontFamilyBold }]}>
-              {fileSha ? `${fileSha.slice(0, 28)}…` : "—"}
-            </Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
-              Ed25519
-            </Text>
-            <Text style={[styles.v, { fontFamily: fontFamilyBold }]}>
-              {fingerprintHash ? `${fingerprintHash.slice(0, 28)}…` : "—"}
-            </Text>
-          </View>
-        </Card>
-
-        {/* Phase 12 Point 4 (Pass E) — the "Share Link" button next to
-            Download Report was removed. It had NO `onPress` at all (the
-            mobile Button's handler is optional), so it rendered a fully
-            styled, pressable control that did nothing. Mobile has no
-            share/public-verification surface to wire it to: there is no
-            verification-link fetch anywhere in apps/mobile, and the
-            evidence detail response this screen reads carries no share
-            URL. Building one is product work, not dead-code cleanup. */}
-        {/*
-          P2-3 CLOSURE (2026-09-10) — THE CONTROL EXISTS ONLY WHEN IT WORKS.
-
-          The button was rendered unconditionally and enabled, with
-          `onPress = () => { if (reportUrl) … }`. On any record without a report
-          it did nothing and said nothing. It now appears only when the server
-          says READY and a URL was minted; every other state renders the
-          server-derived sentence instead, so the screen always explains itself.
-
-          Hidden rather than disabled because the mobile `Button` primitive has
-          no disabled affordance, and adding one to show a control that can
-          never be pressed on this screen would be the same dead button with a
-          lower opacity.
-        */}
-        {reportState === "READY" && reportUrl ? (
-          <View style={styles.buttonRow}>
-            <Button
-              label={t("downloadReport")}
-              onPress={() => {
-                void Linking.openURL(reportUrl);
-              }}
-            />
-          </View>
-        ) : (
-          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
-            <Text
-              style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}
+      <View style={styles.tabs}>
+        {TABS.map((tb) => {
+          const active = tb.key === tab;
+          return (
+            <Pressable
+              key={tb.key}
+              onPress={() => setTab(tb.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[styles.tab, { borderColor: active ? theme.color.accent.a500 : theme.color.border.default, backgroundColor: active ? theme.color.accent.a050 : "transparent" }]}
             >
-              {reportStateMessage(reportState)}
-            </Text>
-          </Card>
-        )}
-      </ScrollView>
+              <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
+                {tb.label}
+              </ProovraText>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      <BottomNav />
+      {tab === "overview" ? (
+        <ProovraSection>
+          <ProovraCard>
+            <Row k="Type" v={c.type} />
+            <Row k="Status" v={c.status} />
+            <Row k="Created" v={c.createdAt ? formatUserDateTime(c.createdAt) : "—"} />
+            {parts.length > 0 ? <Row k="Parts" v={String(parts.length)} /> : null}
+          </ProovraCard>
+          <View style={styles.actions}>
+            <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { path: "lock" })} />
+            <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { path: "archive" })} />
+            <ProovraButton label="Move to Trash" variant="danger" loading={actionBusy} onPress={() => runAction("Move to Trash", { method: "DELETE", destructive: true })} />
+          </View>
+        </ProovraSection>
+      ) : null}
+
+      {tab === "integrity" ? (
+        <ProovraSection title="Integrity">
+          <ProovraCard>
+            <Row k="SHA-256" v={c.fileSha256 ?? "—"} mono />
+            <Row k="Ed25519 fingerprint" v={c.fingerprintHash ?? "—"} mono />
+            {integrity ? <Row k="Sealed" v={integrity.sealed ? "Yes" : "See record"} /> : null}
+            {publicVerification ? <Row k="Public verification" v={publicVerification.state ? String(publicVerification.state) : "—"} /> : null}
+          </ProovraCard>
+          <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
+            Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.
+          </ProovraText>
+        </ProovraSection>
+      ) : null}
+
+      {tab === "custody" ? (
+        <ProovraSection title="Custody & access">
+          {parts.length === 0 && !rw ? (
+            <ProovraEmptyState title="Custody detail unavailable" message="Open this record on the web app for the full custody timeline." />
+          ) : (
+            <ProovraCard>
+              <Row k="Parts sealed" v={String(parts.length)} />
+              <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
+                The full forensic custody and access-history timeline is available on the web app.
+              </ProovraText>
+            </ProovraCard>
+          )}
+        </ProovraSection>
+      ) : null}
+
+      {tab === "artifacts" ? (
+        <ProovraSection title="Report & artifacts">
+          {reportState === "READY" && reportUrl ? (
+            <ProovraButton label="Download report" onPress={() => void Linking.openURL(reportUrl)} />
+          ) : (
+            <ProovraCard>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {reportStateMessage(reportState)}
+              </ProovraText>
+            </ProovraCard>
+          )}
+        </ProovraSection>
+      ) : null}
+    </ProovraScreen>
+  );
+}
+
+function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <View style={styles.detailRow}>
+      <ProovraText variant="label" color={theme.color.ink.muted}>
+        {k}
+      </ProovraText>
+      <ProovraText variant="bodySm" mono={mono} numberOfLines={mono ? 2 : 1} style={styles.detailValue}>
+        {v}
+      </ProovraText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050b18" },
-  scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg
-  },
-  headerTitle: { fontSize: typography.size.h3, color: "rgba(245,251,255,0.96)" },
-  headerIcon: { fontSize: 18, color: "rgba(219,235,248,0.70)" },
-
-  banner: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 20,
-    padding: spacing.xl,
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
-    shadowColor: "#000",
-    shadowOpacity: 0.30,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 2
-  },
-  bannerType: { color: "rgba(245,251,255,0.96)", fontSize: typography.size.h2, marginTop: spacing.sm },
-  bannerSub: { marginTop: spacing.xs, color: "rgba(219,235,248,0.78)" },
-
-  // Dark card wrapper for Card component
-  darkCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)"
-  },
-
-  detailsTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md
-  },
-  detailsTitle: { fontSize: 14, color: "rgba(245,251,255,0.92)" },
-
-  row: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(101,235,255,0.12)",
-    paddingTop: spacing.md,
-    marginTop: spacing.md
-  },
-  k: { fontSize: 11, color: "rgba(219,235,248,0.70)" },
-  v: { marginTop: 4, fontSize: 13, color: "rgba(245,251,255,0.92)" },
-
-  buttonRow: { marginTop: spacing.lg, gap: spacing.sm }
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  hero: { marginBottom: theme.space.s4 },
+  heroTitle: { marginTop: theme.space.s2 },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s4 },
+  tab: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
+  detailRow: { paddingVertical: theme.space.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle, gap: 2 },
+  detailValue: { marginTop: 2 },
+  actions: { marginTop: theme.space.s4, gap: theme.space.s2 },
+  note: { marginTop: theme.space.s3 },
 });
