@@ -6,6 +6,14 @@ import { apiFetch, apiBaseUrl, getAuthToken } from "../../../src/api";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { caseStatusDisplay, CASE_STATUSES } from "../../../src/product/domain-display";
+import {
+  parseCaseNotes,
+  parseCaseAssignments,
+  buildMemberNameMap,
+  resolveMemberName,
+  type CaseNote,
+  type CaseAssignment,
+} from "../../../src/product/case-workspace";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -14,6 +22,8 @@ import {
   ProovraText,
   ProovraButton,
   ProovraBadge,
+  ProovraInput,
+  ProovraFormField,
   ProovraListRow,
   ProovraEmptyState,
   ProovraErrorState,
@@ -50,6 +60,11 @@ export default function CaseDetailScreen() {
   const [busyEvId, setBusyEvId] = useState<string | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
   const [statusBusy, setStatusBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<CaseNote[]>([]);
+  const [assignments, setAssignments] = useState<CaseAssignment[]>([]);
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+  const [noteText, setNoteText] = useState("");
+  const [noteBusy, setNoteBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -62,6 +77,7 @@ export default function CaseDetailScreen() {
       ]);
       setName(caseData.case?.name ?? "Case");
       setStatus(caseData.case?.status ?? null);
+      setMemberNames(buildMemberNameMap(caseData.case?.access));
       setEvidence(Array.isArray(evidenceData.items) ? (evidenceData.items as EvidenceItem[]) : []);
       setState("ready");
     } catch (err) {
@@ -71,7 +87,38 @@ export default function CaseDetailScreen() {
     }
   }, [id]);
 
+  // Notes + assignments come from the canonical matter-workspace envelope. It is
+  // a separate, degrade-safe load: a failure just hides those sections and never
+  // blocks the case/evidence view.
+  const loadWorkspace = useCallback(async () => {
+    if (!id) return;
+    try {
+      const ws = await apiFetch(`/v1/cases/${id}/matter-workspace`);
+      setNotes(parseCaseNotes(ws));
+      setAssignments(parseCaseAssignments(ws));
+    } catch {
+      setNotes([]);
+      setAssignments([]);
+    }
+  }, [id]);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
+
+  const addNote = useCallback(async () => {
+    const body = noteText.trim();
+    if (!body) return;
+    setNoteBusy(true);
+    try {
+      await apiFetch(`/v1/cases/${id}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+      setNoteText("");
+      await loadWorkspace();
+    } catch (err) {
+      Alert.alert("Could not add note", toSafeUserError(err).message);
+    } finally {
+      setNoteBusy(false);
+    }
+  }, [noteText, id, loadWorkspace]);
 
   // Export → download then present via the platform share sheet (Files/AirDrop/
   // etc.) instead of leaving it in an inaccessible cache dir.
@@ -252,6 +299,44 @@ export default function CaseDetailScreen() {
           </ProovraCard>
         )}
       </ProovraSection>
+
+      <ProovraSection title="Notes">
+        <ProovraCard style={styles.notesComposer}>
+          <ProovraFormField label="Add a note">
+            <ProovraInput value={noteText} onChangeText={setNoteText} placeholder="Add a note to this case…" autoCapitalize="sentences" onSubmitEditing={() => void addNote()} />
+          </ProovraFormField>
+          <ProovraButton label="Add note" loading={noteBusy} disabled={!noteText.trim()} onPress={() => void addNote()} />
+        </ProovraCard>
+        {notes.length === 0 ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.muted}>No notes yet.</ProovraText>
+        ) : (
+          <ProovraCard>
+            {notes.map((note) => (
+              <View key={note.id} style={styles.noteRow}>
+                <ProovraText variant="bodySm">{note.body}</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {[resolveMemberName(memberNames, note.authorUserId), note.createdAt ? formatUserDateTime(note.createdAt) : null, note.resolved ? "Resolved" : null].filter(Boolean).join(" · ")}
+                </ProovraText>
+              </View>
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+
+      {assignments.length > 0 ? (
+        <ProovraSection title="Assignments">
+          <ProovraCard>
+            {assignments.map((a) => (
+              <ProovraListRow
+                key={a.id}
+                title={resolveMemberName(memberNames, a.assignedToUserId)}
+                subtitle={[a.role, a.note].filter(Boolean).join(" · ") || undefined}
+                trailing={<ProovraBadge tone="governance" label={a.role || "Member"} />}
+              />
+            ))}
+          </ProovraCard>
+        </ProovraSection>
+      ) : null}
     </ProovraScreen>
   );
 }
@@ -265,4 +350,6 @@ const styles = StyleSheet.create({
   heroActions: { marginTop: theme.space.s4, flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
   addCard: { marginBottom: theme.space.s4, gap: theme.space.s2 },
   note: { marginTop: theme.space.s2 },
+  noteRow: { paddingVertical: theme.space.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle, gap: 2 },
+  notesComposer: { marginBottom: theme.space.s3, gap: theme.space.s2 },
 });
