@@ -41,6 +41,7 @@
       "bundleIdentifier": "com.jalalattar29.proovra",
       "buildNumber": "1",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "icon": "./assets/icon.png",
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -65,6 +66,7 @@
     },
     "plugins": [
       "expo-asset",
+      "expo-apple-authentication",
       "@sentry/react-native/expo",
       "./plugins/withProovraIosScreenBroadcast.cjs"
     ]

@@ -33,13 +33,22 @@ export function useOAuth(opts: {
   const [busy, setBusy] = useState<OAuthMode | null>(null);
   const [error, setError] = useState<SafeError | null>(null);
 
-  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "proovra" });
+  // Google native sign-in needs PLATFORM-SPECIFIC client ids (A1). Passing these
+  // lets expo-auth-session derive the correct native redirect (iOS uses the
+  // reversed-client-id scheme; Android binds to the package + SHA) — a single
+  // generic clientId + a custom proovra:// redirect is the defect this replaces.
+  // The webClientId sets the id_token audience for the server exchange; the
+  // backend audience allowlist stays strict (no wildcard). External console
+  // values remain EXTERNAL-CONFIG-PENDING.
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
+  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined;
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
   const [googleRequest, googleResponse, promptAsync] = Google.useAuthRequest({
-    clientId: googleClientId,
+    iosClientId,
+    androidClientId,
+    webClientId,
     responseType: AuthSession.ResponseType.IdToken,
     scopes: ["openid", "email", "profile"],
-    redirectUri,
   });
 
   useEffect(() => {
@@ -80,15 +89,15 @@ export function useOAuth(opts: {
   }, [googleResponse, onResult]);
 
   const promptGoogle = useCallback(() => {
-    if (!googleClientId || !googleRequest) {
-      // Repository wiring is present; the native client id is provisioned via
-      // EXPO_PUBLIC_GOOGLE_CLIENT_ID (EXTERNAL-CONFIG-PENDING).
+    if (!googleRequest) {
+      // Request is null until a platform client id is provisioned via
+      // EXPO_PUBLIC_GOOGLE_{IOS,ANDROID,WEB}_CLIENT_ID (EXTERNAL-CONFIG-PENDING).
       setError(toSafeUserError({ status: 503, code: "OAUTH_GOOGLE_UNCONFIGURED" }));
       return;
     }
     setError(null);
     void promptAsync();
-  }, [googleClientId, googleRequest, promptAsync]);
+  }, [googleRequest, promptAsync]);
 
   const signInApple = useCallback(() => {
     void (async () => {
