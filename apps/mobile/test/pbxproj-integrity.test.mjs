@@ -198,13 +198,18 @@ test("the extension's build settings carry the broadcast bundle id, deployment t
   }
 });
 
-test("the extension leaves signing to EAS and is host-device-family compatible", () => {
+test("the extension leaves signing to EAS and is UNIVERSAL (iPhone + iPad)", () => {
   // Regression guard for the real device-build failure: a hard-coded
   // CODE_SIGN_STYLE=Automatic on the extension conflicts with EAS's Manual,
   // profile-based signing and makes xcodebuild demand a development team the
   // extension never receives ("Signing for ProovraBroadcast requires a
-  // development team"). And the extension's device family must not be a
-  // superset of the iPhone-only host ("1"), or ad-hoc export validation fails.
+  // development team").
+  //
+  // Device family: PROOVRA is a universal app (app.json supportsTablet:true ->
+  // host TARGETED_DEVICE_FAMILY "1,2"). An app extension's device family must be
+  // a subset of its host's; "1,2" == host, so the extension is universal too.
+  // It must be exactly "1,2" (both iPhone=1 and iPad=2) — not iPhone-only "1",
+  // not iPad-only "2".
   const proj = freshFixtureProject();
   applyBroadcastExtensionTarget(proj, { mainBundleId: MAIN_BUNDLE_ID });
   const after = roundTrip(proj);
@@ -220,11 +225,10 @@ test("the extension leaves signing to EAS and is host-device-family compatible",
       "Automatic",
       "extension must NOT force Automatic signing — EAS manages it",
     );
-    assert.equal(
-      String(bs.TARGETED_DEVICE_FAMILY).replace(/"/g, ""),
-      "1",
-      "extension device family must match the iPhone-only host",
-    );
+    const family = String(bs.TARGETED_DEVICE_FAMILY).replace(/"/g, "").replace(/\s/g, "");
+    assert.equal(family, "1,2", "extension must be universal (iPhone + iPad)");
+    assert.notEqual(family, "1", "extension must not be iPhone-only");
+    assert.notEqual(family, "2", "extension must not be iPad-only");
   }
 });
 
@@ -318,6 +322,16 @@ test("the extension's source declares the broadcast-upload point, App Group, and
     `extension entitlements must declare the app's App Group (${appGroup})`,
   );
   assert.equal(appJson.expo.ios.bundleIdentifier, MAIN_BUNDLE_ID);
-  // Host is iPhone-only; the extension device family is aligned to it above.
-  assert.equal(appJson.expo.ios.supportsTablet, false);
+});
+
+test("the host app is UNIVERSAL: supports iPhone + iPad, and is not iPad-only", () => {
+  // Source-of-truth for the host device family. @expo/config-plugins'
+  // getDeviceFamilies maps { supportsTablet:true } -> [1,2] -> "1,2" and writes
+  // it to every host build config's TARGETED_DEVICE_FAMILY during prebuild, so
+  // asserting the app.json inputs proves the generated host family without a
+  // macOS prebuild. isTabletOnly must stay false/undefined (that would force
+  // "2" = iPad-only, which the product is not).
+  const appJson = JSON.parse(readFileSync(resolve(HERE, "../app.json"), "utf8"));
+  assert.equal(appJson.expo.ios.supportsTablet, true, "host must support iPad");
+  assert.notEqual(appJson.expo.ios.isTabletOnly, true, "host must NOT be iPad-only");
 });

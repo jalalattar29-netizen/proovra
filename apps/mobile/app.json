@@ -22,7 +22,7 @@
     "ios": {
       "bundleIdentifier": "com.jalalattar29.proovra",
       "buildNumber": "1",
-      "supportsTablet": false,
+      "supportsTablet": true,
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.jalalattar29.proovra"
