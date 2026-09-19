@@ -313,6 +313,17 @@ test("the extension's source declares the broadcast-upload point, App Group, and
   assert.match(info, /RPBroadcastProcessModeSampleBuffer/);
   assert.match(info, /SampleHandler/, "principal class must be the sample handler");
 
+  // CFBundleExecutable is REQUIRED for any executable bundle. The extension uses a
+  // classic INFOPLIST_FILE (not GENERATE_INFOPLIST_FILE), so Xcode does not
+  // synthesize it — a missing key produces a malformed .appex that iOS installd
+  // rejects at install ("Unable to Install"). It must be $(EXECUTABLE_NAME) so it
+  // resolves to the product name (ProovraBroadcast), never hard-coded.
+  assert.match(
+    info,
+    /<key>CFBundleExecutable<\/key>\s*<string>\$\(EXECUTABLE_NAME\)<\/string>/,
+    "extension Info.plist must set CFBundleExecutable to $(EXECUTABLE_NAME)",
+  );
+
   // App Group parity between the extension entitlements and the main app.
   const appGroup = appJson.expo.ios.entitlements["com.apple.security.application-groups"][0];
   assert.equal(appGroup, "group.com.jalalattar29.proovra");
