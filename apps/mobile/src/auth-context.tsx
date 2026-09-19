@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch, setAuthToken } from "./api";
+import { isAuthError } from "./errors/safe-error";
 import * as SecureStore from "expo-secure-store";
 
 type AuthUser = { id: string; email?: string | null; displayName?: string | null };
@@ -48,8 +49,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me = await apiFetch("/v1/auth/me", { method: "GET" });
         setUser(me.user ?? null);
         setAuthMode((await SecureStore.getItemAsync("proovra-auth-mode")) as AuthMode | null);
-      } catch {
-        setUser(null);
+      } catch (err) {
+        if (isAuthError(err)) {
+          // Expired/invalid session: PURGE the dead token so the boot gate
+          // routes to the auth gateway instead of into an authenticated-looking
+          // dead shell (the dead-token boot funnel — audit §I). See
+          // bootstrap-machine ME_FAILED{reason:"auth"} → expired.
+          setTokenState(null);
+          setAuthToken(null);
+          void SecureStore.deleteItemAsync("proovra-token");
+          void SecureStore.deleteItemAsync("proovra-auth-mode");
+          setAuthMode(null);
+          setUser(null);
+        } else {
+          // Network/transport failure: keep the token (offline ≠ invalid
+          // credentials). The session stays; screens surface offline states.
+          setUser(null);
+        }
       } finally {
         setLoading(false);
         setAuthReady(true);

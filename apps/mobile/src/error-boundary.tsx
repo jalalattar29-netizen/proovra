@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View, StyleSheet } from "react-native";
+import { Pressable, Text, View, StyleSheet } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { captureException } from "./sentry";
 
@@ -22,12 +22,25 @@ export class ErrorBoundary extends React.Component<Props, State> {
     captureException(error, { feature: "mobile_global_error" });
   }
 
+  handleReset = () => {
+    // Recover in place — no dead-end that requires killing the app (audit §I15).
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
           <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.subtitle}>Please reopen the app and try again.</Text>
+          <Text style={styles.subtitle}>You can try again without reopening the app.</Text>
+          <Pressable
+            onPress={this.handleReset}
+            accessibilityRole="button"
+            accessibilityLabel="Try again"
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.buttonText}>Try again</Text>
+          </Pressable>
         </View>
       );
     }
@@ -52,5 +65,21 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     color: "#64748b",
     textAlign: "center"
+  },
+  button: {
+    marginTop: spacing.lg,
+    minHeight: 44,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.navy,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  buttonPressed: { opacity: 0.9 },
+  buttonText: {
+    fontSize: typography.size.body,
+    color: colors.navy
   }
 });
