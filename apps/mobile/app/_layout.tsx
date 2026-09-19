@@ -14,7 +14,7 @@ import { AuthProvider } from "../src/auth-context";
 import { LocaleProvider } from "../src/locale-context";
 import { NetworkProvider } from "../src/network/network-context";
 import { ToastProvider } from "../src/toast-context";
-import { appTheme } from "../src/app-theme";
+import { theme } from "../src/theme/theme";
 
 /**
  * F4 — THE root layout and the ONE place the app's React providers mount.
@@ -47,7 +47,7 @@ export default function RootLayout() {
             <Stack
               screenOptions={{
                 headerShown: false,
-                contentStyle: { backgroundColor: appTheme.bg },
+                contentStyle: { backgroundColor: theme.color.surface.app },
               }}
             />
           </ToastProvider>

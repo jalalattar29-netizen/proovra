@@ -246,43 +246,11 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     target: "Keep as an explanatory stub; workspace/org admin stays web (§4.8).",
   },
 
-  // --- orphaned lifecycle scopes → converge into Evidence Library ---
-  {
-    surfaceId: "archive",
-    routeFile: "(tabs)/archive.tsx",
-    title: "Archive",
-    classification: "PRODUCT-DECISION-REQUIRED",
-    reachability: "ORPHANED",
-    target: "Converge into canonical Evidence Library scope=archived; preserve restore (§4.3, Phase 6).",
-  },
-  {
-    surfaceId: "deleted",
-    routeFile: "(tabs)/deleted.tsx",
-    title: "Trash",
-    classification: "PRODUCT-DECISION-REQUIRED",
-    reachability: "ORPHANED",
-    target: "Converge into Evidence Library scope=trash; preserve restore (§4.3, Phase 6).",
-  },
-  {
-    surfaceId: "locked",
-    routeFile: "(tabs)/locked.tsx",
-    title: "Locked",
-    classification: "PRODUCT-DECISION-REQUIRED",
-    reachability: "ORPHANED",
-    target: "Converge into Evidence Library scope=locked (read-only) (§4.3, Phase 6).",
-  },
+  // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
+  // Lifecycle scopes are canonical Evidence Library scopes; report actions live
+  // on Evidence. Zero module consumers proven before deletion.
 
-  // --- pseudo Reports (relabels evidence) ---
-  {
-    surfaceId: "reports",
-    routeFile: "(tabs)/reports.tsx",
-    title: "Reports (pseudo)",
-    classification: "PRODUCT-DECISION-REQUIRED",
-    reachability: "ORPHANED",
-    target: "Do NOT preserve evidence-as-reports relabel; keep report actions on Evidence; standalone Reports deferred (§4.2).",
-  },
-
-  // --- legacy mock ---
+  // --- public verification ---
   {
     surfaceId: "verify",
     routeFile: "verify.tsx",
