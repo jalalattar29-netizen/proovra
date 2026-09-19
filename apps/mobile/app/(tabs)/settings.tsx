@@ -114,6 +114,11 @@ export default function SettingsScreen() {
             subtitle="Groups you belong to in this workspace"
             onPress={() => router.push("/teams")}
           />
+          <ProovraListRow
+            title="Evidence requests"
+            subtitle="Requests to submit evidence"
+            onPress={() => router.push("/evidence-requests")}
+          />
         </ProovraCard>
 
         {/* Billing */}

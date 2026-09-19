@@ -261,6 +261,22 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     reachability: "REACHABLE",
     target: "GET /v1/collaboration-teams/:id — members, roles, pending invites; pushed from the collaboration list (D).",
   },
+  {
+    surfaceId: "evidence-requests",
+    routeFile: "(stack)/evidence-requests.tsx",
+    title: "Evidence Requests",
+    classification: "NATIVE-OPTIONAL",
+    reachability: "REACHABLE",
+    target: "GET /v1/evidence-requests?teamId — participant list; reached from Settings (E).",
+  },
+  {
+    surfaceId: "evidence-request-detail",
+    routeFile: "(stack)/evidence-request/[id].tsx",
+    title: "Evidence Request Detail",
+    classification: "NATIVE-OPTIONAL",
+    reachability: "REACHABLE",
+    target: "GET /v1/evidence-requests/:id — requested items + instructions + capture handoff; deep-link target (E).",
+  },
 
   // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
   // Lifecycle scopes are canonical Evidence Library scopes; report actions live
