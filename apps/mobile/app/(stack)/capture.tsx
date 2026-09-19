@@ -8,8 +8,17 @@ import {
   Text,
   View
 } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
-import { Badge, ListRow, Tabs } from "../../components/ui";
+import { theme } from "../../src/theme/theme";
+import {
+  ProovraScreen,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraBadge,
+  ProovraListRow,
+  ProovraEmptyState,
+} from "../../src/ui";
 import { useLocale } from "../../src/locale-context";
 import { useToast } from "../../src/toast-context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -77,7 +86,7 @@ type RecentEvidenceItem = {
 };
 
 export default function CaptureScreen() {
-  const { t, fontFamilyBold } = useLocale();
+  const { t } = useLocale();
   const { addToast } = useToast();
   const router = useRouter();
 
@@ -619,521 +628,197 @@ setSessionState(
   }, [sessionItems]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerIcon}>‹</Text>
-        <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>
-          {t("capture")}
-        </Text>
-        <Text style={styles.headerIcon}>⋮</Text>
+    <ProovraScreen>
+      <View style={styles.headerRow}>
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ProovraSection title={t("capture")}>
         {personalSpaceBlocked ? (
-          <View style={styles.blockedCard} testID="personal-space-blocked">
-            <Text style={[styles.blockedTitle, { fontFamily: fontFamilyBold }]}>
-              {PERSONAL_SPACE_UNAVAILABLE_TITLE}
-            </Text>
-            <Text style={styles.blockedText}>{PERSONAL_SPACE_UNAVAILABLE_MESSAGE}</Text>
+          <View testID="personal-space-blocked">
+            <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} />
           </View>
         ) : (
-        <>
-        <Tabs
-          items={[t("photo"), t("video"), t("document")]}
-          activeIndex={activeIndex}
-          onSelect={(index) => {
-            if (isSessionActive) {
-              addToast("Finish or discard the current session before changing type", "warning");
-              return;
-            }
-
-            setActiveIndex(index);
-            setCameraOpen(false);
-            setError(null);
-            setInfo(null);
-            setShowSettingsLink(false);
-          }}
-        />
-
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>Include location metadata</Text>
-          <Switch value={useLocation} onValueChange={setUseLocation} />
-        </View>
-
-        {cameraOpen && activeType !== "DOCUMENT" ? (
-          <View style={styles.cameraCard}>
-            <View>
-              <CameraView ref={cameraRef} style={styles.cameraPreview} />
-
-              <View style={styles.overlayTopLeft}>
-                <Text style={styles.overlayBadge}>
-                  Auto-add mode
-                </Text>
-              </View>
-
-              <View style={styles.overlayTopRight}>
-                <Text style={styles.counterBadge}>
-                  {sessionItems.length}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.cameraControls}>
-              {activeType === "PHOTO" ? (
-                <>
-                  <Text style={styles.timerText}>Take photos continuously. Each shot is added automatically.</Text>
-
-                  <Pressable
-                    style={[styles.captureBar, styles.primaryAction]}
-                    onPress={handleTakePhoto}
-                    disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence}
-                  >
-                    <Text style={styles.uploadText}>
-                      {busy || sessionCreatingEvidence ? "Capturing..." : "Capture Photo"}
-                    </Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.timerText}>
-                    {isRecording ? `Recording ${recordSeconds}s` : "Record video. It will be auto-added to the session."}
-                  </Text>
-
-                  <Pressable
-                    style={[
-                      styles.captureBar,
-                      isRecording ? styles.stopAction : styles.primaryAction
-                    ]}
-                    onPress={isRecording ? handleStopRecording : handleStartRecording}
-                    disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence}
-                  >
-                    <Text style={styles.uploadText}>
-                      {isRecording ? "Stop Recording" : "Start Recording"}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-
-              <Pressable
-                style={[styles.captureBar, styles.secondaryBar]}
-                onPress={() => setCameraOpen(false)}
-                disabled={isRecording}
-              >
-                <Text style={styles.secondaryText}>Close Camera</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable style={[styles.captureBar, styles.primaryAction]} onPress={openPickerOrCamera}>
-            <Text style={styles.uploadText}>
-              {activeType === "DOCUMENT" ? "Pick Document" : "Open Camera"}
-            </Text>
-          </Pressable>
-        )}
-
-        <View style={styles.preview}>
-          <Text style={styles.previewText}>
-            {isSessionActive
-              ? `Session active • ${sessionCountLabel}${totalDurationText ? ` • ${totalDurationText}` : ""}`
-              : "No active capture session"}
-          </Text>
-        </View>
-
-        {sessionItems.length > 0 ? (
-          <View style={styles.sessionCard}>
-            <Text style={[styles.sessionTitle, { fontFamily: fontFamilyBold }]}>
-              Capture Session
-            </Text>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
-              {sessionItems.map((item, index) => {
-                const isImage = item.mimeType.startsWith("image/");
-                const isVideo = item.mimeType.startsWith("video/");
-
+          <>
+            <View style={styles.typeRow}>
+              {[t("photo"), t("video"), t("document")].map((label, index) => {
+                const active = index === activeIndex;
                 return (
-                  <View key={item.id} style={styles.thumbCard}>
-                    <View style={styles.thumbPreview}>
-                      {isImage ? (
-                        <Image source={{ uri: item.uri }} style={styles.thumbImage} />
-                      ) : (
-                        <View style={styles.thumbFallback}>
-                          <Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : "DOC"}</Text>
-                        </View>
-                      )}
-
-                      <View style={styles.thumbIndexBadge}>
-                        <Text style={styles.thumbIndexText}>{index + 1}</Text>
-                      </View>
-                    </View>
-
-                    <Text numberOfLines={1} style={styles.thumbLabel}>
-                      {item.originalFilename || `Item ${index + 1}`}
-                    </Text>
-
-                    {item.uploading ? (
-                      <Text style={styles.thumbMeta}>{item.uploadProgress}%</Text>
-                    ) : item.uploaded ? (
-                      <Text style={styles.thumbMeta}>Uploaded</Text>
-                    ) : (
-                      <Text style={styles.thumbMeta}>Ready</Text>
-                    )}
-
-                    <Pressable
-                      onPress={() => removeFromSession(item.id)}
-                      disabled={sessionCompletingEvidence}
-                      style={styles.removePill}
-                    >
-                      <Text style={styles.removePillText}>Remove</Text>
-                    </Pressable>
-                  </View>
+                  <Pressable
+                    key={label}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      if (isSessionActive) {
+                        addToast("Finish or discard the current session before changing type", "warning");
+                        return;
+                      }
+                      setActiveIndex(index);
+                      setCameraOpen(false);
+                      setError(null);
+                      setInfo(null);
+                      setShowSettingsLink(false);
+                    }}
+                    style={[styles.typeChip, { borderColor: active ? theme.color.accent.a500 : theme.color.border.default, backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card }]}
+                  >
+                    <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>{label}</ProovraText>
+                  </Pressable>
                 );
               })}
-            </ScrollView>
-
-            <View style={styles.sessionActions}>
-              {activeType === "DOCUMENT" ? (
-                <Pressable
-                  style={[styles.captureBar, styles.secondaryBar, styles.sessionActionButton]}
-                  onPress={openPickerOrCamera}
-                  disabled={sessionCompletingEvidence}
-                >
-                  <Text style={styles.secondaryText}>Add Another Document</Text>
-                </Pressable>
-              ) : !cameraOpen ? (
-                <Pressable
-                  style={[styles.captureBar, styles.secondaryBar, styles.sessionActionButton]}
-                  onPress={openPickerOrCamera}
-                  disabled={sessionCompletingEvidence}
-                >
-                  <Text style={styles.secondaryText}>
-                    {activeType === "PHOTO" ? "Open Camera for More Photos" : "Open Camera for More Videos"}
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              <Pressable
-                style={[styles.captureBar, styles.finishAction, styles.sessionActionButton]}
-                onPress={completeSession}
-                disabled={sessionCompletingEvidence || sessionCreatingEvidence}
-              >
-                <Text style={styles.uploadText}>
-                  {sessionCompletingEvidence
-                    ? `Finishing... ${uploadProgress}%`
-                    : `Finish & Sign (${sessionItems.length})`}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.captureBar, styles.dangerAction, styles.sessionActionButton]}
-                onPress={discardSession}
-                disabled={sessionCompletingEvidence}
-              >
-                <Text style={styles.uploadText}>Discard Session</Text>
-              </Pressable>
             </View>
-          </View>
-        ) : null}
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {info ? <Text style={styles.infoText}>{info}</Text> : null}
+            <View style={styles.toggleRow}>
+              <ProovraText variant="body">Include location metadata</ProovraText>
+              <Switch value={useLocation} onValueChange={setUseLocation} accessibilityLabel="Include location metadata" />
+            </View>
 
-        {showSettingsLink ? (
-          <Pressable
-            style={[styles.captureBar, styles.secondaryBar]}
-            onPress={() => Linking.openSettings()}
-          >
-            <Text style={styles.secondaryText}>Open Settings</Text>
-          </Pressable>
-        ) : null}
-        </>
+            {cameraOpen && activeType !== "DOCUMENT" ? (
+              <ProovraCard style={styles.cameraCard}>
+                <View>
+                  <CameraView ref={cameraRef} style={styles.cameraPreview} />
+                  <View style={styles.overlayTopLeft}><Text style={styles.overlayBadge}>Auto-add mode</Text></View>
+                  <View style={styles.overlayTopRight}><Text style={styles.counterBadge}>{sessionItems.length}</Text></View>
+                </View>
+                <View style={styles.cameraControls}>
+                  {activeType === "PHOTO" ? (
+                    <>
+                      <ProovraText variant="label" color={theme.color.ink.muted} center>Take photos continuously. Each shot is added automatically.</ProovraText>
+                      <ProovraButton label="Capture Photo" loading={busy || sessionCreatingEvidence} disabled={sessionCompletingEvidence} onPress={handleTakePhoto} />
+                    </>
+                  ) : (
+                    <>
+                      <ProovraText variant="label" color={theme.color.ink.muted} center>{isRecording ? `Recording ${recordSeconds}s` : "Record video. It will be auto-added to the session."}</ProovraText>
+                      <ProovraButton label={isRecording ? "Stop Recording" : "Start Recording"} variant={isRecording ? "danger" : "primary"} disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence} onPress={isRecording ? handleStopRecording : handleStartRecording} />
+                    </>
+                  )}
+                  <ProovraButton label="Close Camera" variant="ghost" disabled={isRecording} onPress={() => setCameraOpen(false)} />
+                </View>
+              </ProovraCard>
+            ) : (
+              <ProovraButton label={activeType === "DOCUMENT" ? "Pick Document" : "Open Camera"} onPress={openPickerOrCamera} />
+            )}
+
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary} style={styles.previewLine}>
+              {isSessionActive
+                ? `Session active • ${sessionCountLabel}${totalDurationText ? ` • ${totalDurationText}` : ""}`
+                : "No active capture session"}
+            </ProovraText>
+
+            {sessionItems.length > 0 ? (
+              <ProovraCard style={styles.sessionCard}>
+                <ProovraText variant="h3" weight="semibold">Capture Session</ProovraText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
+                  {sessionItems.map((item, index) => {
+                    const isImage = item.mimeType.startsWith("image/");
+                    const isVideo = item.mimeType.startsWith("video/");
+                    return (
+                      <View key={item.id} style={styles.thumbCard}>
+                        <View style={styles.thumbPreview}>
+                          {isImage ? (
+                            <Image source={{ uri: item.uri }} style={styles.thumbImage} />
+                          ) : (
+                            <View style={styles.thumbFallback}><Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : "DOC"}</Text></View>
+                          )}
+                          <View style={styles.thumbIndexBadge}><Text style={styles.thumbIndexText}>{index + 1}</Text></View>
+                        </View>
+                        <ProovraText variant="label" numberOfLines={1} style={styles.thumbLabel}>{item.originalFilename || `Item ${index + 1}`}</ProovraText>
+                        <ProovraText variant="label" color={theme.color.ink.muted}>{item.uploading ? `${item.uploadProgress}%` : item.uploaded ? "Uploaded" : "Ready"}</ProovraText>
+                        <Pressable onPress={() => removeFromSession(item.id)} disabled={sessionCompletingEvidence} style={styles.removePill}>
+                          <Text style={styles.removePillText}>Remove</Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.sessionActions}>
+                  {activeType === "DOCUMENT" ? (
+                    <ProovraButton label="Add Another Document" variant="secondary" disabled={sessionCompletingEvidence} onPress={openPickerOrCamera} />
+                  ) : !cameraOpen ? (
+                    <ProovraButton
+                      label={activeType === "PHOTO" ? "Open Camera for More Photos" : "Open Camera for More Videos"}
+                      variant="secondary"
+                      disabled={sessionCompletingEvidence}
+                      onPress={openPickerOrCamera}
+                    />
+                  ) : null}
+                  <ProovraButton
+                    label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
+                    loading={sessionCompletingEvidence}
+                    disabled={sessionCreatingEvidence}
+                    onPress={completeSession}
+                  />
+                  <ProovraButton label="Discard Session" variant="danger" disabled={sessionCompletingEvidence} onPress={discardSession} />
+                </View>
+              </ProovraCard>
+            ) : null}
+
+            {error ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
+            {info ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{info}</ProovraText> : null}
+            {showSettingsLink ? <ProovraButton label="Open Settings" variant="secondary" onPress={() => Linking.openSettings()} /> : null}
+          </>
         )}
+      </ProovraSection>
 
-        <View style={styles.listCard}>
-          {recent.length === 0 ? (
-            <Text style={styles.previewText}>No evidence yet.</Text>
-          ) : (
-            recent.map((item) => (
-              <ListRow
+      <ProovraSection title={t("recentEvidence")}>
+        {recent.length === 0 ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.muted}>No evidence yet.</ProovraText>
+        ) : (
+          <ProovraCard>
+            {recent.map((item) => (
+              <ProovraListRow
                 key={item.id}
                 title={item.type}
                 subtitle={formatUserDateTime(item.createdAt)}
-                badge={
-                  item.status === "SIGNED" ? (
-                    <Badge tone="signed" label={t("statusSigned")} />
-                  ) : item.status === "PROCESSING" ? (
-                    <Badge tone="processing" label={t("statusProcessing")} />
-                  ) : (
-                    <Badge tone="ready" label={t("statusReady")} />
-                  )
+                trailing={
+                  <ProovraBadge
+                    tone={item.status === "SIGNED" ? "verified" : item.status === "PROCESSING" ? "pending" : "neutral"}
+                    label={item.status === "SIGNED" ? t("statusSigned") : item.status === "PROCESSING" ? t("statusProcessing") : t("statusReady")}
+                  />
                 }
               />
-            ))
-          )}
-        </View>
-      </ScrollView>
-    </View>
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+    </ProovraScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050b18"
-  },
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    gap: spacing.md
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg
-  },
-  headerTitle: {
-    fontSize: typography.size.h3,
-    color: "rgba(245,251,255,0.96)"
-  },
-  headerIcon: {
-    fontSize: 18,
-    color: "rgba(219,235,248,0.70)"
-  },
-  // PHASE 10 CLOSURE FIX 3 — no-Personal blocked state (bounded copy, no
-  // policy internals exposed).
-  blockedCard: {
-    backgroundColor: "rgba(127,29,29,0.14)",
-    borderRadius: 18,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.30)"
-  },
-  blockedTitle: {
-    fontSize: typography.size.h4,
-    color: "rgba(245,251,255,0.94)",
-    marginBottom: spacing.sm
-  },
-  blockedText: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: "rgba(219,235,248,0.80)"
-  },
-  preview: {
-    minHeight: 60,
-    borderRadius: 18,
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
-    justifyContent: "center"
-  },
-  previewText: {
-    color: "rgba(219,235,248,0.74)",
-    padding: spacing.md
-  },
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  typeRow: { flexDirection: "row", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  typeChip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 40, borderRadius: theme.radius.pill, borderWidth: 1 },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 14,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)"
+    backgroundColor: theme.color.surface.card,
+    borderRadius: theme.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.color.border.default,
+    paddingHorizontal: theme.space.s3,
+    paddingVertical: theme.space.s3,
+    marginBottom: theme.space.s3,
   },
-  toggleLabel: {
-    color: "rgba(245,251,255,0.90)",
-    fontSize: 14
-  },
-  cameraCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.92)",
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)"
-  },
-  cameraPreview: {
-    height: 380,
-    width: "100%"
-  },
-  overlayTopLeft: {
-    position: "absolute",
-    top: 12,
-    left: 12
-  },
-  overlayTopRight: {
-    position: "absolute",
-    top: 12,
-    right: 12
-  },
-  overlayBadge: {
-    backgroundColor: "rgba(6,13,31,0.78)",
-    color: "rgba(245,251,255,0.96)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: "700",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.20)"
-  },
-  counterBadge: {
-    minWidth: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(16,185,129,0.94)",
-    color: "#fff",
-    textAlign: "center",
-    textAlignVertical: "center",
-    fontSize: 14,
-    fontWeight: "800",
-    overflow: "hidden",
-    paddingTop: 7
-  },
-  cameraControls: {
-    padding: spacing.md,
-    gap: spacing.sm
-  },
-  timerText: {
-    color: "rgba(219,235,248,0.72)",
-    fontSize: 12,
-    textAlign: "center"
-  },
-  listCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 18,
-    padding: spacing.md,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)"
-  },
-  captureBar: {
-    marginTop: spacing.md,
-    borderRadius: 18,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)"
-  },
-  primaryAction: {
-    backgroundColor: colors.primaryNavy
-  },
-  finishAction: {
-    backgroundColor: "#10b981"
-  },
-  dangerAction: {
-    backgroundColor: "#b91c1c"
-  },
-  stopAction: {
-    backgroundColor: "#ef4444"
-  },
-  secondaryBar: {
-    backgroundColor: "rgba(6, 13, 31, 0.52)"
-  },
-  uploadText: {
-    color: "rgba(245,251,255,0.92)",
-    fontWeight: "700"
-  },
-  secondaryText: {
-    color: "rgba(245,251,255,0.92)",
-    fontWeight: "700"
-  },
-  errorText: {
-    color: "rgba(239, 68, 68, 0.95)",
-    paddingHorizontal: spacing.xl
-  },
-  infoText: {
-    color: "rgba(219,235,248,0.80)",
-    paddingHorizontal: spacing.xl
-  },
-  sessionCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 18,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)"
-  },
-  sessionTitle: {
-    color: "rgba(245,251,255,0.92)",
-    fontSize: typography.size.h4,
-    marginBottom: spacing.sm
-  },
-  thumbStrip: {
-    gap: 12,
-    paddingVertical: 8
-  },
-  thumbCard: {
-    width: 120,
-    backgroundColor: "rgba(6,13,31,0.48)",
-    borderRadius: 14,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.12)"
-  },
-  thumbPreview: {
-    width: "100%",
-    height: 90,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: "rgba(15,23,42,0.9)",
-    position: "relative"
-  },
-  thumbImage: {
-    width: "100%",
-    height: "100%"
-  },
-  thumbFallback: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  thumbFallbackText: {
-    color: "rgba(245,251,255,0.92)",
-    fontWeight: "800",
-    fontSize: 12
-  },
-  thumbIndexBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "rgba(6,13,31,0.82)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999
-  },
-  thumbIndexText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800"
-  },
-  thumbLabel: {
-    color: "rgba(245,251,255,0.92)",
-    marginTop: 8,
-    fontSize: 12
-  },
-  thumbMeta: {
-    color: "rgba(148,163,184,0.96)",
-    marginTop: 4,
-    fontSize: 11
-  },
-  removePill: {
-    marginTop: 8,
-    backgroundColor: "rgba(127,29,29,0.9)",
-    paddingVertical: 6,
-    borderRadius: 999,
-    alignItems: "center"
-  },
-  removePillText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700"
-  },
-  sessionActions: {
-    marginTop: 8
-  },
-  sessionActionButton: {
-    marginTop: 10
-  }
+  cameraCard: { padding: 0, overflow: "hidden", marginBottom: theme.space.s3 },
+  cameraPreview: { height: 380, width: "100%" },
+  overlayTopLeft: { position: "absolute", top: 12, left: 12 },
+  overlayTopRight: { position: "absolute", top: 12, right: 12 },
+  overlayBadge: { backgroundColor: "rgba(15,23,42,0.78)", color: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, fontSize: 12, fontWeight: "700", overflow: "hidden" },
+  counterBadge: { minWidth: 34, height: 34, borderRadius: 17, backgroundColor: theme.color.semantic.success, color: "#FFFFFF", textAlign: "center", fontSize: 14, fontWeight: "800", overflow: "hidden", paddingTop: 7 },
+  cameraControls: { padding: theme.space.s3, gap: theme.space.s2 },
+  previewLine: { marginBottom: theme.space.s3 },
+  sessionCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
+  thumbStrip: { gap: 12, paddingVertical: 8 },
+  thumbCard: { width: 120, backgroundColor: theme.color.surface.muted, borderRadius: theme.radius.md, padding: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.border.subtle },
+  thumbPreview: { width: "100%", height: 90, borderRadius: theme.radius.sm, overflow: "hidden", backgroundColor: theme.color.surface.muted, position: "relative" },
+  thumbImage: { width: "100%", height: "100%" },
+  thumbFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
+  thumbFallbackText: { color: theme.color.ink.secondary, fontWeight: "800", fontSize: 12 },
+  thumbIndexBadge: { position: "absolute", top: 6, right: 6, backgroundColor: "rgba(15,23,42,0.82)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill },
+  thumbIndexText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
+  thumbLabel: { marginTop: 8 },
+  removePill: { marginTop: 8, backgroundColor: theme.color.status.risk.solid, paddingVertical: 6, borderRadius: theme.radius.pill, alignItems: "center" },
+  removePillText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  sessionActions: { marginTop: 8, gap: theme.space.s2 },
 });
