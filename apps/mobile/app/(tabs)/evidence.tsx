@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
-import { theme } from "../../src/theme/theme";
+import { theme, statusTone } from "../../src/theme/theme";
 import {
   ProovraShell,
   ProovraCard,
@@ -18,17 +18,26 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import { evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES } from "../../src/product/domain-display";
+import { evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES, humanizeEnum } from "../../src/product/domain-display";
+import {
+  buildLibraryQuery,
+  projectLibraryMetrics,
+  hasActiveFilters,
+  nextSort,
+  sortLabel,
+  STATUS_FILTERS,
+  SOURCE_FILTERS,
+  REPORT_FILTERS,
+  type LibrarySort,
+  type LibraryMetric,
+} from "../../src/product/evidence-library";
 
 type Scope = "active" | "archived" | "trash" | "locked";
-type TypeFilter = "ALL" | (typeof EVIDENCE_TYPES)[number];
-type SortOrder = "newest" | "oldest";
 type EvidenceItem = {
   id: string;
   type: string;
   status: string;
   createdAt: string;
-  // Server-provided display fields (mapEvidenceListItem) — preferred over raw enums.
   statusLabel?: string | null;
   displayTitle?: string | null;
   title?: string | null;
@@ -45,7 +54,6 @@ const SCOPES: Array<{ key: Scope; label: string }> = [
   { key: "locked", label: "Locked" },
 ];
 
-/** Row title: prefer the server's display fields; fall back to a typed label. */
 function rowTitle(item: EvidenceItem): string {
   return (
     item.displayTitle?.trim() ||
@@ -56,12 +64,32 @@ function rowTitle(item: EvidenceItem): string {
   );
 }
 
+/** A single filter chip. */
+function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[styles.smallChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
+    >
+      <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
+        {label}
+      </ProovraText>
+    </Pressable>
+  );
+}
+
 /** Canonical Native Evidence Library — one surface, four lifecycle scopes. */
 export default function EvidenceLibraryScreen() {
   const router = useRouter();
   const [scope, setScope] = useState<Scope>("active");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
-  const [sort, setSort] = useState<SortOrder>("newest");
+  const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
+  const [reportFilter, setReportFilter] = useState<string>("ALL");
+  const [sort, setSort] = useState<LibrarySort>("newest");
+  const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<EvidenceItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -69,19 +97,21 @@ export default function EvidenceLibraryScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<LibraryMetric[] | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPage = useCallback(
-    async (opts: { scope: Scope; search: string; type: TypeFilter; sort: SortOrder; cursor?: string | null; append: boolean }) => {
+    async (opts: {
+      scope: Scope; search: string; type: string; status: string; source: string; report: string; sort: LibrarySort; cursor?: string | null; append: boolean;
+    }) => {
       if (!opts.append) setState("loading");
       setError(null);
       try {
-        // Server-side filter + sort (real, not a page-local reorder).
-        const params = new URLSearchParams({ scope: opts.scope, limit: "50", sort: opts.sort });
-        if (opts.search.trim()) params.set("search", opts.search.trim());
-        if (opts.type !== "ALL") params.set("type", opts.type);
-        if (opts.cursor) params.set("cursor", opts.cursor);
-        const data = await apiFetch(`/v1/evidence?${params.toString()}`);
+        const path = buildLibraryQuery({
+          scope: opts.scope, search: opts.search, type: opts.type, status: opts.status,
+          source: opts.source, reportReady: opts.report, sort: opts.sort, cursor: opts.cursor,
+        });
+        const data = await apiFetch(path);
         const page = (data.items ?? []) as EvidenceItem[];
         const info = (data.pageInfo ?? {}) as PageInfo;
         setItems((prev) => (opts.append ? [...prev, ...page] : page));
@@ -96,123 +126,150 @@ export default function EvidenceLibraryScreen() {
     [],
   );
 
+  const reload = useCallback(
+    (append = false, nextCursor: string | null = null) =>
+      fetchPage({ scope, search: query, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, cursor: nextCursor, append }),
+    [fetchPage, scope, query, typeFilter, statusFilter, sourceFilter, reportFilter, sort],
+  );
+
+  // Reload on any filter/scope/sort change (search is debounced separately).
   useEffect(() => {
-    // Scope/type/sort change loads immediately; search is debounced. `query` is
-    // intentionally omitted so a scope switch uses the current query without
-    // racing the debounce; fetchPage is stable (useCallback []).
-    void fetchPage({ scope, search: query, type: typeFilter, sort, append: false });
-  }, [scope, typeFilter, sort, fetchPage]);
+    // `query` intentionally omitted — search is debounced in onSearch; a scope/
+    // filter/sort change reloads with the current query. fetchPage is stable.
+    void fetchPage({ scope, search: query, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, append: false });
+  }, [scope, typeFilter, statusFilter, sourceFilter, reportFilter, sort, fetchPage]);
+
+  // Real workspace metrics (library-summary) — refresh on scope change; a failure
+  // just hides the strip (never blocks the list).
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const data = await apiFetch(`/v1/evidence/library-summary?scope=${scope}`);
+        if (alive) setMetrics(projectLibraryMetrics(data));
+      } catch {
+        if (alive) setMetrics(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [scope]);
 
   const onSearch = useCallback(
     (text: string) => {
       setQuery(text);
       if (debounce.current) clearTimeout(debounce.current);
       debounce.current = setTimeout(() => {
-        void fetchPage({ scope, search: text, type: typeFilter, sort, append: false });
+        void fetchPage({ scope, search: text, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, append: false });
       }, 300);
     },
-    [scope, typeFilter, sort, fetchPage],
+    [scope, typeFilter, statusFilter, sourceFilter, reportFilter, sort, fetchPage],
   );
 
   const restore = useCallback(
     (item: EvidenceItem) => {
       const isTrash = scope === "trash";
-      Alert.alert(
-        isTrash ? "Restore from Trash" : "Restore from Archive",
-        `Restore this ${item.type.toLowerCase()} record?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Restore",
-            onPress: () => {
-              void (async () => {
-                setBusyId(item.id);
-                try {
-                  await apiFetch(`/v1/evidence/${item.id}/${isTrash ? "restore" : "unarchive"}`, {
-                    method: "POST",
-                    body: isTrash ? JSON.stringify({ restore: true }) : undefined,
-                  });
-                  setItems((prev) => prev.filter((i) => i.id !== item.id)); // optimistic
-                } catch (err) {
-                  Alert.alert("Could not restore", toSafeUserError(err).message);
-                } finally {
-                  setBusyId(null);
-                }
-              })();
-            },
+      Alert.alert(isTrash ? "Restore from Trash" : "Restore from Archive", `Restore this ${evidenceTypeLabel(item.type).toLowerCase()} record?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          onPress: () => {
+            void (async () => {
+              setBusyId(item.id);
+              try {
+                await apiFetch(`/v1/evidence/${item.id}/${isTrash ? "restore" : "unarchive"}`, { method: "POST", body: isTrash ? JSON.stringify({ restore: true }) : undefined });
+                setItems((prev) => prev.filter((i) => i.id !== item.id));
+              } catch (err) {
+                Alert.alert("Could not restore", toSafeUserError(err).message);
+              } finally {
+                setBusyId(null);
+              }
+            })();
           },
-        ],
-      );
+        },
+      ]);
     },
     [scope],
   );
 
+  const clearFilters = useCallback(() => {
+    setTypeFilter("ALL"); setStatusFilter("ALL"); setSourceFilter("ALL"); setReportFilter("ALL");
+  }, []);
+
   const canRestore = scope === "archived" || scope === "trash";
+  const filtersActive = hasActiveFilters({ type: typeFilter, status: statusFilter, source: sourceFilter, reportReady: reportFilter });
 
   return (
     <ProovraShell>
       <ProovraSection title="Evidence">
         <View style={styles.scopeRow}>
-          {SCOPES.map((s) => {
-            const active = s.key === scope;
-            return (
-              <Pressable
-                key={s.key}
-                onPress={() => setScope(s.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[styles.scopeChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
-              >
-                <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
-                  {s.label}
-                </ProovraText>
-              </Pressable>
-            );
-          })}
+          {SCOPES.map((s) => (
+            <Chip key={s.key} label={s.label} active={s.key === scope} onPress={() => setScope(s.key)} />
+          ))}
         </View>
+
+        {metrics ? (
+          <View style={styles.metricStrip}>
+            {metrics.map((m) => {
+              const c = statusTone(m.tone);
+              return (
+                <View key={m.key} style={styles.metricTile}>
+                  <ProovraText variant="h3" weight="bold" color={c.solid}>{m.value}</ProovraText>
+                  <ProovraText variant="label" color={theme.color.ink.secondary} numberOfLines={2}>{m.label}</ProovraText>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
 
         <View style={styles.search}>
           <ProovraInput value={query} onChangeText={onSearch} placeholder="Search evidence" />
         </View>
 
         <View style={styles.filterRow}>
-          {(["ALL", ...EVIDENCE_TYPES] as TypeFilter[]).map((tf) => {
-            const active = tf === typeFilter;
-            return (
-              <Pressable
-                key={tf}
-                onPress={() => setTypeFilter(tf)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[styles.smallChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
-              >
-                <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
-                  {tf === "ALL" ? "All types" : evidenceTypeLabel(tf)}
-                </ProovraText>
-              </Pressable>
-            );
-          })}
-          <Pressable
-            onPress={() => setSort((s) => (s === "newest" ? "oldest" : "newest"))}
-            accessibilityRole="button"
-            accessibilityLabel={`Sort ${sort === "newest" ? "newest first" : "oldest first"}`}
-            style={[styles.smallChip, { backgroundColor: theme.color.surface.card, borderColor: theme.color.border.strong }]}
-          >
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-              {sort === "newest" ? "Newest ↓" : "Oldest ↑"}
-            </ProovraText>
-          </Pressable>
+          <Chip label="All types" active={typeFilter === "ALL"} onPress={() => setTypeFilter("ALL")} />
+          {EVIDENCE_TYPES.map((tf) => (
+            <Chip key={tf} label={evidenceTypeLabel(tf)} active={tf === typeFilter} onPress={() => setTypeFilter(tf)} />
+          ))}
+          <Chip label={sortLabel(sort)} active={false} onPress={() => setSort((s) => nextSort(s))} />
+          <Chip label={showFilters ? "Filters ▲" : `Filters${filtersActive ? " •" : ""} ▼`} active={filtersActive} onPress={() => setShowFilters((v) => !v)} />
         </View>
+
+        {showFilters ? (
+          <ProovraCard style={styles.filterPanel}>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Status</ProovraText>
+            <View style={styles.filterRow}>
+              <Chip label="Any" active={statusFilter === "ALL"} onPress={() => setStatusFilter("ALL")} />
+              {STATUS_FILTERS.map((st) => (
+                <Chip key={st} label={evidenceStatusDisplay(st).label} active={st === statusFilter} onPress={() => setStatusFilter(st)} />
+              ))}
+            </View>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Source</ProovraText>
+            <View style={styles.filterRow}>
+              <Chip label="Any" active={sourceFilter === "ALL"} onPress={() => setSourceFilter("ALL")} />
+              {SOURCE_FILTERS.map((sf) => (
+                <Chip key={sf} label={humanizeEnum(sf)} active={sf === sourceFilter} onPress={() => setSourceFilter(sf)} />
+              ))}
+            </View>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Report</ProovraText>
+            <View style={styles.filterRow}>
+              <Chip label="Any" active={reportFilter === "ALL"} onPress={() => setReportFilter("ALL")} />
+              {REPORT_FILTERS.map((rf) => (
+                <Chip key={rf} label={rf === "ready" ? "Report ready" : "Report missing"} active={rf === reportFilter} onPress={() => setReportFilter(rf)} />
+              ))}
+            </View>
+            {filtersActive ? <ProovraButton label="Clear filters" variant="ghost" fullWidth={false} onPress={clearFilters} /> : null}
+          </ProovraCard>
+        ) : null}
 
         {state === "loading" ? (
           <ProovraLoadingState label="Loading evidence" />
         ) : state === "error" && error ? (
-          <ProovraErrorState message={error.message} onRetry={() => void fetchPage({ scope, search: query, type: typeFilter, sort, append: false })} />
+          <ProovraErrorState message={error.message} onRetry={() => void reload()} />
         ) : items.length === 0 ? (
           <ProovraEmptyState
-            title={scope === "active" ? "No evidence yet" : `Nothing in ${scope}`}
-            message={scope === "active" ? "Captured records appear here." : undefined}
-            action={scope === "active" ? <ProovraButton label="+ Capture" fullWidth={false} onPress={() => router.push("/capture")} /> : undefined}
+            title={scope === "active" && !filtersActive && !query ? "No evidence yet" : "No matches"}
+            message={scope === "active" && !filtersActive && !query ? "Captured records appear here." : "No records match the current filters."}
+            action={scope === "active" && !filtersActive ? <ProovraButton label="+ Capture" fullWidth={false} onPress={() => router.push("/capture")} /> : undefined}
           />
         ) : (
           <>
@@ -227,13 +284,7 @@ export default function EvidenceLibraryScreen() {
                     onPress={() => router.push(`/evidence/${item.id}`)}
                     trailing={
                       canRestore ? (
-                        <ProovraButton
-                          label="Restore"
-                          variant="secondary"
-                          fullWidth={false}
-                          loading={busyId === item.id}
-                          onPress={() => restore(item)}
-                        />
+                        <ProovraButton label="Restore" variant="secondary" fullWidth={false} loading={busyId === item.id} onPress={() => restore(item)} />
                       ) : (
                         <ProovraBadge tone={status.tone} label={item.statusLabel?.trim() || status.label} />
                       )
@@ -244,7 +295,7 @@ export default function EvidenceLibraryScreen() {
             </ProovraCard>
             {hasMore ? (
               <View style={styles.more}>
-                <ProovraButton label="Load more" variant="secondary" onPress={() => void fetchPage({ scope, search: query, type: typeFilter, sort, cursor, append: true })} />
+                <ProovraButton label="Load more" variant="secondary" onPress={() => void reload(true, cursor)} />
               </View>
             ) : null}
           </>
@@ -256,9 +307,11 @@ export default function EvidenceLibraryScreen() {
 
 const styles = StyleSheet.create({
   scopeRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
-  scopeChip: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
+  metricStrip: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  metricTile: { flexGrow: 1, minWidth: "22%", backgroundColor: theme.color.surface.card, borderRadius: theme.radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.border.default, paddingVertical: theme.space.s3, paddingHorizontal: theme.space.s3, gap: 2 },
   search: { marginBottom: theme.space.s3 },
   filterRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  filterPanel: { marginBottom: theme.space.s3, gap: theme.space.s2 },
   smallChip: { paddingHorizontal: theme.space.s3, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 34, justifyContent: "center" },
   more: { marginTop: theme.space.s4 },
 });
