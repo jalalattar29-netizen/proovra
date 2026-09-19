@@ -277,6 +277,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     reachability: "REACHABLE",
     target: "GET /v1/evidence-requests/:id — requested items + instructions + capture handoff; deep-link target (E).",
   },
+  {
+    surfaceId: "intake-links",
+    routeFile: "(stack)/intake-links.tsx",
+    title: "Intake Links",
+    classification: "NATIVE-OPTIONAL",
+    reachability: "REACHABLE",
+    target: "GET /v1/workflow/intake-links?teamId — view + revoke; URL is a server secret (no copy); create web-managed; reached from Settings (F).",
+  },
 
   // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
   // Lifecycle scopes are canonical Evidence Library scopes; report actions live
@@ -346,5 +354,6 @@ export const PRODUCT_DECISIONS: readonly ProductDecision[] = [
   { id: "idle-lock", status: "DEFERRED", decision: "No new idle-lock policy. Fix session restore/expiry/401/re-auth only (§4.6)." },
   { id: "device-attestation", status: "DECIDED", decision: "Backend attestation fails closed; no real verifier. Never claim hardware-attested provenance; keep honest claims (§4.7)." },
   { id: "audio-capture", status: "DECIDED", decision: "AUDIO is a valid Evidence TYPE, so display labels are retained (never stale). Native audio CAPTURE is NOT offered: the protected direct-capture sealing client accepts PHOTO/VIDEO/DOCUMENT only; widening it + adding a recorder is a §5 protected change needing device validation. No fabricated audio capability exists (§12)." },
+  { id: "intake-link-create", status: "DECIDED", decision: "Native intake links are view + revoke only. The intake token is a server-side secret — the raw URL is returned once at creation and NEVER exposed in listings (links are delivered server-side via /send). Creation needs the public web origin + template catalog + that one-time URL, so it is web-managed. Native never fabricates or displays a link URL (§9)." },
   { id: "workspace-scope", status: "DECIDED", decision: "Native stays Personal-Space-oriented for capture; no fake workspace switcher; server authority canonical. Read-only PRO/TEAM collaboration surfaces are in scope where the backend grants them (N4/§4.8)." },
 ] as const;

@@ -119,6 +119,11 @@ export default function SettingsScreen() {
             subtitle="Requests to submit evidence"
             onPress={() => router.push("/evidence-requests")}
           />
+          <ProovraListRow
+            title="Intake links"
+            subtitle="View and revoke secure intake links"
+            onPress={() => router.push("/intake-links")}
+          />
         </ProovraCard>
 
         {/* Billing */}
