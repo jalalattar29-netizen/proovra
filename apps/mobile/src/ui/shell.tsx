@@ -25,6 +25,7 @@ export function useNavItems(): NavItem[] {
     { label: t("home"), href: "/" },
     { label: t("ctaCapture"), href: "/capture" },
     { label: t("cases"), href: "/cases" },
+    { label: "Evidence", href: "/evidence" },
     { label: t("settings"), href: "/settings" },
   ];
 }

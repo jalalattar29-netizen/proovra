@@ -96,6 +96,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     target: "Self-serve/Personal-Space home; honest loading/error/empty; keep native capture entry (Phase 5).",
   },
   {
+    surfaceId: "evidence-library",
+    routeFile: "(tabs)/evidence.tsx",
+    title: "Evidence Library",
+    classification: "NATIVE-CORE",
+    reachability: "REACHABLE",
+    target: "Canonical library: scopes active/archived/trash/locked, search, cursor, restore (Phase 6).",
+  },
+  {
     surfaceId: "cases",
     routeFile: "(tabs)/cases.tsx",
     title: "Cases",
