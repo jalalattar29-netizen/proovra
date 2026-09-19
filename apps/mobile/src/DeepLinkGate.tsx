@@ -14,9 +14,10 @@ import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 
-import { apiFetch } from "./api";
+import { apiFetch, getAuthToken } from "./api";
 import { listQueue } from "./upload-queue";
-import { resolveMobileDeepLink } from "./deep-link";
+import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "./deep-link";
+import { setPendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
   try {
@@ -40,6 +41,19 @@ export function DeepLinkGate() {
   useEffect(() => {
     if (!url) return;
     let disposed = false;
+
+    // Unauthenticated: preserve the intent and route to the gateway. The server
+    // resolve requires a session, so we do not call it here; the destination is
+    // replayed (and authorized by its own fetch) after the auth journey.
+    if (!getAuthToken()) {
+      const parsed = parseCanonicalMobileDeepLink(url);
+      if (parsed) {
+        setPendingRoute(parsed.route);
+        router.replace("/(stack)/auth");
+      }
+      return;
+    }
+
     void resolveMobileDeepLink(url, {
       resolve: (input) =>
         apiFetch("/v1/deep-link/resolve", {

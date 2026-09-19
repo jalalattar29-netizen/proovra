@@ -10,6 +10,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePathname, useRouter } from "expo-router";
 import { useLocale } from "../locale-context";
+import { useNetwork } from "../network/network-context";
 import { useResponsive } from "../theme/responsive";
 import { theme } from "../theme/theme";
 
@@ -98,6 +99,16 @@ export function ProovraTabletRail() {
  * App shell for a primary tab surface. Phone: scroll + bottom nav. Tablet:
  * left rail + a readable, centered content column.
  */
+function OfflineBanner() {
+  const { isOffline } = useNetwork();
+  if (!isOffline) return null;
+  return (
+    <View style={styles.offline} accessibilityRole="alert">
+      <Text style={styles.offlineText}>You're offline — showing the latest available data.</Text>
+    </View>
+  );
+}
+
 export function ProovraShell({ children }: { children: React.ReactNode }) {
   const { navMode, contentMaxWidth } = useResponsive();
   const { isRTL } = useLocale();
@@ -105,6 +116,7 @@ export function ProovraShell({ children }: { children: React.ReactNode }) {
   if (navMode === "rail") {
     return (
       <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+        <OfflineBanner />
         <View style={[styles.railRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <ProovraTabletRail />
           <ScrollView style={styles.flex} contentContainerStyle={styles.railContent}>
@@ -117,6 +129,7 @@ export function ProovraShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <OfflineBanner />
       <ScrollView style={styles.flex} contentContainerStyle={styles.bottomContent}>
         {children}
       </ScrollView>
@@ -155,4 +168,6 @@ const styles = StyleSheet.create({
   railItem: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: theme.space.s3, paddingHorizontal: theme.space.s3, borderRadius: theme.radius.md },
   indicator: { width: 8, height: 8, borderRadius: 4 },
   navLabel: { fontSize: theme.type.size.label },
+  offline: { backgroundColor: theme.color.status.pending.bg, paddingHorizontal: theme.space.s4, paddingVertical: theme.space.s2 },
+  offlineText: { color: theme.color.status.pending.fg, fontSize: theme.type.size.label, textAlign: "center" },
 });

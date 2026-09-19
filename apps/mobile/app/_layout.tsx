@@ -12,6 +12,7 @@ import { DeepLinkGate } from "../src/DeepLinkGate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { AuthProvider } from "../src/auth-context";
 import { LocaleProvider } from "../src/locale-context";
+import { NetworkProvider } from "../src/network/network-context";
 import { ToastProvider } from "../src/toast-context";
 import { appTheme } from "../src/app-theme";
 
@@ -39,6 +40,7 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <LocaleProvider>
+        <NetworkProvider>
         <AuthProvider>
           <ToastProvider>
             <DeepLinkGate />
@@ -50,6 +52,7 @@ export default function RootLayout() {
             />
           </ToastProvider>
         </AuthProvider>
+        </NetworkProvider>
       </LocaleProvider>
     </ErrorBoundary>
   );

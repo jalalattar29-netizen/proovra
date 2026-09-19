@@ -13,6 +13,7 @@ import { setAuthToken } from "../api";
 import { useAuth } from "../auth-context";
 import { fetchMe, getLegalStatus, type LoginResult } from "./auth-api";
 import type { OAuthMode } from "./use-oauth";
+import { takePendingRoute } from "../deep-link/pending-intent";
 
 export type LoginMode = OAuthMode | "email";
 
@@ -39,18 +40,23 @@ export function useCompleteLogin() {
       }
       setSession({ token: result.token, user, mode });
 
+      // A deep link that arrived before auth resumes here (survives auth → MFA →
+      // legal). The destination screen still authorizes via its own fetch.
+      const pending = takePendingRoute();
+      const destination = pending ?? "/(tabs)";
+
       // Legal-status gate at the entry to the app (audit §Z13). Fail-open on a
       // transient error — the server's 428 gate will still catch a real gap.
       try {
         const legal = await getLegalStatus();
         if (!legal.ok && legal.missingPolicies.length > 0) {
-          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(",") } });
+          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(","), next: destination } });
           return;
         }
       } catch {
         /* proceed; runtime 428 handles it */
       }
-      router.replace("/(tabs)");
+      router.replace(destination as never);
     },
     [router, setSession],
   );

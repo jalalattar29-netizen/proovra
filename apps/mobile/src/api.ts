@@ -1,4 +1,5 @@
 import { triggerLegalGate } from "./auth/legal-gate";
+import { reportNetworkOffline, reportNetworkOnline } from "./network/network-state";
 
 /** Canonical API origin — the ONE place the base URL is resolved. */
 export function apiBaseUrl(): string {
@@ -38,7 +39,14 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     headers.set("authorization", `Bearer ${authToken}`);
   }
 
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, { ...init, headers });
+    reportNetworkOnline(); // a completed response ⇒ we are online
+  } catch (e) {
+    reportNetworkOffline(); // transport failure ⇒ offline (NOT invalid creds)
+    throw e;
+  }
 
   if (!res.ok) {
     const headerReqId = res.headers.get("x-request-id") ?? undefined;
