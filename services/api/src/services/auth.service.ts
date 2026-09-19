@@ -102,10 +102,32 @@ function verifyJwtSignature(jwk: Jwk, signingInput: string, signatureB64: string
   return verifier.verify(key, signature);
 }
 
-function assertAudience(payloadAud: string | string[] | undefined, expected: string) {
+function assertAudience(payloadAud: string | string[] | undefined, expected: string | string[]) {
   if (!payloadAud) throw new Error("Missing aud");
   const values = Array.isArray(payloadAud) ? payloadAud : [payloadAud];
-  if (!values.includes(expected)) throw new Error("Invalid aud");
+  const allowed = Array.isArray(expected) ? expected : [expected];
+  if (!values.some((v) => allowed.includes(v))) throw new Error("Invalid aud");
+}
+
+/**
+ * The set of accepted OIDC audiences for a provider. Web + native clients have
+ * DIFFERENT audiences (web Service ID / web client id vs the iOS bundle id /
+ * native client ids), so a single-audience check rejected every native token.
+ * This reads an explicit comma-separated allowlist (`<PRIMARY>S`) and always
+ * includes the existing single `<PRIMARY>` value — so existing deployments keep
+ * working unchanged, and native audiences are added by setting the list env.
+ * Still a strict, explicit allowlist — never a wildcard.
+ */
+export function allowedAudiences(primaryEnv: string, listEnv: string): string[] {
+  const all = new Set<string>();
+  for (const raw of (process.env[listEnv] ?? "").split(",")) {
+    const v = raw.trim();
+    if (v) all.add(v);
+  }
+  const primary = process.env[primaryEnv];
+  if (primary) all.add(primary);
+  if (all.size === 0) throw new Error(`${primaryEnv} is not set`);
+  return [...all];
 }
 
 function assertIssuer(payloadIss: string | undefined, expected: string | string[]) {
@@ -132,7 +154,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
   if (!verifyJwtSignature(jwk, signingInput, signatureB64)) {
     throw new Error("Invalid signature");
   }
-  assertAudience(payload.aud, must("GOOGLE_CLIENT_ID"));
+  assertAudience(payload.aud, allowedAudiences("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_IDS"));
   assertIssuer(payload.iss, ["https://accounts.google.com", "accounts.google.com"]);
   assertNotExpired(payload.exp);
   const profile = {
@@ -227,7 +249,7 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     throw new Error("invalid_id_token");
   }
   try {
-    assertAudience(payload.aud, must("APPLE_CLIENT_ID"));
+    assertAudience(payload.aud, allowedAudiences("APPLE_CLIENT_ID", "APPLE_CLIENT_IDS"));
     assertIssuer(payload.iss, "https://appleid.apple.com");
     assertNotExpired(payload.exp);
   } catch {
