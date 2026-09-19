@@ -285,6 +285,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     reachability: "REACHABLE",
     target: "GET /v1/workflow/intake-links?teamId — view + revoke; URL is a server secret (no copy); create web-managed; reached from Settings (F).",
   },
+  {
+    surfaceId: "invite-accept",
+    routeFile: "(stack)/invite/[token].tsx",
+    title: "Collaboration Invite Acceptance",
+    classification: "NATIVE-CORE",
+    reachability: "REACHABLE",
+    target: "Deep-link target: gate on auth (pending intent survives Sign In→MFA→Legal), POST accept → team; invalid/expired fail safe (M7).",
+  },
 
   // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
   // Lifecycle scopes are canonical Evidence Library scopes; report actions live

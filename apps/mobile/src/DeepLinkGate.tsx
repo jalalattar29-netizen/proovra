@@ -17,7 +17,7 @@ import { useRouter } from "expo-router";
 import { apiFetch, getAuthToken } from "./api";
 import { isCaptureActive } from "./capture/active-capture";
 import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "./deep-link";
-import { setPendingRoute } from "./deep-link/pending-intent";
+import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
   try {
@@ -35,6 +35,12 @@ function hasActiveWork(): boolean {
 export function DeepLinkGate() {
   const url = Linking.useURL();
   const router = useRouter();
+
+  // M7 — rehydrate a pending deep-link intent that survived a process death
+  // during the auth journey (once, on mount). Stale/absent → no-op.
+  useEffect(() => {
+    void hydratePendingRoute();
+  }, []);
 
   useEffect(() => {
     if (!url) return;
