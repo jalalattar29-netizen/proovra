@@ -9,7 +9,7 @@ type AuthUser = { id: string; email?: string | null; displayName?: string | null
 // PHASE 10 (2026-07-23) — Guest Login was physically REMOVED from PROOVRA.
 // "guest" is no longer an authentication mode; the only interactive ceremonies
 // are the OAuth providers.
-type AuthMode = "google" | "apple";
+type AuthMode = "google" | "apple" | "email";
 
 type AuthContextValue = {
   token: string | null;

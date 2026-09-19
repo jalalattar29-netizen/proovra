@@ -9,12 +9,14 @@ import React from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  KeyboardTypeOptions,
   Platform,
   Pressable,
   ScrollView,
   StyleProp,
   StyleSheet,
   Text,
+  TextInput,
   TextStyle,
   View,
   ViewStyle,
@@ -238,6 +240,82 @@ function buttonPalette(variant: ButtonVariant): { bg: string; fg: string; border
   }
 }
 
+/* ------------------------------------------------------------ Input/Field */
+
+export function ProovraInput({
+  value,
+  onChangeText,
+  placeholder,
+  secureTextEntry,
+  keyboardType,
+  autoCapitalize = "none",
+  autoComplete,
+  editable = true,
+  onSubmitEditing,
+  testID,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder?: string;
+  secureTextEntry?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoComplete?: "email" | "password" | "off";
+  editable?: boolean;
+  onSubmitEditing?: () => void;
+  testID?: string;
+}) {
+  const { isRTL } = useLocale();
+  const [focused, setFocused] = React.useState(false);
+  return (
+    <TextInput
+      testID={testID}
+      value={value}
+      onChangeText={onChangeText}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      placeholder={placeholder}
+      placeholderTextColor={theme.color.ink.muted}
+      secureTextEntry={secureTextEntry}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      autoComplete={autoComplete}
+      editable={editable}
+      onSubmitEditing={onSubmitEditing}
+      accessibilityLabel={placeholder}
+      style={[
+        styles.input,
+        { textAlign: isRTL ? "right" : "left", borderColor: focused ? theme.color.accent.a500 : theme.color.border.strong },
+        !editable && styles.inputDisabled,
+      ]}
+    />
+  );
+}
+
+export function ProovraFormField({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.field}>
+      <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+        {label}
+      </ProovraText>
+      {children}
+      {error ? (
+        <ProovraText variant="label" color={theme.color.status.risk.fg}>
+          {error}
+        </ProovraText>
+      ) : null}
+    </View>
+  );
+}
+
 /* ---------------------------------------------------------- Badge / Status */
 
 export function ProovraBadge({ label, tone = "neutral" }: { label: string; tone?: ProovraStatusTone }) {
@@ -411,4 +489,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 2 },
   stateCenter: { alignItems: "center", justifyContent: "center", paddingVertical: theme.space.s10 },
   stateGap: { marginTop: theme.space.s3 },
+  field: { gap: theme.space.s2, marginBottom: theme.space.s4 },
+  input: {
+    minHeight: MIN_TOUCH,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.space.s3,
+    paddingVertical: theme.space.s3,
+    fontSize: theme.type.size.body,
+    color: theme.color.ink.primary,
+    backgroundColor: theme.color.surface.card,
+  },
+  inputDisabled: { opacity: 0.5 },
 });

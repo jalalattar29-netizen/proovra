@@ -1,3 +1,5 @@
+import { triggerLegalGate } from "./auth/legal-gate";
+
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -78,6 +80,15 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     const detailsRaw = errObj ? errObj["details"] : undefined;
     if (detailsRaw && typeof detailsRaw === "object") {
       err.details = detailsRaw as Record<string, unknown>;
+    }
+
+    // Runtime legal-acceptance gate: a 428 (or the LEGAL_REACCEPT_REQUIRED code)
+    // routes the user to the acceptance screen before the throw propagates, so
+    // gated actions (e.g. POST /v1/evidence) recover instead of dead-ending.
+    if (res.status === 428 || code === "LEGAL_REACCEPT_REQUIRED") {
+      const raw = err.details?.["missingPolicies"];
+      const missing = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
+      triggerLegalGate(missing);
     }
 
     throw err;
