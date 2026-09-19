@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Pressable, View, StyleSheet } from "react-native";
+import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
@@ -147,6 +147,29 @@ export default function EvidenceDetailScreen() {
     void load();
   }, [load]);
 
+  // Share the PUBLIC verification link — only the server-provided publicUrl is
+  // ever shared (never an invented URL). If public verification isn't published,
+  // say so honestly rather than fabricating a link.
+  const [sharingVerify, setSharingVerify] = useState(false);
+  const shareVerification = useCallback(async () => {
+    setSharingVerify(true);
+    try {
+      const res = (await apiFetch(`/public/verify/${id}`)) as { publicUrl?: string | null };
+      const url = typeof res?.publicUrl === "string" && res.publicUrl ? res.publicUrl : null;
+      if (!url) {
+        Alert.alert("Not published", "Public verification isn’t published for this record. Publish it in the web app to share a verification link.");
+        return;
+      }
+      await Share.share({ url, message: `Verify this PROOVRA record: ${url}` });
+    } catch (err) {
+      const safe = toSafeUserError(err);
+      if (safe.kind === "notFound") Alert.alert("Not published", "Public verification isn’t published for this record.");
+      else Alert.alert("Could not share", safe.message);
+    } finally {
+      setSharingVerify(false);
+    }
+  }, [id]);
+
   const runAction = useCallback(
     (label: string, opts: { path?: string; method?: "POST" | "DELETE"; body?: object; destructive?: boolean }) => {
       Alert.alert(label, `${label} this record?`, [
@@ -284,6 +307,9 @@ export default function EvidenceDetailScreen() {
           <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
             Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.
           </ProovraText>
+          <View style={styles.actions}>
+            <ProovraButton label="Share verification link" variant="secondary" loading={sharingVerify} onPress={() => void shareVerification()} />
+          </View>
         </ProovraSection>
       ) : null}
 
