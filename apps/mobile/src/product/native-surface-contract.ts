@@ -341,6 +341,93 @@ export const PROTECTED_NATIVE_PATHS: readonly string[] = [
   "src/direct-capture.ts",
 ] as const;
 
+/**
+ * WEB ↔ NATIVE PRODUCT PARITY CONTRACT (Master Program §17, N6).
+ *
+ * The earlier contract only described surfaces Native already had. This is the
+ * real parity contract: every applicable Personal/PAYG/PRO/TEAM WEB product
+ * surface, mapped to its Native disposition. It is grounded on BOTH sides —
+ *   - `webRoute` is a directory under apps/web/app that the guard asserts exists
+ *     (so a stale/renamed web reference fails), and
+ *   - `nativeRouteFile` (when not web-only) must be a real NATIVE_SURFACES entry,
+ *     which GUARD F independently proves exists on disk (so a removed native
+ *     route fails).
+ * The guard (test/surface-parity-contract.test.mjs) therefore detects a required
+ * native route being removed, an applicable surface left unclassified, a web-only
+ * classification with no rationale, and a duplicate web entry — it is NOT the same
+ * hand-written list twice.
+ */
+export type ParityClass = "MATCHED" | "ADAPTED" | "WEB-ONLY-INTENTIONAL";
+
+export interface WebSurfaceParity {
+  /** Directory under apps/web/app (POSIX), asserted to exist on disk. */
+  readonly webRoute: string;
+  /** A routeFile in NATIVE_SURFACES, or null for an intentional web-only surface. */
+  readonly nativeRouteFile: string | null;
+  /** Which user classes this surface applies to. */
+  readonly userClass: string;
+  readonly parity: ParityClass;
+  /** Required (non-empty) when parity is WEB-ONLY-INTENTIONAL. */
+  readonly reason?: string;
+}
+
+export const WEB_SURFACE_PARITY: readonly WebSurfaceParity[] = [
+  // --- Auth (Personal/PAYG/PRO/TEAM) ---
+  { webRoute: "login", nativeRouteFile: "(stack)/auth.tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "register", nativeRouteFile: "(stack)/register.tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "verify", nativeRouteFile: "verify.tsx", userClass: "Public", parity: "MATCHED" },
+  // --- Core product ---
+  { webRoute: "(app)/home", nativeRouteFile: "(tabs)/index.tsx", userClass: "Personal/PAYG/PRO", parity: "MATCHED" },
+  { webRoute: "(app)/search", nativeRouteFile: "(stack)/search.tsx", userClass: "Personal/PRO/TEAM", parity: "MATCHED" },
+  { webRoute: "(app)/evidence", nativeRouteFile: "(tabs)/evidence.tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "(app)/evidence/[id]", nativeRouteFile: "(stack)/evidence/[id].tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "(app)/evidence-requests", nativeRouteFile: "(stack)/evidence-requests.tsx", userClass: "Personal/PAYG/PRO", parity: "MATCHED" },
+  { webRoute: "(app)/evidence-requests/[id]", nativeRouteFile: "(stack)/evidence-request/[id].tsx", userClass: "Personal/PAYG/PRO", parity: "MATCHED" },
+  { webRoute: "(app)/cases", nativeRouteFile: "(tabs)/cases.tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "(app)/cases/[id]", nativeRouteFile: "(stack)/case/[id].tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "(app)/collaboration-teams", nativeRouteFile: "(tabs)/teams.tsx", userClass: "PRO/TEAM", parity: "ADAPTED", reason: "Web console → native read list; management stays web." },
+  { webRoute: "(app)/collaboration-teams/[teamId]", nativeRouteFile: "(stack)/collaboration-team/[id].tsx", userClass: "PRO/TEAM", parity: "ADAPTED", reason: "Members/roles/invites read; management stays web." },
+  { webRoute: "(app)/intake-links", nativeRouteFile: "(stack)/intake-links.tsx", userClass: "PAYG/PRO", parity: "ADAPTED", reason: "View+revoke; URL is a server secret, create web-managed." },
+  { webRoute: "(app)/notifications", nativeRouteFile: "(tabs)/notifications.tsx", userClass: "All", parity: "MATCHED" },
+  { webRoute: "(app)/inbox", nativeRouteFile: "(tabs)/notifications.tsx", userClass: "All", parity: "ADAPTED", reason: "Web inbox + notifications converge onto one native inbox." },
+  { webRoute: "(app)/settings", nativeRouteFile: "(tabs)/settings.tsx", userClass: "All", parity: "ADAPTED", reason: "Account/locale/timezone/privacy native; high-risk security manage-on-web." },
+  { webRoute: "(app)/capture", nativeRouteFile: "(stack)/capture.tsx", userClass: "Personal/PAYG/PRO", parity: "MATCHED" },
+  { webRoute: "(app)/billing", nativeRouteFile: "(stack)/billing.tsx", userClass: "PAYG/PRO/TEAM", parity: "ADAPTED", reason: "Read-only plan/usage native; purchase/management web." },
+
+  // --- Intentionally web-only (enterprise/admin/governance/internal) ---
+  { webRoute: "(app)/admin", nativeRouteFile: null, userClass: "Platform-admin", parity: "WEB-ONLY-INTENTIONAL", reason: "Platform administration console." },
+  { webRoute: "(app)/organizations", nativeRouteFile: null, userClass: "Org-admin", parity: "WEB-ONLY-INTENTIONAL", reason: "Organization/workspace administration." },
+  { webRoute: "(app)/people", nativeRouteFile: null, userClass: "Org-admin", parity: "WEB-ONLY-INTENTIONAL", reason: "Workspace member administration." },
+  { webRoute: "(app)/governance", nativeRouteFile: null, userClass: "Governance", parity: "WEB-ONLY-INTENTIONAL", reason: "Governance/retention/legal-hold console." },
+  { webRoute: "(app)/security-center", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Enterprise security center." },
+  { webRoute: "(app)/intelligence", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Investigation/intelligence console." },
+  { webRoute: "(app)/redaction", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Redaction administration." },
+  { webRoute: "(app)/reviewer-ops", nativeRouteFile: null, userClass: "Reviewer", parity: "WEB-ONLY-INTENTIONAL", reason: "Reviewer operations console." },
+  { webRoute: "(app)/operations", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Enterprise operations console." },
+  { webRoute: "(app)/integrations", nativeRouteFile: null, userClass: "Org-admin", parity: "WEB-ONLY-INTENTIONAL", reason: "Integrations/webhooks administration." },
+  { webRoute: "(app)/workflows", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Workflow administration." },
+  { webRoute: "(app)/reports", nativeRouteFile: null, userClass: "Enterprise", parity: "WEB-ONLY-INTENTIONAL", reason: "Report actions live on Evidence; standalone Reports web-only." },
+  { webRoute: "(app)/teams", nativeRouteFile: null, userClass: "Legacy", parity: "WEB-ONLY-INTENTIONAL", reason: "Legacy workspace/org model; native uses collaboration-teams." },
+  { webRoute: "(app)/trust-center", nativeRouteFile: null, userClass: "Public", parity: "WEB-ONLY-INTENTIONAL", reason: "Marketing/trust content; native links out to it." },
+] as const;
+
+/** Native surfaces that MUST be MATCHED or ADAPTED (no silent parity hole). */
+export const REQUIRED_NATIVE_ROUTE_FILES: readonly string[] = [
+  "(tabs)/index.tsx",
+  "(stack)/search.tsx",
+  "(tabs)/evidence.tsx",
+  "(stack)/evidence/[id].tsx",
+  "(tabs)/cases.tsx",
+  "(stack)/case/[id].tsx",
+  "(tabs)/teams.tsx",
+  "(stack)/evidence-requests.tsx",
+  "(stack)/intake-links.tsx",
+  "(tabs)/notifications.tsx",
+  "(tabs)/settings.tsx",
+  "(stack)/capture.tsx",
+  "verify.tsx",
+] as const;
+
 export type ProductDecisionStatus = "DECIDED" | "DEFERRED" | "PRODUCT-DECISION-REQUIRED";
 
 export interface ProductDecision {
