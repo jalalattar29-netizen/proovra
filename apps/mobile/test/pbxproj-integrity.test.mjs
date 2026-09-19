@@ -293,3 +293,31 @@ test("ZERO dangling references: every build-file fileRef and every phase entry r
     }
   }
 });
+
+// The App Group is what forces the extension onto its OWN explicit App ID /
+// provisioning profile (App Groups cannot live on a wildcard App ID), so guard
+// that the shared source-of-truth carries the right capabilities. The main app
+// and the extension must declare the SAME App Group or the shared-container
+// handoff silently breaks.
+test("the extension's source declares the broadcast-upload point, App Group, and matches the app", () => {
+  const SRC = resolve(HERE, "../plugins/broadcast-extension");
+  const info = readFileSync(resolve(SRC, "Info.plist"), "utf8");
+  const entitlements = readFileSync(resolve(SRC, "ProovraBroadcast.entitlements"), "utf8");
+  const appJson = JSON.parse(readFileSync(resolve(HERE, "../app.json"), "utf8"));
+
+  // NSExtension identity — a broadcast UPLOAD extension driven by SampleHandler.
+  assert.match(info, /com\.apple\.broadcast-services-upload/, "must be a broadcast-upload extension");
+  assert.match(info, /RPBroadcastProcessModeSampleBuffer/);
+  assert.match(info, /SampleHandler/, "principal class must be the sample handler");
+
+  // App Group parity between the extension entitlements and the main app.
+  const appGroup = appJson.expo.ios.entitlements["com.apple.security.application-groups"][0];
+  assert.equal(appGroup, "group.com.jalalattar29.proovra");
+  assert.ok(
+    entitlements.includes(appGroup),
+    `extension entitlements must declare the app's App Group (${appGroup})`,
+  );
+  assert.equal(appJson.expo.ios.bundleIdentifier, MAIN_BUNDLE_ID);
+  // Host is iPhone-only; the extension device family is aligned to it above.
+  assert.equal(appJson.expo.ios.supportsTablet, false);
+});
