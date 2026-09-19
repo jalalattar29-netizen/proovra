@@ -18,16 +18,19 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import type { ProovraStatusTone } from "@proovra/ui";
+import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 
-type EvidenceItem = { id: string; type: string; status: string; createdAt: string };
+type EvidenceItem = {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  statusLabel?: string | null;
+  displayTitle?: string | null;
+  title?: string | null;
+  displaySubtitle?: string | null;
+};
 type LoadState = "loading" | "ready" | "error";
-
-function toneFor(status: string): ProovraStatusTone {
-  if (status === "SIGNED" || status === "REPORTED") return "verified";
-  if (status === "PROCESSING" || status === "UPLOADING") return "pending";
-  return "neutral";
-}
 
 export default function HomeScreen() {
   const { t } = useLocale();
@@ -108,26 +111,18 @@ export default function HomeScreen() {
           />
         ) : (
           <ProovraCard>
-            {items.map((item) => (
-              <ProovraListRow
-                key={item.id}
-                title={item.type}
-                subtitle={formatUserDateTime(item.createdAt)}
-                trailing={
-                  <ProovraBadge
-                    tone={toneFor(item.status)}
-                    label={
-                      item.status === "SIGNED"
-                        ? t("statusSigned")
-                        : item.status === "PROCESSING"
-                        ? t("statusProcessing")
-                        : t("statusReady")
-                    }
-                  />
-                }
-                onPress={() => router.push(`/evidence/${item.id}`)}
-              />
-            ))}
+            {items.map((item) => {
+              const status = evidenceStatusDisplay(item.status);
+              return (
+                <ProovraListRow
+                  key={item.id}
+                  title={item.displayTitle?.trim() || item.title?.trim() || evidenceTypeLabel(item.type)}
+                  subtitle={item.displaySubtitle?.trim() || `${evidenceTypeLabel(item.type)} · ${formatUserDateTime(item.createdAt)}`}
+                  trailing={<ProovraBadge tone={status.tone} label={item.statusLabel?.trim() || status.label} />}
+                  onPress={() => router.push(`/evidence/${item.id}`)}
+                />
+              );
+            })}
           </ProovraCard>
         )}
       </ProovraSection>

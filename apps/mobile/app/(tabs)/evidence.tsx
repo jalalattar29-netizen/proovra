@@ -18,10 +18,22 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import type { ProovraStatusTone } from "@proovra/ui";
+import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 
 type Scope = "active" | "archived" | "trash" | "locked";
-type EvidenceItem = { id: string; type: string; status: string; createdAt: string };
+type EvidenceItem = {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  // Server-provided display fields (mapEvidenceListItem) — preferred over raw enums.
+  statusLabel?: string | null;
+  displayTitle?: string | null;
+  title?: string | null;
+  displaySubtitle?: string | null;
+  displayFileName?: string | null;
+  originalFileName?: string | null;
+};
 type PageInfo = { nextCursor?: string | null; hasMore?: boolean };
 
 const SCOPES: Array<{ key: Scope; label: string }> = [
@@ -31,11 +43,15 @@ const SCOPES: Array<{ key: Scope; label: string }> = [
   { key: "locked", label: "Locked" },
 ];
 
-function toneFor(status: string): ProovraStatusTone {
-  if (status === "SIGNED" || status === "REPORTED") return "verified";
-  if (status === "PROCESSING" || status === "UPLOADING") return "pending";
-  if (status === "FAILED") return "risk";
-  return "neutral";
+/** Row title: prefer the server's display fields; fall back to a typed label. */
+function rowTitle(item: EvidenceItem): string {
+  return (
+    item.displayTitle?.trim() ||
+    item.title?.trim() ||
+    item.displayFileName?.trim() ||
+    item.originalFileName?.trim() ||
+    evidenceTypeLabel(item.type)
+  );
 }
 
 /** Canonical Native Evidence Library — one surface, four lifecycle scopes. */
@@ -166,27 +182,30 @@ export default function EvidenceLibraryScreen() {
         ) : (
           <>
             <ProovraCard>
-              {items.map((item) => (
-                <ProovraListRow
-                  key={item.id}
-                  title={item.type}
-                  subtitle={formatUserDateTime(item.createdAt)}
-                  onPress={() => router.push(`/evidence/${item.id}`)}
-                  trailing={
-                    canRestore ? (
-                      <ProovraButton
-                        label="Restore"
-                        variant="secondary"
-                        fullWidth={false}
-                        loading={busyId === item.id}
-                        onPress={() => restore(item)}
-                      />
-                    ) : (
-                      <ProovraBadge tone={toneFor(item.status)} label={item.status} />
-                    )
-                  }
-                />
-              ))}
+              {items.map((item) => {
+                const status = evidenceStatusDisplay(item.status);
+                return (
+                  <ProovraListRow
+                    key={item.id}
+                    title={rowTitle(item)}
+                    subtitle={item.displaySubtitle?.trim() || `${evidenceTypeLabel(item.type)} · ${formatUserDateTime(item.createdAt)}`}
+                    onPress={() => router.push(`/evidence/${item.id}`)}
+                    trailing={
+                      canRestore ? (
+                        <ProovraButton
+                          label="Restore"
+                          variant="secondary"
+                          fullWidth={false}
+                          loading={busyId === item.id}
+                          onPress={() => restore(item)}
+                        />
+                      ) : (
+                        <ProovraBadge tone={status.tone} label={item.statusLabel?.trim() || status.label} />
+                      )
+                    }
+                  />
+                );
+              })}
             </ProovraCard>
             {hasMore ? (
               <View style={styles.more}>
