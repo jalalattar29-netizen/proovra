@@ -47,9 +47,8 @@ function resolveXcode() {
 }
 
 const xcode = resolveXcode();
-const { applyBroadcastExtensionTarget } = require(
-  resolve(HERE, "../plugins/withProovraIosScreenBroadcast.cjs"),
-);
+const plugin = require(resolve(HERE, "../plugins/withProovraIosScreenBroadcast.cjs"));
+const { applyBroadcastExtensionTarget } = plugin;
 
 function freshFixtureProject() {
   // node-xcode mutates the file path in place on writeSync, so copy to a temp
@@ -322,6 +321,30 @@ test("the extension's source declares the broadcast-upload point, App Group, and
     `extension entitlements must declare the app's App Group (${appGroup})`,
   );
   assert.equal(appJson.expo.ios.bundleIdentifier, MAIN_BUNDLE_ID);
+});
+
+test("app.json declares the Broadcast Extension to EAS so it can be provisioned/signed", () => {
+  // EAS (managed workflow) discovers app-extension targets to provision from
+  // exp.extra.eas.build.experimental.ios.appExtensions — NOT from a local
+  // prebuild. Without this, EAS only signs the host and the extension fails with
+  // "Signing for ProovraBroadcast requires a development team". This metadata
+  // must stay in agreement with the target the config plugin actually generates.
+  const appJson = JSON.parse(readFileSync(resolve(HERE, "../app.json"), "utf8"));
+  const exts = appJson.expo.extra?.eas?.build?.experimental?.ios?.appExtensions;
+  assert.ok(Array.isArray(exts) && exts.length === 1, "exactly one declared app extension");
+  const ext = exts[0];
+  assert.equal(ext.targetName, plugin.EXT_NAME, "declared targetName must match the generated target");
+  assert.equal(
+    ext.bundleIdentifier,
+    `${appJson.expo.ios.bundleIdentifier}.${plugin.EXT_SUFFIX}`,
+    "declared extension bundle id must match host.<suffix>",
+  );
+  assert.equal(ext.bundleIdentifier, EXT_BUNDLE_ID);
+  assert.deepEqual(
+    ext.entitlements?.["com.apple.security.application-groups"],
+    appJson.expo.ios.entitlements["com.apple.security.application-groups"],
+    "extension must declare the same App Group as the host so EAS provisions the capability",
+  );
 });
 
 test("the host app is UNIVERSAL: supports iPhone + iPad, and is not iPad-only", () => {

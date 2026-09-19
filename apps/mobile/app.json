@@ -16,7 +16,24 @@
     },
     "extra": {
       "eas": {
-        "projectId": "38174f3f-4bfa-4437-9b58-a72c4ca73c8f"
+        "projectId": "38174f3f-4bfa-4437-9b58-a72c4ca73c8f",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ProovraBroadcast",
+                  "bundleIdentifier": "com.jalalattar29.proovra.broadcast",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.jalalattar29.proovra"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "ios": {
