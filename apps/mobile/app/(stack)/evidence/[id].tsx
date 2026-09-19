@@ -17,7 +17,11 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../../src/ui";
-import type { ProovraStatusTone } from "@proovra/ui";
+import {
+  evidenceStatusDisplay,
+  evidenceTypeLabel,
+  verificationStatusDisplay,
+} from "../../../src/product/domain-display";
 
 /**
  * P2-3 CLOSURE — one sentence per canonical output state. TOTAL over
@@ -53,17 +57,15 @@ type LoadState = "loading" | "ready" | "error" | "notfound";
 
 interface Core {
   status: string;
+  statusLabel: string | null;
+  verificationStatus: string | null;
+  verificationStatusLabel: string | null;
+  displayTitle: string | null;
+  originalFileName: string | null;
   createdAt: string | null;
   type: string;
   fileSha256: string | null;
   fingerprintHash: string | null;
-}
-
-function toneFor(status: string): ProovraStatusTone {
-  if (status === "SIGNED" || status === "REPORTED") return "verified";
-  if (status === "PROCESSING" || status === "UPLOADING") return "pending";
-  if (status === "FAILED" || status === "FAILED_HASH_MISMATCH") return "risk";
-  return "neutral";
 }
 
 export default function EvidenceDetailScreen() {
@@ -89,6 +91,11 @@ export default function EvidenceDetailScreen() {
       const ev = (data.evidence ?? {}) as Record<string, unknown>;
       setCore({
         status: (ev.status as string) ?? "SIGNED",
+        statusLabel: (ev.statusLabel as string) ?? null,
+        verificationStatus: (ev.verificationStatus as string) ?? null,
+        verificationStatusLabel: (ev.verificationStatusLabel as string) ?? null,
+        displayTitle: (ev.displayTitle as string) ?? (ev.displayFileName as string) ?? null,
+        originalFileName: (ev.originalFileName as string) ?? null,
         createdAt: (ev.createdAt as string) ?? null,
         type: (ev.type as string) ?? "Evidence",
         fileSha256: (ev.fileSha256 as string) ?? null,
@@ -211,12 +218,20 @@ export default function EvidenceDetailScreen() {
       </View>
 
       <ProovraCard style={styles.hero}>
-        <ProovraBadge tone={toneFor(c.status)} label={c.status} />
+        <View style={styles.badgeRow}>
+          <ProovraBadge tone={evidenceStatusDisplay(c.status).tone} label={c.statusLabel?.trim() || evidenceStatusDisplay(c.status).label} />
+          {c.verificationStatus ? (
+            <ProovraBadge
+              tone={verificationStatusDisplay(c.verificationStatus).tone}
+              label={c.verificationStatusLabel?.trim() || verificationStatusDisplay(c.verificationStatus).label}
+            />
+          ) : null}
+        </View>
         <ProovraText variant="h1" weight="bold" style={styles.heroTitle}>
-          {c.type}
+          {c.displayTitle?.trim() || c.originalFileName?.trim() || evidenceTypeLabel(c.type)}
         </ProovraText>
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-          {c.createdAt ? `Created ${formatUserDateTime(c.createdAt)}` : "—"}
+          {[evidenceTypeLabel(c.type), c.createdAt ? `Created ${formatUserDateTime(c.createdAt)}` : null].filter(Boolean).join(" · ")}
         </ProovraText>
       </ProovraCard>
 
@@ -242,8 +257,11 @@ export default function EvidenceDetailScreen() {
       {tab === "overview" ? (
         <ProovraSection>
           <ProovraCard>
-            <Row k="Type" v={c.type} />
-            <Row k="Status" v={c.status} />
+            <Row k="Type" v={evidenceTypeLabel(c.type)} />
+            <Row k="Status" v={c.statusLabel?.trim() || evidenceStatusDisplay(c.status).label} />
+            {c.verificationStatus ? (
+              <Row k="Verification" v={c.verificationStatusLabel?.trim() || verificationStatusDisplay(c.verificationStatus).label} />
+            ) : null}
             <Row k="Created" v={c.createdAt ? formatUserDateTime(c.createdAt) : "—"} />
             {parts.length > 0 ? <Row k="Parts" v={String(parts.length)} /> : null}
           </ProovraCard>
@@ -317,6 +335,7 @@ function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
   hero: { marginBottom: theme.space.s4 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
   heroTitle: { marginTop: theme.space.s2 },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s4 },
   tab: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
