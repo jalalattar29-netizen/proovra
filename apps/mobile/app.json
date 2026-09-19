@@ -11,7 +11,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#050b18",
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#0F172A",
       "resizeMode": "contain"
     },
     "extra": {
@@ -40,6 +41,7 @@
       "bundleIdentifier": "com.jalalattar29.proovra",
       "buildNumber": "1",
       "supportsTablet": true,
+      "icon": "./assets/icon.png",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.jalalattar29.proovra"
@@ -56,8 +58,9 @@
     "android": {
       "package": "com.jalalattar29.proovra",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#050b18"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#0F172A"
       }
     },
     "plugins": [
