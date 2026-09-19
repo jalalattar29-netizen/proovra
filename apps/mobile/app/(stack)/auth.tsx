@@ -14,6 +14,7 @@ import {
   ProovraInput,
   ProovraFormField,
 } from "../../src/ui";
+import { AuthBrandHeader } from "../../src/ui/brand";
 
 /**
  * Auth Gateway / Sign In. Email+password, Google, Apple, plus links to Create
@@ -65,14 +66,7 @@ export default function AuthScreen() {
 
   return (
     <ProovraScreen width="form">
-      <View style={styles.header}>
-        <ProovraText variant="display" weight="bold">
-          PROOVRA
-        </ProovraText>
-        <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.tagline}>
-          Sign in to capture and prove digital evidence.
-        </ProovraText>
-      </View>
+      <AuthBrandHeader tagline="Sign in to capture and prove digital evidence." />
 
       <ProovraCard>
         <ProovraFormField label="Email">
@@ -148,8 +142,6 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", marginTop: theme.space.s8, marginBottom: theme.space.s6 },
-  tagline: { marginTop: theme.space.s2, textAlign: "center" },
   linkRow: { flexDirection: "row", justifyContent: "space-between", marginTop: theme.space.s2 },
   divider: { flexDirection: "row", alignItems: "center", gap: theme.space.s3, marginVertical: theme.space.s5 },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.color.border.default },

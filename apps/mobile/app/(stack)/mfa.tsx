@@ -6,6 +6,7 @@ import { useCompleteLogin, type LoginMode } from "../../src/auth/use-auth-flow";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField, ProovraSection } from "../../src/ui";
+import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** MFA challenge — reached when a login returns mfaRequired (pending token). */
 export default function MfaScreen() {
@@ -42,6 +43,7 @@ export default function MfaScreen() {
 
   return (
     <ProovraScreen width="form">
+      <AuthBrandHeader />
       <ProovraSection title="Two-factor verification">
         <ProovraCard>
           <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.intro}>

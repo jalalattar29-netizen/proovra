@@ -13,6 +13,7 @@ import {
   ProovraFormField,
   ProovraSection,
 } from "../../src/ui";
+import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** Create Account — verification-first (register returns no session). */
 export default function RegisterScreen() {
@@ -44,6 +45,7 @@ export default function RegisterScreen() {
   if (sentTo) {
     return (
       <ProovraScreen width="form">
+      <AuthBrandHeader tagline="Create your account to start capturing evidence." />
         <ProovraSection title="Check your email">
           <ProovraCard>
             <ProovraText variant="body" color={theme.color.ink.secondary}>
@@ -61,6 +63,7 @@ export default function RegisterScreen() {
 
   return (
     <ProovraScreen width="form">
+      <AuthBrandHeader tagline="Create your account to start capturing evidence." />
       <ProovraSection title="Create account">
         <ProovraCard>
           <ProovraFormField label="Name">

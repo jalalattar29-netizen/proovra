@@ -59,6 +59,12 @@ test("derived assets are 1024² and optimized (not the old 2048² 4-5MB files)",
   }
 });
 
+test("the in-app auth brand mark exists and is optimized", () => {
+  const { width, height, bytes } = pngInfo("assets/brand-mark.png");
+  assert.ok(width > 0 && height > 0, "brand-mark.png must be a real PNG");
+  assert.ok(bytes < 1_000_000, `brand-mark.png must be optimized (<1MB), was ${(bytes / 1048576).toFixed(2)}MB`);
+});
+
 test("the iOS icon is opaque (no alpha channel — Apple requires it)", () => {
   // PNG color type is byte 25 of the IHDR; type 2 = RGB (opaque), type 6 = RGBA.
   const buf = readFileSync(resolve(MOBILE, "assets/icon.png"));

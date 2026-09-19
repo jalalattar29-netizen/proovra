@@ -5,6 +5,7 @@ import { requestPasswordReset } from "../../src/auth/auth-api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField, ProovraSection } from "../../src/ui";
+import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** Forgot password — request a reset link (always a neutral confirmation). */
 export default function ForgotPasswordScreen() {
@@ -33,6 +34,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <ProovraScreen width="form">
+      <AuthBrandHeader />
       <ProovraSection title="Reset your password">
         <ProovraCard>
           {sent ? (
