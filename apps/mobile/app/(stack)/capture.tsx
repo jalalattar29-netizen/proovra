@@ -50,6 +50,7 @@ import { formatUserDateTime } from "../../src/lib/date";
 // disallowed Personal Space blocks capture outright (never a silent
 // Personal fallback) with a bounded explanation.
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
+import { setCaptureActive } from "../../src/capture/active-capture";
 import {
   PERSONAL_SPACE_UNAVAILABLE_MESSAGE,
   PERSONAL_SPACE_UNAVAILABLE_TITLE,
@@ -159,6 +160,13 @@ export default function CaptureScreen() {
   useEffect(() => {
     refreshRecent();
   }, [refreshRecent]);
+
+  // Report a live capture session so the deep-link gate can block unsafe
+  // context switches during capture (canonical durability signal).
+  useEffect(() => {
+    setCaptureActive(isSessionActive);
+    return () => setCaptureActive(false);
+  }, [isSessionActive]);
 
   useEffect(() => {
     sessionEvidenceIdRef.current = sessionEvidenceId;

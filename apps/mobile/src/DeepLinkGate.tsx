@@ -15,21 +15,19 @@ import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 
 import { apiFetch, getAuthToken } from "./api";
-import { listQueue } from "./upload-queue";
+import { isCaptureActive } from "./capture/active-capture";
 import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "./deep-link";
 import { setPendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
   try {
-    return listQueue().some(
-      (item) =>
-        item.status === "PENDING" ||
-        item.status === "UPLOADING" ||
-        item.status === "COMPLETING",
-    );
+    // Canonical: a live direct-capture / screen-capture session in progress.
+    // (The legacy SQLite upload-queue is dead — nothing enqueues it — so it is
+    // no longer consulted here; see src/capture/active-capture.ts.)
+    return isCaptureActive();
   } catch {
-    // If the queue store is unavailable, fail SAFE: treat as busy so a link
-    // can never force a context change past an unknown capture state.
+    // Fail SAFE: treat as busy so a link can never force a context change past
+    // an unknown capture state.
     return true;
   }
 }

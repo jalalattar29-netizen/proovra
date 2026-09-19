@@ -39,6 +39,7 @@ import {
   type DeclaredSegment,
 } from "../../src/continuous-capture";
 import type { DirectCaptureSession } from "../../src/direct-capture";
+import { setCaptureActive } from "../../src/capture/active-capture";
 import {
   INITIAL_CONTINUOUS_FLOW,
   continuousFlowReducer,
@@ -183,6 +184,12 @@ export default function ContinuousCaptureScreen() {
       }
     }, []),
   );
+
+  useEffect(() => {
+    const inFlight = state.phase === "active" || state.phase === "review" || state.phase === "finalizing";
+    setCaptureActive(inFlight);
+    return () => setCaptureActive(false);
+  }, [state.phase]);
 
   const resetStreamRefs = useCallback(() => {
     queueRef.current = [];

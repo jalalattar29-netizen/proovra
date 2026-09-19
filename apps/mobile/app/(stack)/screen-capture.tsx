@@ -20,6 +20,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { finalizeScreenCapture } from "../../src/screen-capture";
+import { setCaptureActive } from "../../src/capture/active-capture";
 import { INITIAL_SCREEN_FLOW, screenFlowReducer } from "../../src/screen-capture-flow";
 import {
   addScreenFrameListener,
@@ -71,6 +72,12 @@ export default function ScreenCaptureScreen() {
       }
     }, []),
   );
+
+  useEffect(() => {
+    const inFlight = state.phase === "active" || state.phase === "review" || state.phase === "uploading";
+    setCaptureActive(inFlight);
+    return () => setCaptureActive(false);
+  }, [state.phase]);
 
   const start = useCallback(async () => {
     setBusy(true);
