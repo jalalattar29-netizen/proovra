@@ -18,9 +18,11 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
+import { evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES } from "../../src/product/domain-display";
 
 type Scope = "active" | "archived" | "trash" | "locked";
+type TypeFilter = "ALL" | (typeof EVIDENCE_TYPES)[number];
+type SortOrder = "newest" | "oldest";
 type EvidenceItem = {
   id: string;
   type: string;
@@ -58,6 +60,8 @@ function rowTitle(item: EvidenceItem): string {
 export default function EvidenceLibraryScreen() {
   const router = useRouter();
   const [scope, setScope] = useState<Scope>("active");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [sort, setSort] = useState<SortOrder>("newest");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<EvidenceItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -68,12 +72,14 @@ export default function EvidenceLibraryScreen() {
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPage = useCallback(
-    async (opts: { scope: Scope; search: string; cursor?: string | null; append: boolean }) => {
+    async (opts: { scope: Scope; search: string; type: TypeFilter; sort: SortOrder; cursor?: string | null; append: boolean }) => {
       if (!opts.append) setState("loading");
       setError(null);
       try {
-        const params = new URLSearchParams({ scope: opts.scope, limit: "50" });
+        // Server-side filter + sort (real, not a page-local reorder).
+        const params = new URLSearchParams({ scope: opts.scope, limit: "50", sort: opts.sort });
         if (opts.search.trim()) params.set("search", opts.search.trim());
+        if (opts.type !== "ALL") params.set("type", opts.type);
         if (opts.cursor) params.set("cursor", opts.cursor);
         const data = await apiFetch(`/v1/evidence?${params.toString()}`);
         const page = (data.items ?? []) as EvidenceItem[];
@@ -91,21 +97,21 @@ export default function EvidenceLibraryScreen() {
   );
 
   useEffect(() => {
-    // Scope change loads immediately; search is debounced in onChangeText.
-    // `query` is intentionally omitted so a scope switch uses the current query
-    // without racing the debounce; fetchPage is stable (useCallback []).
-    void fetchPage({ scope, search: query, append: false });
-  }, [scope, fetchPage]);
+    // Scope/type/sort change loads immediately; search is debounced. `query` is
+    // intentionally omitted so a scope switch uses the current query without
+    // racing the debounce; fetchPage is stable (useCallback []).
+    void fetchPage({ scope, search: query, type: typeFilter, sort, append: false });
+  }, [scope, typeFilter, sort, fetchPage]);
 
   const onSearch = useCallback(
     (text: string) => {
       setQuery(text);
       if (debounce.current) clearTimeout(debounce.current);
       debounce.current = setTimeout(() => {
-        void fetchPage({ scope, search: text, append: false });
+        void fetchPage({ scope, search: text, type: typeFilter, sort, append: false });
       }, 300);
     },
-    [scope, fetchPage],
+    [scope, typeFilter, sort, fetchPage],
   );
 
   const restore = useCallback(
@@ -169,10 +175,39 @@ export default function EvidenceLibraryScreen() {
           <ProovraInput value={query} onChangeText={onSearch} placeholder="Search evidence" />
         </View>
 
+        <View style={styles.filterRow}>
+          {(["ALL", ...EVIDENCE_TYPES] as TypeFilter[]).map((tf) => {
+            const active = tf === typeFilter;
+            return (
+              <Pressable
+                key={tf}
+                onPress={() => setTypeFilter(tf)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={[styles.smallChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
+              >
+                <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
+                  {tf === "ALL" ? "All types" : evidenceTypeLabel(tf)}
+                </ProovraText>
+              </Pressable>
+            );
+          })}
+          <Pressable
+            onPress={() => setSort((s) => (s === "newest" ? "oldest" : "newest"))}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort ${sort === "newest" ? "newest first" : "oldest first"}`}
+            style={[styles.smallChip, { backgroundColor: theme.color.surface.card, borderColor: theme.color.border.strong }]}
+          >
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+              {sort === "newest" ? "Newest ↓" : "Oldest ↑"}
+            </ProovraText>
+          </Pressable>
+        </View>
+
         {state === "loading" ? (
           <ProovraLoadingState label="Loading evidence" />
         ) : state === "error" && error ? (
-          <ProovraErrorState message={error.message} onRetry={() => void fetchPage({ scope, search: query, append: false })} />
+          <ProovraErrorState message={error.message} onRetry={() => void fetchPage({ scope, search: query, type: typeFilter, sort, append: false })} />
         ) : items.length === 0 ? (
           <ProovraEmptyState
             title={scope === "active" ? "No evidence yet" : `Nothing in ${scope}`}
@@ -209,7 +244,7 @@ export default function EvidenceLibraryScreen() {
             </ProovraCard>
             {hasMore ? (
               <View style={styles.more}>
-                <ProovraButton label="Load more" variant="secondary" onPress={() => void fetchPage({ scope, search: query, cursor, append: true })} />
+                <ProovraButton label="Load more" variant="secondary" onPress={() => void fetchPage({ scope, search: query, type: typeFilter, sort, cursor, append: true })} />
               </View>
             ) : null}
           </>
@@ -223,5 +258,7 @@ const styles = StyleSheet.create({
   scopeRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
   scopeChip: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
   search: { marginBottom: theme.space.s3 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  smallChip: { paddingHorizontal: theme.space.s3, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 34, justifyContent: "center" },
   more: { marginTop: theme.space.s4 },
 });
