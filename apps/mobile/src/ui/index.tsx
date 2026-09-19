@@ -151,15 +151,18 @@ export function ProovraCard({
   style,
   onPress,
   accessibilityLabel,
+  testID,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   accessibilityLabel?: string;
+  testID?: string;
 }) {
   if (onPress) {
     return (
       <Pressable
+        testID={testID}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
@@ -169,7 +172,7 @@ export function ProovraCard({
       </Pressable>
     );
   }
-  return <View style={[styles.card, style]}>{children}</View>;
+  return <View testID={testID} style={[styles.card, style]}>{children}</View>;
 }
 
 export function ProovraSection({

@@ -52,6 +52,13 @@ import { formatUserDateTime } from "../../src/lib/date";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import {
+  saveCaptureSession,
+  loadCaptureSession,
+  clearCaptureSession,
+  isSessionResumable,
+  type PersistedCaptureSession,
+} from "../../src/capture/capture-session-store";
+import {
   PERSONAL_SPACE_UNAVAILABLE_MESSAGE,
   PERSONAL_SPACE_UNAVAILABLE_TITLE,
   shouldBlockMobileCapture,
@@ -62,6 +69,8 @@ import {
 // only preserved once the session completes.
 
 type CaptureKind = "PHOTO" | "VIDEO" | "DOCUMENT";
+
+const CAPTURE_TYPES: CaptureKind[] = ["PHOTO", "VIDEO", "DOCUMENT"];
 
 type CapturedItem = {
   id: string;
@@ -92,8 +101,7 @@ export default function CaptureScreen() {
   const router = useRouter();
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const typeMap: CaptureKind[] = ["PHOTO", "VIDEO", "DOCUMENT"];
-  const activeType = typeMap[activeIndex];
+  const activeType = CAPTURE_TYPES[activeIndex];
 
   // PHASE 10 CLOSURE FIX 3 — client-hiding hint only; the server
   // independently rejects any personal-scope mutation regardless. The
@@ -125,6 +133,14 @@ export default function CaptureScreen() {
   const sessionEvidenceIdRef = useRef<string | null>(null);
   const captureSessionRef = useRef<DirectCaptureSession | null>(null);
   const sessionItemsRef = useRef<CapturedItem[]>([]);
+  const activeTypeRef = useRef<CaptureKind>(activeType);
+  activeTypeRef.current = activeType;
+
+  // M5 — an interrupted session recovered from durable storage awaiting the
+  // operator's Resume/Discard choice (null once decided).
+  const [resumable, setResumable] = useState<PersistedCaptureSession | null>(null);
+  const [staleRecovered, setStaleRecovered] = useState(false);
+  const [resuming, setResuming] = useState(false);
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -146,6 +162,33 @@ export default function CaptureScreen() {
   const setSessionState = useCallback((items: CapturedItem[]) => {
     sessionItemsRef.current = items;
     setSessionItems(items);
+  }, []);
+
+  // M5 — persist the current session (server handle + evidence id + per-item
+  // upload state) so it survives background / process death. Best-effort; a
+  // failed write never breaks live capture. Cleared on complete/discard/empty.
+  const persistSession = useCallback(() => {
+    const session = captureSessionRef.current;
+    const evidenceId = sessionEvidenceIdRef.current;
+    const items = sessionItemsRef.current;
+    if (!session || !evidenceId || items.length === 0) return;
+    void saveCaptureSession({
+      captureSessionId: session.captureSessionId,
+      expiresAtUtc: session.expiresAtUtc,
+      evidenceId,
+      type: activeTypeRef.current,
+      items: items.map((it) => ({
+        id: it.id,
+        uri: it.uri,
+        mimeType: it.mimeType,
+        partIndex: it.partIndex,
+        originalFilename: it.originalFilename,
+        source: it.source,
+        sizeBytes: it.sizeBytes,
+        durationMs: it.durationMs,
+        uploaded: it.uploaded,
+      })),
+    });
   }, []);
 
   const refreshRecent = useCallback(async () => {
@@ -171,6 +214,98 @@ export default function CaptureScreen() {
   useEffect(() => {
     sessionEvidenceIdRef.current = sessionEvidenceId;
   }, [sessionEvidenceId]);
+
+  // M5 — persist on every meaningful session change (items added/removed, upload
+  // state advanced). Captures the latest per-item `uploaded` flags so a resumed
+  // completion never re-uploads an item already sealed at storage.
+  useEffect(() => {
+    if (isSessionActive) persistSession();
+  }, [sessionItems, sessionEvidenceId, isSessionActive, persistSession]);
+
+  // M5 — on mount, recover an interrupted session. Resumable → offer Resume/
+  // Discard; stale/expired → auto-clear and inform (it can't be completed).
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const persisted = await loadCaptureSession();
+      if (!alive || !persisted) return;
+      // Don't offer to resume the session that is already live on this screen.
+      if (sessionEvidenceIdRef.current) return;
+      if (isSessionResumable(persisted)) {
+        setResumable(persisted);
+      } else {
+        setStaleRecovered(true);
+        await clearCaptureSession();
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const resumeSession = useCallback(
+    async (persisted: PersistedCaptureSession) => {
+      setResuming(true);
+      try {
+        // A not-yet-uploaded item whose local file is gone (cache cleared) cannot
+        // be resumed — drop it honestly. Already-uploaded parts live server-side,
+        // so they keep their partIndex and are preserved regardless of the file.
+        const kept: CapturedItem[] = [];
+        for (const it of persisted.items) {
+          if (!it.uploaded) {
+            const info = await FileSystem.getInfoAsync(it.uri);
+            if (!info.exists) continue;
+          }
+          kept.push({
+            id: it.id,
+            uri: it.uri,
+            mimeType: it.mimeType,
+            durationMs: it.durationMs,
+            sizeBytes: it.sizeBytes,
+            originalFilename: it.originalFilename,
+            source: it.source as CapturedItem["source"],
+            partIndex: it.partIndex, // preserve — server already knows uploaded parts
+            uploadProgress: it.uploaded ? 100 : 0,
+            uploading: false,
+            uploaded: it.uploaded,
+            error: null,
+          });
+        }
+        const dropped = persisted.items.length - kept.length;
+        captureSessionRef.current = {
+          captureSessionId: persisted.captureSessionId,
+          expiresAtUtc: persisted.expiresAtUtc,
+        };
+        sessionEvidenceIdRef.current = persisted.evidenceId;
+        setSessionEvidenceId(persisted.evidenceId);
+        const idx = CAPTURE_TYPES.indexOf(persisted.type);
+        if (idx >= 0) setActiveIndex(idx);
+        setSessionState(kept);
+        setResumable(null);
+        if (kept.length === 0) {
+          // Nothing recoverable — clear and start fresh.
+          sessionEvidenceIdRef.current = null;
+          captureSessionRef.current = null;
+          setSessionEvidenceId(null);
+          await clearCaptureSession();
+          addToast("The interrupted capture could not be recovered", "warning");
+        } else if (dropped > 0) {
+          addToast(`Resumed — ${dropped} item${dropped === 1 ? "" : "s"} were no longer available`, "warning");
+        } else {
+          addToast("Capture session resumed", "success");
+        }
+      } finally {
+        setResuming(false);
+      }
+    },
+    [setSessionState, addToast],
+  );
+
+  const discardRecovered = useCallback(async () => {
+    setResumable(null);
+    await clearCaptureSession();
+    addToast("Interrupted capture discarded", "info");
+  }, [addToast]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -332,6 +467,9 @@ export default function CaptureScreen() {
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
         setSessionEvidenceId(null);
+        void clearCaptureSession();
+      } else {
+        persistSession();
       }
 
       addToast("Item removed", "info");
@@ -348,6 +486,7 @@ export default function CaptureScreen() {
     setError(null);
     setInfo(null);
     setUploadProgress(0);
+    void clearCaptureSession(); // M5 — drop the durable record on explicit discard
     addToast("Session discarded", "info");
   }, [sessionCompletingEvidence, setSessionState, addToast]);
 
@@ -544,6 +683,13 @@ export default function CaptureScreen() {
       for (let i = 0; i < items.length; i += 1) {
         const item = items[i];
 
+        // M5 — a resumed item already declared + PUT to storage is skipped, so
+        // completion never re-uploads it (no duplicate parts / artifacts).
+        if (item.uploaded) {
+          setUploadProgress(Math.round(((i + 1) / items.length) * 85));
+          continue;
+        }
+
         setSessionState(
           sessionItemsRef.current.map((current) =>
             current.id === item.id
@@ -602,6 +748,9 @@ setSessionState(
 
       addToast("Evidence created successfully", "success", 2000);
 
+      // M5 — completion confirmed: drop the durable record so it can never be
+      // offered for resume again.
+      await clearCaptureSession();
       sessionEvidenceIdRef.current = null;
       captureSessionRef.current = null;
       setSessionEvidenceId(null);
@@ -642,6 +791,23 @@ setSessionState(
       </View>
 
       <ProovraSection title={t("capture")}>
+        {resumable ? (
+          <ProovraCard style={styles.resumeCard} testID="capture-resume-banner">
+            <ProovraText variant="h3" weight="semibold">Resume your capture?</ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              An unfinished capture with {resumable.items.length} item{resumable.items.length === 1 ? "" : "s"} was recovered. Resume to finish it, or discard it.
+            </ProovraText>
+            <View style={styles.resumeActions}>
+              <ProovraButton label="Resume" loading={resuming} onPress={() => void resumeSession(resumable)} />
+              <ProovraButton label="Discard" variant="danger" disabled={resuming} onPress={() => void discardRecovered()} />
+            </View>
+          </ProovraCard>
+        ) : null}
+        {staleRecovered ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.muted} style={styles.staleNote}>
+            An earlier unfinished capture expired and was cleared. Start a new capture below.
+          </ProovraText>
+        ) : null}
         {personalSpaceBlocked ? (
           <View testID="personal-space-blocked">
             <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} />
@@ -794,6 +960,9 @@ setSessionState(
 
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
+  resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
+  staleNote: { marginBottom: theme.space.s3 },
   typeRow: { flexDirection: "row", gap: theme.space.s2, marginBottom: theme.space.s3 },
   typeChip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 40, borderRadius: theme.radius.pill, borderWidth: 1 },
   toggleRow: {
