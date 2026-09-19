@@ -48,3 +48,13 @@ test("kit keeps the 44pt touch minimum and is RTL-aware", () => {
   assert.match(kit, /isRTL/, "kit must be RTL-aware");
   assert.match(kit, /accessibilityRole/, "kit must set accessibility roles");
 });
+
+test("ProovraScreen clamps to a canonical readable column on tablet (M4)", () => {
+  // The screen container must derive its clamp from the ONE responsive source,
+  // never a per-file magic width, so every stack/auth/detail surface stops
+  // stretching edge-to-edge on iPad the moment this one file is correct.
+  assert.match(kit, /useResponsive/, "ProovraScreen must consume useResponsive");
+  assert.match(kit, /FORM_MAX_WIDTH/, "ProovraScreen must offer the canonical form clamp");
+  assert.match(kit, /breakpoint\s*!==\s*["']compact["']/, "clamp must be tablet-only (phones full-bleed)");
+  assert.match(kit, /centerColumn/, "tablet body must center the clamped column");
+});

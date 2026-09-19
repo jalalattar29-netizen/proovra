@@ -43,7 +43,7 @@ export default function RegisterScreen() {
 
   if (sentTo) {
     return (
-      <ProovraScreen>
+      <ProovraScreen width="form">
         <ProovraSection title="Check your email">
           <ProovraCard>
             <ProovraText variant="body" color={theme.color.ink.secondary}>
@@ -60,7 +60,7 @@ export default function RegisterScreen() {
   }
 
   return (
-    <ProovraScreen>
+    <ProovraScreen width="form">
       <ProovraSection title="Create account">
         <ProovraCard>
           <ProovraFormField label="Name">

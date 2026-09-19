@@ -38,7 +38,7 @@ export default function ResetPasswordScreen() {
   }, [token, password]);
 
   return (
-    <ProovraScreen>
+    <ProovraScreen width="form">
       <ProovraSection title="Set a new password">
         <ProovraCard>
           {done ? (

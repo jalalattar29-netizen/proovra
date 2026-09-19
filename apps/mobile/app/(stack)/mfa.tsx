@@ -41,7 +41,7 @@ export default function MfaScreen() {
   }, [pendingToken, code, useRecovery, mode, completeLogin]);
 
   return (
-    <ProovraScreen>
+    <ProovraScreen width="form">
       <ProovraSection title="Two-factor verification">
         <ProovraCard>
           <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.intro}>

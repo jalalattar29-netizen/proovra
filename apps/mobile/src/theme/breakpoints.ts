@@ -13,6 +13,13 @@ export const BREAKPOINTS = { medium: 600, expanded: 840 } as const;
 /** Readable content column clamp on wide layouts. */
 export const CONTENT_MAX_WIDTH = 720;
 
+/**
+ * Narrower clamp for single-column forms (auth, create, reset). A full 720px
+ * form column reads poorly on a tablet; forms want a tighter measure. Canonical
+ * so screens never invent per-file magic widths (Master Program §22, Law of One).
+ */
+export const FORM_MAX_WIDTH = 480;
+
 export function resolveBreakpoint(width: number): Breakpoint {
   if (width >= BREAKPOINTS.expanded) return "expanded";
   if (width >= BREAKPOINTS.medium) return "medium";

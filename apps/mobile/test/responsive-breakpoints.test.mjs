@@ -13,7 +13,7 @@ const src = readFileSync(resolve(HERE, "../src/theme/breakpoints.ts"), "utf8");
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { resolveBreakpoint, isTabletWidth, navModeFor, CONTENT_MAX_WIDTH } = await import(
+const { resolveBreakpoint, isTabletWidth, navModeFor, CONTENT_MAX_WIDTH, FORM_MAX_WIDTH } = await import(
   `data:text/javascript,${encodeURIComponent(js)}`
 );
 
@@ -36,4 +36,9 @@ test("tablet detection + nav mode follow the breakpoint, not a device name", () 
 
 test("content clamp is a readable column, not the full tablet width", () => {
   assert.equal(CONTENT_MAX_WIDTH, 720);
+});
+
+test("form clamp is a tighter single-column measure than content", () => {
+  assert.equal(FORM_MAX_WIDTH, 480);
+  assert.ok(FORM_MAX_WIDTH < CONTENT_MAX_WIDTH, "forms read narrower than content");
 });

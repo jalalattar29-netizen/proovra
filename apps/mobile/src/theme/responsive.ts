@@ -36,5 +36,5 @@ export function useResponsive(): Responsive {
   };
 }
 
-export { CONTENT_MAX_WIDTH, resolveBreakpoint } from "./breakpoints";
+export { CONTENT_MAX_WIDTH, FORM_MAX_WIDTH, resolveBreakpoint } from "./breakpoints";
 export type { Breakpoint } from "./breakpoints";

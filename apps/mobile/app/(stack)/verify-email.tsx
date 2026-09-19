@@ -34,7 +34,7 @@ export default function VerifyEmailScreen() {
   }, [token, completeLogin]);
 
   return (
-    <ProovraScreen scroll={false}>
+    <ProovraScreen scroll={false} width="form">
       <ProovraSection title="Verifying your email">
         <ProovraCard>
           {state === "verifying" ? (

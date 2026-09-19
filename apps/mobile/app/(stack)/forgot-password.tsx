@@ -32,7 +32,7 @@ export default function ForgotPasswordScreen() {
   }, [email]);
 
   return (
-    <ProovraScreen>
+    <ProovraScreen width="form">
       <ProovraSection title="Reset your password">
         <ProovraCard>
           {sent ? (

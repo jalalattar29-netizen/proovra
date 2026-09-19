@@ -69,7 +69,7 @@ export default function LegalAcceptanceScreen() {
   }, [missing, router, next]);
 
   return (
-    <ProovraScreen scroll={false}>
+    <ProovraScreen scroll={false} width="form">
       <ProovraSection title="Review the updated terms">
         <ProovraCard>
           {state === "loading" ? (

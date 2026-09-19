@@ -24,6 +24,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocale } from "../locale-context";
 import { theme, statusTone } from "../theme/theme";
+import { useResponsive, FORM_MAX_WIDTH } from "../theme/responsive";
 import type { ProovraStatusTone } from "@proovra/ui";
 
 export * from "./shell";
@@ -37,17 +38,37 @@ export function ProovraScreen({
   scroll = true,
   padded = true,
   footer,
+  width = "content",
   testID,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   padded?: boolean;
   footer?: React.ReactNode;
+  /**
+   * Clamp for the readable column on tablet widths. "content" is the canonical
+   * readable measure (720); "form" is the tighter single-column measure (480)
+   * for auth/create/reset. Phones (compact) always render full-bleed.
+   */
+  width?: "content" | "form";
   testID?: string;
 }) {
-  const body = (
-    <View style={[padded && styles.screenPadded, styles.screenBody]}>{children}</View>
+  const { breakpoint, contentMaxWidth } = useResponsive();
+  // ONE canonical clamp: phones stay full-bleed; tablets center a readable
+  // column so stack/auth/detail surfaces never stretch edge-to-edge (M4).
+  const clamp = breakpoint !== "compact";
+  const maxWidth = width === "form" ? FORM_MAX_WIDTH : contentMaxWidth;
+  const inner = (
+    <View style={[padded && styles.screenPadded, styles.screenBody, clamp && { width: "100%", maxWidth }]}>
+      {children}
+    </View>
   );
+  const body = clamp ? <View style={styles.centerColumn}>{inner}</View> : inner;
+  const footerNode = footer ? (
+    <View style={styles.footer}>
+      <View style={clamp ? { width: "100%", maxWidth, alignSelf: "center" } : undefined}>{footer}</View>
+    </View>
+  ) : null;
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]} testID={testID}>
       <KeyboardAvoidingView
@@ -65,7 +86,7 @@ export function ProovraScreen({
         ) : (
           body
         )}
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footerNode}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -439,6 +460,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { flex: 1, backgroundColor: theme.color.surface.app },
   screenBody: { flex: 1 },
+  centerColumn: { flex: 1, width: "100%", alignItems: "center" },
   screenPadded: { paddingHorizontal: theme.space.s4 },
   scrollContent: { paddingBottom: theme.space.s10, flexGrow: 1 },
   footer: {

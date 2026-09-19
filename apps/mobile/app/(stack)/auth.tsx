@@ -64,7 +64,7 @@ export default function AuthScreen() {
   const shownError = error ?? oauthError;
 
   return (
-    <ProovraScreen>
+    <ProovraScreen width="form">
       <View style={styles.header}>
         <ProovraText variant="display" weight="bold">
           PROOVRA
