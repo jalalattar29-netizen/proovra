@@ -1,237 +1,89 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { spacing } from "@proovra/ui";
-import { TopBar } from "../../components/ui";
-import { useLocale } from "../../src/locale-context";
+import { useCallback, useEffect, useState } from "react";
+import { Linking, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
+import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
+import { theme } from "../../src/theme/theme";
+import {
+  ProovraScreen,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraBadge,
+  ProovraErrorState,
+  ProovraLoadingState,
+} from "../../src/ui";
 
+/**
+ * Billing — READ-ONLY. Shows the current plan from the same capability-gated
+ * projection the web reads. No hardcoded catalog, no fake upgrade cards, no
+ * in-app checkout: plan changes are managed on the web (§11E).
+ */
 export default function BillingScreen() {
-  const { t, fontFamilyBold } = useLocale();
+  const { t } = useLocale();
   const router = useRouter();
-  const [plan, setPlan] = useState("FREE");
+  const [plan, setPlan] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState<SafeError | null>(null);
 
-  // BILLING PRODUCTION CLOSURE (2026-08-27) — read the canonical billing
-  // ACCOUNT, not the legacy aggregate.
-  //
-  // This screen was the last consumer of `GET /v1/billing/status`, which
-  // returned every payment, payment-method shape and storage add-on the caller
-  // touched across every billing account — merged, uncapability-filtered — so
-  // that one string could be read off it. It now asks which billing accounts
-  // the viewer holds and reads the plan off the PERSONAL one, through the same
-  // capability-gated projection the web Billing page uses.
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
+  const load = useCallback(async () => {
+    setState("loading");
+    setError(null);
+    try {
       const { accounts } = await apiFetch("/v1/billing/accounts");
-      const personal = (accounts ?? []).find(
-        (account: { type?: string }) => account.type === "PERSONAL"
-      );
-      if (!personal) return;
-
-      const projection = await apiFetch(
-        `/v1/billing/accounts/PERSONAL/${personal.id}`
-      );
-      if (!cancelled) setPlan(projection.plan?.planKey ?? "FREE");
-    })().catch(() => {
-      if (!cancelled) setPlan("FREE");
-    });
-
-    return () => {
-      cancelled = true;
-    };
+      const personal = (accounts ?? []).find((a: { type?: string }) => a.type === "PERSONAL");
+      if (!personal) { setPlan("FREE"); setState("ready"); return; }
+      const projection = await apiFetch(`/v1/billing/accounts/PERSONAL/${personal.id}`);
+      setPlan(projection.plan?.planKey ?? "FREE");
+      setState("ready");
+    } catch (err) {
+      setError(toSafeUserError(err));
+      setState("error");
+    }
   }, []);
 
-  const plans = [
-    { name: "FREE", price: "$0", description: "3 evidence limit" },
-    { name: "PAY-PER-EVIDENCE", price: "$5/evidence", description: "Pay as you go" },
-    { name: "PRO", price: "$19/month", description: "Unlimited captures" },
-    { name: "TEAM", price: "$79/month", description: "5 team members" }
-  ];
+  useEffect(() => { void load(); }, [load]);
 
   return (
-    <View style={styles.container}>
-      <TopBar title={t("billing")} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.currentPlanCard}>
-          <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>Current Plan</Text>
-          <Text style={[styles.planName, { fontFamily: fontFamilyBold }]}>{plan}</Text>
-          <Text style={styles.planDescription}>Active subscription</Text>
-        </View>
-
-        <Text style={[styles.sectionTitle, { fontFamily: fontFamilyBold }]}>
-          Available Plans
-        </Text>
-
-        {plans.map((planItem) => (
-          <Pressable
-            key={planItem.name}
-            style={[
-              styles.planCard,
-              plan === planItem.name && styles.planCardActive
-            ]}
-          >
-            <View>
-              <Text style={[styles.planCardName, { fontFamily: fontFamilyBold }]}>
-                {planItem.name}
-              </Text>
-              <Text style={styles.planCardPrice}>{planItem.price}</Text>
-              <Text style={styles.planCardDescription}>{planItem.description}</Text>
-            </View>
-            <Text style={styles.planCardButton}>
-              {plan === planItem.name ? "Current" : "Upgrade"}
-            </Text>
-          </Pressable>
-        ))}
-
-        <View style={styles.paymentNotice}>
-          <Text style={[styles.paymentNoticeTitle, { fontFamily: fontFamilyBold }]}>
-            📋 Payment Coming Soon
-          </Text>
-          <Text style={styles.paymentNoticeText}>
-            Payment integration is under development. In-app billing will be available soon.
-          </Text>
-          <Text style={styles.paymentNoticeText}>
-            For billing inquiries, contact: support@proovra.com
-          </Text>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={[styles.backButtonText, { fontFamily: fontFamilyBold }]}>
-            Back
-          </Text>
-        </Pressable>
+    <ProovraScreen>
+      <View style={styles.headerRow}>
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
       </View>
-    </View>
+      <ProovraSection title={t("billing")}>
+        {state === "loading" ? (
+          <ProovraLoadingState label="Loading plan" />
+        ) : state === "error" && error ? (
+          <ProovraErrorState message={error.message} onRetry={load} />
+        ) : (
+          <>
+            <ProovraCard style={styles.card}>
+              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Current plan</ProovraText>
+              <View style={styles.planRow}>
+                <ProovraText variant="h1" weight="bold">{plan}</ProovraText>
+                <ProovraBadge tone="info" label="Active" />
+              </View>
+            </ProovraCard>
+            <ProovraCard style={styles.card}>
+              <ProovraText variant="body" color={theme.color.ink.secondary}>
+                Plan changes and payment are managed on the web app.
+              </ProovraText>
+              <ProovraButton
+                label="Manage plan on the web"
+                variant="secondary"
+                onPress={() => void Linking.openURL("https://www.proovra.com/billing")}
+              />
+            </ProovraCard>
+          </>
+        )}
+      </ProovraSection>
+    </ProovraScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050b18"
-  },
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl
-  },
-
-  currentPlanCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
-    shadowColor: "#000",
-    shadowOpacity: 0.30,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 2
-  },
-  label: {
-    fontSize: 12,
-    color: "rgba(219,235,248,0.70)",
-    marginBottom: spacing.xs
-  },
-  planName: {
-    fontSize: 24,
-    color: "rgba(245,251,255,0.96)",
-    marginBottom: spacing.xs
-  },
-  planDescription: {
-    fontSize: 14,
-    color: "rgba(219,235,248,0.72)"
-  },
-
-  sectionTitle: {
-    fontSize: 16,
-    color: "rgba(246,252,255,0.92)",
-    marginTop: spacing.lg,
-    marginBottom: spacing.md
-  },
-
-  planCard: {
-    backgroundColor: "rgba(6, 13, 31, 0.52)",
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)"
-  },
-  planCardActive: {
-    borderColor: "rgba(101,235,255,0.45)",
-    borderWidth: 2,
-    backgroundColor: "rgba(101,235,255,0.10)"
-  },
-  planCardName: {
-    fontSize: 14,
-    color: "rgba(245,251,255,0.94)",
-    marginBottom: spacing.xs
-  },
-  planCardPrice: {
-    fontSize: 16,
-    color: "rgba(101,235,255,0.96)",
-    fontWeight: "600",
-    marginBottom: spacing.xs
-  },
-  planCardDescription: {
-    fontSize: 12,
-    color: "rgba(219,235,248,0.70)"
-  },
-  planCardButton: {
-    fontSize: 12,
-    color: "rgba(245,251,255,0.90)",
-    fontWeight: "700"
-  },
-
-  // Notice: بدنا يكون مناسب للدارك مو أصفر فاقع
-  paymentNotice: {
-    backgroundColor: "rgba(245, 158, 11, 0.10)",
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginTop: spacing.xl,
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.22)"
-  },
-  paymentNoticeTitle: {
-    fontSize: 14,
-    color: "rgba(245,251,255,0.92)",
-    marginBottom: spacing.sm
-  },
-  paymentNoticeText: {
-    fontSize: 13,
-    color: "rgba(219,235,248,0.76)",
-    marginBottom: spacing.sm,
-    lineHeight: 20
-  },
-
-  footer: {
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(101,235,255,0.10)",
-    backgroundColor: "rgba(5, 11, 24, 0.78)"
-  },
-  backButton: {
-    backgroundColor: "rgba(6, 13, 31, 0.62)",
-    paddingVertical: spacing.md,
-    borderRadius: 999,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)"
-  },
-  backButtonText: {
-    color: "rgba(245,251,255,0.92)",
-    fontSize: 14
-  }
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  card: { marginBottom: theme.space.s4, gap: theme.space.s3 },
+  planRow: { flexDirection: "row", alignItems: "center", gap: theme.space.s3, marginTop: theme.space.s2 },
 });

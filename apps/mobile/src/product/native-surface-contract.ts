@@ -278,10 +278,10 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
   {
     surfaceId: "verify",
     routeFile: "verify.tsx",
-    title: "Verify (mock)",
-    classification: "LEGACY",
+    title: "Public Verification",
+    classification: "NATIVE-OPTIONAL",
     reachability: "ORPHANED",
-    target: "Rewire to server-authoritative /public/verify or remove; never ship fabricated hashes (§16.9, Phase 11).",
+    target: "Server-authoritative /public/verify view (mock removed, Phase 11); wire as a deep-link target in Phase 11G.",
   },
 ] as const;
 
