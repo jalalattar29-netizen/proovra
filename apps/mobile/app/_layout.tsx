@@ -1,13 +1,12 @@
 import { Stack } from "expo-router";
 import React from "react";
 
-// Crash telemetry MUST initialize from the REAL entry (this root layout is the
-// one ancestor of every route). It is a no-op without a DSN and never throws,
-// so it is safe to run before anything else. (The former App.tsx that tried to
-// do startup init was dead code — package.json main is expo-router/entry — and
-// has been removed.)
-import { initSentry } from "../src/sentry";
-initSentry();
+// Crash telemetry initializes from the REAL entry (this root layout is the one
+// ancestor of every route), but ONLY after the user has consented — web treats
+// reliability monitoring as the consent-gated analytics category, and native
+// now matches (opt-in, changeable in Settings). No-op + never throws otherwise.
+import { initTelemetryIfConsented } from "../src/privacy/telemetry-consent";
+void initTelemetryIfConsented();
 
 import { DeepLinkGate } from "../src/DeepLinkGate";
 import { ErrorBoundary } from "../src/error-boundary";
