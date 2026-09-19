@@ -198,6 +198,36 @@ test("the extension's build settings carry the broadcast bundle id, deployment t
   }
 });
 
+test("the extension leaves signing to EAS and is host-device-family compatible", () => {
+  // Regression guard for the real device-build failure: a hard-coded
+  // CODE_SIGN_STYLE=Automatic on the extension conflicts with EAS's Manual,
+  // profile-based signing and makes xcodebuild demand a development team the
+  // extension never receives ("Signing for ProovraBroadcast requires a
+  // development team"). And the extension's device family must not be a
+  // superset of the iPhone-only host ("1"), or ad-hoc export validation fails.
+  const proj = freshFixtureProject();
+  applyBroadcastExtensionTarget(proj, { mainBundleId: MAIN_BUNDLE_ID });
+  const after = roundTrip(proj);
+  const configs = nonComment(after.pbxXCBuildConfigurationSection());
+  const extConfigs = Object.values(configs).filter(
+    (c) => c.buildSettings && String(c.buildSettings.PRODUCT_NAME).replace(/"/g, "") === EXT_NAME,
+  );
+  assert.equal(extConfigs.length, 2);
+  for (const c of extConfigs) {
+    const bs = c.buildSettings;
+    assert.notEqual(
+      String(bs.CODE_SIGN_STYLE || "").replace(/"/g, ""),
+      "Automatic",
+      "extension must NOT force Automatic signing — EAS manages it",
+    );
+    assert.equal(
+      String(bs.TARGETED_DEVICE_FAMILY).replace(/"/g, ""),
+      "1",
+      "extension device family must match the iPhone-only host",
+    );
+  }
+});
+
 test("the main app declares a target dependency on the extension", () => {
   const proj = freshFixtureProject();
   applyBroadcastExtensionTarget(proj, { mainBundleId: MAIN_BUNDLE_ID });

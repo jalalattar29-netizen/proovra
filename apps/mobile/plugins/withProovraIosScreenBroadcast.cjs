@@ -115,8 +115,21 @@ function applyBroadcastExtensionTarget(proj, options) {
       bs.PRODUCT_BUNDLE_IDENTIFIER = extBundleId;
       bs.IPHONEOS_DEPLOYMENT_TARGET = "13.4";
       bs.SWIFT_VERSION = "5.0";
-      bs.TARGETED_DEVICE_FAMILY = '"1,2"';
-      bs.CODE_SIGN_STYLE = "Automatic";
+      // Match the host app's device family. app.json sets supportsTablet:false,
+      // so the host is iPhone-only ("1"); an app extension's device family must
+      // be a subset of its host's, so the extension must NOT advertise iPad
+      // ("1,2") while the host is "1" — that fails ad-hoc export validation.
+      // The iPad still installs/runs the build in iPhone-compatibility mode.
+      bs.TARGETED_DEVICE_FAMILY = "1";
+      // Do NOT force CODE_SIGN_STYLE here. EAS configures signing per target from
+      // managed credentials (Manual style + DEVELOPMENT_TEAM + a provisioning
+      // profile), exactly as it does for the main app. Hard-coding "Automatic"
+      // conflicts with EAS's manual, profile-based signing and makes xcodebuild
+      // demand a development team the extension's config never receives —
+      // the "Signing for ProovraBroadcast requires a development team" failure.
+      // The extension still needs its OWN ad-hoc profile for
+      // com.jalalattar29.proovra.broadcast (the main app's profile cannot sign a
+      // different bundle id); that is a credentials step, not a source setting.
     }
   }
 
