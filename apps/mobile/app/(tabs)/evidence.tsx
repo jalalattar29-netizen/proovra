@@ -75,10 +75,11 @@ export default function EvidenceLibraryScreen() {
   );
 
   useEffect(() => {
+    // Scope change loads immediately; search is debounced in onChangeText.
+    // `query` is intentionally omitted so a scope switch uses the current query
+    // without racing the debounce; fetchPage is stable (useCallback []).
     void fetchPage({ scope, search: query, append: false });
-    // debounce is handled in onChangeText; scope change loads immediately
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope]);
+  }, [scope, fetchPage]);
 
   const onSearch = useCallback(
     (text: string) => {

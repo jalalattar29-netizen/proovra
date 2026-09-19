@@ -9,7 +9,6 @@ import {
   ProovraShell,
   ProovraCard,
   ProovraSection,
-  ProovraText,
   ProovraButton,
   ProovraListRow,
   ProovraEmptyState,
