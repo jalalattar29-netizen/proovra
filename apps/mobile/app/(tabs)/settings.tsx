@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, Switch, View, StyleSheet } from "react-native";
+import { Alert, Linking, Pressable, Switch, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { useAuth } from "../../src/auth-context";
 import { logout as logoutApi, getLegalStatus } from "../../src/auth/auth-api";
 import { loadTelemetryConsent, setTelemetryConsent } from "../../src/privacy/telemetry-consent";
-import { setAuthToken } from "../../src/api";
+import { apiFetch, setAuthToken } from "../../src/api";
+import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
   ProovraShell,
@@ -13,8 +14,20 @@ import {
   ProovraSection,
   ProovraText,
   ProovraButton,
+  ProovraInput,
+  ProovraFormField,
   ProovraListRow,
 } from "../../src/ui";
+
+/** The device's IANA timezone, or null when the runtime can't resolve one. */
+function deviceTimezone(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && tz.includes("/") ? tz : null;
+  } catch {
+    return null;
+  }
+}
 
 // en/ar/de are fully translated; the rest fall back to English (audit §I.4 —
 // never advertise a placeholder as a complete translation).
@@ -27,11 +40,49 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [telemetry, setTelemetry] = useState(false);
   const [legalOk, setLegalOk] = useState<boolean | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(user?.displayName ?? "");
+  const [nameShown, setNameShown] = useState(user?.displayName ?? "");
+  const [nameBusy, setNameBusy] = useState(false);
+  const [tzBusy, setTzBusy] = useState(false);
+  const tz = deviceTimezone();
 
   useEffect(() => {
     void loadTelemetryConsent().then(setTelemetry);
     void getLegalStatus().then((s) => setLegalOk(s.ok)).catch(() => setLegalOk(null));
   }, []);
+
+  // Profile edits go through the canonical PATCH /v1/users/me (server-validated).
+  const saveName = useCallback(async () => {
+    const displayName = nameValue.trim();
+    if (!displayName || displayName.length > 120) {
+      Alert.alert("Check the details", "Enter a name (1–120 characters).");
+      return;
+    }
+    setNameBusy(true);
+    try {
+      await apiFetch("/v1/users/me", { method: "PATCH", body: JSON.stringify({ displayName }) });
+      setNameShown(displayName);
+      setEditingName(false);
+    } catch (err) {
+      Alert.alert("Could not update name", toSafeUserError(err).message);
+    } finally {
+      setNameBusy(false);
+    }
+  }, [nameValue]);
+
+  const setDeviceTimezone = useCallback(async () => {
+    if (!tz) return;
+    setTzBusy(true);
+    try {
+      await apiFetch("/v1/users/me", { method: "PATCH", body: JSON.stringify({ timezone: tz }) });
+      Alert.alert("Timezone updated", `Your account timezone is now ${tz}.`);
+    } catch (err) {
+      Alert.alert("Could not update timezone", toSafeUserError(err).message);
+    } finally {
+      setTzBusy(false);
+    }
+  }, [tz]);
 
   const onToggleTelemetry = useCallback((next: boolean) => {
     setTelemetry(next);
@@ -51,8 +102,31 @@ export default function SettingsScreen() {
         {/* Account */}
         <ProovraCard style={styles.card}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Account</ProovraText>
-          <ProovraText variant="body" weight="semibold" style={styles.gap}>{user?.displayName || "Signed in"}</ProovraText>
-          {user?.email ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{user.email}</ProovraText> : null}
+          {editingName ? (
+            <>
+              <ProovraFormField label="Display name">
+                <ProovraInput value={nameValue} onChangeText={setNameValue} placeholder="Your name" autoCapitalize="words" onSubmitEditing={() => void saveName()} />
+              </ProovraFormField>
+              <View style={styles.nameActions}>
+                <ProovraButton label="Save" loading={nameBusy} fullWidth={false} onPress={() => void saveName()} />
+                <ProovraButton label="Cancel" variant="ghost" fullWidth={false} disabled={nameBusy} onPress={() => { setEditingName(false); setNameValue(nameShown); }} />
+              </View>
+            </>
+          ) : (
+            <ProovraListRow
+              title={nameShown || "Signed in"}
+              subtitle={user?.email ?? undefined}
+              trailing={<ProovraText variant="label" color={theme.color.accent.a600} weight="semibold">Edit</ProovraText>}
+              onPress={() => { setNameValue(nameShown); setEditingName(true); }}
+            />
+          )}
+          {tz ? (
+            <ProovraListRow
+              title="Timezone"
+              subtitle={`Set your account timezone to this device (${tz})`}
+              trailing={<ProovraButton label="Use device" variant="secondary" fullWidth={false} loading={tzBusy} onPress={() => void setDeviceTimezone()} />}
+            />
+          ) : null}
         </ProovraCard>
 
         {/* Language */}
@@ -156,6 +230,7 @@ function LangPill({ label, active, onPress }: { label: string; active: boolean; 
 const styles = StyleSheet.create({
   card: { marginBottom: theme.space.s4, gap: theme.space.s2 },
   gap: { marginTop: theme.space.s1 },
+  nameActions: { flexDirection: "row", gap: theme.space.s2 },
   langRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   pill: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s3, marginTop: theme.space.s2 },
