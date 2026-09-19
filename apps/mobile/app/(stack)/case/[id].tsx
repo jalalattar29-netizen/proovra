@@ -1,209 +1,211 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { spacing, typography } from "@proovra/ui";
-import { BottomNav, ListRow } from "../../../components/ui";
-import { useLocale } from "../../../src/locale-context";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { apiFetch, getAuthToken } from "../../../src/api";
 import * as FileSystem from "expo-file-system";
+import { apiFetch, apiBaseUrl, getAuthToken } from "../../../src/api";
+import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
+import { theme } from "../../../src/theme/theme";
+import {
+  ProovraScreen,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraListRow,
+  ProovraEmptyState,
+  ProovraErrorState,
+  ProovraLoadingState,
+} from "../../../src/ui";
 
-type EvidenceItem = {
-  id: string;
-  title?: string;
-  type: string;
-  status: string;
-  createdAt: string;
-  itemCount?: number;
-  displaySubtitle?: string;
-};
+type EvidenceItem = { id: string; title?: string; type: string; status?: string; createdAt: string; itemCount?: number };
+type LoadState = "loading" | "ready" | "error" | "notfound";
 
-function resolveEvidenceTitle(item: EvidenceItem): string {
-  const title = typeof item.title === "string" ? item.title.trim() : "";
-  if (title) return title;
-
+function evidenceTitle(item: EvidenceItem): string {
+  const t = typeof item.title === "string" ? item.title.trim() : "";
+  if (t) return t;
   switch ((item.type ?? "").toUpperCase()) {
-    case "PHOTO":
-      return "Photo Evidence";
-    case "VIDEO":
-      return "Video Evidence";
-    case "AUDIO":
-      return "Audio Evidence";
-    case "DOCUMENT":
-      return "Document Evidence";
-    default:
-      return "Digital Evidence Record";
+    case "PHOTO": return "Photo Evidence";
+    case "VIDEO": return "Video Evidence";
+    case "AUDIO": return "Audio Evidence";
+    case "DOCUMENT": return "Document Evidence";
+    default: return "Digital Evidence Record";
   }
 }
 
-function resolveEvidenceSubtitle(item: EvidenceItem): string {
-  const subtitle =
-    typeof item.displaySubtitle === "string" ? item.displaySubtitle.trim() : "";
-  if (subtitle) return subtitle;
-
-  const count =
-    typeof item.itemCount === "number" && item.itemCount > 0
-      ? item.itemCount
-      : 1;
-
-  return `${count} item${count === 1 ? "" : "s"} • ${formatUserDateTime(
-    item.createdAt
-  )}`;
-}
-
 export default function CaseDetailScreen() {
-  const { fontFamilyBold } = useLocale();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
+  const id = params.id ?? "";
 
   const [name, setName] = useState("Case");
+  const [status, setStatus] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [state, setState] = useState<LoadState>("loading");
+  const [error, setError] = useState<SafeError | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [available, setAvailable] = useState<EvidenceItem[] | null>(null);
+  const [busyEvId, setBusyEvId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!params.id) return;
-
-    Promise.all([
-      apiFetch(`/v1/cases/${params.id}`),
-      apiFetch(`/v1/evidence?caseId=${params.id}`),
-    ])
-      .then(([caseData, evidenceData]) => {
-        setName(caseData.case?.name ?? "Case");
-        setEvidence(Array.isArray(evidenceData.items) ? evidenceData.items : []);
-      })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load case")
-      );
-  }, [params.id]);
-
-  const handleExport = async () => {
-    if (!params.id) return;
-
-    const token = getAuthToken();
-    if (!token) {
-      setError("Not authenticated.");
-      return;
-    }
-
-    setDownloading(true);
-
+  const load = useCallback(async () => {
+    if (!id) return;
+    setState("loading");
+    setError(null);
     try {
-      const base = process.env.EXPO_PUBLIC_API_BASE ?? "http://localhost:8080";
-      const url = `${base}/v1/cases/${params.id}/export`;
-      const dest = `${FileSystem.cacheDirectory}case-${params.id}.zip`;
+      const [caseData, evidenceData] = await Promise.all([
+        apiFetch(`/v1/cases/${id}`),
+        apiFetch(`/v1/evidence?caseId=${id}`),
+      ]);
+      setName(caseData.case?.name ?? "Case");
+      setStatus(caseData.case?.status ?? null);
+      setEvidence(Array.isArray(evidenceData.items) ? (evidenceData.items as EvidenceItem[]) : []);
+      setState("ready");
+    } catch (err) {
+      const safe = toSafeUserError(err);
+      if (safe.kind === "notFound") setState("notfound");
+      else { setError(safe); setState("error"); }
+    }
+  }, [id]);
 
-      await FileSystem.downloadAsync(url, dest, {
+  useEffect(() => { void load(); }, [load]);
+
+  // Export → download then present via the platform share sheet (Files/AirDrop/
+  // etc.) instead of leaving it in an inaccessible cache dir.
+  const exportZip = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) { Alert.alert("Not signed in", "Please sign in again."); return; }
+    setExporting(true);
+    try {
+      const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      const dest = `${dir}case-${id}.zip`;
+      const res = await FileSystem.downloadAsync(`${apiBaseUrl()}/v1/cases/${id}/export`, dest, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      setError(`Export saved to ${dest}`);
+      if (res.status >= 400) throw new Error(`Export failed (${res.status})`);
+      await Share.share({ url: res.uri, title: `${name}.zip` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      Alert.alert("Export failed", toSafeUserError(err).message);
     } finally {
-      setDownloading(false);
+      setExporting(false);
     }
-  };
+  }, [id, name]);
 
-  const handleOpenEvidence = (evidenceId: string) => {
-    router.push(`/(stack)/evidence/${evidenceId}` as never);
-  };
+  const removeFromCase = useCallback(
+    (item: EvidenceItem) => {
+      Alert.alert("Remove from case", `Remove ${evidenceTitle(item)} from this case?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setBusyEvId(item.id);
+              try {
+                await apiFetch(`/v1/cases/${id}/evidence/${item.id}`, { method: "DELETE" });
+                setEvidence((prev) => prev.filter((e) => e.id !== item.id));
+              } catch (err) {
+                Alert.alert("Could not remove", toSafeUserError(err).message);
+              } finally {
+                setBusyEvId(null);
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [id],
+  );
+
+  const openAdd = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/v1/cases/${id}/available-evidence`);
+      setAvailable((data.items ?? []) as EvidenceItem[]);
+    } catch (err) {
+      Alert.alert("Could not load evidence", toSafeUserError(err).message);
+    }
+  }, [id]);
+
+  const attach = useCallback(
+    async (evId: string) => {
+      setBusyEvId(evId);
+      try {
+        await apiFetch(`/v1/cases/${id}/evidence`, { method: "POST", body: JSON.stringify({ evidenceId: evId }) });
+        setAvailable((prev) => (prev ? prev.filter((e) => e.id !== evId) : prev));
+        await load();
+      } catch (err) {
+        Alert.alert("Could not add", toSafeUserError(err).message);
+      } finally {
+        setBusyEvId(null);
+      }
+    },
+    [id, load],
+  );
+
+  if (state === "loading") return <ProovraScreen scroll={false}><ProovraLoadingState label="Loading case" /></ProovraScreen>;
+  if (state === "notfound") return <ProovraScreen scroll={false}><ProovraEmptyState title="Case not found" action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} /></ProovraScreen>;
+  if (state === "error" && error) return <ProovraScreen scroll={false}><ProovraErrorState message={error.message} onRetry={load} /></ProovraScreen>;
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={[styles.title, { fontFamily: fontFamilyBold }]}>
-          {name}
-        </Text>
-
-        <Pressable
-          style={styles.exportButton}
-          onPress={handleExport}
-          disabled={downloading}
-        >
-          <Text style={[styles.exportText, { fontFamily: fontFamilyBold }]}>
-            {downloading ? "Exporting..." : "Export ZIP"}
-          </Text>
-        </Pressable>
-
-        <Text style={[styles.sectionTitle, { fontFamily: fontFamilyBold }]}>
-          Evidence
-        </Text>
-
-        <View style={styles.listCard}>
-          {evidence.length === 0 ? (
-            <Text style={styles.muted}>No evidence in this case yet.</Text>
-          ) : (
-            evidence.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => handleOpenEvidence(item.id)}
-              >
-                <ListRow
-                  title={resolveEvidenceTitle(item)}
-                  subtitle={resolveEvidenceSubtitle(item)}
-                  badge={<View />}
-                />
-              </Pressable>
-            ))
-          )}
+    <ProovraScreen>
+      <View style={styles.headerRow}>
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+      </View>
+      <ProovraCard style={styles.hero}>
+        <ProovraText variant="h1" weight="bold">{name}</ProovraText>
+        {status ? <ProovraText variant="bodySm" color={theme.color.ink.secondary} style={styles.heroSub}>{status}</ProovraText> : null}
+        <View style={styles.heroActions}>
+          <ProovraButton label="Export" variant="secondary" loading={exporting} onPress={() => void exportZip()} />
         </View>
+      </ProovraCard>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </ScrollView>
+      <ProovraSection
+        title="Evidence"
+        action={<ProovraButton label="+ Add" variant="ghost" fullWidth={false} onPress={() => void openAdd()} />}
+      >
+        {available ? (
+          <ProovraCard style={styles.addCard}>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Add evidence to this case</ProovraText>
+            {available.length === 0 ? (
+              <ProovraText variant="bodySm" color={theme.color.ink.muted} style={styles.note}>No eligible evidence to add.</ProovraText>
+            ) : (
+              available.map((e) => (
+                <ProovraListRow
+                  key={e.id}
+                  title={evidenceTitle(e)}
+                  subtitle={formatUserDateTime(e.createdAt)}
+                  trailing={<ProovraButton label="Add" variant="secondary" fullWidth={false} loading={busyEvId === e.id} onPress={() => void attach(e.id)} />}
+                />
+              ))
+            )}
+            <ProovraButton label="Done" variant="ghost" onPress={() => setAvailable(null)} />
+          </ProovraCard>
+        ) : null}
 
-      <BottomNav />
-    </View>
+        {evidence.length === 0 ? (
+          <ProovraEmptyState title="No evidence in this case" message="Add existing evidence or capture new records." />
+        ) : (
+          <ProovraCard>
+            {evidence.map((item) => (
+              <ProovraListRow
+                key={item.id}
+                title={evidenceTitle(item)}
+                subtitle={formatUserDateTime(item.createdAt)}
+                onPress={() => router.push(`/(stack)/evidence/${item.id}` as never)}
+                trailing={<ProovraButton label="Remove" variant="ghost" fullWidth={false} loading={busyEvId === item.id} onPress={() => removeFromCase(item)} />}
+              />
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+    </ProovraScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050b18",
-  },
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-  },
-  title: {
-    fontSize: typography.size.h3,
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-    color: "rgba(245,251,255,0.96)",
-  },
-  sectionTitle: {
-    fontSize: typography.size.h4,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    color: "rgba(245,251,255,0.92)",
-  },
-  exportButton: {
-    backgroundColor: "rgba(6, 13, 31, 0.62)",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.22)",
-  },
-  exportText: {
-    color: "rgba(245,251,255,0.92)",
-    textAlign: "center",
-    fontWeight: "800",
-  },
-  listCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.88)",
-    borderRadius: 18,
-    padding: spacing.md,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
-  },
-  muted: {
-    color: "rgba(219,235,248,0.70)",
-  },
-  error: {
-    marginTop: spacing.sm,
-    color: "rgba(239, 68, 68, 0.95)",
-  },
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  hero: { marginBottom: theme.space.s4 },
+  heroSub: { marginTop: theme.space.s2 },
+  heroActions: { marginTop: theme.space.s4 },
+  addCard: { marginBottom: theme.space.s4, gap: theme.space.s2 },
+  note: { marginTop: theme.space.s2 },
 });

@@ -1,5 +1,10 @@
 import { triggerLegalGate } from "./auth/legal-gate";
 
+/** Canonical API origin — the ONE place the base URL is resolved. */
+export function apiBaseUrl(): string {
+  return process.env.EXPO_PUBLIC_API_BASE ?? "http://localhost:8081";
+}
+
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -22,7 +27,7 @@ function asObject(value: unknown): Record<string, unknown> | null {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
-  const base = process.env.EXPO_PUBLIC_API_BASE ?? "http://localhost:8081";
+  const base = apiBaseUrl();
   const headers = new Headers(init.headers);
 
   if (!headers.has("content-type") && init.body) {
