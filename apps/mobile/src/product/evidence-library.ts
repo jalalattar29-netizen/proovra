@@ -8,6 +8,7 @@
  * strip, and describe the bulk actions applicable per scope. RN screen = shell.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import type { EvidenceBulkActionName } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -85,35 +86,405 @@ export function projectLibraryMetrics(data: unknown): LibraryMetric[] {
 
 /* --------------------------------------------------------------- Bulk actions */
 
-export type BulkAction = "ARCHIVE" | "RESTORE_ARCHIVED" | "TRASH" | "RESTORE_TRASH" | "EXPORT_METADATA_CSV";
-
 export interface BulkActionSpec {
-  action: BulkAction;
+  action: EvidenceBulkActionName;
   label: string;
   destructive?: boolean;
 }
 
+
+export interface EvidenceBulkActionResult {
+  evidenceId: string;
+  ok: boolean;
+  reason?: string;
+}
+
+export interface EvidenceBulkSelectionResponse {
+  successCount?: number;
+  failedCount?: number;
+  results?: EvidenceBulkActionResult[];
+  accepted?: boolean;
+  queued?: boolean;
+  pendingCount?: number;
+}
+
+/**
+ * Resolve bulk selection only from an accepted TERMINAL server result.
+ *
+ * - total success -> no selection
+ * - partial success -> failed ids remain selected
+ * - queued/accepted-but-pending -> selection stays untouched
+ * - malformed/non-terminal result -> selection stays untouched
+ *
+ * A request-level throw never calls this helper, so the original selection
+ * also survives a refused request.
+ */
+export function resolveBulkSelection(
+  selectedIds: readonly string[],
+  response: EvidenceBulkSelectionResponse,
+): string[] {
+  if (response.accepted === true || response.queued === true) {
+    return [...selectedIds];
+  }
+
+  if (!Array.isArray(response.results)) {
+    return [...selectedIds];
+  }
+
+  const selected = new Set(selectedIds);
+  const resultIds = new Set(
+    response.results
+      .map((result) => result.evidenceId)
+      .filter((id) => selected.has(id)),
+  );
+
+  // A terminal response must account for the submitted selection. If it does
+  // not, fail safe: never silently deselect records the server did not report.
+  if (resultIds.size !== selected.size) {
+    return [...selectedIds];
+  }
+
+  return response.results
+    .filter((result) => !result.ok && selected.has(result.evidenceId))
+    .map((result) => result.evidenceId);
+}
+
+export interface EvidenceBulkResponse extends EvidenceBulkSelectionResponse {
+  updated?: number;
+  csv?: string;
+  fileName?: string;
+}
+
+/**
+ * Parse POST /v1/evidence/bulk defensively.
+ *
+ * The canonical response reports per-record terminal results. A future queued
+ * backend may instead report accepted/queued/pendingCount; callers must not
+ * treat that state as completed.
+ */
+export function parseEvidenceBulkResponse(data: unknown): EvidenceBulkResponse {
+  if (!data || typeof data !== "object") return {};
+  const value = data as Record<string, unknown>;
+
+  const results: EvidenceBulkActionResult[] | undefined = Array.isArray(value["results"])
+    ? value["results"]
+        .filter(
+          (item: unknown): item is Record<string, unknown> =>
+            !!item &&
+            typeof item === "object" &&
+            typeof (item as Record<string, unknown>)["evidenceId"] === "string" &&
+            typeof (item as Record<string, unknown>)["ok"] === "boolean",
+        )
+        .map((item) => ({
+          evidenceId: item["evidenceId"] as string,
+          ok: item["ok"] as boolean,
+          ...(typeof item["reason"] === "string"
+            ? { reason: item["reason"] as string }
+            : {}),
+        }))
+    : undefined;
+
+  return {
+    ...(typeof value["updated"] === "number"
+      ? { updated: value["updated"] as number }
+      : {}),
+    ...(typeof value["successCount"] === "number"
+      ? { successCount: value["successCount"] as number }
+      : {}),
+    ...(typeof value["failedCount"] === "number"
+      ? { failedCount: value["failedCount"] as number }
+      : {}),
+    ...(results ? { results } : {}),
+    ...(typeof value["accepted"] === "boolean"
+      ? { accepted: value["accepted"] as boolean }
+      : {}),
+    ...(typeof value["queued"] === "boolean"
+      ? { queued: value["queued"] as boolean }
+      : {}),
+    ...(typeof value["pendingCount"] === "number"
+      ? { pendingCount: value["pendingCount"] as number }
+      : {}),
+    ...(typeof value["csv"] === "string"
+      ? { csv: value["csv"] as string }
+      : {}),
+    ...(typeof value["fileName"] === "string" && (value["fileName"] as string).trim()
+      ? { fileName: (value["fileName"] as string).trim() }
+      : {}),
+  };
+}
+
+export function safeCsvFilename(value: string | undefined): string {
+  const fallback = "proovra-evidence-metadata.csv";
+  if (!value?.trim()) return fallback;
+
+  const clean = value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ");
+
+  if (!clean) return fallback;
+  return clean.toLowerCase().endsWith(".csv") ? clean : `${clean}.csv`;
+}
+
+
+/* --------------------------------------------------------- Native Inspector */
+
+export interface InspectorContentItem {
+  id: string;
+  label: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
+  kind: string;
+  previewable: boolean;
+  viewUrl: string | null;
+  isPrimary: boolean;
+}
+
+export interface InspectorEvidence {
+  id: string;
+  type: string;
+  status: string;
+  statusLabel: string | null;
+  verificationStatus: string | null;
+  verificationStatusLabel: string | null;
+  displayTitle: string | null;
+  displayFileName: string | null;
+  originalFileName: string | null;
+  createdAt: string | null;
+  defaultPreviewItemId: string | null;
+  contentAccessMode: string | null;
+  allowContentView: boolean | null;
+  contentItems: InspectorContentItem[];
+}
+
+export type InspectorPreview =
+  | { kind: "restricted" }
+  | { kind: "unavailable" }
+  | { kind: "unsupported"; item: InspectorContentItem }
+  | { kind: "image"; item: InspectorContentItem; url: string }
+  | { kind: "external"; item: InspectorContentItem; url: string };
+
+export interface InspectorArtifactState {
+  report: string | null;
+  verificationPackage: string | null;
+}
+
+function inspectorObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function inspectorString(value: unknown): string | null {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : null;
+}
+
+export function projectInspectorEvidence(data: unknown): InspectorEvidence | null {
+  const root = inspectorObject(data);
+  const evidence = inspectorObject(root["evidence"]);
+  const id = inspectorString(evidence["id"]);
+
+  if (!id) return null;
+
+  const access = inspectorObject(evidence["contentAccessPolicy"]);
+  const rawItems = Array.isArray(evidence["contentItems"])
+    ? evidence["contentItems"]
+    : [];
+
+  const contentItems: InspectorContentItem[] = rawItems
+    .map((raw): InspectorContentItem | null => {
+      const item = inspectorObject(raw);
+      const itemId = inspectorString(item["id"]);
+      if (!itemId) return null;
+
+      return {
+        id: itemId,
+        label: inspectorString(item["label"]),
+        originalFileName: inspectorString(item["originalFileName"]),
+        mimeType: inspectorString(item["mimeType"]),
+        kind: inspectorString(item["kind"]) ?? "other",
+        previewable: item["previewable"] === true,
+        viewUrl: inspectorString(item["viewUrl"]),
+        isPrimary: item["isPrimary"] === true,
+      };
+    })
+    .filter((item): item is InspectorContentItem => item !== null);
+
+  return {
+    id,
+    type: inspectorString(evidence["type"]) ?? "Evidence",
+    status: inspectorString(evidence["status"]) ?? "CREATED",
+    statusLabel: inspectorString(evidence["statusLabel"]),
+    verificationStatus: inspectorString(evidence["verificationStatus"]),
+    verificationStatusLabel: inspectorString(evidence["verificationStatusLabel"]),
+    displayTitle: inspectorString(evidence["displayTitle"]),
+    displayFileName: inspectorString(evidence["displayFileName"]),
+    originalFileName: inspectorString(evidence["originalFileName"]),
+    createdAt: inspectorString(evidence["createdAt"]),
+    defaultPreviewItemId: inspectorString(evidence["defaultPreviewItemId"]),
+    contentAccessMode: inspectorString(access["mode"]),
+    allowContentView:
+      typeof access["allowContentView"] === "boolean"
+        ? (access["allowContentView"] as boolean)
+        : null,
+    contentItems,
+  };
+}
+
+export function resolveInspectorPreview(
+  evidence: InspectorEvidence,
+): InspectorPreview {
+  if (
+    evidence.contentAccessMode === "metadata_only" ||
+    evidence.allowContentView === false
+  ) {
+    return { kind: "restricted" };
+  }
+
+  const item =
+    evidence.contentItems.find(
+      (candidate) => candidate.id === evidence.defaultPreviewItemId,
+    ) ??
+    evidence.contentItems.find((candidate) => candidate.isPrimary) ??
+    evidence.contentItems.find((candidate) => candidate.previewable) ??
+    null;
+
+  if (!item) return { kind: "unavailable" };
+  if (!item.previewable) return { kind: "unsupported", item };
+  if (!item.viewUrl) return { kind: "restricted" };
+  if (item.kind === "other") return { kind: "unsupported", item };
+
+  const mime = item.mimeType?.toLowerCase() ?? "";
+  const kind = item.kind.toLowerCase();
+
+  if (kind === "image" || mime.startsWith("image/")) {
+    return { kind: "image", item, url: item.viewUrl };
+  }
+
+  return { kind: "external", item, url: item.viewUrl };
+}
+
+export function projectInspectorArtifactState(
+  data: unknown,
+): InspectorArtifactState {
+  const outputs = inspectorObject(inspectorObject(data)["outputs"]);
+  const report = inspectorObject(outputs["report"]);
+  const verificationPackage = inspectorObject(
+    outputs["verificationPackage"] ?? outputs["package"],
+  );
+
+  return {
+    report: inspectorString(report["state"]),
+    verificationPackage: inspectorString(verificationPackage["state"]),
+  };
+}
+
+/* ------------------------------------------------------------- Saved views */
+
+export interface SavedViewItem {
+  id: string;
+  name: string;
+  scope: string; // native scope ("active"|"archived"|"trash"|"locked")
+  type: string; // "ALL" or an EvidenceType
+  status: string; // "ALL" or an EvidenceStatus
+  search: string;
+  sort: LibrarySort;
+  isDefault: boolean;
+}
+
+/** Server stores trash as "deleted"; native uses "trash". */
+function scopeFromServer(s: string): string {
+  return s === "deleted" ? "trash" : s;
+}
+function scopeToServer(s: string): "active" | "archived" | "deleted" | "locked" {
+  return (s === "trash" ? "deleted" : s) as "active" | "archived" | "deleted" | "locked";
+}
+function toSort(v: unknown): LibrarySort {
+  return v === "oldest" || v === "priority" ? v : "newest";
+}
+function allOr(v: unknown): string {
+  return typeof v === "string" && v && v !== "all" ? v : "ALL";
+}
+
+/** Parse GET /v1/evidence/saved-views → { items } into the fields native captures. */
+export function parseSavedViews(data: unknown): SavedViewItem[] {
+  const d = (data && typeof data === "object" ? (data as Record<string, unknown>) : {});
+  const items = Array.isArray(d["items"]) ? (d["items"] as unknown[]) : [];
+  const out: SavedViewItem[] = [];
+  for (const raw of items) {
+    const v = (raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {});
+    const id = typeof v["id"] === "string" ? (v["id"] as string) : null;
+    const name = typeof v["name"] === "string" ? (v["name"] as string) : null;
+    if (!id || !name) continue;
+    const filters = (v["filters"] && typeof v["filters"] === "object" ? (v["filters"] as Record<string, unknown>) : {});
+    out.push({
+      id,
+      name,
+      scope: scopeFromServer(typeof v["scope"] === "string" ? (v["scope"] as string) : "active"),
+      type: allOr(filters["type"]),
+      status: allOr(filters["status"]),
+      search: typeof filters["search"] === "string" ? (filters["search"] as string) : "",
+      sort: toSort(v["sortKey"] ?? filters["sort"]),
+      isDefault: v["isDefault"] === true,
+    });
+  }
+  return out;
+}
+
+/**
+ * Build the POST /v1/evidence/saved-views body from the current state. Only the
+ * cleanly-mapping dimensions are persisted (scope/type/status/search/sort) — the
+ * saved-view filter schema has no source/report field, so nothing is silently
+ * dropped or fabricated.
+ */
+export function buildSavedViewBody(input: { name: string; scope: string; type: string; status: string; search: string; sort: LibrarySort }) {
+  return {
+    name: input.name.trim(),
+    scope: scopeToServer(input.scope),
+    sortKey: input.sort,
+    filters: {
+      scope: scopeToServer(input.scope),
+      search: input.search.trim(),
+      type: input.type === "ALL" ? "all" : input.type,
+      status: input.status === "ALL" ? "all" : input.status,
+      sort: input.sort,
+    },
+  };
+}
+
 /** The bulk actions applicable to a scope (mirrors EVIDENCE_BULK_ACTIONS + lifecycle). */
 export function bulkActionsForScope(scope: string): BulkActionSpec[] {
+  const caseActions: BulkActionSpec[] = [
+    { action: "ADD_TO_CASE", label: "Add to Case" },
+    { action: "REMOVE_FROM_CASE", label: "Remove from Case" },
+  ];
+
   switch (scope) {
     case "active":
     case "locked":
       return [
+        ...caseActions,
         { action: "ARCHIVE", label: "Archive" },
         { action: "TRASH", label: "Move to Trash", destructive: true },
         { action: "EXPORT_METADATA_CSV", label: "Export CSV" },
       ];
+
     case "archived":
       return [
+        ...caseActions,
         { action: "RESTORE_ARCHIVED", label: "Restore" },
         { action: "TRASH", label: "Move to Trash", destructive: true },
         { action: "EXPORT_METADATA_CSV", label: "Export CSV" },
       ];
+
     case "trash":
       return [
         { action: "RESTORE_TRASH", label: "Restore" },
         { action: "EXPORT_METADATA_CSV", label: "Export CSV" },
       ];
+
     default:
       return [{ action: "EXPORT_METADATA_CSV", label: "Export CSV" }];
   }
