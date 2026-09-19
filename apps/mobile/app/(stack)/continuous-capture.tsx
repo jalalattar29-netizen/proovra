@@ -14,12 +14,21 @@
  * in-flight session on return so a new CaptureSession is never created.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { colors, spacing, typography } from "@proovra/ui";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
-import { Button } from "../../components/ui";
+import { theme } from "../../src/theme/theme";
+import {
+  ProovraScreen,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraBadge,
+  ProovraEmptyState,
+  ProovraLoadingState,
+} from "../../src/ui";
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import {
@@ -287,133 +296,108 @@ export default function ContinuousCaptureScreen() {
     dispatch({ type: "RESET" });
   }, [resetStreamRefs]);
 
-  if (personalSpace.loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (personalSpace.loading) return <ProovraScreen scroll={false}><ProovraLoadingState /></ProovraScreen>;
   if (!personalSpace.allowed) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.title}>Not available here</Text>
-        <Text style={styles.body}>Continuous Screen Capture is available in your Personal Space on this device.</Text>
-        <Button label="Back" variant="secondary" onPress={() => router.back()} />
-      </View>
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState title="Not available here" message="Continuous Screen Capture is available in your Personal Space on this device." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
+      </ProovraScreen>
     );
   }
   if (!supported) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.title}>Not available on this device</Text>
-        <Text style={styles.body}>Continuous Screen Capture uses the device's system screen-capture and is not available on this device.</Text>
-        <Button label="Back" variant="secondary" onPress={() => router.back()} />
-      </View>
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState title="Not available on this device" message="Continuous Screen Capture uses the device's system screen-capture and is not available on this device." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
+      </ProovraScreen>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Continuous Screen Capture</Text>
+    <ProovraScreen>
+      <ProovraSection title="Continuous Screen Capture">
+        {state.phase === "intro" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" color={theme.color.ink.secondary}>
+              PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:
+            </ProovraText>
+            <Bullet text={isIOS
+              ? "Apple will show its system broadcast picker — tap Start Broadcast to begin, and stop it from the same control or the status bar."
+              : "Android will ask you to allow screen capture."} />
+            <Bullet text="Recording continues until you stop it — anything visible can become evidence, including sensitive information." />
+            <Bullet text="The session is split into short segments that upload as they are recorded." />
+            <Bullet text="Protected content may be unavailable because of Android restrictions." />
+            <Bullet text="You control it: stop the recording at any time from the capture notification." />
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+              A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.
+            </ProovraText>
+            <ProovraButton label="Start Continuous Capture" loading={busy} onPress={start} />
+            <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
+          </ProovraCard>
+        )}
 
-      {state.phase === "intro" && (
-        <>
-          <Text style={styles.body}>
-            PROOVRA will record what is shown on your screen as a continuous session, using Android's own
-            screen-capture permission. Before it starts:
-          </Text>
-          <Text style={styles.bullet}>
-            {isIOS
-              ? "• Apple will show its system broadcast picker — tap Start Broadcast to begin, and stop it from the same control or the status bar."
-              : "• Android will ask you to allow screen capture."}
-          </Text>
-          <Text style={styles.bullet}>• Recording continues until you stop it — anything visible can become evidence, including sensitive information.</Text>
-          <Text style={styles.bullet}>• The session is split into short segments that upload as they are recorded.</Text>
-          <Text style={styles.bullet}>• Protected content may be unavailable because of Android restrictions.</Text>
-          <Text style={styles.bullet}>• You control it: stop the recording at any time from the capture notification.</Text>
-          <Text style={styles.caveat}>
-            A screen recording captures what your device displayed. It does not establish that the content is true,
-            who authored it, that an app or account shown is genuine, or that the session is free of gaps.
-          </Text>
-          <Button label={busy ? "Starting…" : "Start Continuous Capture"} onPress={busy ? undefined : start} />
-          <Button label="Cancel" variant="secondary" onPress={() => router.back()} />
-        </>
-      )}
+        {state.phase === "active" && (
+          <ProovraCard style={styles.card}>
+            <ProovraBadge tone="pending" label="Continuous capture active" />
+            <ProovraText variant="body" weight="semibold">{state.captured} segment(s) recorded · {state.uploaded} uploaded.</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+              Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.
+            </ProovraText>
+            <ProovraButton label="Stop &amp; Review" loading={busy} onPress={stop} />
+          </ProovraCard>
+        )}
 
-      {state.phase === "active" && (
-        <>
-          <Text style={styles.active}>Continuous Screen Capture Active</Text>
-          <Text style={styles.body}>
-            {state.captured} segment(s) recorded · {state.uploaded} uploaded.
-          </Text>
-          <Text style={styles.caveat}>
-            Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the
-            notification, or here, when you are done.
-          </Text>
-          <Button label={busy ? "Stopping…" : "Stop & Review"} onPress={busy ? undefined : stop} />
-        </>
-      )}
+        {state.phase === "review" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">{state.captured} segment(s) recorded, {state.uploaded} uploaded and ready to seal.</ProovraText>
+            <ProovraBadge
+              tone={state.completeness === "COMPLETE_SESSION" ? "verified" : "pending"}
+              label={state.completeness === "COMPLETE_SESSION" ? "Complete — no known interruption" : "Interrupted — ended before a clean stop"}
+            />
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+              Finalize to seal these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.
+            </ProovraText>
+            <ProovraButton label="Finalize Evidence" onPress={finalize} />
+            <ProovraButton label="Discard" variant="ghost" onPress={reset} />
+          </ProovraCard>
+        )}
 
-      {state.phase === "review" && (
-        <>
-          <Text style={styles.body}>
-            {state.captured} segment(s) recorded, {state.uploaded} uploaded and ready to seal.
-          </Text>
-          <Text style={styles.body}>
-            Session status:{" "}
-            {state.completeness === "COMPLETE_SESSION"
-              ? "Complete — no known interruption."
-              : "Interrupted — the recording ended before a clean stop."}
-          </Text>
-          <Text style={styles.caveat}>
-            Finalize to seal these segments into one evidence record. PROOVRA verifies every segment's integrity on
-            the server and records whether the session was complete or interrupted. It does not claim continuity
-            across any known gap.
-          </Text>
-          <Button label="Finalize Evidence" onPress={finalize} />
-          <Button label="Discard" variant="secondary" onPress={reset} />
-        </>
-      )}
+        {state.phase === "finalizing" && (
+          <ProovraLoadingState label={`Finalizing — sealing ${state.captured} segment(s) and verifying integrity`} />
+        )}
 
-      {state.phase === "finalizing" && (
-        <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={styles.body}>Finalizing evidence — sealing {state.captured} segment(s) and verifying integrity…</Text>
-        </View>
-      )}
+        {state.phase === "success" && (
+          <ProovraCard style={styles.card}>
+            <ProovraBadge tone="verified" label={`Evidence saved (${state.segmentCount} segment(s), ${state.completeness === "COMPLETE_SESSION" ? "complete" : "interrupted"})`} />
+            <ProovraButton label="View Evidence" onPress={() => router.replace(`/evidence/${state.evidenceId}`)} />
+            <ProovraButton label="Capture Another" variant="secondary" onPress={reset} />
+            <ProovraButton label="Done" variant="ghost" onPress={() => router.back()} />
+          </ProovraCard>
+        )}
 
-      {state.phase === "success" && (
-        <>
-          <Text style={styles.success}>
-            Evidence saved ({state.segmentCount} segment(s),{" "}
-            {state.completeness === "COMPLETE_SESSION" ? "complete session" : "interrupted session"}).
-          </Text>
-          <Button label="View Evidence" onPress={() => router.replace(`/evidence/${state.evidenceId}`)} />
-          <Button label="Capture Another" variant="secondary" onPress={reset} />
-          <Button label="Done" variant="secondary" onPress={() => router.back()} />
-        </>
-      )}
+        {state.phase === "error" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" color={theme.color.status.risk.fg}>{state.message}</ProovraText>
+            {state.recoverable && <ProovraButton label="Try Again" onPress={reset} />}
+            <ProovraButton label="Back to Capture" variant="ghost" onPress={() => router.back()} />
+          </ProovraCard>
+        )}
+      </ProovraSection>
+    </ProovraScreen>
+  );
+}
 
-      {state.phase === "error" && (
-        <>
-          <Text style={styles.error}>{state.message}</Text>
-          {state.recoverable && <Button label="Try Again" onPress={reset} />}
-          <Button label="Back to Capture" variant="secondary" onPress={() => router.back()} />
-        </>
-      )}
-    </ScrollView>
+function Bullet({ text }: { text: string }) {
+  return (
+    <View style={styles.bulletRow}>
+      <ProovraText variant="body" color={theme.color.accent.a500}>•</ProovraText>
+      <ProovraText variant="bodySm" style={styles.bulletText}>{text}</ProovraText>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md },
-  center: { flex: 1, padding: spacing.lg, gap: spacing.md, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: typography.size.h2, color: colors.textDark, fontWeight: "700" },
-  active: { fontSize: typography.size.h3, color: colors.greenValid, fontWeight: "700" },
-  body: { fontSize: typography.size.body, color: colors.textDark },
-  bullet: { fontSize: typography.size.body, color: colors.textDark },
-  caveat: { fontSize: typography.size.label, color: colors.muted },
-  success: { fontSize: typography.size.body, color: colors.greenValid },
-  error: { fontSize: typography.size.body, color: colors.red },
+  card: { gap: theme.space.s3 },
+  caveat: { marginTop: theme.space.s1 },
+  bulletRow: { flexDirection: "row", gap: theme.space.s2 },
+  bulletText: { flex: 1 },
 });
