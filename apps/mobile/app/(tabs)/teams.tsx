@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import {
@@ -33,6 +34,7 @@ import {
 type Phase = "loading" | "ready" | "error" | "unavailable";
 
 export default function CollaborationScreen() {
+  const router = useRouter();
   const [teams, setTeams] = useState<CollaborationTeamRow[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -98,6 +100,7 @@ export default function CollaborationScreen() {
                     title={team.name}
                     subtitle={collaborationTeamSubtitle(team)}
                     trailing={role ? <ProovraBadge tone="governance" label={role} /> : undefined}
+                    onPress={() => router.push(`/collaboration-team/${team.id}`)}
                   />
                 );
               })}

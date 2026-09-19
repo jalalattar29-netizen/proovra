@@ -52,3 +52,87 @@ export function collaborationTeamSubtitle(row: CollaborationTeamRow): string {
 export function collaborationRoleLabel(role: string | null | undefined): string | null {
   return role ? humanizeEnum(role) : null;
 }
+
+/* --------------------------------------------------------------- Team detail */
+
+export interface CollaborationMember {
+  id: string;
+  role: string;
+  status: string;
+  displayName: string;
+  email: string | null;
+}
+
+export interface CollaborationInvite {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
+export interface CollaborationTeamDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  viewerRole: string | null;
+  activeMemberCount: number;
+  pendingInviteCount: number;
+  members: CollaborationMember[];
+  invites: CollaborationInvite[];
+}
+
+function o(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+function s(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+function nOr0(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/** Parse GET /v1/collaboration-teams/:id → { team } into the detail shape, or null. */
+export function parseCollaborationTeamDetail(data: unknown): CollaborationTeamDetail | null {
+  const team = o(o(data)["team"]);
+  const id = s(team["id"]);
+  const name = s(team["name"]);
+  if (!id || !name) return null;
+  const members: CollaborationMember[] = [];
+  for (const raw of Array.isArray(team["members"]) ? (team["members"] as unknown[]) : []) {
+    const m = o(raw);
+    const mid = s(m["id"]);
+    if (!mid) continue;
+    const user = o(m["user"]);
+    members.push({
+      id: mid,
+      role: s(m["role"]) ?? "",
+      status: s(m["status"]) ?? "",
+      displayName: s(user["displayName"]) ?? s(user["email"]) ?? "Member",
+      email: s(user["email"]),
+    });
+  }
+  const invites: CollaborationInvite[] = [];
+  for (const raw of Array.isArray(team["invites"]) ? (team["invites"] as unknown[]) : []) {
+    const inv = o(raw);
+    const iid = s(inv["id"]);
+    if (!iid) continue;
+    invites.push({
+      id: iid,
+      email: s(inv["email"]) ?? "Invited",
+      role: s(inv["role"]) ?? "",
+      status: s(inv["status"]) ?? "",
+    });
+  }
+  return {
+    id,
+    name,
+    description: s(team["description"]),
+    status: s(team["status"]) ?? "",
+    viewerRole: s(team["viewerRole"]),
+    activeMemberCount: nOr0(team["activeMemberCount"]),
+    pendingInviteCount: nOr0(team["pendingInviteCount"]),
+    members,
+    invites,
+  };
+}

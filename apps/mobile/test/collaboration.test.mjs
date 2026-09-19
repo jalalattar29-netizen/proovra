@@ -49,3 +49,34 @@ test("role label humanizes, null when absent", () => {
   assert.equal(mod.collaborationRoleLabel("OWNER"), "Owner");
   assert.equal(mod.collaborationRoleLabel(null), null);
 });
+
+test("parseCollaborationTeamDetail reads members + invites, drops malformed", () => {
+  const detail = mod.parseCollaborationTeamDetail({
+    team: {
+      id: "t1",
+      name: "Field Ops",
+      description: "Site team",
+      status: "ACTIVE",
+      viewerRole: "LEAD",
+      activeMemberCount: 2,
+      pendingInviteCount: 1,
+      members: [
+        { id: "m1", role: "LEAD", status: "ACTIVE", user: { id: "u1", email: "a@x.com", displayName: "Alice" } },
+        { id: "m2", role: "MEMBER", status: "ACTIVE", user: { id: "u2", email: null, displayName: null } },
+        { role: "MEMBER" }, // no id → dropped
+      ],
+      invites: [{ id: "i1", email: "new@x.com", role: "MEMBER", status: "PENDING" }],
+    },
+  });
+  assert.equal(detail.name, "Field Ops");
+  assert.equal(detail.members.length, 2);
+  assert.equal(detail.members[0].displayName, "Alice");
+  assert.equal(detail.members[1].displayName, "Member"); // no name/email → fallback
+  assert.equal(detail.invites.length, 1);
+  assert.equal(detail.viewerRole, "LEAD");
+});
+
+test("parseCollaborationTeamDetail returns null for a missing team", () => {
+  assert.equal(mod.parseCollaborationTeamDetail(null), null);
+  assert.equal(mod.parseCollaborationTeamDetail({ team: { id: "x" } }), null); // no name
+});

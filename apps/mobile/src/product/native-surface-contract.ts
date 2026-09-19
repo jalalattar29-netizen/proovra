@@ -253,6 +253,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     reachability: "REACHABLE",
     target: "Real PRO/TEAM collaboration list from GET /v1/collaboration-teams; reached from Settings; read-only, no workspace switcher (N4/§4.8).",
   },
+  {
+    surfaceId: "collaboration-team-detail",
+    routeFile: "(stack)/collaboration-team/[id].tsx",
+    title: "Collaboration Team Detail",
+    classification: "NATIVE-OPTIONAL",
+    reachability: "REACHABLE",
+    target: "GET /v1/collaboration-teams/:id — members, roles, pending invites; pushed from the collaboration list (D).",
+  },
 
   // Phase 12: reports (pseudo) + archive/deleted/locked route shells REMOVED.
   // Lifecycle scopes are canonical Evidence Library scopes; report actions live
