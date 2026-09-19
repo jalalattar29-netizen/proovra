@@ -31,8 +31,13 @@ const ALLOWED_CLASSIFICATIONS = new Set([
   "LEGACY",
   "PRODUCT-DECISION-REQUIRED",
 ]);
-// Classes for which being unreachable/de-linked is an intentional, allowed state.
+// Classes for which being unreachable-from-nav is an intentional, allowed state.
+// NATIVE-OPTIONAL is included because an optional surface may legitimately be a
+// deep-link-only target (e.g. public verification) rather than a nav destination.
+// NATIVE-CORE and PLATFORM-SPECIFIC must NOT be orphaned — that is the accident
+// this guard catches.
 const MAY_BE_ORPHANED = new Set([
+  "NATIVE-OPTIONAL",
   "WEB-ONLY-INTENTIONAL",
   "ORPHANED",
   "LEGACY",
