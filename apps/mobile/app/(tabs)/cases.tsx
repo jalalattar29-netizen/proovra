@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { Pressable, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
@@ -9,6 +9,7 @@ import {
   ProovraShell,
   ProovraCard,
   ProovraSection,
+  ProovraText,
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
@@ -18,27 +19,13 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import type { ProovraStatusTone } from "@proovra/ui";
+import { caseStatusDisplay, CASE_STATUSES } from "../../src/product/domain-display";
 
 type CaseItem = { id: string; name: string; status?: string; evidenceCount?: number };
 type LoadState = "loading" | "ready" | "error";
+type StatusFilter = "ALL" | (typeof CASE_STATUSES)[number];
 
-function caseTone(status?: string): ProovraStatusTone {
-  switch (status) {
-    case "OPEN":
-    case "INVESTIGATING":
-      return "info";
-    case "ON_HOLD":
-      return "pending";
-    case "RESOLVED":
-    case "CLOSED":
-      return "verified";
-    case "ARCHIVED":
-      return "neutral";
-    default:
-      return "neutral";
-  }
-}
+const STATUS_FILTERS: StatusFilter[] = ["ALL", ...CASE_STATUSES];
 
 export default function CasesScreen() {
   const { t } = useLocale();
@@ -47,6 +34,7 @@ export default function CasesScreen() {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
@@ -91,9 +79,12 @@ export default function CasesScreen() {
     }
   }, [newName, router, load]);
 
-  const filtered = query.trim()
-    ? items.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase()))
-    : items;
+  const needle = query.trim().toLowerCase();
+  const filtered = items.filter(
+    (c) =>
+      (statusFilter === "ALL" || c.status === statusFilter) &&
+      (needle === "" || c.name.toLowerCase().includes(needle)),
+  );
 
   return (
     <ProovraShell>
@@ -111,9 +102,30 @@ export default function CasesScreen() {
         ) : null}
 
         {state === "ready" && items.length > 0 ? (
-          <View style={styles.search}>
-            <ProovraInput value={query} onChangeText={setQuery} placeholder="Search cases" />
-          </View>
+          <>
+            <View style={styles.search}>
+              <ProovraInput value={query} onChangeText={setQuery} placeholder="Search cases" />
+            </View>
+            <View style={styles.filterRow}>
+              {STATUS_FILTERS.map((f) => {
+                const active = f === statusFilter;
+                const label = f === "ALL" ? "All" : caseStatusDisplay(f).label;
+                return (
+                  <Pressable
+                    key={f}
+                    onPress={() => setStatusFilter(f)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={[styles.filterChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
+                  >
+                    <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
+                      {label}
+                    </ProovraText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
         ) : null}
 
         {state === "loading" ? (
@@ -132,7 +144,7 @@ export default function CasesScreen() {
                 title={c.name}
                 subtitle={typeof c.evidenceCount === "number" ? `${c.evidenceCount} item${c.evidenceCount === 1 ? "" : "s"}` : undefined}
                 onPress={() => router.push(`/case/${c.id}`)}
-                trailing={c.status ? <ProovraBadge tone={caseTone(c.status)} label={c.status} /> : undefined}
+                trailing={c.status ? <ProovraBadge tone={caseStatusDisplay(c.status).tone} label={caseStatusDisplay(c.status).label} /> : undefined}
               />
             ))}
           </ProovraCard>
@@ -145,4 +157,6 @@ export default function CasesScreen() {
 const styles = StyleSheet.create({
   createCard: { marginBottom: theme.space.s4 },
   search: { marginBottom: theme.space.s3 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  filterChip: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
 });

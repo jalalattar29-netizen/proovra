@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Share, View, StyleSheet } from "react-native";
+import { Alert, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { apiFetch, apiBaseUrl, getAuthToken } from "../../../src/api";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
+import { caseStatusDisplay, CASE_STATUSES } from "../../../src/product/domain-display";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -12,6 +13,7 @@ import {
   ProovraSection,
   ProovraText,
   ProovraButton,
+  ProovraBadge,
   ProovraListRow,
   ProovraEmptyState,
   ProovraErrorState,
@@ -46,6 +48,8 @@ export default function CaseDetailScreen() {
   const [exporting, setExporting] = useState(false);
   const [available, setAvailable] = useState<EvidenceItem[] | null>(null);
   const [busyEvId, setBusyEvId] = useState<string | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const [statusBusy, setStatusBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -116,6 +120,27 @@ export default function CaseDetailScreen() {
     [id],
   );
 
+  // POST /v1/cases/:id/status { toStatus } → { case }. The server is the
+  // authority (enforces allowed transitions + permissions); we reflect its result.
+  const changeStatus = useCallback(
+    async (toStatus: string) => {
+      setStatusBusy(toStatus);
+      try {
+        const res = await apiFetch(`/v1/cases/${id}/status`, {
+          method: "POST",
+          body: JSON.stringify({ toStatus }),
+        });
+        setStatus(res?.case?.status ?? toStatus);
+        setChangingStatus(false);
+      } catch (err) {
+        Alert.alert("Could not change status", toSafeUserError(err).message);
+      } finally {
+        setStatusBusy(null);
+      }
+    },
+    [id],
+  );
+
   const openAdd = useCallback(async () => {
     try {
       const data = await apiFetch(`/v1/cases/${id}/available-evidence`);
@@ -152,9 +177,39 @@ export default function CaseDetailScreen() {
       </View>
       <ProovraCard style={styles.hero}>
         <ProovraText variant="h1" weight="bold">{name}</ProovraText>
-        {status ? <ProovraText variant="bodySm" color={theme.color.ink.secondary} style={styles.heroSub}>{status}</ProovraText> : null}
+        {status ? (
+          <View style={styles.heroSub}>
+            <ProovraBadge tone={caseStatusDisplay(status).tone} label={caseStatusDisplay(status).label} />
+          </View>
+        ) : null}
+        {changingStatus ? (
+          <View style={styles.statusRow}>
+            {CASE_STATUSES.filter((s) => s !== status).map((s) => {
+              const d = caseStatusDisplay(s);
+              const busy = statusBusy === s;
+              return (
+                <Pressable
+                  key={s}
+                  disabled={!!statusBusy}
+                  onPress={() => void changeStatus(s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Set status ${d.label}`}
+                  style={[styles.statusChip, { borderColor: theme.color.border.strong, opacity: busy ? 0.5 : 1 }]}
+                >
+                  <ProovraText variant="label" weight="semibold" color={theme.color.ink.primary}>{d.label}</ProovraText>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
         <View style={styles.heroActions}>
-          <ProovraButton label="Export" variant="secondary" loading={exporting} onPress={() => void exportZip()} />
+          <ProovraButton
+            label={changingStatus ? "Cancel" : "Change status"}
+            variant="secondary"
+            fullWidth={false}
+            onPress={() => setChangingStatus((v) => !v)}
+          />
+          <ProovraButton label="Export" variant="secondary" fullWidth={false} loading={exporting} onPress={() => void exportZip()} />
         </View>
       </ProovraCard>
 
@@ -204,8 +259,10 @@ export default function CaseDetailScreen() {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
   hero: { marginBottom: theme.space.s4 },
-  heroSub: { marginTop: theme.space.s2 },
-  heroActions: { marginTop: theme.space.s4 },
+  heroSub: { marginTop: theme.space.s3, flexDirection: "row" },
+  statusRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s3 },
+  statusChip: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 40, justifyContent: "center" },
+  heroActions: { marginTop: theme.space.s4, flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
   addCard: { marginBottom: theme.space.s4, gap: theme.space.s2 },
   note: { marginTop: theme.space.s2 },
 });
