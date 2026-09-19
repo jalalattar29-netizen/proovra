@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
+import { resolveInboxUnread, resolveInboxRoute, type InboxItem } from "../../src/product/inbox";
 import { theme } from "../../src/theme/theme";
 import {
   ProovraShell,
@@ -16,7 +17,6 @@ import {
   ProovraLoadingState,
 } from "../../src/ui";
 
-type InboxItem = { itemKey: string; title: string; href?: string; occurredAt: string; category?: string; isRead?: boolean };
 type LoadState = "loading" | "ready" | "error";
 
 /** In-app Notifications / Inbox (Phase 11A). Real backend contracts only; no
@@ -36,8 +36,10 @@ export default function NotificationsScreen() {
       const data = await apiFetch("/v1/me/inbox?pageSize=50");
       const list = (data.items ?? []) as InboxItem[];
       setItems(list);
-      const summaryUnread = data?.counts?.unread ?? data?.summary?.unread;
-      setUnread(typeof summaryUnread === "number" ? summaryUnread : list.filter((i) => i.isRead === false).length);
+      // Authoritative unread is metricSummary.unread / scopeSummary.unread; only
+      // fall back to a page-local count when the server omits it (M3).
+      const resolved = resolveInboxUnread(data);
+      setUnread(resolved ?? list.filter((i) => i.isRead === false).length);
       setState("ready");
     } catch (err) {
       setError(toSafeUserError(err));
@@ -54,10 +56,8 @@ export default function NotificationsScreen() {
       void apiFetch(`/v1/me/inbox/items/${encodeURIComponent(item.itemKey)}/read`, { method: "POST" }).catch(() => {});
       setItems((prev) => prev.map((i) => (i.itemKey === item.itemKey ? { ...i, isRead: true } : i)));
       setUnread((u) => Math.max(0, u - (item.isRead ? 0 : 1)));
-      const href = item.href ?? "";
-      if (href.startsWith("/evidence/")) router.push(href as never);
-      else if (href.startsWith("/cases/")) router.push(href.replace("/cases/", "/case/") as never);
-      else if (href.startsWith("/case/")) router.push(href as never);
+      const route = resolveInboxRoute(item.href);
+      if (route) router.push(route as never);
     },
     [router],
   );
