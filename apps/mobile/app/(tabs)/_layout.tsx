@@ -13,6 +13,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="evidence" />
+      <Tabs.Screen name="notifications" />
       <Tabs.Screen name="cases" />
       <Tabs.Screen name="reports" />
       <Tabs.Screen name="teams" />

@@ -112,6 +112,14 @@ export const NATIVE_SURFACES: readonly NativeSurface[] = [
     target: "Canonical matter list: create/status/filter (Phase 8).",
   },
   {
+    surfaceId: "notifications",
+    routeFile: "(tabs)/notifications.tsx",
+    title: "Notifications / Inbox",
+    classification: "NATIVE-CORE",
+    reachability: "REACHABLE",
+    target: "In-app inbox: list/unread/mark-read/mark-all + routing; no push (Phase 11A).",
+  },
+  {
     surfaceId: "settings",
     routeFile: "(tabs)/settings.tsx",
     title: "Settings",
