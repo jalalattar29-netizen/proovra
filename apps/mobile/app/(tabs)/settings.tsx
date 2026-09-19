@@ -1,360 +1,143 @@
-// D:\digital-witness\apps\mobile\app\(tabs)\settings.tsx
-import { StyleSheet, Text, View, Pressable, TextInput } from "react-native";
-import { radius, spacing, typography } from "@proovra/ui";
-import { BottomNav, TopBar } from "../../components/ui";
-import { useLocale } from "../../src/locale-context";
-import { useMemo, useState } from "react";
-import { apiFetch } from "../../src/api";
-import { useAuth } from "../../src/auth-context";
+import { useCallback, useEffect, useState } from "react";
+import { Linking, Pressable, Switch, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import * as FileSystem from "expo-file-system";
-import { uploadWithPut } from "../../src/upload-utils";
-import { Linking } from "react-native";
-import { formatUserTime } from "../../src/lib/date";
+import { useLocale } from "../../src/locale-context";
+import { useAuth } from "../../src/auth-context";
+import { logout as logoutApi, getLegalStatus } from "../../src/auth/auth-api";
+import { loadTelemetryConsent, setTelemetryConsent } from "../../src/privacy/telemetry-consent";
+import { setAuthToken } from "../../src/api";
+import { theme } from "../../src/theme/theme";
+import {
+  ProovraShell,
+  ProovraCard,
+  ProovraSection,
+  ProovraText,
+  ProovraButton,
+  ProovraListRow,
+} from "../../src/ui";
+
+// en/ar/de are fully translated; the rest fall back to English (audit §I.4 —
+// never advertise a placeholder as a complete translation).
+const FULL_LOCALES = new Set(["en", "ar", "de"]);
+const LOCALES = ["en", "ar", "de", "fr", "es", "tr", "ru"] as const;
 
 export default function SettingsScreen() {
-  const { t, locale, mode, setLocale, setLocaleMode, fontFamilyBold } = useLocale();
-  const { setToken, token, authReady } = useAuth();
+  const { t, locale, mode, setLocale, setLocaleMode } = useLocale();
+  const { user, setToken } = useAuth();
   const router = useRouter();
-  const [googleToken, setGoogleToken] = useState("");
-  const [appleToken, setAppleToken] = useState("");
-  const [smokeLogs, setSmokeLogs] = useState<string[]>([]);
-  const [smokeRunning, setSmokeRunning] = useState(false);
-  const [smokeResult, setSmokeResult] = useState<"idle" | "pass" | "fail">("idle");
-  const showSmoke = useMemo(() => __DEV__ && process.env.EXPO_PUBLIC_DEBUG_SMOKE === "1", []);
+  const [telemetry, setTelemetry] = useState(false);
+  const [legalOk, setLegalOk] = useState<boolean | null>(null);
 
-  const appendLog = (message: string) => {
-    const stamp = formatUserTime(new Date());
-    setSmokeLogs((prev) => [...prev, `${stamp} ${message}`]);
-  };
+  useEffect(() => {
+    void loadTelemetryConsent().then(setTelemetry);
+    void getLegalStatus().then((s) => setLegalOk(s.ok)).catch(() => setLegalOk(null));
+  }, []);
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const onToggleTelemetry = useCallback((next: boolean) => {
+    setTelemetry(next);
+    void setTelemetryConsent(next);
+  }, []);
 
-  const pollReport = async (evidenceId: string) => {
-    const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000, 15000];
-    for (let attempt = 0; attempt < delays.length; attempt += 1) {
-      try {
-        const data = await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, {
-          method: "GET"
-        });
-        return data;
-      } catch {
-        appendLog("Report not ready yet...");
-        await sleep(delays[attempt]);
-      }
-    }
-    throw new Error("Report still generating");
-  };
-
-  const runSmokeTest = async () => {
-    if (smokeRunning) return;
-    setSmokeRunning(true);
-    setSmokeLogs([]);
-    setSmokeResult("idle");
-    try {
-      appendLog(`Auth ready: ${authReady ? "yes" : "no"}`);
-      appendLog(`Token present: ${token ? "yes" : "no"}`);
-      const me = await apiFetch("/v1/auth/me", { method: "GET" });
-      appendLog(`Auth user: ${me.user?.id ?? "missing"}`);
-
-      appendLog("Creating evidence...");
-      const created = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "PHOTO",
-          mimeType: "text/plain",
-          originalFilename: "smoke.txt",
-          deviceTimeIso: new Date().toISOString()
-        })
-      });
-
-      const testPath = `${FileSystem.cacheDirectory ?? ""}smoke-${Date.now()}.txt`;
-      await FileSystem.writeAsStringAsync(testPath, "smoke-test");
-      appendLog("Uploading via signed PUT...");
-      const uploadResult = await uploadWithPut({
-        putUrl: created.upload.putUrl,
-        uri: testPath,
-        mimeType: "text/plain"
-      });
-      appendLog(`PUT status ${uploadResult.status}`);
-
-      appendLog("Completing evidence...");
-      await apiFetch(`/v1/evidence/${created.id}/complete`, {
-        method: "POST",
-        body: JSON.stringify({
-          sizeBytes: 10,
-          durationMs: 0,
-          originalFilename: "smoke.txt"
-        })
-      });
-
-      appendLog("Polling report...");
-      const report = await pollReport(created.id);
-      const url = report?.url ?? report?.publicUrl ?? null;
-      appendLog(url ? "Report ready" : "Report ready (no URL)");
-      if (url) {
-        appendLog("Opening report...");
-        void Linking.openURL(url);
-      }
-      setSmokeResult("pass");
-    } catch (err) {
-      appendLog(err instanceof Error ? err.message : "Smoke test failed");
-      setSmokeResult("fail");
-    } finally {
-      setSmokeRunning(false);
-    }
-  };
+  const doLogout = useCallback(async () => {
+    await logoutApi();
+    setToken(null);
+    setAuthToken(null);
+    router.replace("/(stack)/auth");
+  }, [router, setToken]);
 
   return (
-    <View style={styles.container}>
-      <TopBar title={t("settings")} />
-      <View style={styles.content}>
-        <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>{t("language")}</Text>
+    <ProovraShell>
+      <ProovraSection title={t("settings")}>
+        {/* Account */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Account</ProovraText>
+          <ProovraText variant="body" weight="semibold" style={styles.gap}>{user?.displayName || "Signed in"}</ProovraText>
+          {user?.email ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{user.email}</ProovraText> : null}
+        </ProovraCard>
 
-        <View style={styles.row}>
-          <Pressable
-            key="auto"
-            onPress={() => setLocaleMode("auto")}
-            style={[styles.langButton, mode === "auto" && styles.langButtonActive]}
-          >
-            <Text style={[styles.langText, mode === "auto" && styles.langTextActive]}>AUTO</Text>
-          </Pressable>
-
-          {(["en", "ar", "de", "fr", "es", "tr", "ru"] as const).map((lng) => (
-            <Pressable
-              key={lng}
-              onPress={() => {
-                setLocaleMode("manual");
-                setLocale(lng);
-              }}
-              style={[
-                styles.langButton,
-                locale === lng && mode === "manual" && styles.langButtonActive
-              ]}
-            >
-              <Text
-                style={[
-                  styles.langText,
-                  locale === lng && mode === "manual" && styles.langTextActive
-                ]}
-              >
-                {lng.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Pressable
-          style={[styles.langButtonWide, { marginTop: spacing.lg }]}
-          onPress={() => Linking.openURL("https://www.proovra.com/pricing")}
-        >
-          <Text style={[styles.langText, styles.langTextWide]}>View Pricing</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.langButtonWide, { marginTop: spacing.sm }]}
-          onPress={() => router.push("/(stack)/billing")}
-        >
-          <Text style={[styles.langText, styles.langTextWide]}>Manage Billing</Text>
-        </Pressable>
-
-        {showSmoke ? (
-          <View style={styles.smokeCard}>
-            <Text style={[styles.labelSmall, { fontFamily: fontFamilyBold }]}>Runtime Smoke Test</Text>
-            <Text style={styles.smokeHint}>Dev-only. Runs auth → create → PUT → complete → report.</Text>
-
-            <Pressable
-              style={[styles.langButtonWide, smokeRunning && { opacity: 0.65 }]}
-              onPress={runSmokeTest}
-              disabled={smokeRunning}
-            >
-              <Text style={[styles.langText, styles.langTextWide]}>
-                {smokeRunning ? "Running..." : "Run Smoke Test"}
-              </Text>
-            </Pressable>
-
-            {smokeResult !== "idle" ? (
-              <Text style={[styles.smokeResult, smokeResult === "pass" ? styles.smokePass : styles.smokeFail]}>
-                {smokeResult === "pass" ? "PASS" : "FAIL"}
-              </Text>
-            ) : null}
-
-            {smokeLogs.length > 0 ? (
-              <View style={styles.smokeLog}>
-                {smokeLogs.map((line, index) => (
-                  <Text key={`${line}-${index}`} style={styles.smokeLogText}>
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
+        {/* Language */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>{t("language")}</ProovraText>
+          <View style={styles.langRow}>
+            <LangPill label="AUTO" active={mode === "auto"} onPress={() => setLocaleMode("auto")} />
+            {LOCALES.map((lng) => (
+              <LangPill
+                key={lng}
+                label={FULL_LOCALES.has(lng) ? lng.toUpperCase() : `${lng.toUpperCase()}·beta`}
+                active={locale === lng && mode === "manual"}
+                onPress={() => { setLocaleMode("manual"); setLocale(lng); }}
+              />
+            ))}
           </View>
-        ) : null}
+          <ProovraText variant="label" color={theme.color.ink.muted} style={styles.gap}>
+            English, Arabic and German are fully translated; other languages are in progress.
+          </ProovraText>
+        </ProovraCard>
 
-        <Text style={[styles.label, { fontFamily: fontFamilyBold, marginTop: spacing.lg }]}>Sign in</Text>
+        {/* Privacy & legal */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Privacy &amp; legal</ProovraText>
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <ProovraText variant="body" weight="semibold">Crash &amp; reliability reports</ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.muted}>Share anonymized diagnostics to help fix problems.</ProovraText>
+            </View>
+            <Switch value={telemetry} onValueChange={onToggleTelemetry} accessibilityLabel="Crash and reliability reports" />
+          </View>
+          <ProovraListRow
+            title="Legal acceptance"
+            subtitle={legalOk === null ? "—" : legalOk ? "Up to date" : "Action needed"}
+            onPress={() => router.push("/legal-acceptance")}
+            trailing={<ProovraText variant="label" color={legalOk === false ? theme.color.status.risk.fg : theme.color.ink.muted}>{legalOk === false ? "Review" : ""}</ProovraText>}
+          />
+          <ProovraListRow title="Terms of Service" onPress={() => void Linking.openURL("https://www.proovra.com/terms")} />
+          <ProovraListRow title="Privacy Policy" onPress={() => void Linking.openURL("https://www.proovra.com/privacy")} />
+          <ProovraListRow title="Trust Center" onPress={() => void Linking.openURL("https://www.proovra.com/trust")} />
+        </ProovraCard>
 
-        <TextInput
-          placeholder="Google idToken"
-          placeholderTextColor="rgba(219, 235, 248, 0.55)"
-          value={googleToken}
-          onChangeText={setGoogleToken}
-          style={styles.input}
-        />
+        {/* Security (web-managed) */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Security</ProovraText>
+          <ProovraListRow
+            title="Manage security"
+            subtitle="Two-factor, sessions and password on the web app"
+            onPress={() => void Linking.openURL("https://www.proovra.com/security-center")}
+          />
+        </ProovraCard>
 
-        <Pressable
-          style={[styles.langButtonWide]}
-          onPress={async () => {
-            const data = await apiFetch("/v1/auth/google", {
-              method: "POST",
-              body: JSON.stringify({ idToken: googleToken })
-            });
-            setToken(data.token);
-          }}
-        >
-          <Text style={[styles.langText, styles.langTextWide]}>Sign in with Google</Text>
-        </Pressable>
+        {/* Billing */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Plan</ProovraText>
+          <ProovraListRow title="Billing &amp; plan" subtitle="View your plan and usage" onPress={() => router.push("/(stack)/billing")} />
+        </ProovraCard>
 
-        <TextInput
-          placeholder="Apple idToken"
-          placeholderTextColor="rgba(219, 235, 248, 0.55)"
-          value={appleToken}
-          onChangeText={setAppleToken}
-          style={styles.input}
-        />
+        <View style={styles.logout}>
+          <ProovraButton label="Sign out" variant="secondary" onPress={() => void doLogout()} />
+        </View>
+      </ProovraSection>
+    </ProovraShell>
+  );
+}
 
-        <Pressable
-          style={[styles.langButtonWide]}
-          onPress={async () => {
-            const data = await apiFetch("/v1/auth/apple", {
-              method: "POST",
-              body: JSON.stringify({ idToken: appleToken })
-            });
-            setToken(data.token);
-          }}
-        >
-          <Text style={[styles.langText, styles.langTextWide]}>Sign in with Apple</Text>
-        </Pressable>
-      </View>
-
-      <BottomNav />
-    </View>
+function LangPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[styles.pill, { borderColor: active ? theme.color.accent.a500 : theme.color.border.default, backgroundColor: active ? theme.color.accent.a050 : "transparent" }]}
+    >
+      <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>{label}</ProovraText>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050b18"
-  },
-  content: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl
-  },
-
-  label: {
-    fontSize: typography.size.h3,
-    color: "rgba(245, 251, 255, 0.92)",
-    marginBottom: spacing.sm
-  },
-  labelSmall: {
-    fontSize: 16,
-    color: "rgba(245, 251, 255, 0.92)",
-    marginBottom: spacing.xs
-  },
-
-  row: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    flexWrap: "wrap"
-  },
-
-  // Small language pill buttons
-  langButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: "rgba(101, 235, 255, 0.22)",
-    backgroundColor: "rgba(6, 13, 31, 0.52)"
-  },
-  langButtonActive: {
-    backgroundColor: "rgba(101, 235, 255, 0.14)",
-    borderColor: "rgba(101, 235, 255, 0.55)"
-  },
-  langText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "rgba(219, 235, 248, 0.82)"
-  },
-  langTextActive: {
-    color: "rgba(245, 251, 255, 0.96)"
-  },
-
-  // Wide action buttons (pricing/billing/sign-in)
-  langButtonWide: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(153, 204, 233, 0.40)",
-    backgroundColor: "rgba(6, 13, 31, 0.52)",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2
-  },
-  langTextWide: {
-    color: "rgba(245, 251, 255, 0.92)",
-    textAlign: "center"
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "rgba(101, 235, 255, 0.22)",
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    backgroundColor: "rgba(11, 27, 50, 0.75)",
-    color: "rgba(245, 251, 255, 0.92)"
-  },
-
-  smokeCard: {
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: "rgba(101, 235, 255, 0.22)",
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    backgroundColor: "rgba(11, 27, 50, 0.92)",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 2
-  },
-  smokeHint: {
-    color: "rgba(219, 235, 248, 0.72)",
-    fontSize: 12,
-    marginBottom: spacing.sm
-  },
-  smokeResult: {
-    marginTop: spacing.sm,
-    fontWeight: "800"
-  },
-  smokePass: {
-    color: "#22c55e"
-  },
-  smokeFail: {
-    color: "#ef4444"
-  },
-  smokeLog: {
-    marginTop: spacing.sm,
-    gap: 4
-  },
-  smokeLogText: {
-    fontSize: 11,
-    color: "rgba(219, 235, 248, 0.72)"
-  }
+  card: { marginBottom: theme.space.s4, gap: theme.space.s2 },
+  gap: { marginTop: theme.space.s1 },
+  langRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
+  pill: { paddingHorizontal: theme.space.s3, paddingVertical: theme.space.s2, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 36, justifyContent: "center" },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s3, marginTop: theme.space.s2 },
+  switchText: { flex: 1, gap: 2 },
+  logout: { marginTop: theme.space.s2 },
 });
