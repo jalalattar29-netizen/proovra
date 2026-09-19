@@ -1,7 +1,14 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, setAuthToken } from "./api";
 import { isAuthError } from "./errors/safe-error";
-import type { BootPhase } from "./bootstrap/bootstrap-machine";
+import {
+  bootReducer,
+  shouldClearToken,
+  INITIAL_BOOT_STATE,
+  type BootPhase,
+  type BootState,
+  type BootEvent,
+} from "./bootstrap/bootstrap-machine";
 import * as SecureStore from "expo-secure-store";
 
 type AuthUser = { id: string; email?: string | null; displayName?: string | null };
@@ -32,100 +39,110 @@ export function useAuth() {
   return ctx;
 }
 
+/** Clear the stored token + auth mode from secure storage (fire-and-forget). */
+function purgeStoredToken() {
+  setAuthToken(null);
+  void SecureStore.deleteItemAsync("proovra-token");
+  void SecureStore.deleteItemAsync("proovra-auth-mode");
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [authReady, setAuthReady] = useState(false);
+  // The bootstrap machine is the SOLE authority for the boot phase AND the
+  // token-clear decision (A3, Law of One). No hand-rolled "isAuthError → purge"
+  // or bootPhase ternary — every transition goes through bootReducer, and the
+  // dead-token purge happens exactly when shouldClearToken(prev,next) says so.
+  const [bootState, setBootState] = useState<BootState>(INITIAL_BOOT_STATE);
+  const bootRef = useRef<BootState>(INITIAL_BOOT_STATE);
+
+  const dispatchBoot = useCallback((event: BootEvent) => {
+    const prev = bootRef.current;
+    const next = bootReducer(prev, event);
+    if (shouldClearToken(prev, next)) {
+      // EXPIRED reached: purge the dead token so boot routes to the gateway,
+      // never an authenticated-looking dead shell (audit §I).
+      setTokenState(null);
+      setUser(null);
+      setAuthMode(null);
+      purgeStoredToken();
+    }
+    bootRef.current = next;
+    setBootState(next);
+  }, []);
 
   // Restore an existing signed-in session from secure storage on boot. There
   // is NO guest fallback: with no stored token the app stays signed out and
   // the user must authenticate (OAuth) — no silent global session is minted.
-  const restoreSession = async () => {
-    if (token) return;
+  const restoreSession = useCallback(async () => {
     const stored = await SecureStore.getItemAsync("proovra-token");
-    if (stored) {
-      setTokenState(stored);
-      setAuthToken(stored);
-      try {
-        const me = await apiFetch("/v1/auth/me", { method: "GET" });
-        setUser(me.user ?? null);
-        setAuthMode((await SecureStore.getItemAsync("proovra-auth-mode")) as AuthMode | null);
-      } catch (err) {
-        if (isAuthError(err)) {
-          // Expired/invalid session: PURGE the dead token so the boot gate
-          // routes to the auth gateway instead of into an authenticated-looking
-          // dead shell (the dead-token boot funnel — audit §I). See
-          // bootstrap-machine ME_FAILED{reason:"auth"} → expired.
-          setTokenState(null);
-          setAuthToken(null);
-          void SecureStore.deleteItemAsync("proovra-token");
-          void SecureStore.deleteItemAsync("proovra-auth-mode");
-          setAuthMode(null);
-          setUser(null);
-        } else {
-          // Network/transport failure: keep the token (offline ≠ invalid
-          // credentials). The session stays; screens surface offline states.
-          setUser(null);
-        }
-      } finally {
-        setLoading(false);
-        setAuthReady(true);
-      }
+    if (!stored) {
+      dispatchBoot({ type: "RESTORE_NO_TOKEN" });
       return;
     }
-    setTokenState(null);
-    setUser(null);
-    setAuthMode(null);
-    setLoading(false);
-    setAuthReady(true);
-  };
-
-  const setToken = (next: string | null) => {
-    setTokenState(next);
-    setAuthToken(next);
-    if (next) {
-      void SecureStore.setItemAsync("proovra-token", next);
-    } else {
-      void SecureStore.deleteItemAsync("proovra-token");
-      void SecureStore.deleteItemAsync("proovra-auth-mode");
-      setAuthMode(null);
+    setTokenState(stored);
+    setAuthToken(stored);
+    dispatchBoot({ type: "RESTORE_FOUND_TOKEN" });
+    try {
+      const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      setUser(me.user ?? null);
+      setAuthMode((await SecureStore.getItemAsync("proovra-auth-mode")) as AuthMode | null);
+      dispatchBoot({ type: "ME_OK" });
+    } catch (err) {
+      // The machine decides the outcome: auth failure → expired (purge);
+      // network failure → offlineAuthed (token kept, offline ≠ invalid creds).
       setUser(null);
+      dispatchBoot({ type: "ME_FAILED", reason: isAuthError(err) ? "auth" : "network" });
     }
-  };
+  }, [dispatchBoot]);
 
-  const setSession = (payload: { token: string; user?: AuthUser | null; mode: AuthMode }) => {
-    setTokenState(payload.token);
-    setAuthToken(payload.token);
-    setUser(payload.user ?? null);
-    setAuthMode(payload.mode);
-    void SecureStore.setItemAsync("proovra-token", payload.token);
-    void SecureStore.setItemAsync("proovra-auth-mode", payload.mode);
-  };
+  const setToken = useCallback(
+    (next: string | null) => {
+      setTokenState(next);
+      setAuthToken(next);
+      if (next) {
+        void SecureStore.setItemAsync("proovra-token", next);
+        dispatchBoot({ type: "SIGNED_IN" });
+      } else {
+        setUser(null);
+        setAuthMode(null);
+        void SecureStore.deleteItemAsync("proovra-token");
+        void SecureStore.deleteItemAsync("proovra-auth-mode");
+        dispatchBoot({ type: "SIGNED_OUT" });
+      }
+    },
+    [dispatchBoot],
+  );
+
+  const setSession = useCallback(
+    (payload: { token: string; user?: AuthUser | null; mode: AuthMode }) => {
+      setTokenState(payload.token);
+      setAuthToken(payload.token);
+      setUser(payload.user ?? null);
+      setAuthMode(payload.mode);
+      void SecureStore.setItemAsync("proovra-token", payload.token);
+      void SecureStore.setItemAsync("proovra-auth-mode", payload.mode);
+      dispatchBoot({ type: "SIGNED_IN" });
+    },
+    [dispatchBoot],
+  );
 
   useEffect(() => {
     void (async () => {
       try {
         await restoreSession();
       } catch {
-        setLoading(false);
-        setAuthReady(true);
+        // A storage read that itself threw is treated as "no session".
+        dispatchBoot({ type: "RESTORE_NO_TOKEN" });
       }
     })();
-  }, []);
+  }, [restoreSession, dispatchBoot]);
 
-  // Derive the canonical boot phase (bootstrap-machine vocabulary). A token
-  // with no resolved user after restore means /me failed on the network path
-  // (the token was kept) → offline-authenticated; an auth failure cleared the
-  // token → anonymous → gateway. Never a dead authenticated shell.
-  const bootPhase: BootPhase = !authReady
-    ? "restoring"
-    : !token
-    ? "anonymous"
-    : user
-    ? "authenticated"
-    : "offlineAuthed";
+  // Boot phase + readiness are DERIVED from the machine — one authority.
+  const bootPhase: BootPhase = bootState.phase;
+  const authReady = bootState.phase !== "restoring";
+  const loading = bootState.phase === "restoring";
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -137,9 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession,
       authReady,
       loading,
-      bootPhase
+      bootPhase,
     }),
-    [token, user, authMode, authReady, loading, bootPhase]
+    [token, user, authMode, setToken, setSession, authReady, loading, bootPhase],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
