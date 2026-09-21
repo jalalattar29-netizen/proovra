@@ -31,9 +31,8 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
-  useAudioRecorderState,
 } from "expo-audio";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   CameraView,
   useCameraPermissions,
@@ -138,8 +137,13 @@ export default function CaptureScreen() {
   const [recordSeconds, setRecordSeconds] = useState(0);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const audioRecorderState = useAudioRecorderState(audioRecorder, 250);
   const audioStartedAtRef = useRef<number | null>(null);
+  /**
+   * True only between `record()` and `stop()`. Read by the blur handler so it
+   * can stop the recorder WITHOUT touching the native object to ask — see the
+   * lifecycle note on the blur effect below.
+   */
+  const recorderLiveRef = useRef(false);
 
   const cameraRef = useRef<CameraView | null>(null);
   const sessionEvidenceIdRef = useRef<string | null>(null);
@@ -332,17 +336,49 @@ hasActiveDraft: isSessionActive || isRecording,
     return () => clearInterval(timer);
   }, [isRecording]);
 
-  useEffect(() => {
-    return () => {
-      if (audioRecorder.isRecording) {
-        void audioRecorder.stop().catch(() => undefined);
-      }
-      void setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => undefined);
-    };
-  }, [audioRecorder]);
+  /**
+   * RECORDER LIFECYCLE — stop on BLUR, never on unmount.
+   *
+   * `useAudioRecorder` wraps `useReleasingSharedObject`, whose unmount cleanup
+   * RELEASES the native shared object. React runs cleanups in declaration
+   * order, so that release happens BEFORE any cleanup declared later in this
+   * component. The previous version read `audioRecorder.isRecording` — a getter
+   * on the native object — and called `.stop()` from an unmount cleanup, i.e.
+   * after the release. That threw
+   *
+   *   FunctionCallException: Calling the 'get' function has failed
+   *   NativeSharedObjectNotFoundException
+   *
+   * on EVERY exit from Capture, in every mode, not just after recording. (The
+   * message names the 'get' function because `isRecording` is a getter.) A
+   * synchronous native throw also means `.catch()` was never attached.
+   *
+   * The fix is to own the ordering rather than suppress the error: stop while
+   * the screen is merely BLURRED, when the object is still alive, and let
+   * unmount do nothing but release the audio mode — a module-level call that
+   * touches no shared object. `recorderLiveRef` is a plain JS ref, so the blur
+   * handler never has to ask the native object whether it is recording.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (recorderLiveRef.current) {
+          recorderLiveRef.current = false;
+          try {
+            void Promise.resolve(audioRecorder.stop()).catch(() => undefined);
+          } catch {
+            // The object may already be gone if blur and unmount coincide;
+            // the recording is abandoned either way and must not crash exit.
+          }
+        }
+        setIsRecording(false);
+        void setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+        }).catch(() => undefined);
+      };
+    }, [audioRecorder]),
+  );
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -711,9 +747,11 @@ hasActiveDraft: isSessionActive || isRecording,
       await audioRecorder.prepareToRecordAsync();
       audioStartedAtRef.current = Date.now();
       audioRecorder.record();
+      recorderLiveRef.current = true;
       setIsRecording(true);
       addToast("Audio recording started", "info");
     } catch (err) {
+      recorderLiveRef.current = false;
       audioStartedAtRef.current = null;
       setIsRecording(false);
       void setAudioModeAsync({
@@ -742,7 +780,16 @@ if (!isRecording || busy) return;
       setInfo("Preparing audio recording...");
 
       const startedAt = audioStartedAtRef.current;
-      const statusDurationMs = audioRecorderState.durationMillis;
+      // Read the duration from the LIVE object at stop time. This used to come
+      // from `useAudioRecorderState(audioRecorder, 250)`, which polled
+      // `getStatus()` four times a second for the whole life of the screen in
+      // EVERY capture mode, and whose interval was cleared only AFTER the
+      // shared object had been released — so a queued tick could call into a
+      // freed object. One read, while it is certainly alive, is all the screen
+      // ever needed.
+      const statusDurationMs = audioRecorder.getStatus().durationMillis;
+
+      recorderLiveRef.current = false;
 
       await audioRecorder.stop();
 
@@ -785,7 +832,7 @@ if (!isRecording || busy) return;
     }
   }, [
     audioRecorder,
-    audioRecorderState.durationMillis,
+
     isRecording,
     busy,
     addCapturedItemToSession,
