@@ -88,15 +88,6 @@ export async function reserveDirectCaptureEvidence(
   return evidenceId;
 }
 
-function base64ToHex(b64: string): string {
-  const bin = globalThis.atob(b64);
-  let out = "";
-  for (let i = 0; i < bin.length; i += 1) {
-    out += bin.charCodeAt(i).toString(16).padStart(2, "0");
-  }
-  return out;
-}
-
 /**
  * Declare one item's digest to the session, then upload its bytes through the
  * canonical part presign. The same digest is sent to storage as the
@@ -114,8 +105,10 @@ export async function uploadDirectCaptureItem(
     source: DirectCaptureItemSource;
   },
 ): Promise<{ partIndex: number; sha256Hex: string }> {
+  // The integrity layer returns the hex digest directly — it no longer round-
+  // trips through `globalThis.atob`, which is not guaranteed on Hermes.
   const integrity = await computeFileIntegrityBase64(item.uri);
-  const sha256Hex = base64ToHex(integrity.checksumSha256Base64);
+  const sha256Hex = integrity.sha256Hex;
 
   await apiFetch(
     `/v1/capture/direct-sessions/${session.captureSessionId}/parts/${item.partIndex}/declaration`,
