@@ -11,6 +11,7 @@
  *   POST   /v1/capture/direct-sessions/:id/parts/:partIndex/declaration — declare a part digest (signed when device-bound)
  *   POST   /v1/capture/direct-sessions/:id/attestation              — platform attestation (fails closed)
  *   POST   /v1/capture/direct-sessions/:id/complete                 — server digest check, seal, bind
+ *   POST   /v1/capture/direct-sessions/:id/discard                  — abort an unsealed session, release its reservation
  *
  *   POST   /v1/capture/mobile/ingest                 — RETIRED (410). See below.
  *
@@ -68,6 +69,7 @@ import {
   loadOwnedDirectCaptureSession,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
+  discardDirectCaptureSession,
   submitDirectCaptureAttestation,
 } from "../services/capture-trust/direct-capture-ingest.service.js";
 import { projectProvenanceChain } from "../services/capture-trust/provenance-projection.service.js";
@@ -499,6 +501,36 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       try {
         const done = await completeDirectCapture({ sessionId: id, ownerUserId: userId });
         return reply.code(200).send({ result: done });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/discard
+  //
+  // Aborts an UNSEALED session and releases the Evidence it reserved. This is
+  // the UC-0 counterpart of POST /v1/uploads/sessions/:id/abort, which the web
+  // upload model has always had: because `…/evidence` reserves a real Evidence
+  // record on the first staged item, a client that walks away leaves a
+  // permanent, custody-logged, empty record in the owner's Active library.
+  //
+  // Idempotent (an already-terminal session answers 200 with `discarded:false`)
+  // and REFUSES a BOUND session — sealed Evidence is removed through the
+  // Evidence lifecycle under its own authorization and legal-hold rules, never
+  // through the capture path.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/discard",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const result = await discardDirectCaptureSession({ sessionId: id, ownerUserId: userId });
+        return reply.code(200).send({ result });
       } catch (err) {
         return sendDirectCaptureError(reply, err);
       }

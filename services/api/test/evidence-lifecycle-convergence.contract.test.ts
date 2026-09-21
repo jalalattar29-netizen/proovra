@@ -427,7 +427,10 @@ describe("the library speaks Active / Archived / Trash", () => {
       "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
       "apps/web/app/(app)/evidence/lib/evidence-library-alerts.ts",
       "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
-      "apps/mobile/app/(tabs)/deleted.tsx",
+      // Phase 12 removed the (tabs)/deleted.tsx route shell — the lifecycle
+      // scopes are canonical Evidence Library scopes now. This read the deleted
+      // file and had therefore been throwing ENOENT (not asserting) ever since.
+      "apps/mobile/app/(tabs)/evidence.tsx",
       "apps/mobile/app/(tabs)/_layout.tsx",
     ];
     for (const rel of surfaces) {
@@ -448,10 +451,12 @@ describe("the library speaks Active / Archived / Trash", () => {
 
   it("the mobile client asks for the canonical scope, not the alias", () => {
     // The alias exists for clients that shipped and cannot be edited. This one
-    // can be edited, so it is.
-    expect(src("apps/mobile/app/(tabs)/deleted.tsx")).toContain(
-      "/v1/evidence?scope=trash",
-    );
+    // can be edited, so it is. The scope now lives on the Evidence Library
+    // screen (the deleted.tsx shell this used to read was removed in Phase 12,
+    // since when the assertion had been an ENOENT rather than a check).
+    const library = src("apps/mobile/app/(tabs)/evidence.tsx");
+    expect(library).toMatch(/"trash"/);
+    expect(library).not.toMatch(/scope=deleted/);
   });
 
   it("the scope resolver reads the projection, not the timestamps", () => {

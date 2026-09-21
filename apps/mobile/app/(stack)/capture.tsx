@@ -42,6 +42,7 @@ import {
   completeDirectCapture,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
+  discardDirectCaptureSession,
   uploadDirectCaptureItem,
   type DirectCaptureItemSource,
   type DirectCaptureSession,
@@ -132,6 +133,7 @@ export default function CaptureScreen() {
   const [sessionCreatingEvidence, setSessionCreatingEvidence] = useState(false);
   const [sessionCompletingEvidence, setSessionCompletingEvidence] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [discarding, setDiscarding] = useState(false);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -317,11 +319,24 @@ hasActiveDraft: isSessionActive || isRecording,
     [setSessionState, addToast],
   );
 
+  /**
+   * Discarding a RECOVERED session has the same server obligation as discarding
+   * a live one: the reservation it restored was made before the interruption
+   * and is still open. Dropping only the durable local record would leave the
+   * record stranded with nothing left that could ever reach it.
+   */
   const discardRecovered = useCallback(async () => {
+    const recovered = resumable;
     setResumable(null);
+    if (recovered?.captureSessionId) {
+      await discardDirectCaptureSession({
+        captureSessionId: recovered.captureSessionId,
+        expiresAtUtc: recovered.expiresAtUtc,
+      }).catch(() => undefined);
+    }
     await clearCaptureSession();
     addToast("Interrupted capture discarded", "info");
-  }, [addToast]);
+  }, [resumable, addToast]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -524,9 +539,17 @@ hasActiveDraft: isSessionActive || isRecording,
       setSessionState(filtered);
 
       if (filtered.length === 0) {
+        // Removing the LAST staged item abandons the session just as surely as
+        // pressing Discard, and the reservation is already on the server. Route
+        // it through the same server transition rather than only clearing local
+        // state, or this becomes a second way to strand an empty record.
+        const session = captureSessionRef.current;
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
         setSessionEvidenceId(null);
+        if (session) {
+          void discardDirectCaptureSession(session).catch(() => undefined);
+        }
         void clearCaptureSession();
       } else {
         persistSession();
@@ -537,18 +560,50 @@ hasActiveDraft: isSessionActive || isRecording,
     [sessionCompletingEvidence, isRecording, setSessionState, addToast]
   );
 
-  const discardSession = useCallback(() => {
-    if (sessionCompletingEvidence || isRecording) return;
+  /**
+   * DISCARD IS A SERVER LIFECYCLE TRANSITION, NOT A LOCAL STATE RESET.
+   *
+   * `ensureSessionEvidence` reserves a real Evidence record on the FIRST staged
+   * item — the server runs the canonical `createEvidence()` and writes an
+   * EVIDENCE_CREATED custody event before any bytes exist. This used to clear
+   * refs, local state and AsyncStorage and make NO network call, so every
+   * discarded capture left a permanent, custody-logged, empty record in the
+   * owner's Active library. That is the "record audio → Discard → the evidence
+   * is still there" defect.
+   *
+   * The local state is only cleared once the server has released the
+   * reservation, so a failed discard leaves the session recoverable rather than
+   * stranding a record nothing can reach any more.
+   */
+  const discardSession = useCallback(async () => {
+    if (sessionCompletingEvidence || isRecording || discarding) return;
+    const session = captureSessionRef.current;
+
+    setDiscarding(true);
+    setError(null);
+    try {
+      if (session) {
+        await discardDirectCaptureSession(session);
+      }
+    } catch (err) {
+      // Keep the session: the operator can retry the discard or finish it.
+      const msg = err instanceof Error ? err.message : "Could not discard the session";
+      setError(msg);
+      addToast(msg, "error");
+      setDiscarding(false);
+      return;
+    }
+
     sessionEvidenceIdRef.current = null;
     captureSessionRef.current = null;
     setSessionEvidenceId(null);
     setSessionState([]);
-    setError(null);
     setInfo(null);
     setUploadProgress(0);
-    void clearCaptureSession(); // M5 — drop the durable record on explicit discard
+    await clearCaptureSession(); // M5 — drop the durable record on explicit discard
+    setDiscarding(false);
     addToast("Session discarded", "info");
-  }, [sessionCompletingEvidence, isRecording, setSessionState, addToast]);
+  }, [sessionCompletingEvidence, isRecording, discarding, setSessionState, addToast]);
 
   const ensureCameraReady = useCallback(async () => {
     setShowSettingsLink(false);
@@ -1132,7 +1187,7 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
                     disabled={sessionCreatingEvidence || isRecording}
                     onPress={completeSession}
                   />
-                  <ProovraButton label="Discard Session" variant="danger" disabled={sessionCompletingEvidence || isRecording} onPress={discardSession} />
+                  <ProovraButton label={discarding ? "Discarding…" : "Discard Session"} variant="danger" disabled={sessionCompletingEvidence || isRecording || discarding} onPress={() => void discardSession()} />
                 </View>
               </ProovraCard>
             ) : null}

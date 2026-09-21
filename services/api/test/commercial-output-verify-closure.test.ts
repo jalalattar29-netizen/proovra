@@ -23,7 +23,7 @@
  * because "two tabs of one page say the same thing" is a property of the
  * predicates and can be computed.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -64,6 +64,21 @@ const mobile = (rel: string) =>
     fileURLToPath(new URL(`../../../apps/mobile/${rel}`, import.meta.url)),
     "utf8",
   );
+/** Every mobile screen, so a claim can be asserted across the app, not one file. */
+const mobileScreens = (): string[] => {
+  const root = fileURLToPath(new URL("../../../apps/mobile/app", import.meta.url));
+  const out: string[] = [];
+  const walk = (dir: string, prefix: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = `${dir}/${name}`;
+      if (statSync(full).isDirectory()) walk(full, `${prefix}${name}/`);
+      else if (/.tsx$/.test(name)) out.push(`app/${prefix}${name}`);
+    }
+  };
+  walk(root, "");
+  return out;
+};
+
 const worker = (rel: string) =>
   readFileSync(
     fileURLToPath(new URL(`../../worker/src/${rel}`, import.meta.url)),
@@ -809,14 +824,20 @@ describe("P2-3 — mobile consumes the canonical output state", () => {
     }
   });
 
-  it("WIRING: the mobile Reports empty state promises no automatic report", () => {
-    // "Capture evidence to generate signed reports." was false on Free.
+  it("WIRING: no mobile surface promises an automatic report", () => {
+    // Phase 12 removed app/(tabs)/reports.tsx, so this read a file that does
+    // not exist and had been throwing ENOENT rather than asserting ever since.
     //
-    // Stripped: the replacement carries a comment quoting the old sentence, so
-    // an assertion over the raw file would read the explanation as the copy.
-    const screen = strip(mobile("app/(tabs)/reports.tsx"));
-    expect(screen).not.toMatch(/Capture evidence to generate signed reports/);
-    expect(screen).toMatch(/your plan includes/);
+    // The claim it protects is not about one screen: "Capture evidence to
+    // generate signed reports." was false on Free, and no mobile surface may
+    // say it. Asserted across every mobile screen, so it holds while native
+    // Reports is absent AND the moment it returns (the derived product
+    // manifest classifies /reports NATIVE_REQUIRED).
+    for (const rel of mobileScreens()) {
+      expect(strip(mobile(rel)), rel).not.toMatch(
+        /Capture evidence to generate signed reports/,
+      );
+    }
   });
 });
 

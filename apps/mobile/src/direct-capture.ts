@@ -156,3 +156,29 @@ export async function completeDirectCapture(
   if (!evidenceId) throw new Error("Could not complete the capture session.");
   return { evidenceId };
 }
+
+/**
+ * Abort an unsealed session and release the Evidence it reserved.
+ *
+ * The record is created by `reserveDirectCaptureEvidence` on the FIRST staged
+ * item, so abandoning a capture without telling the server left a permanent,
+ * custody-logged, empty record in the owner's library. Discard is a server
+ * lifecycle transition, not a client state reset.
+ *
+ * Idempotent server-side; a session that is already terminal answers 200.
+ */
+export async function discardDirectCaptureSession(
+  session: DirectCaptureSession,
+): Promise<{ releasedEvidenceId: string | null; discarded: boolean }> {
+  const res = await apiFetch(
+    `/v1/capture/direct-sessions/${session.captureSessionId}/discard`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+  const result = res?.result as
+    | { releasedEvidenceId?: string | null; discarded?: boolean }
+    | undefined;
+  return {
+    releasedEvidenceId: result?.releasedEvidenceId ?? null,
+    discarded: Boolean(result?.discarded),
+  };
+}

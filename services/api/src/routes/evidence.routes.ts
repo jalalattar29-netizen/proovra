@@ -2466,12 +2466,41 @@ function buildEvidenceListBaseWhere(params: {
   const verificationStatusFilter = inOrEq(query.verificationStatus);
   const acquisitionFilter = buildEvidenceListAcquisitionFilter(query.acquisition);
 
+  /**
+   * NEVER-COMMITTED RECORDS ARE NOT LIBRARY CONTENT.
+   *
+   * `CREATED` / `UPLOADING` mean a record has been RESERVED but no content has
+   * been committed to it — the capture session that owns it has not completed.
+   * Both capture paths reserve before any bytes exist (mobile UC-0's
+   * `direct-sessions/:id/evidence`, web's `POST /v1/evidence`), so an abandoned
+   * capture produced a row that was indistinguishable from real evidence in the
+   * Active scope on BOTH platforms. That is how "record audio → Discard → the
+   * evidence is still there" was possible.
+   *
+   * The scope filters above select on lifecycle, lock and deletion, and never
+   * on `status`, so nothing else excluded these. A caller that genuinely wants
+   * in-flight records asks for them by name (`?status=CREATED`), and the
+   * explicit `statusFilter` below then overrides this default.
+   *
+   * This is the invariant, not the cleanup: `discardDirectCaptureSession` also
+   * releases the reservation and records EVIDENCE_DELETED on the custody chain,
+   * so the row is genuinely terminal rather than merely hidden.
+   */
+  const uncommittedFilter: Prisma.EvidenceWhereInput | null = query.status
+    ? null
+    : {
+        status: {
+          notIn: [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING],
+        },
+      };
+
   return {
     AND: [
       accessFilter,
       archivedFilter,
       deletedFilter,
       lockedFilter,
+      ...(uncommittedFilter ? [uncommittedFilter] : []),
       ...(searchFilter ? [searchFilter] : []),
       ...(statusFilter ? [statusFilter] : []),
       ...(typeFilter ? [typeFilter] : []),

@@ -48,6 +48,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { createEvidence } from "../evidence.service.js";
 import { completeEvidence } from "../evidence-complete.service.js";
 import { emitCaptureTrustEvent } from "./trust-event.service.js";
+import { appendCustodyEventTx } from "../custody-events.service.js";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
 
@@ -780,5 +781,170 @@ export async function completeDirectCapture(input: {
     bound: true,
     alreadyBound: claim.count !== 1,
     digestsConfirmed: declarations.size,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Discard the session (UC-0 abort)
+// -----------------------------------------------------------------------------
+
+export type DiscardDirectCaptureSessionInput = {
+  prisma?: PrismaClient;
+  sessionId: string;
+  ownerUserId: string;
+  now?: Date;
+};
+
+export type DiscardDirectCaptureSessionResult = {
+  sessionId: string;
+  status: prismaPkg.CaptureSessionStatus;
+  /** The reservation that was released, when the session had made one. */
+  releasedEvidenceId: string | null;
+  /** True when this call performed the discard (false = already terminal). */
+  discarded: boolean;
+};
+
+/**
+ * ABORT AN UNSEALED DIRECT-CAPTURE SESSION.
+ *
+ * Why this exists: `reserveDirectCaptureEvidence` calls the canonical
+ * `createEvidence()` on the FIRST staged item, which writes a durable, owned,
+ * listed Evidence row plus an EVIDENCE_CREATED custody event — before a single
+ * byte has been uploaded. The mobile client's "Discard Session" made no server
+ * call at all and there was no abort route, so every abandoned capture left a
+ * permanent, custody-logged, empty record in the user's Active library. The web
+ * upload model has had `POST /v1/uploads/sessions/:id/abort` all along; UC-0 was
+ * built without carrying that concept across.
+ *
+ * Semantics, mirroring `abortUploadSession`:
+ *   - idempotent: a session that is already terminal returns its state, 200;
+ *   - a BOUND (sealed) session is REFUSED. Its Evidence is committed and real;
+ *     removing it is the Evidence lifecycle's job (archive / trash), under its
+ *     own authorization and legal-hold rules. Discard may never be a back door
+ *     around that;
+ *   - otherwise the session goes terminal (DISCARDED) and the reservation is
+ *     released: the never-committed Evidence is soft-deleted and the release is
+ *     recorded as EVIDENCE_DELETED on the custody chain.
+ *
+ * The custody chain is append-only, so the record is NOT hard-deleted — that
+ * would orphan the EVIDENCE_CREATED event this reservation already wrote. It is
+ * moved to a terminal, non-listed state with an auditable reason, which is what
+ * "cleaned according to canonical lifecycle semantics" means here. It is not
+ * cosmetic hiding: the row is genuinely terminal, and the list query
+ * independently refuses to show never-committed records (see
+ * `buildEvidenceListBaseWhere`).
+ */
+export async function discardDirectCaptureSession(
+  input: DiscardDirectCaptureSessionInput,
+): Promise<DiscardDirectCaptureSessionResult> {
+  const db = input.prisma ?? defaultPrisma;
+  const now = input.now ?? new Date();
+
+  const session = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
+
+  // A sealed session's Evidence is committed product. Refuse rather than
+  // silently deleting a real record through the capture path.
+  if (session.status === prismaPkg.CaptureSessionStatus.BOUND) {
+    throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+  }
+  if (
+    session.status === prismaPkg.CaptureSessionStatus.DISCARDED ||
+    session.status === prismaPkg.CaptureSessionStatus.EXPIRED
+  ) {
+    return {
+      sessionId: session.id,
+      status: session.status,
+      releasedEvidenceId: null,
+      discarded: false,
+    };
+  }
+
+  const released = await db.$transaction(async (tx) => {
+    // Serialise against a concurrent reserve/complete for the SAME session, the
+    // same lock reserve takes — so a discard can never race a binding.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
+
+    const fresh = await tx.captureSession.findUnique({
+      where: { id: session.id },
+      select: { id: true, status: true, finalizedEvidenceId: true },
+    });
+    if (!fresh) throw new DirectCaptureError("SESSION_NOT_FOUND");
+    if (fresh.status === prismaPkg.CaptureSessionStatus.BOUND) {
+      throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+    }
+
+    const claim = await tx.captureSession.updateMany({
+      where: {
+        id: session.id,
+        status: {
+          in: [
+            prismaPkg.CaptureSessionStatus.ACTIVE,
+            prismaPkg.CaptureSessionStatus.INTERRUPTED,
+          ],
+        },
+      },
+      data: {
+        status: prismaPkg.CaptureSessionStatus.DISCARDED,
+        discardedAtUtc: now,
+        endedAtUtc: now,
+        endReason: "DISCARDED",
+      },
+    });
+    if (claim.count !== 1) return null;
+
+    if (!fresh.finalizedEvidenceId) return null;
+
+    // Release the reservation ONLY while it is still unsealed. A record that
+    // reached SIGNED/REPORTED is committed evidence and is never touched here.
+    const evidence = await tx.evidence.findUnique({
+      where: { id: fresh.finalizedEvidenceId },
+      select: { id: true, status: true, deletedAt: true },
+    });
+    if (
+      !evidence ||
+      evidence.deletedAt ||
+      (evidence.status !== prismaPkg.EvidenceStatus.CREATED &&
+        evidence.status !== prismaPkg.EvidenceStatus.UPLOADING)
+    ) {
+      return null;
+    }
+
+    await tx.evidence.update({
+      where: { id: evidence.id },
+      data: { deletedAt: now },
+    });
+
+    await appendCustodyEventTx(tx, {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETED,
+      atUtc: now,
+      payload: {
+        reason: "CAPTURE_SESSION_DISCARDED",
+        captureSessionId: session.id,
+        statusAtRelease: evidence.status,
+        note: "Reservation released before any content was committed.",
+      },
+    });
+
+    return evidence.id;
+  });
+
+  // Outside the transaction: the trust chain has its own sequencing and must
+  // not extend the reservation lock.
+  await emitCaptureTrustEvent({
+    prisma: db,
+    teamId: session.teamId!,
+    captureSessionId: session.id,
+    evidenceId: null,
+    deviceId: session.deviceId,
+    code: "CAPTURE_SESSION_ENDED",
+    payload: { endReason: "DISCARDED", releasedEvidence: released !== null },
+  }).catch(() => undefined);
+
+  return {
+    sessionId: session.id,
+    status: prismaPkg.CaptureSessionStatus.DISCARDED,
+    releasedEvidenceId: released,
+    discarded: true,
   };
 }
