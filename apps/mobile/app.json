@@ -53,7 +53,19 @@
         "NSMicrophoneUsageDescription": "PROOVRA uses the microphone only when you record audio or video as evidence.",
         "NSPhotoLibraryUsageDescription": "PROOVRA reads your photo library only when you choose an existing photo or video to submit as evidence.",
         "NSLocationWhenInUseUsageDescription": "PROOVRA can attach your location to evidence you capture, only when you consent at capture time.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "proovra"
+            ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.548168595768-uhugauso4ep7n9auc4rh8jbihmv971tm"
+            ]
+          }
+        ]
       }
     },
     "android": {
