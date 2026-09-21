@@ -26,6 +26,13 @@ import { apiFetch } from "../../src/api";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { useRouter } from "expo-router";
 import {
   CameraView,
@@ -69,9 +76,9 @@ import {
 // gone: device attestation is never verified by the server, and an item is
 // only preserved once the session completes.
 
-type CaptureKind = "PHOTO" | "VIDEO" | "DOCUMENT";
+type CaptureKind = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 
-const CAPTURE_TYPES: CaptureKind[] = ["PHOTO", "VIDEO", "DOCUMENT"];
+const CAPTURE_TYPES: CaptureKind[] = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
 
 type CapturedItem = {
   id: string;
@@ -130,6 +137,10 @@ export default function CaptureScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
 
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorderState = useAudioRecorderState(audioRecorder, 250);
+  const audioStartedAtRef = useRef<number | null>(null);
+
   const cameraRef = useRef<CameraView | null>(null);
   const sessionEvidenceIdRef = useRef<string | null>(null);
   const captureSessionRef = useRef<DirectCaptureSession | null>(null);
@@ -157,7 +168,7 @@ export default function CaptureScreen() {
   const personalSpaceBlocked = shouldBlockMobileCapture({
     loading: personalSpace.loading,
     allowed: personalSpace.allowed,
-    hasActiveDraft: isSessionActive,
+hasActiveDraft: isSessionActive || isRecording,
   });
 
   const setSessionState = useCallback((items: CapturedItem[]) => {
@@ -208,9 +219,9 @@ export default function CaptureScreen() {
   // Report a live capture session so the deep-link gate can block unsafe
   // context switches during capture (canonical durability signal).
   useEffect(() => {
-    setCaptureActive(isSessionActive);
+    setCaptureActive(isSessionActive || isRecording);
     return () => setCaptureActive(false);
-  }, [isSessionActive]);
+  }, [isSessionActive, isRecording]);
 
   useEffect(() => {
     sessionEvidenceIdRef.current = sessionEvidenceId;
@@ -320,6 +331,18 @@ export default function CaptureScreen() {
 
     return () => clearInterval(timer);
   }, [isRecording]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRecorder.isRecording) {
+        void audioRecorder.stop().catch(() => undefined);
+      }
+      void setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+    };
+  }, [audioRecorder]);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -453,7 +476,7 @@ export default function CaptureScreen() {
 
   const removeFromSession = useCallback(
     (itemId: string) => {
-      if (sessionCompletingEvidence) return;
+      if (sessionCompletingEvidence || isRecording) return;
 
       const filtered = sessionItemsRef.current
         .filter((item) => item.id !== itemId)
@@ -475,11 +498,11 @@ export default function CaptureScreen() {
 
       addToast("Item removed", "info");
     },
-    [sessionCompletingEvidence, setSessionState, addToast]
+    [sessionCompletingEvidence, isRecording, setSessionState, addToast]
   );
 
   const discardSession = useCallback(() => {
-    if (sessionCompletingEvidence) return;
+    if (sessionCompletingEvidence || isRecording) return;
     sessionEvidenceIdRef.current = null;
     captureSessionRef.current = null;
     setSessionEvidenceId(null);
@@ -489,7 +512,7 @@ export default function CaptureScreen() {
     setUploadProgress(0);
     void clearCaptureSession(); // M5 — drop the durable record on explicit discard
     addToast("Session discarded", "info");
-  }, [sessionCompletingEvidence, setSessionState, addToast]);
+  }, [sessionCompletingEvidence, isRecording, setSessionState, addToast]);
 
   const ensureCameraReady = useCallback(async () => {
     setShowSettingsLink(false);
@@ -663,7 +686,119 @@ export default function CaptureScreen() {
     cameraRef.current?.stopRecording();
   }, []);
 
+
+  const handleStartAudioRecording = useCallback(async () => {
+    if (busy || sessionCompletingEvidence || sessionCreatingEvidence || isRecording) return;
+
+    try {
+      setError(null);
+      setInfo(null);
+      setShowSettingsLink(false);
+
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setError("Microphone permission denied");
+        setShowSettingsLink(true);
+        addToast("Microphone permission denied", "error");
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await audioRecorder.prepareToRecordAsync();
+      audioStartedAtRef.current = Date.now();
+      audioRecorder.record();
+      setIsRecording(true);
+      addToast("Audio recording started", "info");
+    } catch (err) {
+      audioStartedAtRef.current = null;
+      setIsRecording(false);
+      void setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      const msg = err instanceof Error ? err.message : "Failed to start audio recording";
+      setError(msg);
+      addToast(msg, "error");
+    }
+  }, [
+    audioRecorder,
+    busy,
+    sessionCompletingEvidence,
+    sessionCreatingEvidence,
+    isRecording,
+    addToast,
+  ]);
+
+  const handleStopAudioRecording = useCallback(async () => {
+if (!isRecording || busy) return;
+
+    try {
+      setBusy(true);
+      setError(null);
+      setInfo("Preparing audio recording...");
+
+      const startedAt = audioStartedAtRef.current;
+      const statusDurationMs = audioRecorderState.durationMillis;
+
+      await audioRecorder.stop();
+
+      const uri = audioRecorder.uri;
+      const durationMs =
+        typeof statusDurationMs === "number" && statusDurationMs > 0
+          ? Math.max(0, Math.round(statusDurationMs))
+          : startedAt
+            ? Math.max(0, Date.now() - startedAt)
+            : undefined;
+
+      if (!uri) {
+        throw new Error("Audio recording did not produce a local file");
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+
+      await addCapturedItemToSession({
+        uri,
+        mimeType: "audio/mp4",
+        durationMs,
+        sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
+        originalFilename: getFilename(uri, `audio-${Date.now()}.m4a`),
+        source: "UNKNOWN",
+      });
+
+      setInfo(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to record audio";
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      audioStartedAtRef.current = null;
+      setIsRecording(false);
+      setBusy(false);
+      void setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+    }
+  }, [
+    audioRecorder,
+    audioRecorderState.durationMillis,
+    isRecording,
+    busy,
+    addCapturedItemToSession,
+    getFilename,
+    addToast,
+  ]);
+
   const completeSession = useCallback(async () => {
+    if (isRecording) {
+      addToast("Stop the current recording before finishing the session", "warning");
+      return;
+    }
+
     const evidenceId = sessionEvidenceIdRef.current;
     const captureSession = captureSessionRef.current;
     const items = sessionItemsRef.current;
@@ -772,7 +907,7 @@ setSessionState(
       setBusy(false);
       setSessionCompletingEvidence(false);
     }
-  }, [addToast, pollReport, refreshRecent, router, setSessionState]);
+  }, [addToast, pollReport, refreshRecent, router, setSessionState, isRecording]);
 
   const sessionCountLabel = useMemo(() => {
     const count = sessionItems.length;
@@ -788,7 +923,7 @@ setSessionState(
   return (
     <ProovraScreen>
       <View style={styles.headerRow}>
-        <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} disabled={isRecording} onPress={() => router.back()} />
       </View>
 
       <ProovraSection title={t("capture")}>
@@ -816,7 +951,7 @@ setSessionState(
         ) : (
           <>
             <View style={styles.typeRow}>
-              {[t("photo"), t("video"), t("document")].map((label, index) => {
+              {[t("photo"), t("video"), "Audio", t("document")].map((label, index) => {
                 const active = index === activeIndex;
                 return (
                   <Pressable
@@ -824,6 +959,10 @@ setSessionState(
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                     onPress={() => {
+                      if (isRecording) {
+                        addToast("Stop the current recording before changing type", "warning");
+                        return;
+                      }
                       if (isSessionActive) {
                         addToast("Finish or discard the current session before changing type", "warning");
                         return;
@@ -847,7 +986,23 @@ setSessionState(
               <Switch value={useLocation} onValueChange={setUseLocation} accessibilityLabel="Include location metadata" />
             </View>
 
-            {cameraOpen && activeType !== "DOCUMENT" ? (
+            {activeType === "AUDIO" ? (
+              <ProovraCard style={styles.audioCard}>
+                <ProovraText variant="h3" weight="semibold">Microphone Capture</ProovraText>
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                  {isRecording
+                    ? `Recording ${recordSeconds}s`
+                    : "Record audio evidence with this device microphone. The recording is added to the current evidence session after you stop it."}
+                </ProovraText>
+                <ProovraButton
+                  label={isRecording ? "Stop Audio Recording" : "Start Audio Recording"}
+                  variant={isRecording ? "danger" : "primary"}
+loading={busy}
+disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
+                  onPress={isRecording ? handleStopAudioRecording : handleStartAudioRecording}
+                />
+              </ProovraCard>
+            ) : cameraOpen && activeType !== "DOCUMENT" ? (
               <ProovraCard style={styles.cameraCard}>
                 <View>
                   <CameraView ref={cameraRef} style={styles.cameraPreview} />
@@ -886,19 +1041,20 @@ setSessionState(
                   {sessionItems.map((item, index) => {
                     const isImage = item.mimeType.startsWith("image/");
                     const isVideo = item.mimeType.startsWith("video/");
+                    const isAudio = item.mimeType.startsWith("audio/");
                     return (
                       <View key={item.id} style={styles.thumbCard}>
                         <View style={styles.thumbPreview}>
                           {isImage ? (
                             <Image source={{ uri: item.uri }} style={styles.thumbImage} />
                           ) : (
-                            <View style={styles.thumbFallback}><Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : "DOC"}</Text></View>
+                            <View style={styles.thumbFallback}><Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : isAudio ? "AUDIO" : "DOC"}</Text></View>
                           )}
                           <View style={styles.thumbIndexBadge}><Text style={styles.thumbIndexText}>{index + 1}</Text></View>
                         </View>
                         <ProovraText variant="label" numberOfLines={1} style={styles.thumbLabel}>{item.originalFilename || `Item ${index + 1}`}</ProovraText>
                         <ProovraText variant="label" color={theme.color.ink.muted}>{item.uploading ? `${item.uploadProgress}%` : item.uploaded ? "Uploaded" : "Ready"}</ProovraText>
-                        <Pressable onPress={() => removeFromSession(item.id)} disabled={sessionCompletingEvidence} style={styles.removePill}>
+                        <Pressable onPress={() => removeFromSession(item.id)} disabled={sessionCompletingEvidence || isRecording} style={styles.removePill}>
                           <Text style={styles.removePillText}>Remove</Text>
                         </Pressable>
                       </View>
@@ -907,22 +1063,29 @@ setSessionState(
                 </ScrollView>
                 <View style={styles.sessionActions}>
                   {activeType === "DOCUMENT" ? (
-                    <ProovraButton label="Add Another Document" variant="secondary" disabled={sessionCompletingEvidence} onPress={openPickerOrCamera} />
+                    <ProovraButton label="Add Another Document" variant="secondary" disabled={sessionCompletingEvidence || isRecording} onPress={openPickerOrCamera} />
+                  ) : activeType === "AUDIO" ? (
+                    <ProovraButton
+                      label="Record Another Audio"
+                      variant="secondary"
+                      disabled={sessionCompletingEvidence || sessionCreatingEvidence || isRecording || busy}
+                      onPress={handleStartAudioRecording}
+                    />
                   ) : !cameraOpen ? (
                     <ProovraButton
                       label={activeType === "PHOTO" ? "Open Camera for More Photos" : "Open Camera for More Videos"}
                       variant="secondary"
-                      disabled={sessionCompletingEvidence}
+                      disabled={sessionCompletingEvidence || isRecording}
                       onPress={openPickerOrCamera}
                     />
                   ) : null}
                   <ProovraButton
                     label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
                     loading={sessionCompletingEvidence}
-                    disabled={sessionCreatingEvidence}
+                    disabled={sessionCreatingEvidence || isRecording}
                     onPress={completeSession}
                   />
-                  <ProovraButton label="Discard Session" variant="danger" disabled={sessionCompletingEvidence} onPress={discardSession} />
+                  <ProovraButton label="Discard Session" variant="danger" disabled={sessionCompletingEvidence || isRecording} onPress={discardSession} />
                 </View>
               </ProovraCard>
             ) : null}
@@ -977,6 +1140,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.s3,
   },
   cameraCard: { padding: 0, overflow: "hidden", marginBottom: theme.space.s3 },
+  audioCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
   cameraPreview: { height: 380, width: "100%" },
   overlayTopLeft: { position: "absolute", top: 12, left: 12 },
   overlayTopRight: { position: "absolute", top: 12, right: 12 },

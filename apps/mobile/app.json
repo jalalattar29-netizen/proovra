@@ -68,7 +68,8 @@
       "expo-asset",
       "expo-apple-authentication",
       "@sentry/react-native/expo",
-      "./plugins/withProovraIosScreenBroadcast.cjs"
+      "./plugins/withProovraIosScreenBroadcast.cjs",
+      "expo-audio"
     ]
   }
 }

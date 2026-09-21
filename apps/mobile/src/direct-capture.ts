@@ -38,6 +38,7 @@ export type DirectCaptureSession = {
 export type DirectCaptureItemSource =
   | "CAMERA"
   | "FILE_PICKER"
+  | "UNKNOWN"
   | "SCREEN_FRAME"
   | "SCREEN_MANIFEST"
   | "SCREEN_SEGMENT"
@@ -72,7 +73,7 @@ export async function openDirectCaptureSession(
 export async function reserveDirectCaptureEvidence(
   session: DirectCaptureSession,
   input: {
-    type: "PHOTO" | "VIDEO" | "DOCUMENT";
+    type: "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
     mimeType: string;
     deviceTimeIso: string;
     gps?: { lat: number; lng: number; accuracyMeters?: number };

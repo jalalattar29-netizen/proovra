@@ -21,7 +21,7 @@ const STORAGE_KEY = "proovra.capture.session.v1";
 /** A staged session older than this (by last update) is stale — resume refused. */
 export const CAPTURE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 
-export type PersistedCaptureType = "PHOTO" | "VIDEO" | "DOCUMENT";
+export type PersistedCaptureType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 
 export interface PersistedCapturedItem {
   id: string;
@@ -114,7 +114,7 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
   const evidenceId = typeof o.evidenceId === "string" ? o.evidenceId : null;
   const type = o.type;
   if (!captureSessionId || !evidenceId) return null;
-  if (type !== "PHOTO" && type !== "VIDEO" && type !== "DOCUMENT") return null;
+  if (type !== "PHOTO" && type !== "VIDEO" && type !== "AUDIO" && type !== "DOCUMENT") return null;
   if (!Array.isArray(o.items)) return null;
   const items: PersistedCapturedItem[] = [];
   for (const raw2 of o.items) {

@@ -83,3 +83,38 @@ test("validatePersisted accepts a good blob and rejects malformed ones", () => {
     null,
   ); // item id not a string
 });
+
+test("AUDIO session persists canonical audio metadata and remains resumable", () => {
+  const audio = mod.serializeSession(
+    baseInput({
+      type: "AUDIO",
+      items: [
+        {
+          id: "audio-1",
+          uri: "file:///recording.m4a",
+          mimeType: "audio/mp4",
+          durationMs: 12_345,
+          sizeBytes: 456_789,
+          originalFilename: "recording.m4a",
+          partIndex: 0,
+          source: "UNKNOWN",
+          uploaded: false,
+        },
+      ],
+    }),
+  );
+
+  const persisted = mod.validatePersisted(audio);
+
+  assert.notEqual(persisted, null);
+  assert.equal(persisted.type, "AUDIO");
+  assert.equal(persisted.items.length, 1);
+  assert.equal(persisted.items[0].mimeType, "audio/mp4");
+  assert.equal(persisted.items[0].durationMs, 12_345);
+  assert.equal(persisted.items[0].sizeBytes, 456_789);
+  assert.equal(persisted.items[0].originalFilename, "recording.m4a");
+  assert.equal(persisted.items[0].source, "UNKNOWN");
+  assert.equal(persisted.items[0].uploaded, false);
+  assert.equal(mod.isSessionResumable(persisted, NOW), true);
+  assert.deepEqual(mod.pendingItems(persisted.items).map((item) => item.id), ["audio-1"]);
+});
