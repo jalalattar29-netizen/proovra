@@ -16,7 +16,11 @@ import { useRouter } from "expo-router";
 
 import { apiFetch, getAuthToken } from "./api";
 import { isCaptureActive } from "./capture/active-capture";
-import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "./deep-link";
+import {
+  parseCanonicalMobileDeepLink,
+  parseCredentialDeepLink,
+  resolveMobileDeepLink,
+} from "./deep-link";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
@@ -45,6 +49,18 @@ export function DeepLinkGate() {
   useEffect(() => {
     if (!url) return;
     let disposed = false;
+
+    // CREDENTIAL LINKS FIRST — email verification, password reset and
+    // invitations are handed to a user who has no session and address no tenant
+    // resource, so they must not pass through the server resolve gate. They are
+    // checked before the session branch because they are valid precisely WHEN
+    // there is no session. The token stays opaque; the destination screen proves
+    // it with its own API call, exactly as the Web routes do.
+    const credential = parseCredentialDeepLink(url);
+    if (credential) {
+      router.push(credential.route as never);
+      return;
+    }
 
     // Unauthenticated: preserve the intent and route to the gateway. The server
     // resolve requires a session, so we do not call it here; the destination is

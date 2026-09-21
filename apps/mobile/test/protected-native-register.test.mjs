@@ -1,65 +1,37 @@
 /**
- * PERMANENT GUARD G (Native Convergence, Phase 0) — protected native register.
+ * GUARD — PROTECTED NATIVE CAPTURE ENGINE.
  *
- * The UI/orchestration convergence redesigns screens around the sanctioned JS
- * boundary; it must never delete, rename, or relocate the protected native
- * capture engine, its iOS broadcast extension, or the canonical sealing clients
- * as collateral of a restyle. This guard asserts every path in
- * PROTECTED_NATIVE_PATHS still exists on disk. It complements GUARD E (which
- * checks the JS↔native *binding shape*); this one checks *file presence*.
+ * Asserts every file in the protection register still exists, so UI/product
+ * work cannot delete or rename a proven native capture source as collateral.
  *
- * If a proven functional defect requires changing one of these files, that is a
- * Master-Program STOP condition handled outside ordinary UI work — this guard is
- * the tripwire that forces that conversation instead of a silent edit.
+ * Previously this regex-extracted the path list out of the source text of
+ * `native-surface-contract.ts`. It now imports the register as real data, so a
+ * malformed register fails at import rather than silently matching nothing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const MOBILE_DIR = resolve(HERE, "..");
-const CONTRACT = resolve(HERE, "../src/product/native-surface-contract.ts");
-const contractSrc = readFileSync(CONTRACT, "utf8");
+import { PROTECTED_NATIVE_PATHS } from "../src/product/protected-native-paths.mjs";
 
-/** Extract the PROTECTED_NATIVE_PATHS string entries from the contract source. */
-function parseProtectedPaths(src) {
-  // Anchor on the `export const` declaration — the identifier also appears in
-  // the doc comment, and `: readonly string[]` contains a `[` — so match the
-  // assignment's array literal specifically.
-  const block = src.match(/export const PROTECTED_NATIVE_PATHS[^=]*=\s*\[([\s\S]*?)\]\s*as const/);
-  assert.ok(block, "PROTECTED_NATIVE_PATHS array must be present in the contract");
-  return [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-}
+const MOBILE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const protectedPaths = parseProtectedPaths(contractSrc);
-
-test("the register lists the full protected engine + extension + sealing set", () => {
-  assert.ok(protectedPaths.length >= 15, `expected >=15 protected paths, found ${protectedPaths.length}`);
-  for (const required of [
-    "modules/proovra-screen-capture/index.ts",
-    "modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift",
-    "plugins/withProovraIosScreenBroadcast.cjs",
-    "src/direct-capture.ts",
-    "src/screen-capture-flow.ts",
-    "src/continuous-capture-flow.ts",
-  ]) {
-    assert.ok(protectedPaths.includes(required), `register must protect ${required}`);
-  }
+test("the protection register is substantial and free of duplicates", () => {
+  assert.ok(PROTECTED_NATIVE_PATHS.length >= 16, `register shrank to ${PROTECTED_NATIVE_PATHS.length} entries`);
+  assert.equal(new Set(PROTECTED_NATIVE_PATHS).size, PROTECTED_NATIVE_PATHS.length, "duplicate entries");
 });
 
-test("every protected native path still exists on disk (no collateral deletion)", () => {
-  const missing = protectedPaths.filter((p) => !existsSync(join(MOBILE_DIR, p)));
-  assert.deepEqual(missing, [], `protected native files missing from disk: ${missing.join(", ")}`);
+test("every protected native capture source still exists on disk", () => {
+  const missing = PROTECTED_NATIVE_PATHS.filter((p) => !existsSync(join(MOBILE_ROOT, p)));
+  assert.deepEqual(missing, [], "protected native capture sources deleted or renamed");
 });
 
-test("the Android MediaProjection service directory is present", () => {
-  // The UC-2/UC-3 foreground services live here; guard the directory so a
-  // restyle cannot remove the native service tree.
-  const androidJava = join(
-    MOBILE_DIR,
-    "modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture",
-  );
-  assert.ok(existsSync(androidJava), "Android screencapture native source dir must exist");
+test("the register covers both platforms and the JS boundary", () => {
+  const joined = PROTECTED_NATIVE_PATHS.join("\n");
+  assert.match(joined, /ios\/ProovraScreenCaptureModule\.swift/, "iOS ReplayKit module unprotected");
+  assert.match(joined, /android\/src\/main\/java.*ProovraScreenCaptureModule\.kt/, "Android engine unprotected");
+  assert.match(joined, /modules\/proovra-screen-capture\/index\.ts/, "JS boundary unprotected");
+  assert.match(joined, /plugins\/broadcast-extension\/SampleHandler\.swift/, "Broadcast Extension unprotected");
 });

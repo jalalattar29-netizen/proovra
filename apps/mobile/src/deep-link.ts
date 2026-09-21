@@ -32,6 +32,85 @@ export type ParsedMobileDeepLink = {
 };
 
 /**
+ * CREDENTIAL LINKS — a SEPARATE family from the tenant resources above.
+ *
+ * Email verification, password reset and invitation links are handed to a user
+ * who has NO session yet, and they address no tenant resource. They therefore
+ * must NOT pass through `POST /v1/deep-link/resolve` (which requires a session
+ * and re-derives a workspace): that gate is right for evidence/cases and wrong
+ * for these. The token stays opaque here and is proven by the screen's own API
+ * call, exactly as the Web routes do it.
+ *
+ * Until this existed, `(stack)/verify-email.tsx`, `(stack)/reset-password.tsx`
+ * and `(stack)/invite/[token].tsx` were complete screens that NOTHING in the
+ * app could navigate to — every emailed account-recovery link dead-ended. The
+ * superseded surface contract declared all three "REACHABLE"; reachability is
+ * now derived from this table by `test/native-route-reachability.test.mjs`.
+ */
+const CREDENTIAL_ROUTES: Record<string, (token: string) => string> = {
+  "verify-email": (t) => `/(stack)/verify-email?token=${encodeURIComponent(t)}`,
+  "reset-password": (t) => `/(stack)/reset-password?token=${encodeURIComponent(t)}`,
+  invite: (t) => `/(stack)/invite/${encodeURIComponent(t)}`,
+};
+
+/** Web path aliases for the same three flows (the emails link to the web host). */
+const CREDENTIAL_ALIASES: Record<string, string> = {
+  "auth/verify-email": "verify-email",
+  "verify-email": "verify-email",
+  "reset-password": "reset-password",
+  invite: "invite",
+};
+
+export type ParsedCredentialLink = {
+  family: "verify-email" | "reset-password" | "invite";
+  token: string;
+  route: string;
+};
+
+/**
+ * Parse an unauthenticated credential link:
+ *   https://<host>/auth/verify-email?token=…   https://<host>/verify-email/<token>
+ *   https://<host>/reset-password?token=…      https://<host>/invite/<token>
+ *   proovra://verify-email?token=…             proovra://invite/<token>
+ * The token may arrive as a path segment or as `?token=`. Anything else returns
+ * null and the caller ignores the link.
+ */
+export function parseCredentialDeepLink(url: string): ParsedCredentialLink | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "proovra:") return null;
+
+  const segments =
+    parsed.protocol === "proovra:"
+      ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
+      : parsed.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  // Match the longest alias first so "auth/verify-email" wins over "verify-email".
+  const twoSeg = segments.slice(0, 2).join("/");
+  const family =
+    CREDENTIAL_ALIASES[twoSeg] ??
+    CREDENTIAL_ALIASES[segments[0] ?? ""] ??
+    null;
+  if (!family) return null;
+
+  const consumed = CREDENTIAL_ALIASES[twoSeg] ? 2 : 1;
+  const pathToken = segments.slice(consumed).join("/");
+  const token = (parsed.searchParams.get("token") ?? pathToken ?? "").trim();
+  if (!token) return null;
+
+  return {
+    family: family as ParsedCredentialLink["family"],
+    token,
+    route: CREDENTIAL_ROUTES[family](token),
+  };
+}
+
+/**
  * Parse ONLY the canonical supported shapes:
  *   https://<host>/evidence/<id>     https://<host>/cases/<id>
  *   proovra://evidence/<id>          proovra://cases/<id>
