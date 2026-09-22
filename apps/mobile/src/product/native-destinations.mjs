@@ -217,16 +217,16 @@ export const NATIVE_DESTINATIONS = {
   "/notifications": {
     routeFile: "(tabs)/notifications.tsx",
     alsoRouteFiles: ["(stack)/settings/notifications.tsx"],
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: [
       "apps/web/app/(app)/notifications/page.tsx",
       "apps/web/components/notifications/NotificationPreferencesPanel.tsx",
     ],
     gaps: [
-      "severity ordering, category/unread filters and per-item read/unread/dismiss ported",
-      "snooze is modelled and testable but has no control on the row yet",
-      "Q2 RESOLVED, and its premise was wrong: NOTIFICATION_PREFERENCE_CHANNELS is [IN_APP, EMAIL] and the repository contains no push infrastructure at all, so these preferences never governed push. They govern the inbox Native already renders and the email a Native user already receives. Preferences and schedule are ported.",
+      "severity ordering, category/unread filters, per-item read/unread/dismiss, mark-all, and snooze",
+      "snooze had been modelled and tested here since before anything could reach it: the list had no control, and snoozedUntil was missing from the item type, so the return time the endpoint had always sent was invisible. Both are fixed, and a snoozed item states when it comes back.",
+      "Q2 RESOLVED and its premise was wrong: NOTIFICATION_PREFERENCE_CHANNELS is [IN_APP, EMAIL] and the repository contains no push infrastructure at all. Preferences and the quiet-hours schedule are ported.",
       "contact-channel verification (/v1/communications/verify/*) deliberately NOT ported: it verifies a phone number, and with no SMS channel in the enum it would let a user configure a delivery the platform cannot perform",
       "delivery history is an operator surface and stays excluded",
     ],

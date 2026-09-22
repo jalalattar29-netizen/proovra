@@ -16,6 +16,14 @@ export interface InboxItem {
   category?: string | null;
   tone?: string | null;
   isRead?: boolean;
+  /**
+   * LEGACY FIELD NAME on the wire; the product name is `remindAt`. The
+   * envelope emits both from one value so they cannot disagree.
+   *
+   * It was missing from this interface, which is why a snoozed item's return
+   * time was invisible even though the endpoint had always sent it.
+   */
+  snoozedUntil?: string | null;
 }
 
 function num(v: unknown): number | null {
@@ -121,4 +129,55 @@ export function filterInboxItems(items: readonly InboxItem[], filter: string): I
   if (filter === "all") return [...items];
   if (filter === "unread") return items.filter((i) => !i.isRead);
   return items.filter((i) => String(i.category ?? "").toLowerCase().includes(filter));
+}
+
+// ---------------------------------------------------------------------------
+// Snooze (canonically: remind)
+// ---------------------------------------------------------------------------
+
+/**
+ * A snoozed item is DEFERRED, not gone.
+ *
+ * The route's canonical body field is `remindAt`; `snoozedUntil` is the legacy
+ * name it still accepts, and the envelope emits both from one value so they
+ * cannot disagree. This sends the canonical name.
+ *
+ * The choices are offered as durations rather than a date picker, because the
+ * question a user is answering on a phone is "not now — how long?", not "on
+ * which calendar day should this return".
+ */
+export const SNOOZE_CHOICES: ReadonlyArray<{ key: string; label: string; hours: number }> = [
+  { key: "1h", label: "1 hour", hours: 1 },
+  { key: "4h", label: "4 hours", hours: 4 },
+  { key: "tomorrow", label: "Tomorrow", hours: 24 },
+  { key: "week", label: "Next week", hours: 24 * 7 },
+];
+
+export function buildSnoozeBody(hours: number, nowMs: number = Date.now()) {
+  const until = new Date(nowMs + hours * 60 * 60 * 1000);
+  // `remindAt` is canonical. `snoozedUntil` rides along because the route
+  // accepts either and a shipped client may be read by either name.
+  return { remindAt: until.toISOString(), snoozedUntil: until.toISOString() };
+}
+
+/**
+ * When an item comes back, in words.
+ *
+ * `null` when it is not snoozed or the stored time has already passed — an
+ * expired snooze is not a pending one, and saying "returns in -3 hours" is
+ * worse than saying nothing.
+ */
+export function snoozeReturnLabel(
+  item: { snoozedUntil?: string | null },
+  nowMs: number = Date.now(),
+): string | null {
+  const until = item.snoozedUntil ? Date.parse(item.snoozedUntil) : NaN;
+  if (!Number.isFinite(until) || until <= nowMs) return null;
+
+  const minutes = Math.round((until - nowMs) / 60000);
+  if (minutes < 60) return `Returns in ${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `Returns in ${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.round(hours / 24);
+  return `Returns in ${days} day${days === 1 ? "" : "s"}`;
 }

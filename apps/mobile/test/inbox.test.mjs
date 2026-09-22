@@ -127,3 +127,44 @@ test("a snoozed item is deferred, not gone, and returns when the time passes", (
   assert.equal(mod.isSnoozed({ snoozedUntil: null }, now), false);
   assert.equal(mod.isSnoozed({ snoozedUntil: "not a date" }, now), false);
 });
+
+/* -------------------------------------------------------------------- snooze */
+
+/**
+ * Snooze was modelled and tested here long before anything could reach it: the
+ * list had no control, and `snoozedUntil` was missing from the item type, so
+ * the return time the endpoint had always sent was invisible.
+ */
+test("the snooze body sends the canonical field name, and the legacy one", () => {
+  const now = Date.parse("2026-09-22T12:00:00.000Z");
+  const body = mod.buildSnoozeBody(4, now);
+  // `remindAt` is canonical; `snoozedUntil` is what shipped clients read.
+  assert.equal(body.remindAt, "2026-09-22T16:00:00.000Z");
+  assert.equal(body.snoozedUntil, body.remindAt);
+});
+
+test("every snooze choice is a real duration", () => {
+  assert.ok(mod.SNOOZE_CHOICES.length > 0);
+  for (const c of mod.SNOOZE_CHOICES) {
+    assert.ok(c.hours > 0, c.key);
+    assert.ok(c.label.length > 0, c.key);
+  }
+});
+
+test("an expired snooze is not a pending one", () => {
+  const now = Date.parse("2026-09-22T12:00:00.000Z");
+  // "Returns in -3 hours" is worse than saying nothing.
+  assert.equal(mod.snoozeReturnLabel({ snoozedUntil: "2026-09-22T09:00:00.000Z" }, now), null);
+  assert.equal(mod.snoozeReturnLabel({ snoozedUntil: null }, now), null);
+  assert.equal(mod.snoozeReturnLabel({}, now), null);
+  assert.equal(mod.snoozeReturnLabel({ snoozedUntil: "not a date" }, now), null);
+});
+
+test("a pending snooze reads in the largest sensible unit", () => {
+  const now = Date.parse("2026-09-22T12:00:00.000Z");
+  assert.match(mod.snoozeReturnLabel({ snoozedUntil: "2026-09-22T12:30:00.000Z" }, now), /30 minutes/);
+  assert.match(mod.snoozeReturnLabel({ snoozedUntil: "2026-09-22T16:00:00.000Z" }, now), /4 hours/);
+  assert.match(mod.snoozeReturnLabel({ snoozedUntil: "2026-09-25T12:00:00.000Z" }, now), /3 days/);
+  // Singulars read as singulars.
+  assert.match(mod.snoozeReturnLabel({ snoozedUntil: "2026-09-22T13:00:00.000Z" }, now), /1 hour\b/);
+});

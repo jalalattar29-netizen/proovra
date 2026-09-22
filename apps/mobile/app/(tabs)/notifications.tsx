@@ -9,7 +9,10 @@ import {
   resolveInboxRoute,
   sortInboxItems,
   filterInboxItems,
+  SNOOZE_CHOICES,
+  buildSnoozeBody,
   inboxItemActionPath,
+  snoozeReturnLabel,
   INBOX_FILTERS,
   type InboxItem,
   type InboxItemAction,
@@ -22,6 +25,8 @@ import {
   ProovraSection,
   ProovraButton,
   ProovraListRow,
+  ProovraText,
+  ProovraSheet,
   ProovraEmptyState,
   ProovraFilterChips,
   ProovraErrorState,
@@ -34,6 +39,7 @@ type LoadState = "loading" | "ready" | "error";
  *  push (deferred). Read/mark-read/mark-all-read + routing to authorized targets. */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const [snoozing, setSnoozing] = useState<InboxItem | null>(null);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [state, setState] = useState<LoadState>("loading");
@@ -83,6 +89,27 @@ export default function NotificationsScreen() {
    * acknowledged but never deferred or restored. Optimistic, then reconciled by
    * a reload: an action that fails must not leave the row lying about its state.
    */
+  const snooze = useCallback(
+    async (hours: number) => {
+      const item = snoozing;
+      if (!item) return;
+      setSnoozing(null);
+      // A snoozed item leaves the list until it returns — it is deferred, not
+      // dismissed, and the difference is the whole point of the action.
+      setItems((prev) => prev.filter((i) => i.itemKey !== item.itemKey));
+      try {
+        await apiFetch(inboxItemActionPath(item.itemKey, "snooze"), {
+          method: "POST",
+          body: JSON.stringify(buildSnoozeBody(hours)),
+        });
+      } catch (err) {
+        addToast(toSafeUserError(err).message, "error");
+        await load();
+      }
+    },
+    [snoozing, addToast, load],
+  );
+
   const act = useCallback(
     async (item: InboxItem, action: InboxItemAction) => {
       setItems((prev) =>
@@ -180,6 +207,11 @@ export default function NotificationsScreen() {
                       .join(" · ")}
                     onPress={() => open(item)}
                   />
+                  {snoozeReturnLabel(item) ? (
+                    <ProovraText variant="label" color={theme.color.ink.muted}>
+                      {snoozeReturnLabel(item)}
+                    </ProovraText>
+                  ) : null}
                 </View>
                 <ProovraButton
                   label={item.isRead ? "Unread" : "Read"}
@@ -193,11 +225,42 @@ export default function NotificationsScreen() {
                   fullWidth={false}
                   onPress={() => void act(item, "dismiss")}
                 />
+                {/*
+                  Snooze was modelled and tested but had no control, so the
+                  one action that says "not now" rather than "never" was
+                  unreachable. Offered as durations, because the question a
+                  user is answering on a phone is "how long", not "on which
+                  calendar day should this return".
+                */}
+                <ProovraButton
+                  label="Later"
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={() => setSnoozing(item)}
+                />
               </View>
             ))}
           </ProovraCard>
         )}
       </ProovraSection>
+
+      <ProovraSheet
+        visible={snoozing !== null}
+        title="Remind me later"
+        onClose={() => setSnoozing(null)}
+      >
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {snoozing ? snoozing.title : ""}
+        </ProovraText>
+        {SNOOZE_CHOICES.map((choice) => (
+          <ProovraButton
+            key={choice.key}
+            label={choice.label}
+            variant="secondary"
+            onPress={() => void snooze(choice.hours)}
+          />
+        ))}
+      </ProovraSheet>
     </ProovraShell>
   );
 }
