@@ -410,3 +410,78 @@ test("the internal-materials paths are the canonical ones", () => {
   assert.equal(mod.buildDuplicatesPath("e1"), "/v1/evidence/e1/duplicates");
   assert.equal(mod.buildRegeneratePath("e1"), "/v1/evidence/e1/reports/regenerate");
 });
+
+/* ------------------------------------------------- the lifecycle projection */
+
+test("an absent lifecycle projection withholds rather than permits", () => {
+  // A client that defaulted to yes would put a destructive control in front of
+  // someone the server will refuse.
+  assert.equal(mod.parseEvidenceLifecycle({}), null);
+  assert.equal(mod.parseEvidenceLifecycle(null), null);
+});
+
+test("every verdict is READ, never re-derived", () => {
+  const l = mod.parseEvidenceLifecycle({
+    lifecycle: {
+      productState: "ARCHIVED",
+      canArchive: false,
+      canUnarchive: true,
+      canTrash: false,
+      canRestoreFromTrash: false,
+      archiveBlockReason: "ALREADY_IN_STATE",
+      trashBlockReason: "LEGAL_HOLD_ACTIVE",
+      legalHold: true,
+    },
+  });
+  assert.equal(l.productState, "ARCHIVED");
+  assert.equal(l.canUnarchive, true);
+  // Not inferred from productState — the server said so.
+  assert.equal(l.canArchive, false);
+  assert.equal(l.legalHold, true);
+});
+
+test("a missing capability flag is false, not absent", () => {
+  const l = mod.parseEvidenceLifecycle({ lifecycle: { productState: "ACTIVE" } });
+  assert.equal(l.canArchive, false);
+  assert.equal(l.canTrash, false);
+});
+
+test("a locked record is recognised from the server's own block reason", () => {
+  // The code names the remedy: EVIDENCE_LOCKED on a trash or archive attempt
+  // means unlock first.
+  assert.equal(
+    mod.evidenceIsLocked(
+      mod.parseEvidenceLifecycle({
+        lifecycle: { productState: "ACTIVE", trashBlockReason: "EVIDENCE_LOCKED" },
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    mod.evidenceIsLocked(
+      mod.parseEvidenceLifecycle({
+        lifecycle: { productState: "ACTIVE", trashBlockReason: "LEGAL_HOLD_ACTIVE" },
+      }),
+    ),
+    false,
+  );
+  assert.equal(mod.evidenceIsLocked(null), false);
+});
+
+test("every block reason reads as a sentence, and an unknown one still refuses", () => {
+  assert.match(mod.lifecycleBlockReasonLabel("EVIDENCE_LOCKED"), /Unlock it first/);
+  assert.match(mod.lifecycleBlockReasonLabel("LEGAL_HOLD_ACTIVE"), /legal hold/i);
+  assert.match(mod.lifecycleBlockReasonLabel("OBJECT_LOCK_RETENTION_ACTIVE"), /retention/i);
+  // An unknown code is still a refusal. Saying "not available" with no reason
+  // is honest; treating it as permitted would not be.
+  assert.match(mod.lifecycleBlockReasonLabel("SOMETHING_NEW"), /not available/i);
+  assert.equal(mod.lifecycleBlockReasonLabel(null), null);
+});
+
+test("the lifecycle paths are the canonical ones", () => {
+  assert.equal(mod.buildEvidencePath("e1"), "/v1/evidence/e1");
+  assert.equal(mod.buildEvidenceLockPath("e1"), "/v1/evidence/e1/lock");
+  assert.equal(mod.buildEvidenceUnlockPath("e1"), "/v1/evidence/e1/unlock");
+  assert.equal(mod.buildEvidenceArchivePath("e1"), "/v1/evidence/e1/archive");
+  assert.equal(mod.buildEvidenceUnarchivePath("e1"), "/v1/evidence/e1/unarchive");
+});

@@ -854,3 +854,111 @@ export function buildEvidenceLockPath(evidenceId: string): string {
 export function buildEvidenceArchivePath(evidenceId: string): string {
   return `${buildEvidencePath(evidenceId)}/archive`;
 }
+
+// ---------------------------------------------------------------------------
+// The record's LIFECYCLE capabilities
+// ---------------------------------------------------------------------------
+//
+// `evidence.lifecycle` is the canonical projection the server computes from
+// the same authority the write path calls. Its own type says: "Every field is
+// a RESULT. Nothing here lets a client re-derive a verdict."
+//
+// ===========================================================================
+// THE SCREEN WAS OFFERING LOCK, ARCHIVE AND TRASH UNCONDITIONALLY
+// ===========================================================================
+// It rendered all three whatever the record's state, and offered no UNLOCK at
+// all — so a record could be locked from the phone and never released there,
+// and Archive was shown on a record already archived, on one under legal hold,
+// and on one inside an object-lock retention window. Each of those is a
+// refusal the server was always going to make.
+//
+// Every verdict below is READ. Nothing recomputes one, and an absent
+// projection withholds rather than offers: a client that defaulted to "yes"
+// would put a destructive control in front of someone the server will refuse.
+
+export interface EvidenceLifecycle {
+  productState: string;
+  canArchive: boolean;
+  canUnarchive: boolean;
+  canTrash: boolean;
+  canRestoreFromTrash: boolean;
+  /** The server's reason, when it gave one. */
+  trashBlockReason: string | null;
+  archiveBlockReason: string | null;
+  legalHold: boolean;
+  effectiveRetentionUntilIso: string | null;
+}
+
+export function parseEvidenceLifecycle(payload: unknown): EvidenceLifecycle | null {
+  const d = obj(payload);
+  const l = obj(d.lifecycle ?? obj(d.evidence).lifecycle);
+  if (!("productState" in l)) return null;
+  return {
+    productState: str(l.productState) ?? "ACTIVE",
+    canArchive: l.canArchive === true,
+    canUnarchive: l.canUnarchive === true,
+    canTrash: l.canTrash === true,
+    canRestoreFromTrash: l.canRestoreFromTrash === true,
+    trashBlockReason: str(l.trashBlockReason),
+    archiveBlockReason: str(l.archiveBlockReason),
+    legalHold: l.legalHold === true,
+    effectiveRetentionUntilIso: str(l.effectiveRetentionUntilUtc),
+  };
+}
+
+/**
+ * The block reasons, as sentences.
+ *
+ * The server sends a CODE, not prose, so these are the native rendering of a
+ * server verdict rather than a second opinion about it. An unrecognised code
+ * is reported as refused without a reason — never as permitted.
+ */
+export function lifecycleBlockReasonLabel(code: string | null): string | null {
+  switch (code) {
+    case "ALREADY_IN_STATE":
+      return "This record is already in that state.";
+    case "EVIDENCE_LOCKED":
+      return "This record is locked. Unlock it first.";
+    case "TERMINAL_DESTROYED":
+      return "This record has been destroyed and cannot change state.";
+    case "NOT_TRASHED":
+      return "This record is not in the trash.";
+    case "TRASH_GRACE_ACTIVE":
+      return "This record is inside its trash grace period.";
+    case "APP_RETENTION_ACTIVE":
+      return "A retention policy still covers this record.";
+    case "OBJECT_LOCK_RETENTION_ACTIVE":
+      return "Storage retention still covers this record.";
+    case "LEGAL_HOLD_ACTIVE":
+      return "A legal hold is in force on this record.";
+    case null:
+      return null;
+    default:
+      // An unknown code is still a refusal. Saying "this cannot be done" with
+      // no reason is honest; treating it as permitted would not be.
+      return "This is not available for this record right now.";
+  }
+}
+
+/**
+ * Whether the record is locked, from the state the server reports.
+ *
+ * A locked record is the one case where the block reason names the remedy —
+ * EVIDENCE_LOCKED on a trash or archive attempt means unlock first — so the
+ * lock state is read from those reasons rather than guessed from a status
+ * string the client would have to interpret.
+ */
+export function evidenceIsLocked(lifecycle: EvidenceLifecycle | null): boolean {
+  if (!lifecycle) return false;
+  return (
+    lifecycle.trashBlockReason === "EVIDENCE_LOCKED" ||
+    lifecycle.archiveBlockReason === "EVIDENCE_LOCKED"
+  );
+}
+
+export function buildEvidenceUnlockPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/unlock`;
+}
+export function buildEvidenceUnarchivePath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/unarchive`;
+}

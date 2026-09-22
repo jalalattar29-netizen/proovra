@@ -34,6 +34,12 @@ import {
   buildEvidenceArchivePath,
   buildEvidenceLockPath,
   buildEvidencePath,
+  buildEvidenceUnarchivePath,
+  buildEvidenceUnlockPath,
+  evidenceIsLocked,
+  lifecycleBlockReasonLabel,
+  parseEvidenceLifecycle,
+  type EvidenceLifecycle,
   REGENERATE_CONSEQUENCE,
   buildDuplicatesPath,
   buildRegeneratePath,
@@ -135,6 +141,9 @@ export default function EvidenceDetailScreen() {
   const [tab, setTab] = useState<Tab>("overview");
 
   const [duplicates, setDuplicates] = useState<DuplicateReport | null>(null);
+  // The SERVER's verdicts. Absent withholds: a client that defaulted to "yes"
+  // would put a destructive control in front of someone the server refuses.
+  const [lifecycle, setLifecycle] = useState<EvidenceLifecycle | null>(null);
   const [duplicatesPhase, setDuplicatesPhase] = useState<"idle" | "loading" | "failed">("idle");
   const [generating, setGenerating] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
@@ -173,6 +182,10 @@ export default function EvidenceDetailScreen() {
     try {
       const data = await apiFetch(`/v1/evidence/${id}`);
       const ev = (data.evidence ?? {}) as Record<string, unknown>;
+      // The canonical lifecycle projection travels ON the record. Its own type
+      // says "Every field is a RESULT. Nothing here lets a client re-derive a
+      // verdict" — so it is read, and an absent one withholds.
+      setLifecycle(parseEvidenceLifecycle(ev) ?? parseEvidenceLifecycle(data));
       setCore({
         status: (ev.status as string) ?? "SIGNED",
         statusLabel: (ev.statusLabel as string) ?? null,
@@ -500,8 +513,25 @@ export default function EvidenceDetailScreen() {
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>{provenance.statement}</ProovraText>
           ) : null}
           <View style={styles.actions}>
-            <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { buildPath: buildEvidenceLockPath })} />
-            <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { buildPath: buildEvidenceArchivePath })} />
+            {/*
+              Offered or withheld by the canonical lifecycle projection. This
+              screen used to render all three unconditionally and offer no
+              UNLOCK at all — so a record could be locked here and never
+              released here, and Archive appeared on records already archived,
+              under legal hold, or inside a retention window. Each was a
+              refusal the server was always going to make.
+            */}
+            {evidenceIsLocked(lifecycle) ? (
+              <ProovraButton label="Unlock" variant="secondary" loading={actionBusy} onPress={() => runAction("Unlock", { buildPath: buildEvidenceUnlockPath })} />
+            ) : (
+              <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { buildPath: buildEvidenceLockPath })} />
+            )}
+            {lifecycle === null || lifecycle.canArchive ? (
+              <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { buildPath: buildEvidenceArchivePath })} />
+            ) : null}
+            {lifecycle?.canUnarchive ? (
+              <ProovraButton label="Restore from archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Restore", { buildPath: buildEvidenceUnarchivePath })} />
+            ) : null}
             <ProovraButton label="Move to Trash" variant="danger" loading={actionBusy} onPress={() =>
                 runAction("Move to Trash", {
                   buildPath: buildEvidencePath,
@@ -510,6 +540,27 @@ export default function EvidenceDetailScreen() {
                 })
               } />
           </View>
+
+          {/*
+            The server's reason, rendered from its CODE. Saying "this cannot be
+            done" without why leaves the user to guess; guessing the verdict
+            ourselves would be a second authority.
+          */}
+          {lifecycle && !lifecycle.canArchive && lifecycle.archiveBlockReason ? (
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
+              {lifecycleBlockReasonLabel(lifecycle.archiveBlockReason)}
+            </ProovraText>
+          ) : null}
+          {lifecycle && !lifecycle.canTrash && lifecycle.trashBlockReason ? (
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
+              {lifecycleBlockReasonLabel(lifecycle.trashBlockReason)}
+            </ProovraText>
+          ) : null}
+          {lifecycle?.legalHold ? (
+            <ProovraText variant="label" color={theme.color.status.risk.fg} style={styles.note}>
+              A legal hold is in force on this record.
+            </ProovraText>
+          ) : null}
         </ProovraSection>
       ) : null}
 
