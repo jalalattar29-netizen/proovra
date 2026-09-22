@@ -644,7 +644,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        const processingPromise = batchAnalysisService.processBatch(id);
+        const processingPromise = batchAnalysisService.processBatch(userId, id);
 
         processingPromise
           .then(async () => {
@@ -757,7 +757,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.VALIDATION_ERROR, "Batch job is still processing");
         }
 
-        const aggregatedResults = await batchAnalysisService.getAggregateResults(id);
+        const aggregatedResults = await batchAnalysisService.getAggregateResults(userId, id);
 
         auditEnterpriseAction(req, {
           userId,
@@ -888,7 +888,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        const csv = await batchAnalysisService.exportAsCSV(id);
+        const csv = await batchAnalysisService.exportAsCSV(userId, id);
 
         auditEnterpriseAction(req, {
           userId,

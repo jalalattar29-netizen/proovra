@@ -181,6 +181,15 @@ const FAMILY_RULES = Object.freeze([
   // Targets the first pass could not place from their prefix alone. Each is
   // named for what it IS, and each was read before it was mapped.
   // ---------------------------------------------------------------------
+  /**
+   * BD-2 — the durable batch-analysis job and its items.
+   *
+   * A QUEUED BACKGROUND JOB, which is what this family is for. It analyses
+   * evidence but never writes to it: the only rows these writers touch are the
+   * job and its items. Placing it under evidence custody would say the batch
+   * mutates the record, and it does not.
+   */
+  [/^batchAnalysisJob(Item)?$/, "AUTOMATION_QUEUE_WEBHOOK"],
   /** The provider's own inbound event log, written by the signed webhook. */
   [/^(stripeWebhookEvent|paypalWebhookEvent)$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** The public verification page's view record for a shared package. */

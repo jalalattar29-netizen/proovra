@@ -165,335 +165,364 @@ function toMetadata(row: JobRow): BatchJobMetadata {
 
 const WITH_ITEMS = { items: true } as const;
 
-class BatchAnalysisService {
-  /**
-   * Create a batch job.
-   *
-   * `teamId` is the workspace every item belongs to. The caller establishes
-   * that the evidence is the caller's own and in ONE workspace before calling:
-   * a batch spanning two has no honest `team_id`, and picking one of them
-   * would make the rest invisible to their own workspace's reads.
-   */
-  async createJob(input: {
-    ownerUserId: string;
-    teamId: string;
-    evidenceIds: string[];
-    name: string;
-    description?: string;
-  }): Promise<BatchJobMetadata> {
-    const row = await prisma.batchAnalysisJob.create({
-      data: {
-        ownerUserId: input.ownerUserId,
-        teamId: input.teamId,
-        name: input.name.slice(0, 200),
-        description: input.description?.slice(0, 1000) ?? null,
-        status: "PENDING",
-        totalItems: input.evidenceIds.length,
-        items: {
-          create: input.evidenceIds.map((evidenceId, position) => ({
-            evidenceId,
-            position,
-            status: "PENDING" as const,
-          })),
-        },
+/**
+ * Create a batch job.
+ *
+ * `teamId` is the workspace every item belongs to. The caller establishes
+ * that the evidence is the caller's own and in ONE workspace before calling:
+ * a batch spanning two has no honest `team_id`, and picking one of them
+ * would make the rest invisible to their own workspace's reads.
+ */
+export async function createJob(input: {
+  ownerUserId: string;
+  teamId: string;
+  evidenceIds: string[];
+  name: string;
+  description?: string;
+}): Promise<BatchJobMetadata> {
+  const row = await prisma.batchAnalysisJob.create({
+    data: {
+      ownerUserId: input.ownerUserId,
+      teamId: input.teamId,
+      name: input.name.slice(0, 200),
+      description: input.description?.slice(0, 1000) ?? null,
+      status: "PENDING",
+      totalItems: input.evidenceIds.length,
+      items: {
+        create: input.evidenceIds.map((evidenceId, position) => ({
+          evidenceId,
+          position,
+          status: "PENDING" as const,
+        })),
       },
-      include: WITH_ITEMS,
-    });
-    return toMetadata(row);
+    },
+    include: WITH_ITEMS,
+  });
+  return toMetadata(row);
+}
+
+/** One job the caller owns, or null. A stranger's job answers the same. */
+export async function getJob(
+userId: string,
+jobId: string,
+): Promise<BatchJobMetadata | null> {
+  if (!isUuid(jobId)) return null;
+  const row = await prisma.batchAnalysisJob.findFirst({
+    where: { id: jobId, ownerUserId: userId },
+    include: WITH_ITEMS,
+  });
+  return row ? toMetadata(row) : null;
+}
+
+/** Every job the caller owns, newest first. */
+export async function listJobs(userId: string): Promise<BatchJobMetadata[]> {
+  const rows = await prisma.batchAnalysisJob.findMany({
+    where: { ownerUserId: userId },
+    include: WITH_ITEMS,
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(toMetadata);
+}
+
+/**
+ * Process a batch job.
+ *
+ * THE CLAIM IS THE POINT. One conditional update moves the job from
+ * PENDING-and-unclaimed to PROCESSING-and-claimed; Postgres decides, so a
+ * second instance that races loses and is told the job is already
+ * processing. The previous in-memory guard could only answer that for its
+ * own process.
+ */
+export async function processBatch(
+  ownerUserId: string,
+  jobId: string,
+  evidenceGetter?: (id: string) => Promise<unknown>,
+): Promise<void> {
+  if (!isUuid(jobId)) throw new Error("Job not found");
+
+  // Owner-scoped, like every other read here. A job belonging to someone else
+  // is not found — the same answer they get for one that does not exist.
+  const job = await prisma.batchAnalysisJob.findFirst({
+    where: { id: jobId, ownerUserId },
+    include: WITH_ITEMS,
+  });
+  if (!job) throw new Error("Job not found");
+
+  // THE CLAIM CARRIES THE OWNERSHIP PREDICATE ITSELF.
+  //
+  // It used to match on the id alone and rely on the route having checked
+  // ownership one call earlier. That is a binding a caller has to remember,
+  // and this service's own rule is that isolation belongs in the predicate.
+  const claimedAt = new Date();
+  const claim = await prisma.batchAnalysisJob.updateMany({
+    where: { id: jobId, ownerUserId, status: "PENDING", claimedAtUtc: null },
+    data: { status: "PROCESSING", claimedAtUtc: claimedAt, startedAtUtc: claimedAt },
+  });
+  if (claim.count === 0) {
+    // Claimed by another instance, or already past PENDING.
+    throw new Error("Batch job already processing");
   }
 
-  /** One job the caller owns, or null. A stranger's job answers the same. */
-  async getJob(userId: string, jobId: string): Promise<BatchJobMetadata | null> {
-    if (!isUuid(jobId)) return null;
-    const row = await prisma.batchAnalysisJob.findFirst({
-      where: { id: jobId, ownerUserId: userId },
-      include: WITH_ITEMS,
-    });
-    return row ? toMetadata(row) : null;
-  }
+  let processedItems = 0;
+  let failedItems = 0;
 
-  /** Every job the caller owns, newest first. */
-  async listJobs(userId: string): Promise<BatchJobMetadata[]> {
-    const rows = await prisma.batchAnalysisJob.findMany({
-      where: { ownerUserId: userId },
-      include: WITH_ITEMS,
-      orderBy: { createdAt: "desc" },
-    });
-    return rows.map(toMetadata);
-  }
+  try {
+    const items = [...job.items].sort((a, b) => a.position - b.position);
+    for (const item of items) {
+      // A cancellation that lands mid-run stops at the next item rather than
+      // finishing the batch the operator asked to stop. One indexed lookup
+      // per item is the cost of honouring the cancel at all.
+      const current = await prisma.batchAnalysisJob.findFirst({
+        where: { id: jobId, ownerUserId },
+        select: { status: true },
+      });
+      if (current?.status === "CANCELLED") return;
 
-  /**
-   * Process a batch job.
-   *
-   * THE CLAIM IS THE POINT. One conditional update moves the job from
-   * PENDING-and-unclaimed to PROCESSING-and-claimed; Postgres decides, so a
-   * second instance that races loses and is told the job is already
-   * processing. The previous in-memory guard could only answer that for its
-   * own process.
-   */
-  async processBatch(
-    jobId: string,
-    evidenceGetter?: (id: string) => Promise<unknown>,
-  ): Promise<void> {
-    if (!isUuid(jobId)) throw new Error("Job not found");
+      await prisma.batchAnalysisJobItem.update({
+        where: { id: item.id },
+        data: { status: "PROCESSING", startedAtUtc: new Date() },
+      });
 
-    const job = await prisma.batchAnalysisJob.findUnique({
-      where: { id: jobId },
-      include: WITH_ITEMS,
-    });
-    if (!job) throw new Error("Job not found");
+      try {
+        // Privacy-safe legacy batch result.
+        // Do not send raw files, image URLs, storage keys, PDFs, videos, or
+        // document contents to AI from this legacy batch service. New AI
+        // analysis must go through /v1/ai/capture/* metadata-only endpoints.
+        let evidenceMetadata: Record<string, unknown> = {};
 
-    const claimedAt = new Date();
-    const claim = await prisma.batchAnalysisJob.updateMany({
-      where: { id: jobId, status: "PENDING", claimedAtUtc: null },
-      data: { status: "PROCESSING", claimedAtUtc: claimedAt, startedAtUtc: claimedAt },
-    });
-    if (claim.count === 0) {
-      // Claimed by another instance, or already past PENDING.
-      throw new Error("Batch job already processing");
-    }
+        if (evidenceGetter) {
+          const evidence = (await evidenceGetter(item.evidenceId)) as
+            | BatchEvidenceMetadataSource
+            | null
+            | undefined;
 
-    let processedItems = 0;
-    let failedItems = 0;
-
-    try {
-      const items = [...job.items].sort((a, b) => a.position - b.position);
-      for (const item of items) {
-        // A cancellation that lands mid-run stops at the next item rather than
-        // finishing the batch the operator asked to stop. One indexed lookup
-        // per item is the cost of honouring the cancel at all.
-        const current = await prisma.batchAnalysisJob.findUnique({
-          where: { id: jobId },
-          select: { status: true },
-        });
-        if (current?.status === "CANCELLED") return;
+          evidenceMetadata = {
+            id: item.evidenceId,
+            type: evidence?.type ?? null,
+            mimeType: evidence?.mimeType ?? null,
+            status: evidence?.status ?? null,
+            verificationStatus: evidence?.verificationStatus ?? null,
+            createdAt: evidence?.createdAt ?? null,
+            sizeBytes:
+              typeof evidence?.sizeBytes === "bigint"
+                ? evidence.sizeBytes.toString()
+                : (evidence?.sizeBytes ?? null),
+            hasStorageObject: Boolean(evidence?.storageBucket && evidence?.storageKey),
+          };
+        }
 
         await prisma.batchAnalysisJobItem.update({
           where: { id: item.id },
-          data: { status: "PROCESSING", startedAtUtc: new Date() },
+          data: {
+            status: "COMPLETED",
+            resultJson: evidenceMetadata as prismaPkg.Prisma.InputJsonValue,
+            completedAtUtc: new Date(),
+          },
         });
-
-        try {
-          // Privacy-safe legacy batch result.
-          // Do not send raw files, image URLs, storage keys, PDFs, videos, or
-          // document contents to AI from this legacy batch service. New AI
-          // analysis must go through /v1/ai/capture/* metadata-only endpoints.
-          let evidenceMetadata: Record<string, unknown> = {};
-
-          if (evidenceGetter) {
-            const evidence = (await evidenceGetter(item.evidenceId)) as
-              | BatchEvidenceMetadataSource
-              | null
-              | undefined;
-
-            evidenceMetadata = {
-              id: item.evidenceId,
-              type: evidence?.type ?? null,
-              mimeType: evidence?.mimeType ?? null,
-              status: evidence?.status ?? null,
-              verificationStatus: evidence?.verificationStatus ?? null,
-              createdAt: evidence?.createdAt ?? null,
-              sizeBytes:
-                typeof evidence?.sizeBytes === "bigint"
-                  ? evidence.sizeBytes.toString()
-                  : (evidence?.sizeBytes ?? null),
-              hasStorageObject: Boolean(evidence?.storageBucket && evidence?.storageKey),
-            };
-          }
-
-          await prisma.batchAnalysisJobItem.update({
-            where: { id: item.id },
-            data: {
-              status: "COMPLETED",
-              resultJson: evidenceMetadata as prismaPkg.Prisma.InputJsonValue,
-              completedAtUtc: new Date(),
-            },
-          });
-          processedItems += 1;
-        } catch (itemError) {
-          await prisma.batchAnalysisJobItem.update({
-            where: { id: item.id },
-            data: {
-              status: "FAILED",
-              error: boundedError(itemError),
-              completedAtUtc: new Date(),
-            },
-          });
-          failedItems += 1;
-        }
-
-        await prisma.batchAnalysisJob.update({
-          where: { id: jobId },
-          data: { processedItems, failedItems },
+        processedItems += 1;
+      } catch (itemError) {
+        await prisma.batchAnalysisJobItem.update({
+          where: { id: item.id },
+          data: {
+            status: "FAILED",
+            error: boundedError(itemError),
+            completedAtUtc: new Date(),
+          },
         });
+        failedItems += 1;
       }
 
-      // A cancellation that arrived while the last item ran must not be
-      // overwritten with COMPLETED. The conditional says so.
       await prisma.batchAnalysisJob.updateMany({
-        where: { id: jobId, status: "PROCESSING" },
-        data: { status: "COMPLETED", completedAtUtc: new Date(), processedItems, failedItems },
-      });
-    } catch (error) {
-      await prisma.batchAnalysisJob.updateMany({
-        where: { id: jobId, status: "PROCESSING" },
-        data: { status: "FAILED", completedAtUtc: new Date(), processedItems, failedItems },
-      });
-      // A whole-job failure previously left no trace of WHY. Bounded
-      // diagnostic — error class only, never the message, which can carry
-      // evidence-side detail.
-      logError("batch_analysis.job_failed", {
-        jobId,
-        processedItems,
-        failedItems,
-        totalItems: job.totalItems,
-        errorCode: error instanceof Error ? error.name.slice(0, 64) : "unknown_error",
+        where: { id: jobId, ownerUserId },
+        data: { processedItems, failedItems },
       });
     }
-  }
 
-  /**
-   * Cancel a batch job.
-   *
-   * PENDING is cancellable — more cheaply than PROCESSING, because nothing has
-   * started. This used to act only on PROCESSING and return `true` regardless,
-   * so cancelling a pending job changed nothing, told the operator it had
-   * worked, and wrote `outcome: success` into the audit log. The job then ran.
-   *
-   * A terminal job is NOT a failure to report as one: it is a job that already
-   * finished, and the caller is owed that answer rather than "not found",
-   * which would say the job never existed.
-   */
-  async cancelJob(userId: string, jobId: string): Promise<BatchCancelOutcome> {
-    if (!isUuid(jobId)) return "NOT_FOUND";
-
-    return prisma.$transaction(async (tx) => {
-      const job = await tx.batchAnalysisJob.findFirst({
-        where: { id: jobId, ownerUserId: userId },
-        select: { id: true, status: true },
-      });
-      // A job belonging to someone else answers exactly as a job that does not
-      // exist. The caller learns nothing either way.
-      if (!job) return "NOT_FOUND" as const;
-
-      if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "CANCELLED") {
-        return "ALREADY_TERMINAL" as const;
-      }
-
-      const stoppedAt = new Date();
-      // An item that was mid-flight is recorded as stopped BY THE OPERATOR
-      // rather than as a generic failure: "this could not be analysed" and
-      // "somebody stopped this" are different things to say about evidence.
-      await tx.batchAnalysisJobItem.updateMany({
-        where: { jobId, status: { in: ["PENDING", "PROCESSING"] } },
-        data: { status: "FAILED", error: "Job cancelled by user", completedAtUtc: stoppedAt },
-      });
-      await tx.batchAnalysisJob.update({
-        where: { id: jobId },
-        data: { status: "CANCELLED", completedAtUtc: stoppedAt },
-      });
-      return "CANCELLED" as const;
+    // A cancellation that arrived while the last item ran must not be
+    // overwritten with COMPLETED. The conditional says so.
+    await prisma.batchAnalysisJob.updateMany({
+      where: { id: jobId, ownerUserId, status: "PROCESSING" },
+      data: { status: "COMPLETED", completedAtUtc: new Date(), processedItems, failedItems },
+    });
+  } catch (error) {
+    await prisma.batchAnalysisJob.updateMany({
+      where: { id: jobId, ownerUserId, status: "PROCESSING" },
+      data: { status: "FAILED", completedAtUtc: new Date(), processedItems, failedItems },
+    });
+    // A whole-job failure previously left no trace of WHY. Bounded
+    // diagnostic — error class only, never the message, which can carry
+    // evidence-side detail.
+    logError("batch_analysis.job_failed", {
+      jobId,
+      processedItems,
+      failedItems,
+      totalItems: job.totalItems,
+      errorCode: error instanceof Error ? error.name.slice(0, 64) : "unknown_error",
     });
   }
+}
 
-  /** Aggregate results from a batch job. */
-  async getAggregateResults(jobId: string): Promise<{
-    classifications: Record<string, number>;
-    averageConfidence: number;
-    safetyBreakdown: Record<string, number>;
-    mostCommonTags: Array<{ tag: string; count: number }>;
-    successRate: number;
-  }> {
-    const job = await this.requireJob(jobId);
+/**
+ * Cancel a batch job.
+ *
+ * PENDING is cancellable — more cheaply than PROCESSING, because nothing has
+ * started. This used to act only on PROCESSING and return `true` regardless,
+ * so cancelling a pending job changed nothing, told the operator it had
+ * worked, and wrote `outcome: success` into the audit log. The job then ran.
+ *
+ * A terminal job is NOT a failure to report as one: it is a job that already
+ * finished, and the caller is owed that answer rather than "not found",
+ * which would say the job never existed.
+ */
+export async function cancelJob(
+  userId: string,
+  jobId: string,
+): Promise<BatchCancelOutcome> {
+  if (!isUuid(jobId)) return "NOT_FOUND";
 
-    const classifications: Record<string, number> = {};
-    const safetyBreakdown: Record<string, number> = {};
-    const tagCounts: Record<string, number> = {};
-    let totalConfidence = 0;
-    let confidenceCount = 0;
+  return prisma.$transaction(async (tx) => {
+    const job = await tx.batchAnalysisJob.findFirst({
+      where: { id: jobId, ownerUserId: userId },
+      select: { id: true, status: true },
+    });
+    // A job belonging to someone else answers exactly as a job that does not
+    // exist. The caller learns nothing either way.
+    if (!job) return "NOT_FOUND" as const;
 
-    job.items.forEach((item) => {
-      if (!item.result) return;
+    if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "CANCELLED") {
+      return "ALREADY_TERMINAL" as const;
+    }
+
+    const stoppedAt = new Date();
+    // An item that was mid-flight is recorded as stopped BY THE OPERATOR
+    // rather than as a generic failure: "this could not be analysed" and
+    // "somebody stopped this" are different things to say about evidence.
+    // The WRITE carries the ownership predicate, not just the read above it.
+    // A binding that lives only in an earlier statement is one a future
+    // caller has to remember; this service's rule is that isolation is a
+    // predicate.
+    await tx.batchAnalysisJobItem.updateMany({
+      where: {
+        jobId,
+        job: { ownerUserId: userId },
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+      data: { status: "FAILED", error: "Job cancelled by user", completedAtUtc: stoppedAt },
+    });
+    await tx.batchAnalysisJob.updateMany({
+      where: { id: jobId, ownerUserId: userId },
+      data: { status: "CANCELLED", completedAtUtc: stoppedAt },
+    });
+    return "CANCELLED" as const;
+  });
+}
+
+/** Aggregate results from a batch job. */
+export async function getAggregateResults(
+  ownerUserId: string,
+  jobId: string,
+): Promise<{
+  classifications: Record<string, number>;
+  averageConfidence: number;
+  safetyBreakdown: Record<string, number>;
+  mostCommonTags: Array<{ tag: string; count: number }>;
+  successRate: number;
+}> {
+  const job = await requireJob(ownerUserId, jobId);
+
+  const classifications: Record<string, number> = {};
+  const safetyBreakdown: Record<string, number> = {};
+  const tagCounts: Record<string, number> = {};
+  let totalConfidence = 0;
+  let confidenceCount = 0;
+
+  job.items.forEach((item) => {
+    if (!item.result) return;
+    const result = item.result as BatchItemAnalysis;
+
+    if (result.classification?.category) {
+      classifications[result.classification.category] =
+        (classifications[result.classification.category] || 0) + 1;
+      totalConfidence += result.classification.confidence || 0;
+      confidenceCount++;
+    }
+
+    if (result.moderation?.risk_level) {
+      safetyBreakdown[result.moderation.risk_level] =
+        (safetyBreakdown[result.moderation.risk_level] || 0) + 1;
+    }
+
+    if (result.tags?.tags) {
+      result.tags.tags.forEach((tag: string) => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      });
+    }
+  });
+
+  const mostCommonTags = Object.entries(tagCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([tag, count]) => ({ tag, count }));
+
+  return {
+    classifications,
+    averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
+    safetyBreakdown,
+    mostCommonTags,
+    successRate: job.totalItems > 0 ? (job.processedItems / job.totalItems) * 100 : 0,
+  };
+}
+
+/** Export batch results as CSV. */
+export async function exportAsCSV(ownerUserId: string, jobId: string): Promise<string> {
+  const job = await requireJob(ownerUserId, jobId);
+
+  const rows = ["Evidence ID,Status,Classification,Confidence,Risk Level,Tags,Error"];
+
+  job.items.forEach((item) => {
+    if (item.result) {
       const result = item.result as BatchItemAnalysis;
+      const tags = result.tags?.tags?.join(";") || "";
+      const classification = result.classification?.category || "N/A";
+      const confidence = result.classification?.confidence?.toFixed(2) || "N/A";
+      const riskLevel = result.moderation?.risk_level || "N/A";
 
-      if (result.classification?.category) {
-        classifications[result.classification.category] =
-          (classifications[result.classification.category] || 0) + 1;
-        totalConfidence += result.classification.confidence || 0;
-        confidenceCount++;
-      }
+      rows.push(
+        `${item.evidenceId},${item.status},${classification},${confidence},${riskLevel},"${tags}",${item.error || ""}`,
+      );
+    } else {
+      rows.push(`${item.evidenceId},${item.status},N/A,N/A,N/A,,${item.error || ""}`);
+    }
+  });
 
-      if (result.moderation?.risk_level) {
-        safetyBreakdown[result.moderation.risk_level] =
-          (safetyBreakdown[result.moderation.risk_level] || 0) + 1;
-      }
+  return rows.join("\n");
+}
 
-      if (result.tags?.tags) {
-        result.tags.tags.forEach((tag: string) => {
-          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        });
-      }
-    });
+/** Estimate completion, or null while there is nothing to estimate from. */
+export async function estimateCompletion(
+  ownerUserId: string,
+  jobId: string,
+): Promise<Date | null> {
+  const job = await requireJob(ownerUserId, jobId);
+  if (!job.startedAt || job.processedItems === 0) return null;
 
-    const mostCommonTags = Object.entries(tagCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([tag, count]) => ({ tag, count }));
+  const elapsed = Date.now() - job.startedAt.getTime();
+  const avgTimePerItem = elapsed / (job.processedItems + job.failedItems);
+  const remainingItems = job.totalItems - (job.processedItems + job.failedItems);
+  return new Date(Date.now() + remainingItems * avgTimePerItem);
+}
 
-    return {
-      classifications,
-      averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
-      safetyBreakdown,
-      mostCommonTags,
-      successRate: job.totalItems > 0 ? (job.processedItems / job.totalItems) * 100 : 0,
-    };
-  }
-
-  /** Export batch results as CSV. */
-  async exportAsCSV(jobId: string): Promise<string> {
-    const job = await this.requireJob(jobId);
-
-    const rows = ["Evidence ID,Status,Classification,Confidence,Risk Level,Tags,Error"];
-
-    job.items.forEach((item) => {
-      if (item.result) {
-        const result = item.result as BatchItemAnalysis;
-        const tags = result.tags?.tags?.join(";") || "";
-        const classification = result.classification?.category || "N/A";
-        const confidence = result.classification?.confidence?.toFixed(2) || "N/A";
-        const riskLevel = result.moderation?.risk_level || "N/A";
-
-        rows.push(
-          `${item.evidenceId},${item.status},${classification},${confidence},${riskLevel},"${tags}",${item.error || ""}`,
-        );
-      } else {
-        rows.push(`${item.evidenceId},${item.status},N/A,N/A,N/A,,${item.error || ""}`);
-      }
-    });
-
-    return rows.join("\n");
-  }
-
-  /** Estimate completion, or null while there is nothing to estimate from. */
-  async estimateCompletion(jobId: string): Promise<Date | null> {
-    const job = await this.requireJob(jobId);
-    if (!job.startedAt || job.processedItems === 0) return null;
-
-    const elapsed = Date.now() - job.startedAt.getTime();
-    const avgTimePerItem = elapsed / (job.processedItems + job.failedItems);
-    const remainingItems = job.totalItems - (job.processedItems + job.failedItems);
-    return new Date(Date.now() + remainingItems * avgTimePerItem);
-  }
-
-  private async requireJob(jobId: string): Promise<BatchJobMetadata> {
-    if (!isUuid(jobId)) throw new Error("Job not found");
-    const row = await prisma.batchAnalysisJob.findUnique({
-      where: { id: jobId },
-      include: WITH_ITEMS,
-    });
-    if (!row) throw new Error("Job not found");
-    return toMetadata(row);
-  }
+async function requireJob(ownerUserId: string, jobId: string): Promise<BatchJobMetadata> {
+  if (!isUuid(jobId)) throw new Error("Job not found");
+  // Owner-scoped. These read paths are reached from routes that check first,
+  // but a function that answers about ANY job by id alone is one refactor away
+  // from being called somewhere that does not.
+  const row = await prisma.batchAnalysisJob.findFirst({
+    where: { id: jobId, ownerUserId },
+    include: WITH_ITEMS,
+  });
+  if (!row) throw new Error("Job not found");
+  return toMetadata(row);
 }
 
 /**
@@ -504,13 +533,35 @@ class BatchAnalysisService {
  * is what the caller would have been told anyway, without a 500.
  */
 function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 /** Operator-readable, bounded. Never a provider response or file content. */
 function boundedError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : "Analysis failed";
-  return raw.slice(0, 400);
+const raw = error instanceof Error ? error.message : "Analysis failed";
+return raw.slice(0, 400);
 }
 
-export const batchAnalysisService = new BatchAnalysisService();
+/**
+ * The facade the routes call.
+ *
+ * An object over module-level functions, not a class instance. Every write
+ * therefore sits in a NAMED function the capability engine can trace to an
+ * entrypoint — as a class, all ten Prisma writers had `BatchAnalysisService`
+ * as their enclosing declaration, which nothing imports by name, and the
+ * engine correctly reported them unreachable.
+ *
+ * Each key is the function's OWN name, deliberately. Aliasing them
+ * (`createJob: createBatchJob`) put the same three writers back out of reach:
+ * the trace follows the name the caller uses.
+ */
+export const batchAnalysisService = {
+  createJob,
+  getJob,
+  listJobs,
+  processBatch,
+  cancelJob,
+  getAggregateResults,
+  exportAsCSV,
+  estimateCompletion,
+};

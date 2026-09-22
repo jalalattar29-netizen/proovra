@@ -204,8 +204,8 @@ describe("BD-2 — the job outlives the process that made it", () => {
     const id = await seed("pending", 1);
 
     const results = await Promise.allSettled([
-      batchAnalysisService.processBatch(id),
-      batchAnalysisService.processBatch(id),
+      batchAnalysisService.processBatch(OWNER, id),
+      batchAnalysisService.processBatch(OWNER, id),
     ]);
 
     const rejected = results.filter((r) => r.status === "rejected");
@@ -215,7 +215,7 @@ describe("BD-2 — the job outlives the process that made it", () => {
 
   it("a claimed job records that it was claimed, so a restart can tell", async () => {
     const id = await seed("pending", 1);
-    await batchAnalysisService.processBatch(id);
+    await batchAnalysisService.processBatch(OWNER, id);
 
     const seen = await otherSees(id);
     expect(seen.job?.claimed_at_utc).toBeInstanceOf(Date);
@@ -225,7 +225,7 @@ describe("BD-2 — the job outlives the process that made it", () => {
 
   it("progress is persisted as it happens, not only at the end", async () => {
     const id = await seed("pending", 3);
-    await batchAnalysisService.processBatch(id);
+    await batchAnalysisService.processBatch(OWNER, id);
 
     const seen = await otherSees(id);
     expect(Number(seen.job?.processed_items)).toBe(3);
@@ -239,7 +239,7 @@ describe("BD-2 — the job outlives the process that made it", () => {
     await batchAnalysisService.cancelJob(OWNER, id);
 
     // The claim refuses, because the job is no longer PENDING.
-    await expect(batchAnalysisService.processBatch(id)).rejects.toThrow(/already processing/);
+    await expect(batchAnalysisService.processBatch(OWNER, id)).rejects.toThrow(/already processing/);
     expect((await batchAnalysisService.getJob(OWNER, id))?.status).toBe(BatchStatus.CANCELLED);
   });
 
@@ -282,5 +282,24 @@ describe("BD-2 — the job outlives the process that made it", () => {
       [id],
     );
     expect(left.rows[0].n).toBe(0);
+  });
+});
+
+describe("BD-2 — the write carries its own ownership predicate", () => {
+  it("a stranger cannot process someone else's job", async () => {
+    // `processBatch` took only a job id and relied on the route having checked
+    // ownership one call earlier. The route did check — so this was never
+    // reachable — but the binding lived in a caller that had to remember it,
+    // and the capability engine said so precisely: the WRITER was UNBOUND.
+    // It is a predicate now, which is the rule the rest of this service
+    // already follows.
+    const id = await seed("pending", 1);
+
+    await expect(batchAnalysisService.processBatch(STRANGER, id)).rejects.toThrow(/not found/i);
+
+    // Untouched: still pending, still unclaimed.
+    const seen = await otherSees(id);
+    expect(seen.job?.status).toBe("PENDING");
+    expect(seen.job?.claimed_at_utc).toBeNull();
   });
 });

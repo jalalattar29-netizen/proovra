@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1269
-ROUTE_ATTRIBUTED_REACHABLE                  1123
+TerminalWriters                             1279
+ROUTE_ATTRIBUTED_REACHABLE                  1133
 JOB_ATTRIBUTED_REACHABLE                     128
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -208,6 +208,29 @@ registrations and one instrument repair, with nothing else moved by hand:
     Cases tab reads it for four counters the replacement does not carry), and
     the native inbox migrated off the tombstoned `snooze` and `dismiss`
     aliases onto the canonical `remind` and `archive`.
+
+Result deltas after BD-2 DURABLE BATCH JOBS (2026-09-22). One number moved,
+and it is the same number twice:
+
+  * TerminalWriters 1269 -> 1279 and ROUTE_ATTRIBUTED_REACHABLE 1123 -> 1133.
+    The SAME TEN writers, and no route was added. Batch analysis kept its jobs
+    in a plain object on a module singleton, so a restart lost every job and a
+    second API instance could not see the first one's; the state moved into
+    `batch_analysis_jobs` / `batch_analysis_job_items` and ten database
+    writes exist where ten in-memory assignments used to. All ten are reachable
+    from the batch-analysis routes, which is why both scalars move by the same
+    amount and DEAD_UNREACHABLE stays 0.
+
+    Two instrument lessons are recorded in the code itself. The writers were
+    first reported DEAD_UNREACHABLE because, as methods of a class nothing
+    imports by name, their enclosing declaration was `BatchAnalysisService`;
+    they are module-level functions now. Three of them went unreachable AGAIN
+    when the facade aliased them (`createJob: createBatchJob`) — the trace
+    follows the name the caller uses — so each facade key is now the function's
+    own name. And `processBatch` and `cancelJob` were correctly reported
+    tenant-UNBOUND while they matched on job id alone and relied on the route
+    having checked ownership one call earlier; every write carries the owner
+    predicate now, which is the rule the reads in that service already followed.
 
 AuditEngineIntegrity returned to PASS in this pass, from FAIL with
 DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,

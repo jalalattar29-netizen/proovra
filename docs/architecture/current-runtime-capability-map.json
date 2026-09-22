@@ -57,14 +57,14 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "TerminalWriters": 1279,
-    "ReachableSensitiveMutations": 1262,
-    "ClassifiedSensitiveMutations": 1262,
+    "ReachableSensitiveMutations": 1272,
+    "ClassifiedSensitiveMutations": 1272,
     "UnclassifiedMutationWriters": 0,
-    "UnclassifiedWritersTotal": 10,
-    "NonRequestWriters": 17,
+    "UnclassifiedWritersTotal": 0,
+    "NonRequestWriters": 7,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 10,
-    "DeadUnreachableWritersPending": 10,
+    "DeadUnreachableWriters": 0,
+    "DeadUnreachableWritersPending": 0,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 1,
     "AuthorizationAfterMutation": 0,
@@ -82,7 +82,7 @@
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 62,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
-      "AUTOMATION_QUEUE_WEBHOOK": 104,
+      "AUTOMATION_QUEUE_WEBHOOK": 114,
       "REPORT_EXPORT_REDACTION": 49,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 110
     },
@@ -96,11 +96,11 @@
       "SEED": 1,
       "INJECTED_PORT_IMPLEMENTATION": 1,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 10
+      "DEAD_UNREACHABLE_WRITER": 0
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1123,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1133,
       "JOB_ATTRIBUTED_REACHABLE": 128,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 1,
-      "DEAD_UNREACHABLE": 10,
+      "DEAD_UNREACHABLE": 0,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,11 +124,11 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8813,
+      "METHOD_ON_VALUE": 8806,
       "UNRESOLVED_IDENTIFIER": 1145
     },
     "MutationFixpointRounds": 9,
-    "MutationClosurePass": false,
+    "MutationClosurePass": true,
     "PreservedWritersWithoutEvidence": 0,
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
@@ -28761,304 +28761,334 @@
       }
     },
     {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.create@184",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:184",
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.create@183",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:183",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "createJob",
       "kind": "DATABASE",
       "target": "batchAnalysisJob",
       "mutationKind": "create",
-      "primaryFamily": null,
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.update@325",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:325",
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@257",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:257",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "processBatch",
       "kind": "DATABASE",
       "target": "batchAnalysisJob",
-      "mutationKind": "update",
-      "primaryFamily": null,
+      "mutationKind": "updateMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.update@391",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:391",
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@335",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:335",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "processBatch",
       "kind": "DATABASE",
       "target": "batchAnalysisJob",
-      "mutationKind": "update",
-      "primaryFamily": null,
+      "mutationKind": "updateMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@343",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:343",
+      "file": "services/api/src/services/batch-analysis.service.ts",
+      "enclosingDeclaration": "processBatch",
+      "kind": "DATABASE",
+      "target": "batchAnalysisJob",
+      "mutationKind": "updateMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@348",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:348",
+      "file": "services/api/src/services/batch-analysis.service.ts",
+      "enclosingDeclaration": "processBatch",
+      "kind": "DATABASE",
+      "target": "batchAnalysisJob",
+      "mutationKind": "updateMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@412",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:412",
+      "file": "services/api/src/services/batch-analysis.service.ts",
+      "enclosingDeclaration": "cancelJob",
+      "kind": "DATABASE",
+      "target": "batchAnalysisJob",
+      "mutationKind": "updateMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": true,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/cancel"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@247",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:247",
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.update@281",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:281",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
-      "kind": "DATABASE",
-      "target": "batchAnalysisJob",
-      "mutationKind": "updateMany",
-      "primaryFamily": null,
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@333",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:333",
-      "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
-      "kind": "DATABASE",
-      "target": "batchAnalysisJob",
-      "mutationKind": "updateMany",
-      "primaryFamily": null,
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJob.updateMany@338",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:338",
-      "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
-      "kind": "DATABASE",
-      "target": "batchAnalysisJob",
-      "mutationKind": "updateMany",
-      "primaryFamily": null,
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.update@271",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:271",
-      "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "processBatch",
       "kind": "DATABASE",
       "target": "batchAnalysisJobItem",
       "mutationKind": "update",
-      "primaryFamily": null,
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.update@304",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:304",
-      "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
-      "kind": "DATABASE",
-      "target": "batchAnalysisJobItem",
-      "mutationKind": "update",
-      "primaryFamily": null,
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
       "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.update@314",
       "terminalLocation": "services/api/src/services/batch-analysis.service.ts:314",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "processBatch",
       "kind": "DATABASE",
       "target": "batchAnalysisJobItem",
       "mutationKind": "update",
-      "primaryFamily": null,
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
-      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.updateMany@387",
-      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:387",
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.update@324",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:324",
       "file": "services/api/src/services/batch-analysis.service.ts",
-      "enclosingDeclaration": "BatchAnalysisService",
+      "enclosingDeclaration": "processBatch",
+      "kind": "DATABASE",
+      "target": "batchAnalysisJobItem",
+      "mutationKind": "update",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/process"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/batch-analysis.service.ts#batchAnalysisJobItem.updateMany@404",
+      "terminalLocation": "services/api/src/services/batch-analysis.service.ts:404",
+      "file": "services/api/src/services/batch-analysis.service.ts",
+      "enclosingDeclaration": "cancelJob",
       "kind": "DATABASE",
       "target": "batchAnalysisJobItem",
       "mutationKind": "updateMany",
-      "primaryFamily": null,
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": true,
-      "entryRoutes": [],
+      "entryRoutes": [
+        "POST /v1/batch-analysis/:id/cancel"
+      ],
       "entryJobs": [],
-      "entryModules": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/enterprise.routes.ts"
+      ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
+        "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+      }
     },
     {
       "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalOrder@353",
@@ -36258,7 +36288,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -93690,6 +93720,7 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
@@ -93697,7 +93728,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -93734,6 +93765,7 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
@@ -93741,7 +93773,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -93797,6 +93829,7 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
@@ -93804,7 +93837,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -93841,6 +93874,7 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
@@ -93848,7 +93882,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -114315,6 +114349,7 @@
         "adminAuditLog",
         "analyticsEvent",
         "apiCredential",
+        "batchAnalysisJob",
         "entitlement",
         "teamMember",
         "user"
@@ -121521,6 +121556,7 @@
         "adminAuditLog",
         "analyticsEvent",
         "apiCredential",
+        "batchAnalysisJob",
         "evidence",
         "user"
       ],
@@ -130034,14 +130070,17 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "analyticsEvent"
+        "analyticsEvent",
+        "batchAnalysisJob"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
       "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/batch-analysis.service.ts: batchAnalysisJob.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -130092,15 +130131,18 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "analyticsEvent"
+        "analyticsEvent",
+        "batchAnalysisJob",
+        "batchAnalysisJobItem"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -130154,15 +130196,18 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "batchAnalysisJob",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "analyticsEvent"
+        "analyticsEvent",
+        "batchAnalysisJob",
+        "batchAnalysisJobItem"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [],

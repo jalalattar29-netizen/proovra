@@ -137,7 +137,7 @@
     "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
-    "ProductBehaviorTestsRemoved": 1,
+    "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
     "ProductBehaviorTestsInventoried": 232
   },
@@ -176,9 +176,7 @@
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 16
   },
-  "problems": [
-    "PRODUCT BEHAVIOUR TEST DELETED: services/api/test/batch-analysis-cancellation.test.ts"
-  ],
+  "problems": [],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],
