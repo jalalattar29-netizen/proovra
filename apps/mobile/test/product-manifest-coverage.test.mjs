@@ -115,9 +115,16 @@ test("every NATIVE_REQUIRED route has a declared Native destination", () => {
 test("every declared Native destination points at route files that exist", () => {
   for (const [webRoute, dest] of Object.entries(NATIVE_DESTINATIONS)) {
     // NOT_STARTED and BLOCKED_BY_USER_DECISION have no file yet, by definition.
-    // BLOCKED_BY_EXTERNAL does — everything repository-executable is built and
-    // only something outside the repository is outstanding.
+    //
+    // BLOCKED_BY_EXTERNAL usually DOES have one — everything repository-
+    // executable is built and only something outside is outstanding. But when
+    // the external dependency IS the surface's only entry point, the screen is
+    // part of what is blocked: building it would produce something nothing can
+    // navigate to, which is the exact failure this conversion fixed in the
+    // credential family. Such a row declares no routeFile and is required
+    // instead to name the dependency (asserted below).
     if (dest.status === "NOT_STARTED" || dest.status === "BLOCKED_BY_USER_DECISION") continue;
+    if (dest.status === "BLOCKED_BY_EXTERNAL" && !dest.routeFile) continue;
     assert.ok(dest.routeFile, `${webRoute} is ${dest.status} but declares no routeFile`);
     // One responsive web surface may legitimately split into several native
     // screens (Settings panes are the case that forced it), so every file the

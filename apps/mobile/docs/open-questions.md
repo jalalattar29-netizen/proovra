@@ -8,7 +8,16 @@ is blocked and what continued.
 
 ---
 
-## Q1 — How does Native serve canonical legal content?
+## Q1 — How does Native serve canonical legal content? — **RESOLVED**
+
+**Resolved 2026-09-22.** A canonical server-served contract: one authored
+corpus (`apps/web/content/legal/en/*.md`), generated into `@proovra/shared/legal`
+and served by `GET /v1/legal/:slug` to both Web and Native. Nothing is bundled,
+no browser is opened, and the 9 rows this blocked are closed (two of them were
+misattributed and corrected with evidence). The repository chose the shape:
+`generate-runbook-catalog.mjs` already rejects the other two options in writing.
+
+The question as originally recorded:
 
 **Question.** `/legal/[slug]` and `/settings/legal/[slug]` are NATIVE_REQUIRED.
 Where does the Native app get the text?
@@ -72,7 +81,16 @@ Notifications, Capture convergence, Settings › Security, Home, Search.
 
 ---
 
-## Q2 — Should Native ship a notification PREFERENCES surface, or read-only?
+## Q2 — Should Native ship a notification PREFERENCES surface? — **RESOLVED**
+
+**Resolved 2026-09-22, and the premise was wrong.**
+`NOTIFICATION_PREFERENCE_CHANNELS` is `["IN_APP", "EMAIL"]` and the repository
+contains no push infrastructure at all, so these preferences never governed
+push. Preferences and the quiet-hours schedule are ported; contact-channel
+verification is not, because it verifies a phone number and no SMS channel
+exists to deliver to.
+
+The question as originally recorded:
 
 **Question.** `/v1/me/notification-preferences`, `/v1/me/notification-schedule`
 and `/v1/communications/verify/*` back the web's preferences panel and contact-
@@ -110,7 +128,16 @@ are being emailed about, which is a real complaint with no workaround.
 
 ---
 
-## Q3 — Is `/operations/batch-analysis` and `/operations/quotas` really normal-user?
+## Q3 — Are the two `/operations` rows really normal-user? — **RESOLVED**
+
+**Resolved 2026-09-22 from the registry itself.** Both entries state the
+intent in their own comments ("this is a self-service quota view, NOT a
+platform-admin tool" / "self-service view"). They share the `/operations` URL
+prefix after a Phase R7.5 move from `/dashboard`, but their `domain` is
+`PERSONAL_WORKSPACE`. The derivation was right, there is no registry omission,
+and both are built.
+
+The question as originally recorded:
 
 **Question.** The derived manifest classifies these two NATIVE_REQUIRED because
 their registry entries are `dashboard.batch_analysis` / `dashboard.quotas`, which
@@ -156,6 +183,34 @@ needs hardware.
 **Blocked:** UC-5 physical acceptance only.
 **Not blocked:** the UC entry points are integrated into Capture, the crypto path
 is fixed, and the lifecycle is converged.
+
+---
+
+## Q5 — Should the decommissioned `/share/[id]` web route be deleted?
+
+**Question.** `/share/[id]` is classified NATIVE_REQUIRED, but the web page it
+names renders:
+
+> Share Link Page Not Active — This page is not used in the current sharing flow.
+
+It reads no share, resolves no id and calls no API. Porting it would be
+building a dead surface.
+
+**Why the repository does not answer it.** The page is unreferenced — every
+remaining mention of `/share/` is a path-PREFIX rule in privacy redaction and
+analytics rejection (`apps/web/lib/privacy/redact.ts`,
+`packages/shared/src/tenant-url.ts`), which exist for URLs that may still be in
+logs, not for this page. But the route is live: today the URL answers a polite
+notice and after deletion it would answer 404. Which of those an old shared link
+should get is a product decision about the web, and Native does not get to make
+it.
+
+**Option A — delete the route.** Old links 404. Cleanest tree.
+**Option B — keep it.** Old links keep getting an explanation. One dead file.
+
+**Blocked by this decision:** 1 manifest row, and only in the sense that it
+cannot be closed as parity with a surface that does nothing.
+**Not blocked:** everything else.
 
 ---
 

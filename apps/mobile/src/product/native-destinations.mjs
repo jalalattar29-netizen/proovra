@@ -407,9 +407,14 @@ export const NATIVE_DESTINATIONS = {
   },
   "/share/[id]": {
     routeFile: null,
-    status: "NOT_STARTED",
+    status: "BLOCKED_BY_USER_DECISION",
+    blockedBy: "Q5",
     webSources: ["apps/web/app/share/[id]/page.tsx"],
-    gaps: ["public share link has no Native destination"],
+    gaps: [
+      "THE WEB SURFACE IS DECOMMISSIONED AND SAYS SO. The page renders 'Share Link Page Not Active - This page is not used in the current sharing flow', inside a marketing shell. It reads no share, resolves no id and calls no API.",
+      "Zero inbound links: every remaining reference to /share/ is a path-PREFIX rule in privacy redaction and analytics rejection (apps/web/lib/privacy/redact.ts, packages/shared/src/tenant-url.ts and their tests), which are about URLs that may still exist in logs, not about this page.",
+      "Porting a page whose own text says it is not used would be building a dead surface. Deleting the web route changes what a live URL answers - today a polite notice, afterwards a 404 - which is a web product decision, not a Native one.",
+    ],
   },
   "/legal/[slug]": {
     routeFile: "(stack)/legal/[slug].tsx",
@@ -580,12 +585,72 @@ export const NATIVE_DESTINATIONS = {
   },
 
   /* --------------------------------------------------- intake / portal flows */
-  "/intake/[token]": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/intake/[token]/page.tsx"], gaps: ["external intake has no Native destination"] },
-  "/intake/[token]/capture": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/intake/[token]/capture/page.tsx"], gaps: ["external intake capture has no Native destination"] },
-  "/portal": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/portal/page.tsx"], gaps: ["external reviewer portal entry has no Native destination"] },
-  "/portal/[token]": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/portal/[token]/page.tsx"], gaps: [] },
-  "/portal/[token]/work/[workflowId]": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/portal/[token]/work/[workflowId]/page.tsx"], gaps: [] },
-  "/portal/accept/[grantId]": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/portal/accept/[grantId]/page.tsx"], gaps: [] },
+  "/intake/[token]": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/intake/[token]/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "The page states its own contract: it calls no authenticated endpoint and passes auth:false so the reader's session is never attached. Its reader is an external contributor with no PROOVRA account.",
+    ],
+  },
+  "/intake/[token]/capture": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/intake/[token]/capture/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "Uploads go straight to S3 via presigned PUT from the public API, deliberately outside the authenticated capture orchestration the app is built around.",
+    ],
+  },
+  "/portal": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/portal/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "The external reviewer portal entry. Its reader is a reviewer outside the workspace.",
+    ],
+  },
+  "/portal/[token]": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/portal/[token]/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "The reviewer dashboard authenticates with the route token as its own bearer - a session that is not a PROOVRA user session.",
+    ],
+  },
+  "/portal/[token]/work/[workflowId]": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/portal/[token]/work/[workflowId]/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "Reached only from inside the portal dashboard, which is itself token-only.",
+    ],
+  },
+  "/portal/accept/[grantId]": {
+    routeFile: null,
+    status: "BLOCKED_BY_EXTERNAL",
+    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    webSources: ["apps/web/app/portal/accept/[grantId]/page.tsx"],
+    gaps: [
+      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
+      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
+      "portal-invitation-email.service.ts mints this from WEB_BASE_URL as /portal/accept/<grantId>?token=...",
+    ],
+  },
 };
 
 /** Counts by status — used by the ledger report and the coverage guard. */
