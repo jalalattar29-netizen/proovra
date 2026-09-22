@@ -516,17 +516,47 @@ hasActiveDraft: isSessionActive || isRecording,
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  /**
+   * Wait for the report, WITHOUT minting its URL.
+   *
+   * ===========================================================================
+   * THIS POLLED A CUSTODY-RECORDING ENDPOINT
+   * ===========================================================================
+   * It called `GET /v1/evidence/:id/report/latest` in a retry loop to find out
+   * whether the report was ready. That route's success path does this:
+   *
+   *     await appendCustodyEvent({
+   *       eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED, ...
+   *     })
+   *
+   * So the first poll that succeeded wrote REPORT_DOWNLOADED into the custody
+   * chain of the record — during a background wait, with nobody having
+   * downloaded anything. Every record captured on a phone carried a download
+   * event that never happened, in the one log whose whole purpose is to be an
+   * accurate account of what was done to the evidence.
+   *
+   * `GET /v1/evidence/:id/artifacts/status` answers the same question and
+   * appends nothing. It is the endpoint the Evidence Detail screen already
+   * uses, under a comment stating the rule this loop was breaking: "STATUS
+   * BEFORE URL — side-effect-free status first; only mint the report URL
+   * (which records a custody/audit download) once the server says READY."
+   *
+   * The URL is minted where a person asks for the file, and nowhere else.
+   */
   const pollReport = useCallback(async (evidenceId: string) => {
     const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000];
     for (let i = 0; i < delays.length; i += 1) {
       try {
-        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
-        setInfo(null);
-        return;
+        const st = await apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`);
+        if (st?.outputs?.report?.state === "READY") {
+          setInfo(null);
+          return;
+        }
+        setInfo("Report still generating...");
       } catch {
         setInfo("Report still generating...");
-        await sleep(delays[i]);
       }
+      await sleep(delays[i]);
     }
     setInfo("Report is still generating. Try again shortly.");
   }, []);
