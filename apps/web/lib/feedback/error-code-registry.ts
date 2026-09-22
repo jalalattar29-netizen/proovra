@@ -93,6 +93,17 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // -- Authorization / anti-enumeration ------------------------------------
   FORBIDDEN: { disposition: "customer", where: "global" },
   NOT_FOUND: { disposition: "customer", where: "global" },
+  LEGAL_DOCUMENT_NOT_FOUND: {
+    disposition: "customer",
+    where: "global",
+    why:
+      "NOT anti-enumeration. The legal corpus is public — every slug it serves " +
+      "is linked from the marketing site and the app — so a 404 here leaks " +
+      "nothing and means exactly what it says: there is no document by that " +
+      "name. A reader who followed a stale link is owed that sentence rather " +
+      "than a generic failure, because the recovery is to go to the current " +
+      "link, and nothing else on the page can tell them so.",
+  },
   CASE_NOT_FOUND: {
     disposition: "generic",
     why:

@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1157
-RegisteredRoutes                            1158
+ProductionRegisteredRoutes                  1160
+RegisteredRoutes                            1161
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1267
-ROUTE_ATTRIBUTED_REACHABLE                  1121
+TerminalWriters                             1269
+ROUTE_ATTRIBUTED_REACHABLE                  1123
 JOB_ATTRIBUTED_REACHABLE                     128
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -74,8 +74,8 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        956
-NonProductDispositionedRoutes                201
+ProductConsumedRoutes                        961
+NonProductDispositionedRoutes                199
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
 
@@ -182,6 +182,36 @@ unchanged at 1121). UC-4 rides the existing media-intelligence queue as run kind
 `20280650000000_uc4_screen_intelligence` (registered in every gate; NOT applied to
 Production). UndisposedRoutes 0, DynamicUnresolvedConsumers 0, MutationClosurePass
 true, AuditEngineIntegrity PASS.
+
+Result deltas after NATIVE CONVERGENCE CLOSURE (2026-09-22). Three route
+registrations and one instrument repair, with nothing else moved by hand:
+
+  * THREE NEW ROUTES take ProductionRegisteredRoutes 1157 -> 1160 and
+    RegisteredRoutes 1158 -> 1161, and their handlers take TerminalWriters
+    1267 -> 1269 and ROUTE_ATTRIBUTED_REACHABLE 1121 -> 1123. They are
+    `GET /v1/legal` and `GET /v1/legal/:slug` (the canonical server-served
+    legal corpus, which is how Native reads legal text without a second copy
+    or a browser), plus one capture-trust registration.
+
+  * ProductConsumedRoutes 956 -> 961 is NOT five new consumers. It is the
+    capability analyzer learning to follow an imported path builder, which it
+    already did for an imported const. The native app states every endpoint as
+    a pure builder in `apps/mobile/src/product/*`, so a hundred calls to
+    routes this repository owns had been reported "unsupported expression kind
+    CallExpression" and counted as unresolvable. Those routes were always
+    consumed; the instrument could not see it. DynamicUnresolvedConsumers
+    100 -> 0 in the same pass.
+
+  * NonProductDispositionedRoutes 201 -> 199 follows from the same repair.
+    `GET /v1/cases/summary` moved SUPERSEDED_REMOVE -> PRODUCT_CONNECTED
+    because its claim "no UI owed" was contradicted by the tree (the native
+    Cases tab reads it for four counters the replacement does not carry), and
+    the native inbox migrated off the tombstoned `snooze` and `dismiss`
+    aliases onto the canonical `remind` and `archive`.
+
+AuditEngineIntegrity returned to PASS in this pass, from FAIL with
+DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,
+AmbiguousConsumerSites 1 and ClassificationConflicts 5.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

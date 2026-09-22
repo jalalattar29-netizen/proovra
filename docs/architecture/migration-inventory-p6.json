@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 276,
-    "classifiedMigrations": 276,
+    "filesystemMigrations": 277,
+    "classifiedMigrations": 277,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 276,
+    "productionSnapshotUnknown": 277,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 276,
-    "classifiedMigrations": 276,
+    "filesystemMigrations": 277,
+    "classifiedMigrations": 277,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 276,
+    "productionSnapshotUnknown": 277,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 54,
+      "EXPAND": 55,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 65,
+      "SAFE_TO_APPLY_NOW": 66,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 276
+    "ProductionMigrationStateUnknown": 277
   },
   "gateFailures": [],
   "migrations": [
@@ -21439,8 +21439,74 @@
       "evidence": "UC-4 DERIVED SCREEN INTELLIGENCE (2026-09-18). Three additive changes: (1) widens media_intelligence_runs_kind_bounded to admit the run kind reconstruct_screen (UC-4 reuses the durable MediaIntelligenceRun lifecycle on the existing media-intelligence queue rather than a second queue); (2) widens evidence_part_derived_assets_kind_bounded to admit video_keyframe + screen_reconstruction (UC4-C declared these in code but a bounded CHECK enumerated only the five original kinds, so recordDerivedAsset would have been rejected at runtime — CHECK constraints are invisible to prisma migrate diff, which is why raw-schema-verify never surfaced it); (3) adds two labels to EvidenceExtractedTextKind (OCR_SCREEN = DERIVED_MACHINE_EXTRACTED, SCREEN_RECONSTRUCTION = DERIVED_RECONSTRUCTED) so UC-4 derived text persists through the canonical extracted-text authority. EXPAND: both CHECKs are DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification); enum ADD VALUE IF NOT EXISTS is additive. Every existing row already satisfies the narrower sets. SAFE ON EITHER IMAGE: the pre-UC-4 image writes none of the new kinds/labels, still admitted; the UC-4 image writes them, admitted only by the widened constraints, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD; ADD VALUE IF NOT EXISTS). Clean-boot rehearsed on disposable PostgreSQL 16, raw-schema-verify OK 880/0. ROLLBACK is code-first: revert the image and leave the widened constraints. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280660000000_uc5_ios_screen_capture_acquisition_mode",
       "order": 275,
+      "sqlPresent": true,
+      "byteLength": 2244,
+      "checksumSha256": "cc79eef8a457baab0f3a73c0453cfa9691a826e6e75122bddbc5608096339a1b",
+      "checksumSha256Raw": "cc79eef8a457baab0f3a73c0453cfa9691a826e6e75122bddbc5608096339a1b",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "7503a37ebe5e733352c47c89983257973ae11072",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "capture_sessions",
+          "evidence"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "capture_sessions_acquisition_mode_check",
+          "evidence_acquisition_mode_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260510120000_add_capture_sessions"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "UC-5 iOS NATIVE SCREEN CAPTURE (2026-09-19). Widens the same two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_IOS — the fourth isDirectCapture mode, produced by the PROOVRA iOS app recording the device screen through Apple’s user-authorised system broadcast (ReplayKit RPSystemBroadcastPickerView plus a PROOVRA Broadcast Upload Extension) in a server-issued capture session. EXPAND / SAFE_TO_APPLY_NOW, taken from the migration’s own header: \"A CHECK IN-list cannot be extended in place, so each constraint is dropped and RE-ADDED with the same name and a strictly wider list.\" Identical in shape to the UC-1, UC-2 and UC-3 entries in this file; no table, column, index or enum is added or removed, so no backfill and no code-deployment ordering applies."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 276,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

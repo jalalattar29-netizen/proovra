@@ -1319,6 +1319,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // (constraint swaps) and adds two EvidenceExtractedTextKind labels. No
       // `security_events` column, index, enum or mapping.
       "20280650000000_uc4_screen_intelligence",
+      // UC-5 (2026-09-19) — widens the same two acquisition_mode CHECK
+      // constraints to admit DIRECT_SCREEN_CAPTURE_IOS (a constraint swap,
+      // identical in shape to the UC-1/UC-2/UC-3 entries above). No
+      // `security_events` column, index, enum or mapping is touched.
+      "20280660000000_uc5_ios_screen_capture_acquisition_mode",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

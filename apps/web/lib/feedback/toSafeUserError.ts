@@ -236,6 +236,18 @@ const CODE_MAP: Record<
     message: "The item may have moved or is no longer available. Refresh and try again.",
     severity: "info",
   },
+  /*
+   * The legal corpus is PUBLIC, so this is not anti-enumeration: every slug it
+   * serves is linked from the marketing site and the app. A 404 means exactly
+   * what it says, and the recovery — follow a current link — is something only
+   * this sentence can tell the reader.
+   */
+  LEGAL_DOCUMENT_NOT_FOUND: {
+    title: "That document is not available",
+    message:
+      "This link may be out of date. Open the legal pages from the app or the website to reach the current version.",
+    severity: "info",
+  },
   RATE_LIMITED: {
     title: "Too many requests",
     message: "Please wait a moment and try again.",

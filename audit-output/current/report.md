@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | db249af314fe75f276020f773563264b11a3f17f3cfe62d3b554b59f98e68f5b |
+| engineHash    | 56dc663a465f508ad327e1e0174464dc13ef803eacb742c025a32aae90ab552c |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -49,7 +49,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | UnreviewedOriginConsumers                      | 0     |
 | AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
-| ClassificationConflicts                        | 1     |
+| ClassificationConflicts                        | 0     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
 | TenantBindingUnresolved                        | 0     |
@@ -200,9 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: ClassificationConflicts = 1
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- INSTRUMENT: ClassificationConflicts = 1
-- CHECKPOINT: 7 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1157, facts say 1160 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1158, facts say 1161 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1267, facts say 1269 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1121, facts say 1123
+_(none)_

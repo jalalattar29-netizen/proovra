@@ -6,7 +6,7 @@
   "generatorHash": "d23ae19e73d809817e78aa818fd6cfa9d40a3f95f18de958c4e841c510c76fda",
   "routeInventoryHash": "10802b74014fdf7c1eff7d2b4ee7487ef7a4fbfccfaa1446906c441f5dd0a5c2",
   "consumerInventoryHash": "74ece781cb4e0aa38ec8b0dec84174a53acc62886fdbd4220002c5430c56c962",
-  "dispositionsHash": "3d02fe259d3b7e3c281aec0df6da9194403d68cc7d98c8a482b54864296cd965",
+  "dispositionsHash": "84258bb75ea0397d36382918b8b5b556c1d7c9407eecac9698b9b3aede4b12fe",
   "totals": {
     "RegisteredRoutes": 1161,
     "ProductionRegisteredRoutes": 1160,
@@ -25,7 +25,7 @@
     "UnreviewedOriginConsumers": 0,
     "AmbiguousConsumerSites": 0,
     "UnmatchedConsumerCalls": 0,
-    "ClassificationConflicts": 1,
+    "ClassificationConflicts": 0,
     "WrongOriginConsumers": 0,
     "byDisposition": {
       "MACHINE_CONSUMER": 3,
@@ -14194,14 +14194,7 @@
       "evidenceLevel": "UNPROVEN"
     }
   ],
-  "problems": [
-    {
-      "kind": "CONTRADICTED_DISPOSITION",
-      "routeId": "GET /v1/cases/summary",
-      "disposition": "SUPERSEDED_REMOVE",
-      "why": "a product consumer exists"
-    }
-  ],
+  "problems": [],
   "dynamicUnresolvedConsumers": [],
   "unreviewedOriginConsumers": [],
   "ambiguousConsumerSites": [],
