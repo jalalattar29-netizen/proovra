@@ -214,14 +214,20 @@ export const NATIVE_DESTINATIONS = {
   "/evidence/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",
     alsoRouteFiles: ["(stack)/legal/[slug].tsx"],
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/evidence/[id]/page.tsx", "apps/web/app/(app)/evidence/[id]/_tabs/*"],
     gaps: [
       "ported: overview, integrity, custody, technical metadata, relationships, artifacts, the record's FILES, reviewer DISCUSSION, and the UC-4 derived review",
       "Files: the screen had custody, integrity and technical metadata but never listed the files themselves, so on a multi-part record - what every mixed-media capture produces - there was no way to see what was actually in it. `downloadable` is the SERVER's decision and is never widened: a control the server refused is not offered, and when it cannot be offered the reason is shown rather than a button that silently does nothing.",
       "Discussion: a record under review is discussed by the people reviewing it, and that conversation lived only on the web - a reviewer on a phone could read every hash and custody event and not a single word anyone had said. Visibility defaults to workspace-only, and an unrecognised visibility reads as the NARROWER one, because a comment that turns out wider than its author intended cannot be un-seen.",
-      "not ported: annotations, legal notes, duplicate detection, and report REGENERATION (retrieval is present)",
+      "DUPLICATE DETECTION ported, reading the GROUPED view rather than the four legacy per-category arrays. The web panel's own header records why: a record appeared in two or three arrays and the part-level array repeated it once per matching part, so one duplicate with eight matching parts produced eight identical rows. The title cascade runs here too, because rawTitle is null when the column is empty - the pre-substituted title showed the same words on every row.",
+      "the duplicate LIMITATION is shown whether or not anything matched: 'no duplicates found' on its own reads as 'there are none', which is a stronger claim than the check can support",
+      "REPORT GENERATION ported, reading the typed OUTCOME rather than the boolean. The web's own closure note records that enqueued:false covered six different server answers - a Redis outage, a blocked record, a persist failure and a missing principal all read as 'already under way' - and two of them described work that was never going to happen. The outcome vocabulary is GENERATED from packages/shared.",
+      "only a REGENERATION confirms first, because only it creates a new immutable version beside an existing one; a first generation and a retry produce what the customer is already owed",
+      "ANNOTATIONS and LEGAL NOTES ported, behind the SAME server-projected gate the web uses (isPlatformAdmin || isEnterpriseWorkspace). Nothing native derives 'enterprise' from a plan name, and absent reads as false. The internal-materials boundary leads the section rather than trailing it: a note sitting beside hashes and custody events reads as part of the record unless something says it is not.",
+      "a phone WRITES a TEXT annotation with a TIME_ONLY anchor and READS every type. POINT / BOX / REGION carry coordinates against a rendered frame, and a coordinate guessed from a thumbnail would be a claim about WHERE in the evidence something is - a spatial annotation this surface cannot place is named as 'marked on the media' rather than rendered as though it were about the whole record.",
+      "the annotation and legal-note vocabularies are GENERATED from schema.prisma, so a new type cannot exist canonically and be unknown natively",
     ],
   },
   "/cases": {

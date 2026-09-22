@@ -29,6 +29,7 @@ import {
   DERIVED_SHARED_TUPLES,
   readSharedTuple,
   SHARED_COLLABORATION,
+  SHARED_OUTPUT_LIFECYCLE,
 } from "../tools/generate-domain-enums.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -173,10 +174,9 @@ test("integrity honesty — failure is risk, unverified is never 'verified'", as
 
 /* ------------------------------ values that live in packages/shared, not Prisma */
 
-test("the collaboration assignment vocabulary is read from the shared source", () => {
-  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
-  for (const [constName] of DERIVED_SHARED_TUPLES) {
-    const values = readSharedTuple(shared, constName);
+test("every shared tuple is read from its OWN source and reaches the module", () => {
+  for (const [constName, , file] of DERIVED_SHARED_TUPLES) {
+    const values = readSharedTuple(readFileSync(file, "utf8"), constName);
     assert.ok(values.length > 0, `${constName} is empty`);
     // Every value the shared tuple declares must reach the native module, or a
     // new canonical status would render natively as an unmapped string.
@@ -189,6 +189,15 @@ test("the collaboration assignment vocabulary is read from the shared source", (
 test("a tuple that is not there fails loudly rather than silently emitting nothing", () => {
   const shared = readFileSync(SHARED_COLLABORATION, "utf8");
   assert.throws(() => readSharedTuple(shared, "NO_SUCH_TUPLE"), /not found/);
+});
+
+test("the generation-request outcomes come from the output-lifecycle source", () => {
+  // Eleven outcomes, and the two that mean work was accepted are named.
+  const values = readSharedTuple(readFileSync(SHARED_OUTPUT_LIFECYCLE, "utf8"), "GENERATION_REQUEST_OUTCOMES");
+  assert.ok(values.includes("ENQUEUED"));
+  assert.ok(values.includes("SUPERSEDED"));
+  assert.ok(values.includes("QUEUE_UNAVAILABLE"));
+  assert.ok(values.length >= 11);
 });
 
 test("the three assignment tuples carry exactly the canonical values", () => {

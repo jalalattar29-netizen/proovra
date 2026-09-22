@@ -32,6 +32,17 @@ export interface PlatformContextProjection {
   /** Managed-policy gate: false only when the server explicitly disallows it. */
   readonly personalSpaceAllowed: boolean;
   readonly displayName: string | null;
+  /**
+   * The SERVER-projected enterprise-surface gate, read exactly as the web
+   * reads it: `platform.isPlatformAdmin === true || flags.isEnterpriseWorkspace === true`.
+   *
+   * It decides whether reviewer-ops surfaces — reviewer comments, legal notes,
+   * annotations — are shown. Nothing native derives it: a client that inferred
+   * "enterprise" from a plan name would be a second authority that disagrees
+   * the moment either changes. Absent reads as false, which withholds rather
+   * than offers.
+   */
+  readonly enterpriseSurfaces: boolean;
 }
 
 function str(v: unknown): string | null {
@@ -55,7 +66,15 @@ export function projectPlatformContext(envelope: unknown): PlatformContextProjec
     // (the pure gate in personal-space.ts is the ONE rule for this).
     personalSpaceAllowed: !isPersonalSpaceDisallowed(env as { personalSpaceAllowed?: boolean }),
     displayName: str(active["displayName"]),
+    enterpriseSurfaces: readEnterpriseSurfaces(env),
   };
+}
+
+function readEnterpriseSurfaces(env: Record<string, unknown>): boolean {
+  const o = (v: unknown): Record<string, unknown> =>
+    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  return o(env["platform"])["isPlatformAdmin"] === true ||
+    o(env["flags"])["isEnterpriseWorkspace"] === true;
 }
 
 export interface PlatformContextState {

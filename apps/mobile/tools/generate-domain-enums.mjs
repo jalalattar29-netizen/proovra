@@ -31,6 +31,10 @@ export const SHARED_COLLABORATION = resolve(
   HERE,
   "../../../packages/shared/src/collaboration-team.ts",
 );
+export const SHARED_OUTPUT_LIFECYCLE = resolve(
+  HERE,
+  "../../../packages/shared/src/evidence-output-lifecycle.ts",
+);
 
 /** The enums Native renders. Adding one here makes it available natively. */
 export const DERIVED_ENUMS = [
@@ -39,20 +43,26 @@ export const DERIVED_ENUMS = [
   ["VerificationStatus", "VERIFICATION_STATUSES"],
   ["EvidenceLifecycleState", "EVIDENCE_LIFECYCLE_STATES"],
   ["CaseStatus", "CASE_STATUSES"],
+  ["EvidenceLegalNoteType", "EVIDENCE_LEGAL_NOTE_TYPES"],
+  ["EvidenceAnnotationType", "EVIDENCE_ANNOTATION_TYPES"],
+  ["EvidenceAnnotationCoordinateSpace", "EVIDENCE_ANNOTATION_COORDINATE_SPACES"],
 ];
 
 /**
  * The `as const` tuples derived from `packages/shared`.
  *
- * [exported const name, native type name]. The native name is the shared
- * type's own, so a reader moving between the two apps sees one vocabulary.
+ * [exported const name, native type name, source file]. The native name is
+ * the shared type's own, so a reader moving between the two apps sees one
+ * vocabulary; the source is carried per row so adding a tuple from another
+ * shared module is one line rather than a second loop.
  */
 export const DERIVED_SHARED_TUPLES = [
-  ["COLLABORATION_TEAM_ASSIGNMENT_STATUSES", "CollaborationTeamAssignmentStatus"],
-  ["COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES", "CollaborationTeamAssignmentPriority"],
-  ["COLLABORATION_TEAM_ASSIGNMENT_TARGETS", "CollaborationTeamAssignmentTarget"],
-  ["COLLABORATION_TEAM_ROLES", "CollaborationTeamRole"],
-  ["COLLABORATION_TEAM_TYPES", "CollaborationTeamType"],
+  ["COLLABORATION_TEAM_ASSIGNMENT_STATUSES", "CollaborationTeamAssignmentStatus", SHARED_COLLABORATION],
+  ["COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES", "CollaborationTeamAssignmentPriority", SHARED_COLLABORATION],
+  ["COLLABORATION_TEAM_ASSIGNMENT_TARGETS", "CollaborationTeamAssignmentTarget", SHARED_COLLABORATION],
+  ["COLLABORATION_TEAM_ROLES", "CollaborationTeamRole", SHARED_COLLABORATION],
+  ["COLLABORATION_TEAM_TYPES", "CollaborationTeamType", SHARED_COLLABORATION],
+  ["GENERATION_REQUEST_OUTCOMES", "GenerationRequestOutcome", SHARED_OUTPUT_LIFECYCLE],
 ];
 
 /** Read one `export const NAME = ["A", "B"] as const;` tuple's members. */
@@ -80,7 +90,11 @@ export function readEnum(schema, name) {
 
 export function generate() {
   const schema = readFileSync(SCHEMA, "utf8");
-  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
+  const sourceCache = new Map();
+  const sharedSource = (file) => {
+    if (!sourceCache.has(file)) sourceCache.set(file, readFileSync(file, "utf8"));
+    return sourceCache.get(file);
+  };
   const blocks = DERIVED_ENUMS.map(([prismaName, constName]) => {
     const values = readEnum(schema, prismaName);
     if (values.length === 0) throw new Error(`schema.prisma: enum ${prismaName} is empty`);
@@ -95,10 +109,10 @@ export type ${type} = (typeof ${constName})[number];
 `;
   });
 
-  for (const [constName, typeName] of DERIVED_SHARED_TUPLES) {
-    const values = readSharedTuple(shared, constName);
+  for (const [constName, typeName, file] of DERIVED_SHARED_TUPLES) {
+    const values = readSharedTuple(sharedSource(file), constName);
     if (values.length === 0) {
-      throw new Error(`collaboration-team.ts: ${constName} is empty`);
+      throw new Error(`${constName} is empty in its shared source`);
     }
     blocks.push(`/** \`@proovra/shared\` \`${constName}\`. */
 export const ${constName} = [
@@ -114,6 +128,7 @@ export type ${typeName} = (typeof ${constName})[number];
  *
  * Sources:   services/api/prisma/schema.prisma
  *            packages/shared/src/collaboration-team.ts
+ *            packages/shared/src/evidence-output-lifecycle.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -125,7 +140,10 @@ export type ${typeName} = (typeof ${constName})[number];
 ${blocks.join("\n")}`,
     counts: Object.fromEntries([
       ...DERIVED_ENUMS.map(([p, c]) => [c, readEnum(schema, p).length]),
-      ...DERIVED_SHARED_TUPLES.map(([c]) => [c, readSharedTuple(shared, c).length]),
+      ...DERIVED_SHARED_TUPLES.map(([c, , file]) => [
+        c,
+        readSharedTuple(sharedSource(file), c).length,
+      ]),
     ]),
   };
 }

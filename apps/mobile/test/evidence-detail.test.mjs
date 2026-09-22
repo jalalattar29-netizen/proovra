@@ -12,7 +12,31 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(HERE, "../src/product/evidence-detail.ts"), "utf8");
+
+const compile = (file) =>
+  ts.transpileModule(readFileSync(resolve(HERE, file), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+
+/**
+ * The two real modules evidence-detail imports, inlined as data URLs.
+ *
+ * A data-URL module cannot resolve a relative specifier. The GENERATED enum
+ * module in particular is substituted for real rather than stubbed, because
+ * the whole point of generating it is that the values under test are the
+ * canonical ones.
+ */
+const ENUMS_URL = "data:text/javascript," + encodeURIComponent(compile("../src/product/domain-enums.generated.ts"));
+const DISPLAY_URL =
+  "data:text/javascript," +
+  encodeURIComponent(
+    compile("../src/product/domain-display.ts")
+      .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`),
+  );
+
+const src = readFileSync(resolve(HERE, "../src/product/evidence-detail.ts"), "utf8")
+  .replace(/from ["']\.\/domain-display["']/g, `from "${DISPLAY_URL}"`)
+  .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`);
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
@@ -190,4 +214,199 @@ test("the default visibility is the narrow one", () => {
 test("the comment paths are the canonical ones", () => {
   assert.equal(mod.buildCommentsPath("ev-1"), "/v1/evidence/ev-1/comments");
   assert.equal(mod.buildCommentPath("ev-1", "c1"), "/v1/evidence/ev-1/comments/c1");
+});
+
+/* ------------------------------------------------------ duplicate detection */
+
+test("the grouped view is read, not the four legacy arrays", () => {
+  // The per-category arrays repeated a record across categories and once per
+  // matching part: one duplicate with 8 matching parts produced 8 rows.
+  const r = mod.parseDuplicateReport({
+    groupedMatches: [
+      {
+        evidenceId: "e1",
+        rawTitle: "Kitchen leak",
+        type: "PHOTO",
+        itemCount: 3,
+        createdAt: "2026-09-01T00:00:00.000Z",
+        matchReasons: ["EXACT_HASH", "PART_HASH"],
+        matchedPartsCount: 8,
+      },
+      { rawTitle: "no id" },
+    ],
+    exactHashMatches: [{ id: "e1" }, { id: "e1" }],
+    totalRecords: 1,
+  });
+  assert.equal(r.matches.length, 1);
+  assert.equal(r.matches[0].title, "Kitchen leak");
+  assert.equal(r.totalRecords, 1);
+});
+
+test("the title cascade runs, because rawTitle is null when the column is empty", () => {
+  // The backend used to pre-substitute "Digital Evidence Record" for every
+  // empty title, so every row showed the same words and told the reader
+  // nothing about which record is which.
+  const byFile = mod.parseDuplicateReport({
+    groupedMatches: [{ evidenceId: "e1", rawTitle: null, displayFileName: "IMG_0042.HEIC" }],
+  });
+  assert.equal(byFile.matches[0].title, "IMG_0042.HEIC");
+
+  const byOriginal = mod.parseDuplicateReport({
+    groupedMatches: [{ evidenceId: "e1", rawTitle: null, originalFileName: "scan.pdf" }],
+  });
+  assert.equal(byOriginal.matches[0].title, "scan.pdf");
+
+  const byType = mod.parseDuplicateReport({
+    groupedMatches: [{ evidenceId: "e1", rawTitle: null, type: "PHOTO" }],
+  });
+  assert.equal(byType.matches[0].title, "Photo");
+
+  const byId = mod.parseDuplicateReport({
+    groupedMatches: [{ evidenceId: "abcdef1234567890", rawTitle: null }],
+  });
+  assert.match(byId.matches[0].title, /abcdef12/);
+});
+
+test("the match summary says WHY, including the part count", () => {
+  const [m] = mod.parseDuplicateReport({
+    groupedMatches: [{ evidenceId: "e1", matchReasons: ["EXACT_HASH"], matchedPartsCount: 3 }],
+  }).matches;
+  assert.match(mod.duplicateMatchSummary(m), /Identical file hash/);
+  assert.match(mod.duplicateMatchSummary(m), /3 matching parts/);
+});
+
+test("the limitation is stated whether or not anything matched", () => {
+  // "No duplicates found" alone reads as "there are none", which is a stronger
+  // claim than the check can support.
+  assert.match(mod.DUPLICATE_LIMITATION, /accessible records/);
+  assert.match(mod.DUPLICATE_LIMITATION, /hashes or metadata/);
+});
+
+/* -------------------------------------------------------------- generation */
+
+test("the outcome is read, not the boolean", () => {
+  // enqueued:false covered six answers on the web, and two of them described
+  // work that was never going to happen.
+  const blocked = mod.readGenerationOutcome({ outcome: "RECOVERABLE_BLOCKED" });
+  assert.equal(blocked.acceptedWork, false);
+  assert.match(blocked.message, /blocked/i);
+  assert.equal(blocked.tone, "info");
+
+  const queue = mod.readGenerationOutcome({ outcome: "QUEUE_UNAVAILABLE" });
+  assert.equal(queue.acceptedWork, false);
+  assert.match(queue.message, /picked up automatically/i);
+});
+
+test("only ENQUEUED and SUPERSEDED mean work was accepted", () => {
+  assert.equal(mod.generationAcceptedWork("ENQUEUED"), true);
+  assert.equal(mod.generationAcceptedWork("SUPERSEDED"), true);
+  for (const o of ["ALREADY_ACTIVE", "QUEUE_UNAVAILABLE", "TERMINAL", "NOT_INCLUDED"]) {
+    assert.equal(mod.generationAcceptedWork(o), false, o);
+  }
+});
+
+test("the server's own sentence wins over the fallback", () => {
+  const r = mod.readGenerationOutcome({ outcome: "ENQUEUED", message: "  Queued for you.  " });
+  assert.equal(r.message, "Queued for you.");
+});
+
+test("the legacy boolean still reads correctly when no outcome arrived", () => {
+  assert.equal(mod.readGenerationOutcome({ enqueued: true }).outcome, "ENQUEUED");
+  // false is ALREADY_ACTIVE, not a failure — the same reading the web uses.
+  assert.equal(mod.readGenerationOutcome({ enqueued: false }).outcome, "ALREADY_ACTIVE");
+  assert.equal(mod.readGenerationOutcome({}).outcome, "ALREADY_ACTIVE");
+});
+
+test("an outcome the client does not know is not invented", () => {
+  // It falls to the legacy reading rather than being echoed as if understood.
+  const r = mod.readGenerationOutcome({ outcome: "SOMETHING_NEW", enqueued: true });
+  assert.equal(r.outcome, "ENQUEUED");
+});
+
+test("only a regeneration asks first, and says what it costs", () => {
+  assert.equal(mod.generationNeedsConfirmation("REGENERATE"), true);
+  assert.equal(mod.generationNeedsConfirmation("RETRY"), false);
+  assert.equal(mod.generationNeedsConfirmation("GENERATE"), false);
+  assert.match(mod.REGENERATE_CONSEQUENCE, /new immutable version/i);
+  assert.match(mod.REGENERATE_CONSEQUENCE, /No evidence credit is charged/i);
+});
+
+/* --------------------------------------------- legal notes and annotations */
+
+test("the internal-materials boundary names all three exclusions", () => {
+  assert.match(mod.INTERNAL_MATERIALS_BOUNDARY, /public verification/i);
+  assert.match(mod.INTERNAL_MATERIALS_BOUNDARY, /PDF report/i);
+  assert.match(mod.INTERNAL_MATERIALS_BOUNDARY, /verification package/i);
+});
+
+test("the legal-note bounds are the route's own", () => {
+  assert.equal(mod.LEGAL_NOTE_MAX, 6000);
+  assert.match(mod.validateLegalNote("  "), /Write the note/);
+  assert.match(mod.validateLegalNote("x".repeat(6001)), /6000/);
+  assert.deepEqual(mod.buildLegalNoteBody("  hello ", "PRIVILEGED"), {
+    body: "hello",
+    noteType: "PRIVILEGED",
+  });
+});
+
+test("privilege is a claim with consequences, and is recognised", () => {
+  assert.equal(mod.legalNoteIsPrivileged("PRIVILEGED"), true);
+  assert.equal(mod.legalNoteIsPrivileged("GENERAL"), false);
+});
+
+test("a raw user id is never shown where an author belongs", () => {
+  const [n] = mod.parseLegalNotes({ notes: [{ id: "n1", body: "x", authorUserId: "u-9" }] });
+  assert.equal(n.authorLabel, null);
+  const [named] = mod.parseLegalNotes({
+    notes: [{ id: "n1", body: "x", author: { displayName: "Ada" } }],
+  });
+  assert.equal(named.authorLabel, "Ada");
+});
+
+test("a phone writes a TEXT annotation with no spatial claim", () => {
+  // A coordinate guessed from a thumbnail would assert WHERE in the evidence
+  // something is. TIME_ONLY asserts nothing about the frame.
+  const body = mod.buildAnnotationBody("  Check the timestamp ");
+  assert.equal(body.annotationType, "TEXT");
+  assert.equal(body.coordinateSpace, "TIME_ONLY");
+  assert.equal(body.body, "Check the timestamp");
+  assert.equal("x" in body, false);
+  assert.equal("mediaTimestampMs" in body, false);
+
+  const timed = mod.buildAnnotationBody("At the crash", 90000);
+  assert.equal(timed.mediaTimestampMs, 90000);
+});
+
+test("every annotation type is READ, and its anchor read honestly", () => {
+  const list = mod.parseAnnotations({
+    annotations: [
+      { id: "a1", annotationType: "TEXT", body: "note" },
+      { id: "a2", annotationType: "TIMESTAMP", mediaTimestampMs: 125000 },
+      { id: "a3", annotationType: "BOX", x: 0.1, y: 0.2 },
+      { id: "a4", annotationType: "TEXT", pageNumber: 4 },
+      { annotationType: "TEXT" },
+    ],
+  });
+  assert.equal(list.length, 4);
+  assert.equal(mod.annotationAnchorLabel(list[0]), null);
+  assert.equal(mod.annotationAnchorLabel(list[1]), "At 02:05");
+  // A spatial annotation this surface cannot place is named as marked on the
+  // media rather than rendered as if it were about the whole record.
+  assert.equal(mod.annotationAnchorLabel(list[2]), "Marked on the media");
+  assert.equal(mod.annotationAnchorLabel(list[3]), "Page 4");
+});
+
+test("the annotation bound is the route's own", () => {
+  assert.equal(mod.ANNOTATION_BODY_MAX, 4000);
+  assert.match(mod.validateAnnotation("x".repeat(4001)), /4000/);
+  assert.equal(mod.validateAnnotation("ok"), null);
+});
+
+test("the internal-materials paths are the canonical ones", () => {
+  assert.equal(mod.buildAnnotationsPath("e1"), "/v1/evidence/e1/annotations");
+  assert.equal(mod.buildAnnotationPath("e1", "a1"), "/v1/evidence/e1/annotations/a1");
+  assert.equal(mod.buildLegalNotesPath("e1"), "/v1/evidence/e1/legal-notes");
+  assert.equal(mod.buildLegalNotePath("e1", "n1"), "/v1/evidence/e1/legal-notes/n1");
+  assert.equal(mod.buildDuplicatesPath("e1"), "/v1/evidence/e1/duplicates");
+  assert.equal(mod.buildRegeneratePath("e1"), "/v1/evidence/e1/reports/regenerate");
 });

@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
+import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
@@ -14,6 +15,7 @@ import {
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
+  ProovraConfirmSheet,
   ProovraInput,
   ProovraFormField,
   ProovraFilterChips,
@@ -28,6 +30,16 @@ import {
   humanizeEnum,
 } from "../../../src/product/domain-display";
 import {
+  DUPLICATE_LIMITATION,
+  REGENERATE_CONSEQUENCE,
+  buildDuplicatesPath,
+  buildRegeneratePath,
+  duplicateMatchSummary,
+  generationActionLabel,
+  generationNeedsConfirmation,
+  parseDuplicateReport,
+  readGenerationOutcome,
+  type DuplicateReport,
   projectCustodyEvents,
   projectPreservation,
   projectRelationships,
@@ -94,6 +106,8 @@ type Tab =
   | "materials"
   | "discussion"
   | "artifacts"
+  | "duplicates"
+  | "internal"
   | "derived";
 type LoadState = "loading" | "ready" | "error" | "notfound";
 
@@ -116,6 +130,12 @@ export default function EvidenceDetailScreen() {
   const id = params.id ?? "";
 
   const [tab, setTab] = useState<Tab>("overview");
+
+  const [duplicates, setDuplicates] = useState<DuplicateReport | null>(null);
+  const [duplicatesPhase, setDuplicatesPhase] = useState<"idle" | "loading" | "failed">("idle");
+  const [generating, setGenerating] = useState(false);
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [generationNote, setGenerationNote] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [core, setCore] = useState<Core | null>(null);
@@ -128,7 +148,13 @@ export default function EvidenceDetailScreen() {
   const [relationships, setRelationships] = useState<RelationshipView[]>([]);
   const [provenance, setProvenance] = useState<ProvenanceView | null>(null);
   // UC-4 reads are workspace-scoped, so the derived tab needs the active team.
+  // ONE call: the module is the single reader of /v1/platform/context, and a
+  // second hook here would be a second fetch of the same envelope.
   const platform = usePlatformContext();
+  // The SERVER gate for reviewer-ops surfaces, read exactly as the web reads
+  // it. Nothing native derives "enterprise" from a plan name; absent is false,
+  // which withholds rather than offers.
+  const enterpriseSurfaces = platform.context?.enterpriseSurfaces === true;
   const [technical, setTechnical] = useState<TechnicalView | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [comments, setComments] = useState<EvidenceComment[] | null>(null);
@@ -225,7 +251,44 @@ export default function EvidenceDetailScreen() {
     void load();
   }, [load]);
 
-  // Comments load when the tab is opened rather than with the record: a
+  // Duplicates load when the tab is opened, for the same reason the comments
+  // do: a reader who never asks should not pay for the scan.
+  const loadDuplicates = useCallback(async () => {
+    if (!id) return;
+    setDuplicatesPhase("loading");
+    try {
+      setDuplicates(parseDuplicateReport(await apiFetch(buildDuplicatesPath(String(id)))));
+      setDuplicatesPhase("idle");
+    } catch {
+      setDuplicates(null);
+      setDuplicatesPhase("failed");
+    }
+  }, [id]);
+
+  const requestGeneration = useCallback(async () => {
+    if (!id) return;
+    setConfirmingRegenerate(false);
+    setGenerating(true);
+    setGenerationNote(null);
+    try {
+      // READ THE OUTCOME, NOT THE BOOLEAN. Six server answers used to collapse
+      // into one sentence on the web, and two of them described work that was
+      // never going to happen.
+      const read = readGenerationOutcome(
+        await apiFetch(buildRegeneratePath(String(id)), { method: "POST" }),
+      );
+      setGenerationNote(read.message);
+      // Only reload when work was actually accepted; a refusal has nothing new
+      // to show and a reload would imply something changed.
+      if (read.acceptedWork) await load();
+    } catch (err) {
+      setGenerationNote(toSafeUserError(err).message);
+    } finally {
+      setGenerating(false);
+    }
+  }, [id, load]);
+
+    // Comments load when the tab is opened rather than with the record: a
   // reviewer who never opens the discussion should not pay for it.
   const loadComments = useCallback(async () => {
     if (!id) return;
@@ -349,6 +412,10 @@ export default function EvidenceDetailScreen() {
       : []),
     { key: "discussion", label: "Discussion" },
     { key: "artifacts", label: "Artifacts" },
+    { key: "duplicates", label: "Duplicates" },
+    ...(enterpriseSurfaces
+      ? ([{ key: "internal", label: "Internal" }] as Array<{ key: Tab; label: string }>)
+      : []),
     // UC-4 — Derived Review is a RECORD property (screen-capture originals
     // only), never a workspace-kind gate, exactly as the web states it. The
     // category comes from the provenance projection this screen already loads,
@@ -388,7 +455,10 @@ export default function EvidenceDetailScreen() {
           return (
             <Pressable
               key={tb.key}
-              onPress={() => setTab(tb.key)}
+              onPress={() => {
+                setTab(tb.key);
+                if (tb.key === "duplicates" && duplicates === null) void loadDuplicates();
+              }}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={[styles.tab, { borderColor: active ? theme.color.accent.a500 : theme.color.border.default, backgroundColor: active ? theme.color.accent.a050 : "transparent" }]}
@@ -538,8 +608,106 @@ export default function EvidenceDetailScreen() {
               </ProovraText>
             </ProovraCard>
           )}
+
+          {/*
+            ONE request produces BOTH artifacts: the verification package is
+            built inside the report job. The verb follows the record's state —
+            a first generation and a retry produce what the customer is already
+            owed, and only a REGENERATION asks first, because only that one
+            creates a new immutable version beside an existing one.
+          */}
+          <ProovraButton
+            label={generationActionLabel(reportState === "READY" ? "REGENERATE" : "GENERATE")}
+            variant="secondary"
+            loading={generating}
+            onPress={() => {
+              if (generationNeedsConfirmation(reportState === "READY" ? "REGENERATE" : "GENERATE")) {
+                setConfirmingRegenerate(true);
+              } else {
+                void requestGeneration();
+              }
+            }}
+          />
+
+          {generationNote ? (
+            // The SERVER's sentence for the outcome it actually returned.
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {generationNote}
+            </ProovraText>
+          ) : null}
         </ProovraSection>
       ) : null}
+
+      {tab === "internal" && enterpriseSurfaces ? (
+        <EvidenceInternalMaterials evidenceId={String(id)} />
+      ) : null}
+
+      {tab === "duplicates" ? (
+        <ProovraSection title="Duplicate detection">
+          {/*
+            Shown whether or not anything matched: "no duplicates found"
+            without this sentence reads as "there are none", which is a
+            stronger claim than the check can support.
+          */}
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {duplicates?.limitation ?? DUPLICATE_LIMITATION}
+          </ProovraText>
+
+          {duplicatesPhase === "loading" ? (
+            <ProovraLoadingState label="Checking accessible records" />
+          ) : null}
+
+          {duplicatesPhase === "failed" ? (
+            <ProovraErrorState
+              message="Duplicate detection is unavailable."
+              onRetry={() => void loadDuplicates()}
+            />
+          ) : null}
+
+          {duplicates && duplicates.matches.length === 0 && duplicatesPhase === "idle" ? (
+            <ProovraCard>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                No other accessible record matched this one.
+              </ProovraText>
+            </ProovraCard>
+          ) : null}
+
+          {duplicates && duplicates.matches.length > 0 ? (
+            <ProovraCard>
+              {/*
+                Each record appears ONCE, from the grouped view. The legacy
+                per-category arrays repeated a record across categories and
+                once per matching part, so a single duplicate with eight
+                matching parts produced eight identical rows.
+              */}
+              {duplicates.matches.map((m) => (
+                <ProovraListRow
+                  key={m.evidenceId}
+                  title={m.title}
+                  subtitle={[
+                    duplicateMatchSummary(m),
+                    m.createdAtIso ? formatUserDateTime(m.createdAtIso) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  onPress={() => router.push(`/(stack)/evidence/${m.evidenceId}` as never)}
+                />
+              ))}
+            </ProovraCard>
+          ) : null}
+        </ProovraSection>
+      ) : null}
+
+      <ProovraConfirmSheet
+        visible={confirmingRegenerate}
+        title="Regenerate the report and package?"
+        consequence={REGENERATE_CONSEQUENCE}
+        confirmLabel="Regenerate"
+        tone="warning"
+        busy={generating}
+        onConfirm={() => void requestGeneration()}
+        onCancel={() => setConfirmingRegenerate(false)}
+      />
 
       {tab === "materials" ? (
         <ProovraSection title="Files in this record">

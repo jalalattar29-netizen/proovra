@@ -3,6 +3,7 @@
  *
  * Sources:   services/api/prisma/schema.prisma
  *            packages/shared/src/collaboration-team.ts
+ *            packages/shared/src/evidence-output-lifecycle.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -64,6 +65,35 @@ export const CASE_STATUSES = [
 ] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
 
+/** Prisma enum `EvidenceLegalNoteType`. */
+export const EVIDENCE_LEGAL_NOTE_TYPES = [
+  "GENERAL",
+  "PRIVILEGED",
+  "DISCLOSURE",
+  "REVIEW_BOUNDARY",
+  "HANDOFF",
+] as const;
+export type EvidenceLegalNoteType = (typeof EVIDENCE_LEGAL_NOTE_TYPES)[number];
+
+/** Prisma enum `EvidenceAnnotationType`. */
+export const EVIDENCE_ANNOTATION_TYPES = [
+  "POINT",
+  "BOX",
+  "REGION",
+  "TIMESTAMP",
+  "TEXT",
+] as const;
+export type EvidenceAnnotationType = (typeof EVIDENCE_ANNOTATION_TYPES)[number];
+
+/** Prisma enum `EvidenceAnnotationCoordinateSpace`. */
+export const EVIDENCE_ANNOTATION_COORDINATE_SPACES = [
+  "NORMALIZED",
+  "PIXEL",
+  "TIME_ONLY",
+  "DOCUMENT_PAGE",
+] as const;
+export type EvidenceAnnotationCoordinateSpace = (typeof EVIDENCE_ANNOTATION_COORDINATE_SPACES)[number];
+
 /** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_STATUSES`. */
 export const COLLABORATION_TEAM_ASSIGNMENT_STATUSES = [
   "OPEN",
@@ -110,3 +140,19 @@ export const COLLABORATION_TEAM_TYPES = [
   "COMPLIANCE",
 ] as const;
 export type CollaborationTeamType = (typeof COLLABORATION_TEAM_TYPES)[number];
+
+/** `@proovra/shared` `GENERATION_REQUEST_OUTCOMES`. */
+export const GENERATION_REQUEST_OUTCOMES = [
+  "ENQUEUED",
+  "ALREADY_ACTIVE",
+  "QUEUE_UNAVAILABLE",
+  "NOT_INCLUDED",
+  "RECOVERABLE_BLOCKED",
+  "TERMINAL",
+  "SUPERSEDED",
+  "REQUEST_PERSIST_FAILED",
+  "EVIDENCE_NOT_FOUND",
+  "WORKSPACE_UNRESOLVED",
+  "REQUESTER_REQUIRED",
+] as const;
+export type GenerationRequestOutcome = (typeof GENERATION_REQUEST_OUTCOMES)[number];
