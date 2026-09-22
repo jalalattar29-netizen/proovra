@@ -419,6 +419,43 @@ function allOr(v: unknown): string {
   return typeof v === "string" && v && v !== "all" ? v : "ALL";
 }
 
+/** One row of a record picker: an id and a title that is never blank. */
+export interface EvidencePickerRow {
+  id: string;
+  title: string;
+  subtitle: string | null;
+}
+
+/**
+ * The reader's own library, reduced to what a picker needs.
+ *
+ * Used by the batch-analysis picker and the evidence-relationship picker. A
+ * row with no id is dropped rather than rendered as an unselectable line, and
+ * the title falls back through the same cascade the library list uses, so a
+ * record with no title is still identifiable rather than blank.
+ */
+export function parseEvidencePickerRows(payload: unknown): EvidencePickerRow[] {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const list = Array.isArray(d.items) ? d.items : Array.isArray(d.data) ? d.data : [];
+  return list
+    .map((raw) => {
+      const e = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      const id = typeof e.id === "string" && e.id.length > 0 ? e.id : null;
+      if (!id) return null;
+      const title =
+        (typeof e.title === "string" && e.title) ||
+        (typeof e.displayTitle === "string" && e.displayTitle) ||
+        (typeof e.fileName === "string" && e.fileName) ||
+        (typeof e.originalFileName === "string" && e.originalFileName) ||
+        id;
+      const status = typeof e.status === "string" ? e.status : null;
+      const type = typeof e.type === "string" ? e.type : null;
+      const subtitle = [type, status].filter(Boolean).join(" · ");
+      return { id, title, subtitle: subtitle.length > 0 ? subtitle : null };
+    })
+    .filter((r): r is EvidencePickerRow => r !== null);
+}
+
 /** Parse GET /v1/evidence/saved-views → { items } into the fields native captures. */
 export function parseSavedViews(data: unknown): SavedViewItem[] {
   const d = (data && typeof data === "object" ? (data as Record<string, unknown>) : {});

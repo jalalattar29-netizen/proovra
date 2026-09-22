@@ -46,6 +46,7 @@ export const DERIVED_ENUMS = [
   ["EvidenceLegalNoteType", "EVIDENCE_LEGAL_NOTE_TYPES"],
   ["EvidenceAnnotationType", "EVIDENCE_ANNOTATION_TYPES"],
   ["EvidenceAnnotationCoordinateSpace", "EVIDENCE_ANNOTATION_COORDINATE_SPACES"],
+  ["EvidenceRelationshipType", "EVIDENCE_RELATIONSHIP_TYPES"],
 ];
 
 /**

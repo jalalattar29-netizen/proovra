@@ -167,7 +167,7 @@
       "parser": "parseEvidenceLifecycle",
       "builder": "(literal) /v1/evidence/:p",
       "method": "GET",
-      "site": "[id].tsx:207",
+      "site": "[id].tsx:226",
       "path": "/v1/evidence/:p",
       "route": "GET /v1/evidence/:id",
       "serverKeys": [
@@ -184,7 +184,7 @@
       "parser": "parseDuplicateReport",
       "builder": "buildDuplicatesPath",
       "method": "GET",
-      "site": "[id].tsx:295",
+      "site": "[id].tsx:314",
       "path": "/v1/evidence/:p/duplicates",
       "route": "GET /v1/evidence/:id/duplicates",
       "serverKeys": [
@@ -205,10 +205,29 @@
       "why": "reads groupedMatches, limitation, totalRecords"
     },
     {
+      "parser": "parseEvidencePickerRows",
+      "builder": "buildLibraryQuery",
+      "method": "GET",
+      "site": "[id].tsx:460",
+      "path": "/v1/evidence",
+      "route": "GET /v1/evidence",
+      "serverKeys": [
+        "items",
+        "pageInfo",
+        "scope"
+      ],
+      "parserKeys": [
+        "data",
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
       "parser": "parseOriginalLink",
       "builder": "buildEvidenceOriginalPath",
       "method": "GET",
-      "site": "[id].tsx:434",
+      "site": "[id].tsx:534",
       "path": "/v1/evidence/:p/original",
       "route": "GET /v1/evidence/:id/original",
       "serverKeys": [
@@ -462,7 +481,7 @@
       "parser": "parseBatchJobs",
       "builder": "(literal) /v1/batch-analysis",
       "method": "GET",
-      "site": "batch-analysis.tsx:217",
+      "site": "batch-analysis.tsx:197",
       "path": "/v1/batch-analysis",
       "route": "GET /v1/batch-analysis",
       "serverKeys": [
@@ -473,25 +492,6 @@
       ],
       "verdict": "OK",
       "why": "reads data"
-    },
-    {
-      "parser": "parsePickerRows",
-      "builder": "buildLibraryQuery",
-      "method": "GET",
-      "site": "batch-analysis.tsx:236",
-      "path": "/v1/evidence",
-      "route": "GET /v1/evidence",
-      "serverKeys": [
-        "items",
-        "pageInfo",
-        "scope"
-      ],
-      "parserKeys": [
-        "data",
-        "items"
-      ],
-      "verdict": "OK",
-      "why": "reads items"
     },
     {
       "parser": "parseQuotas",

@@ -94,6 +94,19 @@ export const EVIDENCE_ANNOTATION_COORDINATE_SPACES = [
 ] as const;
 export type EvidenceAnnotationCoordinateSpace = (typeof EVIDENCE_ANNOTATION_COORDINATE_SPACES)[number];
 
+/** Prisma enum `EvidenceRelationshipType`. */
+export const EVIDENCE_RELATIONSHIP_TYPES = [
+  "RELATED",
+  "SUPPORTS",
+  "DUPLICATE_OF",
+  "DERIVED_FROM",
+  "SAME_INCIDENT",
+  "CONTRADICTS",
+  "REPLACES",
+  "REFERENCES",
+] as const;
+export type EvidenceRelationshipType = (typeof EVIDENCE_RELATIONSHIP_TYPES)[number];
+
 /** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_STATUSES`. */
 export const COLLABORATION_TEAM_ASSIGNMENT_STATUSES = [
   "OPEN",

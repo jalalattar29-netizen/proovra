@@ -30,7 +30,11 @@ import { apiFetch, apiFetchText } from "../../../src/api";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
-import { buildLibraryQuery } from "../../../src/product/evidence-library";
+import {
+  buildLibraryQuery,
+  parseEvidencePickerRows,
+  type EvidencePickerRow,
+} from "../../../src/product/evidence-library";
 import {
   ProovraScreen,
   ProovraCard,
@@ -72,31 +76,7 @@ type State =
   | { phase: "loaded"; jobs: BatchJob[] }
   | { phase: "failed" };
 
-interface PickerRow {
-  id: string;
-  title: string;
-  subtitle: string | null;
-}
 
-function parsePickerRows(payload: unknown): PickerRow[] {
-  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const list = Array.isArray(d.items) ? d.items : Array.isArray(d.data) ? d.data : [];
-  return list
-    .map((raw) => {
-      const e = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-      const id = typeof e.id === "string" && e.id.length > 0 ? e.id : null;
-      if (!id) return null;
-      const title =
-        (typeof e.title === "string" && e.title) ||
-        (typeof e.fileName === "string" && e.fileName) ||
-        id;
-      const status = typeof e.status === "string" ? e.status : null;
-      const type = typeof e.type === "string" ? e.type : null;
-      const subtitle = [type, status].filter(Boolean).join(" · ");
-      return { id, title, subtitle: subtitle.length > 0 ? subtitle : null };
-    })
-    .filter((r): r is PickerRow => r !== null);
-}
 
 /* ------------------------------------------------------------------ the row */
 
@@ -207,7 +187,7 @@ export default function BatchAnalysisScreen() {
   const [description, setDescription] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const [candidates, setCandidates] = useState<PickerRow[] | null>(null);
+  const [candidates, setCandidates] = useState<EvidencePickerRow[] | null>(null);
   const [cancelling, setCancelling] = useState<BatchJob | null>(null);
 
   const load = useCallback(async () => {
@@ -233,7 +213,7 @@ export default function BatchAnalysisScreen() {
       const data = await apiFetch(
         buildLibraryQuery({ scope: "active", search, sort: "newest", limit: 50 }),
       );
-      setCandidates(parsePickerRows(data));
+      setCandidates(parseEvidencePickerRows(data));
     } catch {
       setCandidates([]);
     }

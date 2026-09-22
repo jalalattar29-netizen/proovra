@@ -430,12 +430,22 @@ export function ProovraListRow({
   subtitle,
   trailing,
   onPress,
+  onLongPress,
+  accessibilityHint,
   testID,
 }: {
   title: string;
   subtitle?: string;
   trailing?: React.ReactNode;
   onPress?: () => void;
+  /**
+   * A secondary action on the row — today, removing an evidence link.
+   *
+   * A long press is invisible, so a row that carries one states it in
+   * `accessibilityHint` and the surface says so in words beside the list.
+   */
+  onLongPress?: () => void;
+  accessibilityHint?: string;
   testID?: string;
 }) {
   const { isRTL } = useLocale();
@@ -443,8 +453,10 @@ export function ProovraListRow({
     <Pressable
       testID={testID}
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={title}
+      accessibilityHint={accessibilityHint}
       style={({ pressed }) => [styles.row, pressed && onPress && styles.pressed]}
     >
       <View style={[styles.rowInner, { flexDirection: isRTL ? "row-reverse" : "row" }]}>

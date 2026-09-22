@@ -875,6 +875,79 @@ export function buildEvidenceLabelPath(evidenceId: string): string {
 export function buildEvidenceOriginalPath(evidenceId: string): string {
   return `${buildEvidencePath(evidenceId)}/original`;
 }
+export function buildEvidenceRelationshipsPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/relationships`;
+}
+export function buildEvidenceRelationshipPath(
+  evidenceId: string,
+  relationshipId: string,
+): string {
+  return `${buildEvidenceRelationshipsPath(evidenceId)}/${encodeURIComponent(relationshipId)}`;
+}
+
+/* ------------------------------------------------------- relationships */
+
+/** `RelationshipBody.note`: trimmed, max 1000 (evidence.routes.ts:462). */
+export const RELATIONSHIP_NOTE_MAX = 1000;
+
+/**
+ * The link types, from the schema.
+ *
+ * Generated from `EvidenceRelationshipType` rather than typed out here, so a
+ * type added to the schema cannot quietly become one this surface refuses to
+ * offer. The generator is guarded by `test/domain-enums-generated.test.mjs`.
+ */
+export { EVIDENCE_RELATIONSHIP_TYPES } from "./domain-enums.generated";
+
+export function relationshipTypeLabel(type: string): string {
+  return humanizeEnum(type);
+}
+
+export function validateRelationshipNote(note: string): string | null {
+  if (note.trim().length > RELATIONSHIP_NOTE_MAX) {
+    return `A note cannot be longer than ${RELATIONSHIP_NOTE_MAX} characters.`;
+  }
+  return null;
+}
+
+/**
+ * The create body.
+ *
+ * An empty note is OMITTED rather than sent as "": the field is
+ * `.optional().nullable()`, and sending an empty string would store a note
+ * that says nothing where "no note" is the truthful state.
+ */
+export function buildRelationshipBody(input: {
+  targetEvidenceId: string;
+  relationshipType: string;
+  note: string;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    targetEvidenceId: input.targetEvidenceId,
+    relationshipType: input.relationshipType,
+  };
+  const note = input.note.trim();
+  if (note) body.note = note;
+  return body;
+}
+
+/**
+ * Whether this record can have its links changed, and why not.
+ *
+ * Creating and removing a link both need `evidence.update_metadata` on THIS
+ * record (the route's D21 note), which is the same write a rename needs - so
+ * the same lifecycle states refuse it, and they refuse it in the same words
+ * rather than in two descriptions that could drift.
+ */
+export function relationshipEditRefusal(lifecycle: EvidenceLifecycle | null): string | null {
+  if (!lifecycle) return "Linking is unavailable until the record's state is known.";
+  if (lifecycle.productState === "TRASHED") return "A record in the trash cannot be linked.";
+  if (lifecycle.productState === "DESTROYED") return "This record has been destroyed.";
+  if (evidenceIsLocked(lifecycle)) {
+    return "This record is permanently locked and its links cannot be changed.";
+  }
+  return null;
+}
 
 /* --------------------------------------------------- the ORIGINAL file */
 

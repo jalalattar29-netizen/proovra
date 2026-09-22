@@ -654,3 +654,67 @@ test("a destroyed record is not offered an original it no longer has", () => {
     /no longer exists/,
   );
 });
+
+/* ---------------------------------- F-04 relationships were read-only ---- */
+
+test("the relationship routes are the canonical ones", () => {
+  // Read has worked from the start; the three write routes
+  // (evidence.routes.ts:8389 / :8428 / :8475) were never called.
+  assert.equal(
+    mod.buildEvidenceRelationshipsPath("ev-1"),
+    "/v1/evidence/ev-1/relationships",
+  );
+  assert.equal(
+    mod.buildEvidenceRelationshipPath("ev-1", "rel 2"),
+    "/v1/evidence/ev-1/relationships/rel%202",
+  );
+});
+
+test("every relationship type the schema defines is offered", () => {
+  // Generated from EvidenceRelationshipType rather than typed out, so a type
+  // added to the schema cannot quietly become one this surface refuses.
+  assert.deepEqual(
+    [...mod.EVIDENCE_RELATIONSHIP_TYPES],
+    ["RELATED", "SUPPORTS", "DUPLICATE_OF", "DERIVED_FROM", "SAME_INCIDENT", "CONTRADICTS", "REPLACES", "REFERENCES"],
+  );
+  assert.equal(mod.relationshipTypeLabel("SAME_INCIDENT"), "Same Incident");
+});
+
+test("an empty note is omitted, never sent as an empty string", () => {
+  // The field is .optional().nullable(); sending "" would store a note that
+  // says nothing where "no note" is the truthful state.
+  assert.deepEqual(
+    mod.buildRelationshipBody({ targetEvidenceId: "t1", relationshipType: "RELATED", note: "   " }),
+    { targetEvidenceId: "t1", relationshipType: "RELATED" },
+  );
+  assert.deepEqual(
+    mod.buildRelationshipBody({ targetEvidenceId: "t1", relationshipType: "REPLACES", note: " supersedes " }),
+    { targetEvidenceId: "t1", relationshipType: "REPLACES", note: "supersedes" },
+  );
+  assert.equal(mod.RELATIONSHIP_NOTE_MAX, 1000);
+  assert.match(mod.validateRelationshipNote("x".repeat(1001)), /1000/);
+  assert.equal(mod.validateRelationshipNote(""), null);
+});
+
+test("linking needs the same write a rename does, and refuses in the same states", () => {
+  // Both routes ask for evidence.update_metadata on THIS record (the routes'
+  // own D21 note), so the refusals cannot be allowed to drift apart.
+  const lifecycle = (over) => ({
+    productState: "ACTIVE",
+    canArchive: true,
+    canUnarchive: false,
+    canTrash: true,
+    canRestoreFromTrash: false,
+    trashBlockReason: null,
+    archiveBlockReason: null,
+    legalHold: false,
+    effectiveRetentionUntilIso: null,
+    ...over,
+  });
+  assert.equal(mod.relationshipEditRefusal(lifecycle({})), null);
+  for (const state of [{ productState: "TRASHED" }, { productState: "DESTROYED" }, { trashBlockReason: "EVIDENCE_LOCKED" }]) {
+    assert.notEqual(mod.relationshipEditRefusal(lifecycle(state)), null);
+    assert.notEqual(mod.evidenceLabelRefusal(lifecycle(state)), null);
+  }
+  assert.match(mod.relationshipEditRefusal(null), /until the record's state is known/);
+});

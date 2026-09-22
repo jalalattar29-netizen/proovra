@@ -54,7 +54,7 @@ top level of it.
 | OK | `parseCollaborationEntitlement` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | canCreateCollaborationTeam, canInviteWorkspaceMember, exceededDimensions, planLocked, te… |
 | OK | `parseDiscussionThreads` | `GET /v1/collaboration/threads` | threads | threads |
 | OK | `parseDiscussionMessages` | `GET /v1/collaboration/threads/:id/messages` | messages | messages |
-| OK | `parsePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
+| OK | `parseEvidencePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
 | OK | `parseEvidenceRequestList` | `GET /v1/evidence-requests` | requests | map, requests |
 | OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | deliverables, instructions, priority, recipientLabel, request |
 | OK | `parseRequestDeliveries` | `GET /v1/evidence-requests/:id/deliveries` | deliveries | deliveries, items, map |

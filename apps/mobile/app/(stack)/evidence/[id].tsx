@@ -35,6 +35,12 @@ import {
   buildEvidenceArchivePath,
   buildEvidenceLabelPath,
   buildEvidenceOriginalPath,
+  buildEvidenceRelationshipsPath,
+  buildEvidenceRelationshipPath,
+  buildRelationshipBody,
+  relationshipEditRefusal,
+  relationshipTypeLabel,
+  EVIDENCE_RELATIONSHIP_TYPES,
   parseOriginalLink,
   originalAccessRefusal,
   ORIGINAL_ACCESS_CONSEQUENCE,
@@ -86,6 +92,11 @@ import {
 import { isDerivedReviewEligible } from "../../../src/product/derived-review";
 import { DerivedReviewTab } from "../../../src/ui/derived-review-tab";
 import { usePlatformContext } from "../../../src/product/platform-context";
+import {
+  buildLibraryQuery,
+  parseEvidencePickerRows,
+  type EvidencePickerRow,
+} from "../../../src/product/evidence-library";
 
 /**
  * P2-3 CLOSURE — one sentence per canonical output state. TOTAL over
@@ -160,6 +171,14 @@ export default function EvidenceDetailScreen() {
   const [labelBusy, setLabelBusy] = useState(false);
   /** Opening the ORIGINAL file. A GET that writes to the custody chain. */
   const [originalBusy, setOriginalBusy] = useState(false);
+  /** Linking this record to another. The picker reads the library. */
+  const [linking, setLinking] = useState(false);
+  const [linkType, setLinkType] = useState<string>("RELATED");
+  const [linkTypePicker, setLinkTypePicker] = useState(false);
+  const [linkNote, setLinkNote] = useState("");
+  const [linkTarget, setLinkTarget] = useState<{ id: string; title: string } | null>(null);
+  const [linkCandidates, setLinkCandidates] = useState<EvidencePickerRow[] | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [duplicatesPhase, setDuplicatesPhase] = useState<"idle" | "loading" | "failed">("idle");
   const [generating, setGenerating] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
@@ -411,6 +430,7 @@ export default function EvidenceDetailScreen() {
   // projection this screen already loads can say so before the tap.
   const labelRefusal = evidenceLabelRefusal(lifecycle);
   const originalRefusal = originalAccessRefusal(lifecycle);
+  const linkRefusal = relationshipEditRefusal(lifecycle);
 
   /**
    * Open the original file.
@@ -422,6 +442,86 @@ export default function EvidenceDetailScreen() {
    * viewing nobody performed, which is precisely the false REPORT_DOWNLOADED
    * this branch already removed from capture.
    */
+  /**
+   * The records this one can be linked TO.
+   *
+   * Creating a link is a WRITE on this record and only a READ on the target
+   * (the route's own D21 note), so the picker offers what the reader can see
+   * — the active library — minus this record and the ones already linked. A
+   * picker that offered a duplicate would be building a request the server
+   * has to refuse.
+   */
+  const loadLinkCandidates = useCallback(async () => {
+    setLinkCandidates(null);
+    try {
+      const data = await apiFetch(buildLibraryQuery({ scope: "active", sort: "newest", limit: 50 }));
+      const taken = new Set(relationships.map((r) => r.linkedId));
+      setLinkCandidates(
+        parseEvidencePickerRows(data).filter((r) => r.id !== String(id) && !taken.has(r.id)),
+      );
+    } catch {
+      setLinkCandidates([]);
+    }
+  }, [id, relationships]);
+
+  const createLink = useCallback(async () => {
+    if (!linkTarget) return;
+    setLinkBusy(true);
+    try {
+      await apiFetch(buildEvidenceRelationshipsPath(String(id)), {
+        method: "POST",
+        body: JSON.stringify(
+          buildRelationshipBody({
+            targetEvidenceId: linkTarget.id,
+            relationshipType: linkType,
+            note: linkNote,
+          }),
+        ),
+      });
+      setLinking(false);
+      setLinkTarget(null);
+      setLinkNote("");
+      await load();
+    } catch (err) {
+      Alert.alert("Could not link", toSafeUserError(err).message);
+    } finally {
+      setLinkBusy(false);
+    }
+  }, [id, linkTarget, linkType, linkNote, load]);
+
+  /** Removing a link asks first, and says what it does NOT remove. */
+  const removeLink = useCallback(
+    (rel: { id: string; linkedTitle: string }) => {
+      Alert.alert(
+        "Remove link",
+        `Remove the link to "${rel.linkedTitle}"? Neither record is deleted.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: () => {
+              void (async () => {
+                setLinkBusy(true);
+                try {
+                  await apiFetch(buildEvidenceRelationshipPath(String(id), rel.id), {
+                    method: "DELETE",
+                  });
+                  await load();
+                } catch (err) {
+                  Alert.alert("Could not remove link", toSafeUserError(err).message);
+                } finally {
+                  setLinkBusy(false);
+                }
+              })();
+            },
+          },
+        ],
+      );
+    },
+    [id, load],
+  );
+
   const openOriginal = useCallback(() => {
     Alert.alert("Open the original file", ORIGINAL_ACCESS_CONSEQUENCE, [
       { text: "Cancel", style: "cancel" },
@@ -527,7 +627,9 @@ export default function EvidenceDetailScreen() {
     { key: "integrity", label: "Integrity" },
     { key: "custody", label: "Custody" },
     { key: "technical", label: "Technical" },
-    ...(relationships.length > 0 ? ([{ key: "links", label: "Links" }] as Array<{ key: Tab; label: string }>) : []),
+    // Always present. It used to appear only when a link already existed,
+    // which left no way to create the first one from a phone.
+    { key: "links", label: "Links" },
     ...(materials.length > 0
       ? ([{ key: "materials", label: "Files" }] as Array<{ key: Tab; label: string }>)
       : []),
@@ -618,6 +720,77 @@ export default function EvidenceDetailScreen() {
             />
           </>
         )}
+      </ProovraSheet>
+
+      {/* Choosing what to link to, and how the two records relate. */}
+      <ProovraSheet
+        visible={linking}
+        title="Link another record"
+        onClose={() => setLinking(false)}
+      >
+        <ProovraListRow
+          title="Relationship"
+          subtitle={relationshipTypeLabel(linkType)}
+          onPress={() => setLinkTypePicker(true)}
+        />
+        <ProovraFormField label="Note (optional)">
+          <ProovraInput
+            value={linkNote}
+            onChangeText={setLinkNote}
+            placeholder="Why these two records go together"
+            autoCapitalize="sentences"
+            multiline
+            accessibilityLabel="Link note"
+          />
+        </ProovraFormField>
+        {linkCandidates === null ? (
+          <ProovraLoadingState label="Loading records" />
+        ) : linkCandidates.length === 0 ? (
+          <ProovraEmptyState
+            title="Nothing to link"
+            message="Every other record you can see is already linked to this one."
+          />
+        ) : (
+          <ProovraCard>
+            {linkCandidates.map((cand) => (
+              <ProovraListRow
+                key={cand.id}
+                title={cand.title}
+                subtitle={cand.subtitle ?? undefined}
+                trailing={
+                  linkTarget?.id === cand.id ? (
+                    <ProovraBadge tone="verified" label="Selected" />
+                  ) : undefined
+                }
+                onPress={() => setLinkTarget({ id: cand.id, title: cand.title })}
+              />
+            ))}
+          </ProovraCard>
+        )}
+        <ProovraButton
+          label={linkTarget ? `Link to ${linkTarget.title}` : "Choose a record first"}
+          loading={linkBusy}
+          disabled={!linkTarget}
+          onPress={() => void createLink()}
+        />
+      </ProovraSheet>
+
+      <ProovraSheet
+        visible={linkTypePicker}
+        title="How do these records relate?"
+        onClose={() => setLinkTypePicker(false)}
+      >
+        {EVIDENCE_RELATIONSHIP_TYPES.map((t) => (
+          <ProovraListRow
+            key={t}
+            title={relationshipTypeLabel(t)}
+            subtitle={t === linkType ? "Current" : undefined}
+            onPress={() => {
+              setLinkType(t);
+              setLinkTypePicker(false);
+            }}
+          />
+        ))}
       </ProovraSheet>
       <View style={styles.tabs}>
         {TABS.map((tb) => {
@@ -814,17 +987,64 @@ export default function EvidenceDetailScreen() {
 
       {tab === "links" ? (
         <ProovraSection title="Related evidence">
-          <ProovraCard>
-            {relationships.map((rel) => (
-              <ProovraListRow
-                key={rel.id}
-                title={rel.linkedTitle}
-                subtitle={[humanizeEnum(rel.relationshipType), rel.direction].filter(Boolean).join(" · ") || undefined}
-                trailing={<ProovraBadge tone={evidenceStatusDisplay(rel.linkedStatus).tone} label={evidenceStatusDisplay(rel.linkedStatus).label} />}
-                onPress={() => router.push(`/evidence/${rel.linkedId}`)}
+          {relationships.length === 0 ? (
+            <ProovraEmptyState
+              title="No linked evidence"
+              message="Linking records says how two pieces of evidence relate — the same incident, one supporting another, one replacing another."
+            />
+          ) : (
+            <ProovraCard>
+              {relationships.map((rel) => (
+                <ProovraListRow
+                  key={rel.id}
+                  title={rel.linkedTitle}
+                  subtitle={
+                    [relationshipTypeLabel(rel.relationshipType), rel.direction]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                  trailing={
+                    <ProovraBadge
+                      tone={evidenceStatusDisplay(rel.linkedStatus).tone}
+                      label={evidenceStatusDisplay(rel.linkedStatus).label}
+                    />
+                  }
+                  onPress={() => router.push(`/evidence/${rel.linkedId}`)}
+                  onLongPress={linkRefusal ? undefined : () => removeLink(rel)}
+                  accessibilityHint={linkRefusal ? undefined : "Long press to remove this link."}
+                />
+              ))}
+            </ProovraCard>
+          )}
+
+          {/*
+            The WRITE half. Reading links has worked from the start and the
+            three write routes were never called, so a reviewer could see
+            that two records were linked and could not link two more — which
+            is the half that gets used standing in front of the thing being
+            recorded.
+          */}
+          {linkRefusal ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {linkRefusal}
+            </ProovraText>
+          ) : (
+            <>
+              <ProovraButton
+                label="Link another record"
+                variant="secondary"
+                onPress={() => {
+                  setLinking(true);
+                  void loadLinkCandidates();
+                }}
               />
-            ))}
-          </ProovraCard>
+              {relationships.length > 0 ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  Long press a linked record to remove the link.
+                </ProovraText>
+              ) : null}
+            </>
+          )}
         </ProovraSection>
       ) : null}
 
