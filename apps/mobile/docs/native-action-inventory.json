@@ -1,0 +1,2489 @@
+{
+  "counts": {
+    "MATCHES_WEB": 117,
+    "NATIVE_ONLY": 8
+  },
+  "rows": [
+    {
+      "routeId": "DELETE /v1/capture/sessions/:id",
+      "method": "DELETE",
+      "path": "/v1/capture/sessions/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/capture/capture-draft.ts:184"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/cases/:id",
+      "method": "DELETE",
+      "path": "/v1/cases/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:222"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/external-review/ReviewScopePicker.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/cases/:id/comments/:commentId",
+      "method": "DELETE",
+      "path": "/v1/cases/:id/comments/:commentId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:186"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/cases/:id/evidence/:evidenceId",
+      "method": "DELETE",
+      "path": "/v1/cases/:id/evidence/:evidenceId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:263"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/collaboration-teams/:teamId",
+      "method": "DELETE",
+      "path": "/v1/collaboration-teams/:teamId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-settings.tsx:165"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/annotations/:annotationId",
+      "method": "DELETE",
+      "path": "/v1/evidence/:id/annotations/:annotationId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/evidence-internal-materials.tsx:180"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/legal-notes/:noteId",
+      "method": "DELETE",
+      "path": "/v1/evidence/:id/legal-notes/:noteId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/evidence-internal-materials.tsx:142"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/relationships/:relationshipId",
+      "method": "DELETE",
+      "path": "/v1/evidence/:id/relationships/:relationshipId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence/[id].tsx:509"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/evidence/saved-views/:id",
+      "method": "DELETE",
+      "path": "/v1/evidence/saved-views/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:699"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/identity/mfa/factors/:id",
+      "method": "DELETE",
+      "path": "/v1/identity/mfa/factors/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/security.tsx:169"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/teams/:id/cases/:caseId",
+      "method": "DELETE",
+      "path": "/v1/teams/:id/cases/:caseId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:344"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "DELETE /v1/teams/:id/invites/:inviteId",
+      "method": "DELETE",
+      "path": "/v1/teams/:id/invites/:inviteId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:254"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/capture/sessions/:id",
+      "method": "PATCH",
+      "path": "/v1/capture/sessions/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/capture/capture-draft.ts:165"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/cases/:id",
+      "method": "PATCH",
+      "path": "/v1/cases/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:205"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/external-review/ReviewScopePicker.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId",
+      "method": "PATCH",
+      "path": "/v1/collaboration-teams/:teamId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-settings.tsx:132"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId/assignments/:assignmentId",
+      "method": "PATCH",
+      "path": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-work.tsx:138"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
+      "method": "PATCH",
+      "path": "/v1/collaboration-teams/:teamId/members/:memberId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-settings.tsx:181"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/evidence/:id/label",
+      "method": "PATCH",
+      "path": "/v1/evidence/:id/label",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence/[id].tsx:418"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/evidence/:id/reviewer-workflow",
+      "method": "PATCH",
+      "path": "/v1/evidence/:id/reviewer-workflow",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/reviewer-workflow-panel.tsx:132"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/evidence/saved-views/:id",
+      "method": "PATCH",
+      "path": "/v1/evidence/saved-views/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:649"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/reviewer-criteria/:setId/draft",
+      "method": "PATCH",
+      "path": "/v1/reviewer-criteria/:setId/draft",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/criteria-draft-editor.tsx:213",
+        "apps/mobile/src/ui/criteria-draft-editor.tsx:278"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/teams/:id",
+      "method": "PATCH",
+      "path": "/v1/teams/:id",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:363"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/setup/page.tsx",
+          "classification": "ENTERPRISE_ONLY"
+        },
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/teams/:id/members/:memberId",
+      "method": "PATCH",
+      "path": "/v1/teams/:id/members/:memberId",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:273"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PATCH /v1/users/me",
+      "method": "PATCH",
+      "path": "/v1/users/me",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/settings.tsx:64",
+        "apps/mobile/app/(tabs)/settings.tsx:78"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/settings/_sections/PreferencesSection.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/apple",
+      "method": "POST",
+      "path": "/v1/auth/apple",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:117"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/login/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/register/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/email/login",
+      "method": "POST",
+      "path": "/v1/auth/email/login",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:44"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/login/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/email/register",
+      "method": "POST",
+      "path": "/v1/auth/email/register",
+      "gates": [],
+      "securityFamily": "PUBLIC_WRITE",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:61"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/register/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/email/resend-verification",
+      "method": "POST",
+      "path": "/v1/auth/email/resend-verification",
+      "gates": [],
+      "securityFamily": "PUBLIC_WRITE",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:77"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/verify-email/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/login/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/register/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/email/verify",
+      "method": "POST",
+      "path": "/v1/auth/email/verify",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:69"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/verify-email/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/google",
+      "method": "POST",
+      "path": "/v1/auth/google",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:113"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/callback/ui/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/logout",
+      "method": "POST",
+      "path": "/v1/auth/logout",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:129"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/layout.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/mfa/verify",
+      "method": "POST",
+      "path": "/v1/auth/mfa/verify",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:103"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/mfa-challenge/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/auth/mfa-challenge/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/password-reset/confirm",
+      "method": "POST",
+      "path": "/v1/auth/password-reset/confirm",
+      "gates": [],
+      "securityFamily": "PUBLIC_WRITE",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:91"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/reset-password/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/auth/password-reset/request",
+      "method": "POST",
+      "path": "/v1/auth/password-reset/request",
+      "gates": [],
+      "securityFamily": "PUBLIC_WRITE",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:84"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/marketing/ForgotPasswordModal.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/batch-analysis",
+      "method": "POST",
+      "path": "/v1/batch-analysis",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/operations/batch-analysis.tsx:236"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/batch-analysis/:id/cancel",
+      "method": "POST",
+      "path": "/v1/batch-analysis/:id/cancel",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/operations/batch-analysis.tsx:271"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/batch-analysis/:id/process",
+      "method": "POST",
+      "path": "/v1/batch-analysis/:id/process",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/operations/batch-analysis.tsx:249"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
+      "method": "POST",
+      "path": "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/billing-sections.tsx:98"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/billing-accounts.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/billing/storage-addons/cancel",
+      "method": "POST",
+      "path": "/v1/billing/storage-addons/cancel",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/billing-sections.tsx:123"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/billing/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/billing/subscription/cancel",
+      "method": "POST",
+      "path": "/v1/billing/subscription/cancel",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/billing-sections.tsx:120"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/billing-accounts.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:57"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/complete",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/complete",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:151"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/continuous-complete",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/continuous-complete",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/continuous-capture.ts:220"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/discard",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/discard",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:200"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/evidence",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/evidence",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:82"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:113"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/screen-complete",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/screen-complete",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/screen-capture.ts:140"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/capture/sessions",
+      "method": "POST",
+      "path": "/v1/capture/sessions",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/capture/capture-draft.ts:130"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/cases",
+      "method": "POST",
+      "path": "/v1/cases",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/cases.tsx:80"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/cases/:id/comments",
+      "method": "POST",
+      "path": "/v1/cases/:id/comments",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:151"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/cases/:id/comments/:commentId/resolve",
+      "method": "POST",
+      "path": "/v1/cases/:id/comments/:commentId/resolve",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:168"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/cases/:id/evidence",
+      "method": "POST",
+      "path": "/v1/cases/:id/evidence",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:312"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/cases/:id/status",
+      "method": "POST",
+      "path": "/v1/cases/:id/status",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/case/[id].tsx:284"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration-team-invites/accept",
+      "method": "POST",
+      "path": "/v1/collaboration-team-invites/accept",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/invite/[token].tsx:67"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams",
+      "method": "POST",
+      "path": "/v1/collaboration-teams",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/teams.tsx:113"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/archive",
+      "method": "POST",
+      "path": "/v1/collaboration-teams/:teamId/archive",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-settings.tsx:153"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/unarchive",
+      "method": "POST",
+      "path": "/v1/collaboration-teams/:teamId/unarchive",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/collaboration-settings.tsx:159"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration/threads/:id/messages",
+      "method": "POST",
+      "path": "/v1/collaboration/threads/:id/messages",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/discussion-section.tsx:95"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/collaboration/threads/:id/resolve",
+      "method": "POST",
+      "path": "/v1/collaboration/threads/:id/resolve",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/discussion-section.tsx:113"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/deep-link/resolve",
+      "method": "POST",
+      "path": "/v1/deep-link/resolve",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/DeepLinkGate.tsx:102"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/api/deep-link.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/cancel",
+      "method": "POST",
+      "path": "/v1/evidence-requests/:id/cancel",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/close",
+      "method": "POST",
+      "path": "/v1/evidence-requests/:id/close",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/needs-more-info",
+      "method": "POST",
+      "path": "/v1/evidence-requests/:id/needs-more-info",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/send",
+      "method": "POST",
+      "path": "/v1/evidence-requests/:id/send",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:evidenceId/derived-review/generate",
+      "method": "POST",
+      "path": "/v1/evidence/:evidenceId/derived-review/generate",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/src/ui/derived-review-tab.tsx:94"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/annotations",
+      "method": "POST",
+      "path": "/v1/evidence/:id/annotations",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/evidence-internal-materials.tsx:162"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/comments",
+      "method": "POST",
+      "path": "/v1/evidence/:id/comments",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence/[id].tsx:366"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/legal-notes",
+      "method": "POST",
+      "path": "/v1/evidence/:id/legal-notes",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/evidence-internal-materials.tsx:124"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/parts",
+      "method": "POST",
+      "path": "/v1/evidence/:id/parts",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/direct-capture.ts:125"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/relationships",
+      "method": "POST",
+      "path": "/v1/evidence/:id/relationships",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence/[id].tsx:473"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/reports/regenerate",
+      "method": "POST",
+      "path": "/v1/evidence/:id/reports/regenerate",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence/[id].tsx:334"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/restore",
+      "method": "POST",
+      "path": "/v1/evidence/:id/restore",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:573"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/bulk",
+      "method": "POST",
+      "path": "/v1/evidence/bulk",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:816"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/saved-views",
+      "method": "POST",
+      "path": "/v1/evidence/saved-views",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:728"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence/saved-views/:id/default",
+      "method": "POST",
+      "path": "/v1/evidence/saved-views/:id/default",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/evidence.tsx:672"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/external-intake/:token/sessions/:sid/consent",
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/consent",
+      "gates": [
+        "INVITATION_TOKEN"
+      ],
+      "securityFamily": "INTAKE_OR_EVIDENCE_REQUEST_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake/[token].tsx:123"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/intake/[token]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/external-intake/:token/sessions/:sid/identity",
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/identity",
+      "gates": [
+        "INVITATION_TOKEN"
+      ],
+      "securityFamily": "INTAKE_OR_EVIDENCE_REQUEST_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake/[token].tsx:101"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/intake/[token]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/external-intake/:token/sessions/:sid/parts",
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/parts",
+      "gates": [
+        "INVITATION_TOKEN"
+      ],
+      "securityFamily": "INTAKE_OR_EVIDENCE_REQUEST_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake/capture.tsx:99"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/intake/[token]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/external-intake/:token/sessions/:sid/submit",
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/submit",
+      "gates": [
+        "INVITATION_TOKEN"
+      ],
+      "securityFamily": "INTAKE_OR_EVIDENCE_REQUEST_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake/capture.tsx:130"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/intake/[token]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/external-review/access/:token",
+      "method": "POST",
+      "path": "/v1/external-review/access/:token",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:69"
+      ],
+      "webOwners": [],
+      "verdict": "NATIVE_ONLY"
+    },
+    {
+      "routeId": "POST /v1/identity-security/my-sessions/:id/revoke",
+      "method": "POST",
+      "path": "/v1/identity-security/my-sessions/:id/revoke",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/security.tsx:154"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity-security/my-sessions/revoke-others",
+      "method": "POST",
+      "path": "/v1/identity-security/my-sessions/revoke-others",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/security.tsx:160"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity-security/password",
+      "method": "POST",
+      "path": "/v1/identity-security/password",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/security.tsx:129"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/account-closure",
+      "method": "POST",
+      "path": "/v1/identity/account-closure",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/privacy.tsx:99"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/account-closure/:id/cancel",
+      "method": "POST",
+      "path": "/v1/identity/account-closure/:id/cancel",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/privacy.tsx:121"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/data-export",
+      "method": "POST",
+      "path": "/v1/identity/data-export",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/privacy.tsx:85"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa-admin/recovery-requests",
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/recovery-requests",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/mfa-recovery-request.tsx:82"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/enroll/start",
+      "method": "POST",
+      "path": "/v1/identity/mfa/enroll/start",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/totp-enrolment.tsx:68"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/enroll/verify",
+      "method": "POST",
+      "path": "/v1/identity/mfa/enroll/verify",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/totp-enrolment.tsx:96"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/recovery-codes/regenerate",
+      "method": "POST",
+      "path": "/v1/identity/mfa/recovery-codes/regenerate",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/security.tsx:186"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/recovery-requests/:requestId/resend-email",
+      "method": "POST",
+      "path": "/v1/identity/mfa/recovery-requests/:requestId/resend-email",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/ui/mfa-recovery-request.tsx:116"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email",
+      "method": "POST",
+      "path": "/v1/identity/mfa/recovery-requests/:requestId/verify-email",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:72"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/identity/mfa/recovery-requests/analytics/page-viewed",
+      "method": "POST",
+      "path": "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:60"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/archive",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/archive",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/notifications.tsx:127"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/read",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/read",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/notifications.tsx:75",
+        "apps/mobile/app/(tabs)/notifications.tsx:127"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/remind",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/remind",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/notifications.tsx:103"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/unread",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/unread",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/notifications.tsx:127"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/mark-all-read",
+      "method": "POST",
+      "path": "/v1/me/inbox/mark-all-read",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(tabs)/notifications.tsx:139"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/org-invites/:token/accept",
+      "method": "POST",
+      "path": "/v1/org-invites/:token/accept",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/org-invite/[token].tsx:73"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/(app)/organizations/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/closure",
+      "method": "POST",
+      "path": "/v1/orgs/:id/closure",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/organizations/[id].tsx:240"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/closure/:requestId/cancel",
+      "method": "POST",
+      "path": "/v1/orgs/:id/closure/:requestId/cancel",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/organizations/[id].tsx:262"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/leave",
+      "method": "POST",
+      "path": "/v1/orgs/:id/leave",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/organizations/[id].tsx:201"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/transfer-ownership",
+      "method": "POST",
+      "path": "/v1/orgs/:id/transfer-ownership",
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "ORGANIZATION_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/organizations/[id].tsx:222"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/platform/context/switch-workspace",
+      "method": "POST",
+      "path": "/v1/platform/context/switch-workspace",
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "PLATFORM_ADMIN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/spaces.tsx:107"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/platform-context/PlatformContextProvider.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/portal/auth",
+      "method": "POST",
+      "path": "/v1/portal/auth",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/[token].tsx:97"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/external-portal/portal-client.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/portal/logout",
+      "method": "POST",
+      "path": "/v1/portal/logout",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/[token].tsx:138"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/external-portal/portal-client.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/portal/work/:workflowId/comments",
+      "method": "POST",
+      "path": "/v1/portal/work/:workflowId/comments",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:109"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/external-portal/portal-client.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/portal/work/:workflowId/decision",
+      "method": "POST",
+      "path": "/v1/portal/work/:workflowId/decision",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:129"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/external-portal/portal-client.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/portal/work/:workflowId/view",
+      "method": "POST",
+      "path": "/v1/portal/work/:workflowId/view",
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "securityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:96"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/lib/external-portal/portal-client.ts",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/reviewer-criteria",
+      "method": "POST",
+      "path": "/v1/reviewer-criteria",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:149"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/reviewer-criteria/:setId/duplicate",
+      "method": "POST",
+      "path": "/v1/reviewer-criteria/:setId/duplicate",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175",
+        "apps/mobile/src/ui/criteria-draft-editor.tsx:272"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/reviewer-criteria/:setId/publish",
+      "method": "POST",
+      "path": "/v1/reviewer-criteria/:setId/publish",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/reviewer-criteria/:setId/retire",
+      "method": "POST",
+      "path": "/v1/reviewer-criteria/:setId/retire",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/cases/link",
+      "method": "POST",
+      "path": "/v1/teams/:id/cases/link",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:323"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/closure",
+      "method": "POST",
+      "path": "/v1/teams/:id/closure",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:423"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/closure/:requestId/cancel",
+      "method": "POST",
+      "path": "/v1/teams/:id/closure/:requestId/cancel",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:442"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/invites",
+      "method": "POST",
+      "path": "/v1/teams/:id/invites",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:217"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/invites/:inviteId/resend",
+      "method": "POST",
+      "path": "/v1/teams/:id/invites/:inviteId/resend",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:236"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/transfer-ownership",
+      "method": "POST",
+      "path": "/v1/teams/:id/transfer-ownership",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/workspace-people.tsx:404"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/users/legal-acceptance",
+      "method": "POST",
+      "path": "/v1/users/legal-acceptance",
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "SESSION_AUTHENTICATED",
+      "nativeSites": [
+        "apps/mobile/src/auth/auth-api.ts:155"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/app/auth/callback/ui/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/auth/verify-email/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/login/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        },
+        {
+          "file": "apps/web/app/register/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/workflow/intake-links/:id/recipient-contact",
+      "method": "POST",
+      "path": "/v1/workflow/intake-links/:id/recipient-contact",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake-links.tsx:147"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/workflow/intake-links/:id/revoke",
+      "method": "POST",
+      "path": "/v1/workflow/intake-links/:id/revoke",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake-links.tsx:174"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/intake-links/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/workflow/intake-links/:id/unarchive",
+      "method": "POST",
+      "path": "/v1/workflow/intake-links/:id/unarchive",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/intake-links.tsx:122"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/intake-links/page.tsx",
+          "classification": "NATIVE_REQUIRED"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PUT /v1/me/notification-preferences",
+      "method": "PUT",
+      "path": "/v1/me/notification-preferences",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/notifications.tsx:110"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/notifications/NotificationPreferencesPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        },
+        {
+          "file": "apps/web/components/notifications/NotificationPreferencesPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "PUT /v1/me/notification-schedule",
+      "method": "PUT",
+      "path": "/v1/me/notification-schedule",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/settings/notifications.tsx:152"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/components/notifications/NotificationPreferencesPanel.tsx",
+          "classification": "NOT_A_PAGE"
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    }
+  ]
+}
