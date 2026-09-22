@@ -306,9 +306,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/intake-links": {
     routeFile: "(stack)/intake-links.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/intake-links/page.tsx", "apps/web/app/(app)/intake-links/intake-links.css"],
-    gaps: ["view + revoke only; no send, submissions, archive, or recipient-contact reveal"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/intake-links/page.tsx"],
+    gaps: [
+      "list, revoke, submissions, archive/unarchive, and the audited recipient-contact reveal",
+      "the reveal is the ONLY place a raw recipient address leaves the API - every projection ships the masked form for everybody - so the surface states the consequence BEFORE the tap and requires a reason, rather than letting the user discover the WARNING-severity disclosure in an audit log afterwards",
+      "submissions render the server's MASKED previews and the projection has no un-masked field at all, so there is nothing for this surface to leak by accident",
+      "SEND is deliberately not offered on an arbitrary row: a resend needs the link's rawToken, which the API never persists, so it can only be formed in the session that created the link. A Send control on a reloaded list would build a request that cannot be made. Creation stays on the web for the same reason, and the screen says so.",
+    ],
   },
   "/evidence-requests/[id]": {
     routeFile: "(stack)/evidence-request/[id].tsx",

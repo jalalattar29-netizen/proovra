@@ -54,3 +54,93 @@ test("empty/garbage envelope → empty list", () => {
   assert.deepEqual(mod.parseIntakeLinks(null), []);
   assert.deepEqual(mod.parseIntakeLinks({}), []);
 });
+
+/* ------------------------------------- submissions, archive, send, reveal */
+
+/**
+ * The recipient-contact reveal is the ONLY place a raw address leaves the API.
+ * Every projection ships the masked form for everybody; asking here needs a
+ * capability and is recorded at WARNING severity. The surface says that before
+ * the tap, not after it appears in an audit log.
+ */
+test("the action paths are the canonical ones", () => {
+  assert.equal(mod.buildIntakeSubmissionsPath("l1"), "/v1/workflow/intake-links/l1/submissions");
+  assert.equal(mod.buildIntakeArchivePath("l1", false), "/v1/workflow/intake-links/l1/archive");
+  assert.equal(mod.buildIntakeArchivePath("l1", true), "/v1/workflow/intake-links/l1/unarchive");
+  assert.equal(mod.buildIntakeSendPath("l1"), "/v1/workflow/intake-links/l1/send");
+  assert.equal(mod.buildIntakeRevealPath("l1"), "/v1/workflow/intake-links/l1/recipient-contact");
+});
+
+test("submissions carry only the MASKED contact previews", () => {
+  const [s] = mod.parseIntakeSubmissions({
+    submissions: [
+      {
+        id: "s1",
+        status: "SUBMITTED",
+        submitterDisplayName: "Sam",
+        submitterEmailPreview: "s***@example.com",
+        submitterPhonePreview: "***4321",
+        submittedAtUtc: "2026-09-01T00:00:00.000Z",
+      },
+    ],
+  });
+  assert.equal(s.submitterEmailPreview, "s***@example.com");
+  // There is no un-masked field on the projection at all.
+  assert.equal("submitterEmail" in s, false);
+  assert.equal("submitterPhone" in s, false);
+});
+
+test("an anonymous submission falls back to its pseudonym", () => {
+  const [s] = mod.parseIntakeSubmissions({
+    submissions: [{ id: "s1", pseudonym: "Contributor 4", submitterDisplayName: null }],
+  });
+  assert.equal(s.submitterName, null);
+  assert.equal(s.pseudonym, "Contributor 4");
+});
+
+test("a submission with no id is dropped", () => {
+  assert.equal(mod.parseIntakeSubmissions({ submissions: [{ id: "s1" }, {}, null] }).length, 1);
+});
+
+test("resending is offered only when the raw token is in hand", () => {
+  // The API never persists it, so after a relaunch a resend cannot be formed.
+  assert.equal(mod.canResendIntakeLink("abcdefgh"), true);
+  assert.equal(mod.canResendIntakeLink("short"), false);
+  assert.equal(mod.canResendIntakeLink(null), false);
+  assert.equal(mod.canResendIntakeLink(undefined), false);
+});
+
+test("the send body names only the channels that remain", () => {
+  assert.deepEqual([...mod.INTAKE_SEND_CHANNELS], ["SMS", "EMAIL"]);
+  const body = mod.buildIntakeSendBody({
+    channel: "EMAIL",
+    rawToken: "abcdefgh",
+    intakeUrl: "https://x/intake/abcdefgh",
+  });
+  assert.equal(body.channel, "EMAIL");
+  // No nonce sent when none was given; with one, tapping twice is not two
+  // provider calls.
+  assert.equal("idempotencyKey" in body, false);
+  assert.equal(
+    mod.buildIntakeSendBody({
+      channel: "SMS",
+      rawToken: "abcdefgh",
+      intakeUrl: "https://x",
+      idempotencyKey: "k1",
+    }).idempotencyKey,
+    "k1",
+  );
+});
+
+test("the reveal consequence is stated in the words the user sees", () => {
+  assert.match(mod.INTAKE_REVEAL_CONSEQUENCE, /recorded against your account/i);
+  assert.match(mod.INTAKE_REVEAL_CONSEQUENCE, /stays masked/i);
+});
+
+test("a reveal with no contact on file is not an empty string", () => {
+  assert.deepEqual(mod.parseRevealedContact({}), { email: null, phone: null });
+  assert.deepEqual(
+    mod.parseRevealedContact({ recipientContact: { recipientEmail: "a@b.test", recipientPhone: "" } }),
+    { email: "a@b.test", phone: null },
+  );
+});

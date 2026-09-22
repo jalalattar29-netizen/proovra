@@ -80,3 +80,121 @@ export function parseIntakeLinks(data: unknown): IntakeLinkItem[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Submissions, archive, send, and the one audited disclosure
+// ---------------------------------------------------------------------------
+
+export function buildIntakeSubmissionsPath(linkId: string): string {
+  return `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/submissions`;
+}
+
+export function buildIntakeArchivePath(linkId: string, archived: boolean): string {
+  return `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/${archived ? "unarchive" : "archive"}`;
+}
+
+export function buildIntakeSendPath(linkId: string): string {
+  return `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/send`;
+}
+
+export function buildIntakeRevealPath(linkId: string): string {
+  return `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/recipient-contact`;
+}
+
+export interface IntakeSubmission {
+  id: string;
+  status: string;
+  submitterName: string | null;
+  /** Already MASKED by the server. Never the raw address. */
+  submitterEmailPreview: string | null;
+  submitterPhonePreview: string | null;
+  pseudonym: string | null;
+  submittedAtIso: string | null;
+  abandonedAtIso: string | null;
+}
+
+function io(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+function is(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+export function parseIntakeSubmissions(payload: unknown): IntakeSubmission[] {
+  const raw = io(payload)["submissions"] ?? payload;
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map((entry) => {
+      const s = io(entry);
+      const id = is(s["id"]);
+      if (!id) return null;
+      return {
+        id,
+        status: is(s["status"]) ?? "OPENED",
+        submitterName: is(s["submitterDisplayName"]),
+        // The projection masks these itself, for everybody. Nothing here
+        // un-masks them and nothing here asks for the raw form.
+        submitterEmailPreview: is(s["submitterEmailPreview"]),
+        submitterPhonePreview: is(s["submitterPhonePreview"]),
+        pseudonym: is(s["pseudonym"]),
+        submittedAtIso: is(s["submittedAtUtc"]),
+        abandonedAtIso: is(s["abandonedAtUtc"]),
+      };
+    })
+    .filter((s): s is IntakeSubmission => s !== null);
+}
+
+/** The two channels that remain. A request naming a retired one is refused. */
+export const INTAKE_SEND_CHANNELS = ["SMS", "EMAIL"] as const;
+export type IntakeSendChannel = (typeof INTAKE_SEND_CHANNELS)[number];
+
+/**
+ * Resending needs the RAW TOKEN, which the API never persists.
+ *
+ * So a resend is possible only for a link whose token this client still holds
+ * — in practice, one created in this session. After a relaunch it is gone, and
+ * offering a Send control then would produce a request that cannot be formed.
+ * The surface offers it exactly when it can be honoured.
+ */
+export function canResendIntakeLink(rawToken: string | null | undefined): boolean {
+  return typeof rawToken === "string" && rawToken.length >= 8;
+}
+
+export function buildIntakeSendBody(input: {
+  channel: IntakeSendChannel;
+  rawToken: string;
+  intakeUrl: string;
+  idempotencyKey?: string;
+}) {
+  const body: Record<string, unknown> = {
+    channel: input.channel,
+    rawToken: input.rawToken,
+    intakeUrl: input.intakeUrl,
+  };
+  // The nonce is why tapping Resend twice does not become two provider calls.
+  if (input.idempotencyKey) body.idempotencyKey = input.idempotencyKey;
+  return body;
+}
+
+export interface RevealedContact {
+  email: string | null;
+  phone: string | null;
+}
+
+export function parseRevealedContact(payload: unknown): RevealedContact {
+  const c = io(io(payload)["recipientContact"]);
+  return { email: is(c["recipientEmail"]), phone: is(c["recipientPhone"]) };
+}
+
+/**
+ * The words shown before a reveal happens.
+ *
+ * This is the ONLY place a raw recipient address leaves the API. Every
+ * projection ships the masked form for everybody; asking here is an act with a
+ * consequence, it requires a capability, and the disclosure is recorded at
+ * WARNING severity. A user should know that before they tap, not discover it
+ * in an audit log afterwards.
+ */
+export const INTAKE_REVEAL_CONSEQUENCE =
+  "Revealing the recipient's contact details is recorded against your account, with the reason. " +
+  "Everywhere else in the product this address stays masked.";
