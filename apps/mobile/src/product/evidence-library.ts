@@ -465,6 +465,68 @@ export function buildSavedViewBody(input: { name: string; scope: string; type: s
   };
 }
 
+/** One saved view: `/v1/evidence/saved-views/:id`. */
+export function buildSavedViewPath(id: string): string {
+  return `/v1/evidence/saved-views/${encodeURIComponent(id)}`;
+}
+
+/** `POST` here makes the view the reader's default for the workspace. */
+export function buildSavedViewDefaultPath(id: string): string {
+  return `${buildSavedViewPath(id)}/default`;
+}
+
+export const SAVED_VIEW_NAME_MAX = 120;
+
+/**
+ * A rename is the only field a phone edits.
+ *
+ * `UpdateSavedViewBody` also accepts scope, filters and sortKey, and the web
+ * deliberately does not send them from its list either: re-saving the current
+ * filters INTO an existing view is a different operation from renaming one,
+ * and offering both behind a single "Edit" is how an operator loses a view
+ * they meant to keep. Native matches the web rather than inventing a third
+ * behaviour for the same route.
+ */
+export function validateSavedViewName(name: string): string | null {
+  const n = name.trim();
+  if (n.length === 0) return "Name the view first.";
+  if (n.length > SAVED_VIEW_NAME_MAX) {
+    return `A saved view name cannot be longer than ${SAVED_VIEW_NAME_MAX} characters.`;
+  }
+  return null;
+}
+
+export function buildSavedViewRenameBody(name: string): { name: string } {
+  return { name: name.trim() };
+}
+
+/**
+ * Applying `POST :id/default` locally.
+ *
+ * The server clears the previous default in the same workspace, so a client
+ * that only flipped the new row would show two defaults until the next read.
+ * The web does this same fold-in (evidence/page.tsx:1036); stating it once
+ * here keeps the two clients from drifting.
+ */
+export function withDefaultSavedView(views: SavedViewItem[], id: string): SavedViewItem[] {
+  return views.map((v) => ({ ...v, isDefault: v.id === id }));
+}
+
+/**
+ * The view to apply on first load, or null.
+ *
+ * Only when the operator has not already filtered: a default view that
+ * overrode a filter the user just set would be the surface arguing with them.
+ * The web gates it the same way (evidence/page.tsx:600).
+ */
+export function defaultSavedViewToApply(
+  views: SavedViewItem[],
+  filtersAreUntouched: boolean,
+): SavedViewItem | null {
+  if (!filtersAreUntouched) return null;
+  return views.find((v) => v.isDefault) ?? null;
+}
+
 /** The bulk actions applicable to a scope (mirrors EVIDENCE_BULK_ACTIONS + lifecycle). */
 export function bulkActionsForScope(scope: string): BulkActionSpec[] {
   const caseActions: BulkActionSpec[] = [

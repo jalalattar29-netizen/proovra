@@ -381,3 +381,51 @@ test("inspector artifact projection reads status only and never invents URLs", (
     verificationPackage: null,
   });
 });
+
+/* ------------------------------------------- F-03 managing a saved view -- */
+
+test("the saved-view routes are the canonical ones", () => {
+  // Five handlers exist (evidence.saved-views.routes.ts); native called two.
+  assert.equal(mod.buildSavedViewPath("v 1"), "/v1/evidence/saved-views/v%201");
+  assert.equal(
+    mod.buildSavedViewDefaultPath("v1"),
+    "/v1/evidence/saved-views/v1/default",
+  );
+});
+
+test("a rename is bounded by the route's own limit", () => {
+  assert.equal(mod.SAVED_VIEW_NAME_MAX, 120);
+  assert.match(mod.validateSavedViewName(""), /Name the view/);
+  assert.match(mod.validateSavedViewName("   "), /Name the view/);
+  assert.match(mod.validateSavedViewName("x".repeat(121)), /120/);
+  assert.equal(mod.validateSavedViewName("Open claims"), null);
+  assert.deepEqual(mod.buildSavedViewRenameBody("  Open claims "), { name: "Open claims" });
+});
+
+test("setting a default clears the previous one", () => {
+  // The server clears it in the same workspace, so a client that only flipped
+  // the new row would show two defaults until the next read.
+  const views = [
+    { id: "a", name: "A", isDefault: true },
+    { id: "b", name: "B", isDefault: false },
+    { id: "c", name: "C", isDefault: false },
+  ];
+  const next = mod.withDefaultSavedView(views, "b");
+  assert.deepEqual(
+    next.map((v) => [v.id, v.isDefault]),
+    [["a", false], ["b", true], ["c", false]],
+  );
+});
+
+test("the default view applies on a clean library, never over a live filter", () => {
+  const views = [
+    { id: "a", name: "A", isDefault: false },
+    { id: "b", name: "B", isDefault: true },
+  ];
+  assert.equal(mod.defaultSavedViewToApply(views, true)?.id, "b");
+  // A default that overrode a filter the operator just set would be the
+  // surface arguing with them.
+  assert.equal(mod.defaultSavedViewToApply(views, false), null);
+  assert.equal(mod.defaultSavedViewToApply([{ id: "a", isDefault: false }], true), null);
+  assert.equal(mod.defaultSavedViewToApply([], true), null);
+});

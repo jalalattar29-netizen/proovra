@@ -24,6 +24,8 @@ import {
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
+  ProovraSheet,
+  ProovraFormField,
 } from "../../src/ui";
 import { evidenceLifecycleDisplay, evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES, humanizeEnum } from "../../src/product/domain-display";
 import {
@@ -34,6 +36,13 @@ import {
   sortLabel,
   parseSavedViews,
   buildSavedViewBody,
+  buildSavedViewPath,
+  buildSavedViewDefaultPath,
+  buildSavedViewRenameBody,
+  validateSavedViewName,
+  withDefaultSavedView,
+  defaultSavedViewToApply,
+  SAVED_VIEW_NAME_MAX,
   parseEvidenceBulkResponse,
   resolveBulkSelection,
   projectInspectorEvidence,
@@ -89,11 +98,27 @@ function rowTitle(item: EvidenceItem): string {
 }
 
 /** A single filter chip. */
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function Chip({
+  label,
+  active,
+  onPress,
+  onLongPress,
+  accessibilityHint,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  /** A saved view chip carries its manage actions here. */
+  onLongPress?: () => void;
+  accessibilityHint?: string;
+}) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ selected: active }}
       style={[styles.smallChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
     >
@@ -445,6 +470,12 @@ export default function EvidenceLibraryScreen() {
   const [savingView, setSavingView] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [showSaveView, setShowSaveView] = useState(false);
+  /** The view whose manage sheet is open: rename, default, delete. */
+  const [managingView, setManagingView] = useState<SavedViewItem | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [viewBusy, setViewBusy] = useState(false);
+  /** The default view is applied at most once, and never over a live filter. */
+  const defaultViewApplied = useRef(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -567,6 +598,118 @@ export default function EvidenceLibraryScreen() {
     }
   }, []);
   useEffect(() => { void loadViews(); }, [loadViews]);
+
+  /**
+   * The default saved view, applied once on first load.
+   *
+   * It was read and ignored: an operator could set a default on the web and
+   * the phone opened on the unfiltered library every time. Never applied over
+   * a filter or a search the user has already set - a default that overrode a
+   * live choice would be the surface arguing with them - and never twice, so
+   * clearing it stays cleared.
+   */
+  useEffect(() => {
+    if (defaultViewApplied.current || savedViews.length === 0) return;
+    const untouched =
+      !hasActiveFilters({
+        type: typeFilter,
+        status: statusFilter,
+        source: sourceFilter,
+        reportReady: reportFilter,
+      }) && query.trim() === "";
+    const view = defaultSavedViewToApply(savedViews, untouched);
+    defaultViewApplied.current = true;
+    if (view) applyView(view);
+    // Intentionally keyed on the views alone: this runs on the FIRST list
+    // that arrives, reading the filters as they are at that moment. The ref
+    // guard is what makes running once correct rather than accidental.
+  }, [savedViews]);
+
+  const openViewManager = useCallback((v: SavedViewItem) => {
+    setManagingView(v);
+    setRenameDraft(v.name);
+  }, []);
+
+  /**
+   * Rename. The route also accepts scope / filters / sortKey, and neither
+   * client sends them from the list: overwriting a view's filters is a
+   * different act from renaming it, and one control doing both is how an
+   * operator loses the view they meant to keep.
+   */
+  const renameView = useCallback(async () => {
+    const target = managingView;
+    if (!target) return;
+    const invalid = validateSavedViewName(renameDraft);
+    if (invalid) {
+      Alert.alert("Could not rename view", invalid);
+      return;
+    }
+    setViewBusy(true);
+    try {
+      await apiFetch(buildSavedViewPath(target.id), {
+        method: "PATCH",
+        body: JSON.stringify(buildSavedViewRenameBody(renameDraft)),
+      });
+      setManagingView(null);
+      await loadViews();
+    } catch (err) {
+      Alert.alert("Could not rename view", toSafeUserError(err).message);
+    } finally {
+      setViewBusy(false);
+    }
+  }, [managingView, renameDraft, loadViews]);
+
+  /**
+   * The server clears the previous default in the same workspace, so the local
+   * fold-in clears it too - otherwise the list shows two defaults until the
+   * next read.
+   */
+  const makeViewDefault = useCallback(async () => {
+    const target = managingView;
+    if (!target) return;
+    setViewBusy(true);
+    try {
+      await apiFetch(buildSavedViewDefaultPath(target.id), { method: "POST" });
+      setSavedViews((prev) => withDefaultSavedView(prev, target.id));
+      setManagingView(null);
+      await loadViews();
+    } catch (err) {
+      Alert.alert("Could not set default view", toSafeUserError(err).message);
+    } finally {
+      setViewBusy(false);
+    }
+  }, [managingView, loadViews]);
+
+  /** Deleting asks first: a saved view is a filter the operator composed. */
+  const deleteView = useCallback(() => {
+    const target = managingView;
+    if (!target) return;
+    Alert.alert(
+      "Delete saved view",
+      `Delete "${target.name}"? The evidence it filtered is not affected.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setViewBusy(true);
+              try {
+                await apiFetch(buildSavedViewPath(target.id), { method: "DELETE" });
+                setManagingView(null);
+                await loadViews();
+              } catch (err) {
+                Alert.alert("Could not delete view", toSafeUserError(err).message);
+              } finally {
+                setViewBusy(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [managingView, loadViews]);
 
   const applyView = useCallback((v: SavedViewItem) => {
     setScope(v.scope as Scope);
@@ -1018,7 +1161,16 @@ export default function EvidenceLibraryScreen() {
 
         <View style={styles.filterRow}>
           {savedViews.map((v) => (
-            <Chip key={v.id} label={v.name} active={false} onPress={() => applyView(v)} />
+            <Chip
+              key={v.id}
+              // The default is marked, because "which view am I in" is the
+              // first question a saved view raises.
+              label={v.isDefault ? `${v.name} ·` : v.name}
+              active={false}
+              onPress={() => applyView(v)}
+              onLongPress={() => openViewManager(v)}
+              accessibilityHint="Double tap to apply. Long press to rename, set as default, or delete."
+            />
           ))}
           <Chip label={showSaveView ? "Cancel save" : "＋ Save view"} active={showSaveView} onPress={() => setShowSaveView((s) => !s)} />
           <Chip label={selectionMode ? "Done" : "Select"} active={selectionMode} onPress={() => { setSelectionMode((m) => !m); setSelected(new Set()); }} />
@@ -1035,6 +1187,54 @@ export default function EvidenceLibraryScreen() {
             <ProovraButton label="Save current view" loading={savingView} disabled={!newViewName.trim()} onPress={() => void saveView()} />
           </ProovraCard>
         ) : null}
+
+        {/*
+          MANAGING ONE SAVED VIEW — rename, make default, delete.
+          All three routes existed from the beginning and none was called,
+          so a view saved under the wrong name was permanent on a phone.
+        */}
+        <ProovraSheet
+          visible={managingView !== null}
+          title={managingView ? managingView.name : "Saved view"}
+          onClose={() => setManagingView(null)}
+        >
+          <ProovraFormField label="Name">
+            <ProovraInput
+              value={renameDraft}
+              onChangeText={setRenameDraft}
+              placeholder={`Up to ${SAVED_VIEW_NAME_MAX} characters`}
+              autoCapitalize="sentences"
+              accessibilityLabel="Saved view name"
+            />
+          </ProovraFormField>
+          <ProovraButton
+            label="Rename view"
+            loading={viewBusy}
+            disabled={
+              validateSavedViewName(renameDraft) !== null ||
+              renameDraft.trim() === (managingView?.name ?? "")
+            }
+            onPress={() => void renameView()}
+          />
+          {managingView?.isDefault ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              This is the view the library opens on.
+            </ProovraText>
+          ) : (
+            <ProovraButton
+              label="Open the library on this view"
+              variant="secondary"
+              loading={viewBusy}
+              onPress={() => void makeViewDefault()}
+            />
+          )}
+          <ProovraButton
+            label="Delete view"
+            variant="ghost"
+            loading={viewBusy}
+            onPress={deleteView}
+          />
+        </ProovraSheet>
 
         {selectionMode && selected.size > 0 && caseChooserOpen ? (
           <ProovraCard style={styles.caseChooser}>
