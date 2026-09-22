@@ -286,15 +286,20 @@ export function readCreatedBatchId(payload: unknown): string | null {
 /**
  * Whether cancelling this job would actually do anything.
  *
- * `cancelJob` only acts on a job in PROCESSING; for any other non-terminal
- * status it returns `true` — success — while changing nothing. So a surface
- * that offers Cancel on a `pending` job and then reports "cancelled" states
- * something untrue. Native offers it exactly where it acts. The server's
- * behaviour is recorded in `docs/backend-debt.md`; it is not worked around
- * here, and Native does not re-implement cancellation client-side.
+ * BOTH non-terminal states, now that the server cancels both (BD-1).
+ *
+ * `cancelJob` used to act only on PROCESSING while returning success for
+ * PENDING, so a surface that offered Cancel on a pending job reported
+ * something untrue and the job ran anyway. Native withheld the control rather
+ * than say that. With the service fixed, withholding it would BE the untruth:
+ * a pending job is the easiest one to stop, and the one an operator is most
+ * likely to want stopped.
+ *
+ * A terminal job is not offered it, and the route answers 409 if one is tried.
  */
 export function canCancelBatch(job: BatchJob): boolean {
-  return job.status.toLowerCase() === "processing";
+  const status = job.status.toLowerCase();
+  return status === "processing" || status === "pending";
 }
 
 /**

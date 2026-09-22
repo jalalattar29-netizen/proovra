@@ -768,9 +768,9 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const cancelled = batchAnalysisService.cancelJob(userId, id);
+        const outcome = batchAnalysisService.cancelJob(userId, id);
 
-        if (!cancelled) {
+        if (outcome === "NOT_FOUND") {
           auditEnterpriseAction(req, {
             userId,
             action: "enterprise.batch_cancel",
@@ -781,6 +781,25 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             metadata: { reason: "not_found" },
           });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
+        }
+
+        if (outcome === "ALREADY_TERMINAL") {
+          // A job that has already finished is not a job that never existed,
+          // and the audit must not record a cancellation that did not happen —
+          // which is exactly what this route used to do for a pending job.
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_cancel",
+            outcome: "failure",
+            severity: "info",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "already_terminal" },
+          });
+          throw new AppError(
+            ErrorCode.CONFLICT,
+            "This batch job has already finished and cannot be cancelled.",
+          );
         }
 
         auditEnterpriseAction(req, {

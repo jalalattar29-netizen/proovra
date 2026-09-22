@@ -14,6 +14,15 @@ export enum BatchStatus {
 }
 
 /**
+ * What a cancellation actually did.
+ *
+ * A boolean could not distinguish "cancelled" from "this job already
+ * finished", so the route reported both as success — and, for a PENDING job,
+ * reported success for doing nothing at all.
+ */
+export type BatchCancelOutcome = "CANCELLED" | "NOT_FOUND" | "ALREADY_TERMINAL";
+
+/**
  * The bounded shape the legacy batch service reads back out of an item
  * result.  is stored as an open record, so consumers
  * narrow through this instead of asserting `any`.
@@ -227,25 +236,50 @@ item.result = {
   /**
    * Cancel a batch job
    */
-  cancelJob(userId: string, jobId: string): boolean {
+  /**
+   * Cancel a batch job.
+   *
+   * PENDING is cancellable — more cheaply than PROCESSING, because nothing has
+   * started. This used to act only on PROCESSING and return `true` regardless,
+   * so cancelling a pending job changed nothing, told the operator it had
+   * worked, and wrote `outcome: success` into the audit log. The job then ran.
+   *
+   * A terminal job is NOT a failure to report as one: it is a job that already
+   * finished, and the caller is owed that answer rather than "not found",
+   * which would say the job never existed.
+   */
+  cancelJob(userId: string, jobId: string): BatchCancelOutcome {
     const job = this.jobs[jobId];
+    // A job belonging to someone else answers exactly as a job that does not
+    // exist. The caller learns nothing either way.
     if (!job || job.userId !== userId) {
-      return false;
+      return "NOT_FOUND";
     }
 
-    if (job.status === BatchStatus.PROCESSING) {
-      // Mark all processing items as cancelled
-      job.items.forEach((item) => {
-        if (item.status === "processing") {
-          item.status = "failed";
-          item.error = "Job cancelled by user";
-        }
-      });
-      job.status = BatchStatus.CANCELLED;
-      job.completedAt = new Date();
+    if (
+      job.status === BatchStatus.COMPLETED ||
+      job.status === BatchStatus.FAILED ||
+      job.status === BatchStatus.CANCELLED
+    ) {
+      return "ALREADY_TERMINAL";
     }
 
-    return true;
+    // Both remaining states are cancellable. An item that was mid-flight is
+    // recorded as cancelled BY NAME rather than as a generic failure, because
+    // "the operator stopped this" and "this could not be analysed" are
+    // different things to say about a piece of evidence.
+    const stoppedAt = new Date();
+    job.items.forEach((item) => {
+      if (item.status === "processing" || item.status === "pending") {
+        item.status = "failed";
+        item.error = "Job cancelled by user";
+        item.completedAt = stoppedAt;
+      }
+    });
+    job.status = BatchStatus.CANCELLED;
+    job.completedAt = stoppedAt;
+
+    return "CANCELLED";
   }
 
   /**

@@ -93452,7 +93452,7 @@
       "method": "GET",
       "path": "/v1/batch-analysis/:id/export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:822",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:841",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113970,7 +113970,7 @@
       "method": "GET",
       "path": "/v1/quotas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:878",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:897",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121176,7 +121176,7 @@
       "method": "GET",
       "path": "/v1/usage-stats",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:913",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:932",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

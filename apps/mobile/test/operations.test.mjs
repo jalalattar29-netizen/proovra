@@ -214,13 +214,20 @@ test("the created id is read from the response envelope", () => {
   assert.equal(O.readCreatedBatchId(null), null);
 });
 
-test("cancel is offered only where the service actually cancels", () => {
-  // `cancelJob` acts ONLY on PROCESSING; for `pending` it returns success
-  // having changed nothing, so offering it there would report a cancellation
-  // that did not happen. Recorded as BD-1, not worked around.
+test("cancel is offered wherever the service actually cancels", () => {
+  // BD-1 CLOSED. `cancelJob` acted ONLY on PROCESSING and returned success for
+  // `pending` having changed nothing, so offering it there reported a
+  // cancellation that did not happen and the job ran anyway. This test
+  // asserted the withholding, which was right while the service was wrong.
+  //
+  // The service now cancels both non-terminal states, so withholding it would
+  // BE the untruth — a pending job is the easiest one to stop.
   assert.equal(O.canCancelBatch(j("processing")), true);
-  assert.equal(O.canCancelBatch(j("pending")), false);
-  assert.equal(O.canCancelBatch(j("completed")), false);
+  assert.equal(O.canCancelBatch(j("pending")), true);
+  // A job that has already finished answers 409 and is not offered.
+  for (const terminal of ["completed", "failed", "cancelled"]) {
+    assert.equal(O.canCancelBatch(j(terminal)), false, `${terminal} is terminal`);
+  }
 });
 
 test("the export waits until the job has stopped running", () => {

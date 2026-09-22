@@ -12,30 +12,40 @@ Nothing here blocks a Native surface. A row is open debt, not a blocker.
 
 ---
 
-## BD-1 — `POST /v1/batch-analysis/:id/cancel` reports success without cancelling
+## BD-1 — CLOSED (2026-09-22) — `POST /v1/batch-analysis/:id/cancel` reported success without cancelling
 
-**Endpoint.** `services/api/src/services/batch-analysis.service.ts` →
-`cancelJob(userId, jobId)`.
+**What it did.** `cancelJob` acted only on `PROCESSING`. For a `PENDING` job
+it returned `true` having changed nothing; the route read that as
+cancellation, told the operator "Batch job cancelled", and wrote
+`enterprise.batch_cancel outcome: success` into the audit log. The job then
+ran.
 
-**What it does.** It returns `false` only when the job does not exist or
-belongs to another user. When the job exists, it acts **only if**
-`job.status === PROCESSING`; for `pending` it returns `true` having changed
-nothing. The route reads that `true` as cancellation and audits
-`enterprise.batch_cancel outcome: success`.
+**Why it was not worked around from Native.** A client that "fixed" it would
+be the one telling a story the server could not support. Native withheld the
+control instead, and named the reason here.
 
-**Consequence.** `apps/web/app/(app)/operations/batch-analysis/page.tsx`
-offers Cancel for both `pending` and `processing` and toasts "Batch job
-cancelled" on the response. For a `pending` job that message is untrue, and
-the audit record asserts an action that did not happen.
+**The fix, in the service where it belonged.**
 
-**What Native does.** `canCancelBatch()` offers the action exactly where it
-acts — `processing` — and says so on the surface. It does not simulate
-cancellation client-side, and it does not suppress the job.
+* A `PENDING` job is cancelled. It is the EASIEST one to stop — nothing has
+  started, so there is nothing to stop and everything to mark.
+* An item that was mid-flight is recorded as stopped BY THE OPERATOR rather
+  than as a generic failure. "This could not be analysed" and "somebody
+  stopped this" are different things to say about a piece of evidence.
+* `cancelJob` returns an OUTCOME — `CANCELLED` / `NOT_FOUND` /
+  `ALREADY_TERMINAL` — because a boolean could not distinguish "cancelled"
+  from "this job already finished", which is why the route reported one as the
+  other. A finished job now answers 409 and is audited as a refusal with its
+  reason, not as a success.
+* A job belonging to someone else still answers exactly as a job that does not
+  exist.
 
-**A real fix** belongs in the service: cancel a `pending` job too (it has not
-started, so there is nothing to stop and everything to mark), or return
-`false` and let the route answer a conflict. Either is a backend change with
-an audit consequence, which is why it is not made from here.
+**The clients.** Native offers Cancel on both non-terminal states now, because
+that is where the service acts; withholding it would have become the untruth.
+The web already offered it on both, so its "Batch job cancelled" is now true
+rather than needing a change.
+
+Guarded by `services/api/test/batch-analysis-cancellation.test.ts` and
+`apps/mobile/test/operations.test.mjs`.
 
 ---
 
@@ -49,3 +59,17 @@ can correct this, and neither pretends otherwise — a job that is gone reads as
 gone rather than as failed.
 
 **A real fix** is persistence, which is a schema change.
+
+---
+
+## BD-3 — `GET /v1/cases/summary` — RESOLVED during Native closure
+
+Recorded here during the convergence as "counters with no home on
+`matter-queue`". It was dispositioned SUPERSEDED_REMOVE on the claim that no
+UI was owed, and the tree contradicted that: the native Cases tab reads it for
+four counters the replacement does not carry. The route moved to
+PRODUCT_CONNECTED rather than being removed, which is recorded in
+`audit-output/current/CONTINUATION-CHECKPOINT.md` with its cause.
+
+Nothing is owed here. The entry is kept so the numbering does not have a hole
+in it that a later reader has to go and re-derive.
