@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**75 bindings — OK 75, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**76 bindings — OK 76, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -64,6 +64,7 @@ top level of it.
 | OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | items | items |
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
+| OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, evidenceId, key, kind, lastAccessedAtUtc, lastAcc… | publicUrl, url |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | bucket, evidenceId, generatedAtUtc, key, reviewerSnapshot, snapshots, storage, url, vers… | url |
 | OK | `parseSavedViews` | `GET /v1/evidence/saved-views` | items | items |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, request, session | link, request, session |

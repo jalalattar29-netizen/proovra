@@ -869,6 +869,95 @@ export function buildEvidenceLockPath(evidenceId: string): string {
 export function buildEvidenceArchivePath(evidenceId: string): string {
   return `${buildEvidencePath(evidenceId)}/archive`;
 }
+export function buildEvidenceLabelPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/label`;
+}
+export function buildEvidenceOriginalPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/original`;
+}
+
+/* --------------------------------------------------- the ORIGINAL file */
+
+/**
+ * What the person is told before the request is made.
+ *
+ * Not after. The route appends EVIDENCE_VIEWED to the custody chain and an
+ * `evidence.downloaded` audit row the moment it answers, so by the time a
+ * toast could explain it the entry already exists. A custody chain whose
+ * entries surprise the person named in them is not doing its job.
+ */
+export const ORIGINAL_ACCESS_CONSEQUENCE =
+  "Opening the original file is recorded on this record's custody chain, with " +
+  "your name and the time. The link expires after 10 minutes.";
+
+/**
+ * The presigned link, from the response the route actually sends.
+ *
+ * `url` and `publicUrl` are both read because the web reads both
+ * (evidence/[id]/page.tsx:574), and an absent link is null rather than an
+ * empty string — "not available" and "available at nowhere" are different
+ * answers and only one of them should reach a button.
+ */
+export function parseOriginalLink(payload: unknown): string | null {
+  const d = obj(payload);
+  return str(d.url) ?? str(d.publicUrl);
+}
+
+/**
+ * Whether the original can be fetched at all, in the record's current state.
+ *
+ * A DESTROYED record has no bytes left to presign, and the route answers 404
+ * "Original file not found". Offering the control anyway would promise
+ * something the product has deliberately made impossible.
+ */
+export function originalAccessRefusal(lifecycle: EvidenceLifecycle | null): string | null {
+  if (lifecycle?.productState === "DESTROYED") {
+    return "This record has been destroyed. Its original file no longer exists.";
+  }
+  return null;
+}
+
+/* ------------------------------------------------------ the record label */
+
+/** `UpdateEvidenceLabelBody`: trimmed, 1..160 (evidence.routes.ts:388). */
+export const EVIDENCE_LABEL_MAX = 160;
+
+export function validateEvidenceLabel(label: string): string | null {
+  const l = label.trim();
+  if (l.length === 0) return "Name the record first.";
+  if (l.length > EVIDENCE_LABEL_MAX) {
+    return `A record name cannot be longer than ${EVIDENCE_LABEL_MAX} characters.`;
+  }
+  return null;
+}
+
+export function buildEvidenceLabelBody(label: string): { label: string } {
+  return { label: label.trim() };
+}
+
+/**
+ * Whether this record can be renamed, and why not when it cannot.
+ *
+ * The route answers 409 for a locked record and 409 for a deleted one. Both
+ * are already in the lifecycle projection the screen loads, so the refusal is
+ * stated where the control is rather than discovered by pressing it — and the
+ * wording is the route's own, so the two cannot drift.
+ *
+ * An ABSENT lifecycle withholds: this screen's rule throughout is that a
+ * projection it has not read is not permission it may assume.
+ */
+export function evidenceLabelRefusal(lifecycle: EvidenceLifecycle | null): string | null {
+  if (!lifecycle) return "Renaming is unavailable until the record's state is known.";
+  // productState is the canonical state (ACTIVE | ARCHIVED | TRASHED |
+  // DESTROYED). Reading it is what keeps this from becoming a second opinion
+  // about whether the record is still there.
+  if (lifecycle.productState === "TRASHED") return "A record in the trash cannot be renamed.";
+  if (lifecycle.productState === "DESTROYED") return "This record has been destroyed.";
+  if (evidenceIsLocked(lifecycle)) {
+    return "This record is permanently locked and cannot be renamed.";
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // The record's LIFECYCLE capabilities

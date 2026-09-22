@@ -568,3 +568,89 @@ test("the lifecycle paths are the canonical ones", () => {
   assert.equal(mod.buildEvidenceArchivePath("e1"), "/v1/evidence/e1/archive");
   assert.equal(mod.buildEvidenceUnarchivePath("e1"), "/v1/evidence/e1/unarchive");
 });
+
+/* ----------------------------------------- F-04 renaming the record ------ */
+
+test("the label route and its bound are the server's own", () => {
+  // PATCH /v1/evidence/:id/label, UpdateEvidenceLabelBody 1..160
+  // (evidence.routes.ts:388, :5813). Nothing native called it: a record
+  // arrived as IMG_0042.jpg and stayed that way on a phone.
+  assert.equal(mod.buildEvidenceLabelPath("ev 1"), "/v1/evidence/ev%201/label");
+  assert.equal(mod.EVIDENCE_LABEL_MAX, 160);
+  assert.match(mod.validateEvidenceLabel("   "), /Name the record/);
+  assert.match(mod.validateEvidenceLabel("x".repeat(161)), /160/);
+  assert.equal(mod.validateEvidenceLabel("Front door, 14:02"), null);
+  assert.deepEqual(mod.buildEvidenceLabelBody("  Front door "), { label: "Front door" });
+});
+
+test("a record the route would refuse says so before the tap", () => {
+  const lifecycle = (over) => ({
+    productState: "ACTIVE",
+    canArchive: true,
+    canUnarchive: false,
+    canTrash: true,
+    canRestoreFromTrash: false,
+    trashBlockReason: null,
+    archiveBlockReason: null,
+    legalHold: false,
+    effectiveRetentionUntilIso: null,
+    ...over,
+  });
+
+  assert.equal(mod.evidenceLabelRefusal(lifecycle({})), null);
+  // The route answers 409 "permanently locked and cannot be renamed"; the
+  // wording here is its own, so the two cannot drift.
+  assert.match(
+    mod.evidenceLabelRefusal(lifecycle({ trashBlockReason: "EVIDENCE_LOCKED" })),
+    /permanently locked/,
+  );
+  assert.match(mod.evidenceLabelRefusal(lifecycle({ productState: "TRASHED" })), /trash/);
+  assert.match(mod.evidenceLabelRefusal(lifecycle({ productState: "DESTROYED" })), /destroyed/);
+  // An absent projection withholds: this screen never assumes permission it
+  // has not read.
+  assert.match(mod.evidenceLabelRefusal(null), /until the record's state is known/);
+});
+
+/* ------------------------------------- F-05 opening the ORIGINAL file ---- */
+
+test("the consequence of opening the original is stated, not implied", () => {
+  // GET /v1/evidence/:id/original appends EVIDENCE_VIEWED to the custody
+  // chain and writes an evidence.downloaded audit row AS IT ANSWERS
+  // (evidence.routes.ts:11591). By the time a toast could explain that, the
+  // entry exists — so the sentence has to precede the request.
+  assert.match(mod.ORIGINAL_ACCESS_CONSEQUENCE, /custody chain/);
+  assert.match(mod.ORIGINAL_ACCESS_CONSEQUENCE, /your name and the time/);
+  assert.match(mod.ORIGINAL_ACCESS_CONSEQUENCE, /10 minutes/);
+});
+
+test("the presigned link is read from the response the route sends", () => {
+  assert.equal(mod.buildEvidenceOriginalPath("ev-1"), "/v1/evidence/ev-1/original");
+  assert.equal(mod.parseOriginalLink({ url: "https://s3/x" }), "https://s3/x");
+  assert.equal(mod.parseOriginalLink({ publicUrl: "https://cdn/x" }), "https://cdn/x");
+  assert.equal(mod.parseOriginalLink({ url: "https://s3/x", publicUrl: "https://cdn/x" }), "https://s3/x");
+  // "not available" and "available at nowhere" are different answers, and
+  // only one of them should reach a button.
+  for (const bad of [null, undefined, {}, { url: "" }, { url: 42 }]) {
+    assert.equal(mod.parseOriginalLink(bad), null);
+  }
+});
+
+test("a destroyed record is not offered an original it no longer has", () => {
+  const base = {
+    productState: "ACTIVE",
+    canArchive: true,
+    canUnarchive: false,
+    canTrash: true,
+    canRestoreFromTrash: false,
+    trashBlockReason: null,
+    archiveBlockReason: null,
+    legalHold: false,
+    effectiveRetentionUntilIso: null,
+  };
+  assert.equal(mod.originalAccessRefusal(base), null);
+  assert.equal(mod.originalAccessRefusal(null), null);
+  assert.match(
+    mod.originalAccessRefusal({ ...base, productState: "DESTROYED" }),
+    /no longer exists/,
+  );
+});

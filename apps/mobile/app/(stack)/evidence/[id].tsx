@@ -18,6 +18,7 @@ import {
   ProovraConfirmSheet,
   ProovraInput,
   ProovraFormField,
+  ProovraSheet,
   ProovraFilterChips,
   ProovraEmptyState,
   ProovraErrorState,
@@ -32,6 +33,15 @@ import {
 import {
   DUPLICATE_LIMITATION,
   buildEvidenceArchivePath,
+  buildEvidenceLabelPath,
+  buildEvidenceOriginalPath,
+  parseOriginalLink,
+  originalAccessRefusal,
+  ORIGINAL_ACCESS_CONSEQUENCE,
+  buildEvidenceLabelBody,
+  validateEvidenceLabel,
+  evidenceLabelRefusal,
+  EVIDENCE_LABEL_MAX,
   buildEvidenceLockPath,
   buildEvidencePath,
   buildEvidenceUnarchivePath,
@@ -144,6 +154,12 @@ export default function EvidenceDetailScreen() {
   // The SERVER's verdicts. Absent withholds: a client that defaulted to "yes"
   // would put a destructive control in front of someone the server refuses.
   const [lifecycle, setLifecycle] = useState<EvidenceLifecycle | null>(null);
+  /** Renaming the record. The route is PATCH /v1/evidence/:id/label. */
+  const [renaming, setRenaming] = useState(false);
+  const [labelDraft, setLabelDraft] = useState("");
+  const [labelBusy, setLabelBusy] = useState(false);
+  /** Opening the ORIGINAL file. A GET that writes to the custody chain. */
+  const [originalBusy, setOriginalBusy] = useState(false);
   const [duplicatesPhase, setDuplicatesPhase] = useState<"idle" | "loading" | "failed">("idle");
   const [generating, setGenerating] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
@@ -362,6 +378,81 @@ export default function EvidenceDetailScreen() {
     }
   }, [id]);
 
+  /**
+   * Rename the record.
+   *
+   * The one affordance that fixes the commonest real problem with a phone
+   * capture: it arrives called IMG_0042.jpg, and the only person who knows
+   * what it is is holding the phone. PATCH /v1/evidence/:id/label has existed
+   * the whole time; nothing native called it.
+   */
+  const renameRecord = useCallback(async () => {
+    const invalid = validateEvidenceLabel(labelDraft);
+    if (invalid) {
+      Alert.alert("Could not rename", invalid);
+      return;
+    }
+    setLabelBusy(true);
+    try {
+      await apiFetch(buildEvidenceLabelPath(String(id)), {
+        method: "PATCH",
+        body: JSON.stringify(buildEvidenceLabelBody(labelDraft)),
+      });
+      setRenaming(false);
+      await load();
+    } catch (err) {
+      Alert.alert("Could not rename", toSafeUserError(err).message);
+    } finally {
+      setLabelBusy(false);
+    }
+  }, [id, labelDraft, load]);
+
+  // The route refuses a locked, trashed or destroyed record with a 409; the
+  // projection this screen already loads can say so before the tap.
+  const labelRefusal = evidenceLabelRefusal(lifecycle);
+  const originalRefusal = originalAccessRefusal(lifecycle);
+
+  /**
+   * Open the original file.
+   *
+   * The request is made ONLY from this tap, and only after the person has
+   * been told what it records. GET /v1/evidence/:id/original appends
+   * EVIDENCE_VIEWED to the custody chain and writes an evidence.downloaded
+   * audit row as it answers - so a screen that fetched it on mount would log a
+   * viewing nobody performed, which is precisely the false REPORT_DOWNLOADED
+   * this branch already removed from capture.
+   */
+  const openOriginal = useCallback(() => {
+    Alert.alert("Open the original file", ORIGINAL_ACCESS_CONSEQUENCE, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Open original",
+        onPress: () => {
+          void (async () => {
+            setOriginalBusy(true);
+            try {
+              const link = parseOriginalLink(
+                await apiFetch(buildEvidenceOriginalPath(String(id))),
+              );
+              if (!link) {
+                Alert.alert(
+                  "Original not available",
+                  "This record has no stored original file to open.",
+                );
+                return;
+              }
+              await Linking.openURL(link);
+            } catch (err) {
+              Alert.alert("Could not open the original", toSafeUserError(err).message);
+            } finally {
+              setOriginalBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
+  }, [id]);
+
   const runAction = useCallback(
     (
       label: string,
@@ -474,11 +565,60 @@ export default function EvidenceDetailScreen() {
         <ProovraText variant="h1" weight="bold" style={styles.heroTitle}>
           {c.displayTitle?.trim() || c.originalFileName?.trim() || evidenceTypeLabel(c.type)}
         </ProovraText>
+        <ProovraButton
+          label="Rename record"
+          variant="ghost"
+          fullWidth={false}
+          onPress={() => {
+            setLabelDraft(c.displayTitle?.trim() || c.originalFileName?.trim() || "");
+            setRenaming(true);
+          }}
+        />
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
           {[evidenceTypeLabel(c.type), c.createdAt ? `Created ${formatUserDateTime(c.createdAt)}` : null].filter(Boolean).join(" · ")}
         </ProovraText>
       </ProovraCard>
 
+
+      {/*
+        RENAMING THE RECORD. The route refuses a locked or deleted record
+        with a 409, and the lifecycle projection this screen already loads
+        can say so BEFORE the tap - so the refusal is stated where the
+        control is, in the route's own words, rather than discovered by
+        pressing it.
+      */}
+      <ProovraSheet
+        visible={renaming}
+        title="Rename record"
+        onClose={() => setRenaming(false)}
+      >
+        {labelRefusal ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+            {labelRefusal}
+          </ProovraText>
+        ) : (
+          <>
+            <ProovraFormField label="Record name">
+              <ProovraInput
+                value={labelDraft}
+                onChangeText={setLabelDraft}
+                placeholder={`Up to ${EVIDENCE_LABEL_MAX} characters`}
+                autoCapitalize="sentences"
+                accessibilityLabel="Record name"
+              />
+            </ProovraFormField>
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              The original file name is part of the record and never changes.
+            </ProovraText>
+            <ProovraButton
+              label="Save name"
+              loading={labelBusy}
+              disabled={validateEvidenceLabel(labelDraft) !== null}
+              onPress={() => void renameRecord()}
+            />
+          </>
+        )}
+      </ProovraSheet>
       <View style={styles.tabs}>
         {TABS.map((tb) => {
           const active = tb.key === tab;
@@ -535,6 +675,23 @@ export default function EvidenceDetailScreen() {
             {lifecycle?.canUnarchive ? (
               <ProovraButton label="Restore from archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Restore", { buildPath: buildEvidenceUnarchivePath })} />
             ) : null}
+            {/*
+              The ORIGINAL file. Deliberately not a download-on-render: this
+              GET writes a custody event, so it happens only when somebody
+              chooses it and only after they have been told.
+            */}
+            {originalRefusal ? (
+              <ProovraText variant="label" color={theme.color.ink.muted}>
+                {originalRefusal}
+              </ProovraText>
+            ) : (
+              <ProovraButton
+                label="Open original file"
+                variant="secondary"
+                loading={originalBusy}
+                onPress={openOriginal}
+              />
+            )}
             <ProovraButton label="Move to Trash" variant="danger" loading={actionBusy} onPress={() =>
                 runAction("Move to Trash", {
                   buildPath: buildEvidencePath,

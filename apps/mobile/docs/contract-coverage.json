@@ -167,7 +167,7 @@
       "parser": "parseEvidenceLifecycle",
       "builder": "(literal) /v1/evidence/:p",
       "method": "GET",
-      "site": "[id].tsx:188",
+      "site": "[id].tsx:207",
       "path": "/v1/evidence/:p",
       "route": "GET /v1/evidence/:id",
       "serverKeys": [
@@ -184,7 +184,7 @@
       "parser": "parseDuplicateReport",
       "builder": "buildDuplicatesPath",
       "method": "GET",
-      "site": "[id].tsx:276",
+      "site": "[id].tsx:295",
       "path": "/v1/evidence/:p/duplicates",
       "route": "GET /v1/evidence/:id/duplicates",
       "serverKeys": [
@@ -203,6 +203,38 @@
       ],
       "verdict": "OK",
       "why": "reads groupedMatches, limitation, totalRecords"
+    },
+    {
+      "parser": "parseOriginalLink",
+      "builder": "buildEvidenceOriginalPath",
+      "method": "GET",
+      "site": "[id].tsx:434",
+      "path": "/v1/evidence/:p/original",
+      "route": "GET /v1/evidence/:id/original",
+      "serverKeys": [
+        "bucket",
+        "displayName",
+        "displaySizeLabel",
+        "evidenceId",
+        "key",
+        "kind",
+        "lastAccessedAtUtc",
+        "lastAccessedByUserId",
+        "mimeType",
+        "originalFileName",
+        "previewUrl",
+        "previewable",
+        "publicUrl",
+        "sizeBytes",
+        "storage",
+        "url"
+      ],
+      "parserKeys": [
+        "publicUrl",
+        "url"
+      ],
+      "verdict": "OK",
+      "why": "reads publicUrl, url"
     },
     {
       "parser": "parseEvidenceRequestDetail",
@@ -1128,7 +1160,7 @@
       "parser": "parseSavedViews",
       "builder": "(literal) /v1/evidence/saved-views",
       "method": "GET",
-      "site": "evidence.tsx:564",
+      "site": "evidence.tsx:595",
       "path": "/v1/evidence/saved-views",
       "route": "GET /v1/evidence/saved-views",
       "serverKeys": [
@@ -1144,7 +1176,7 @@
       "parser": "parseEvidenceBulkResponse",
       "builder": "(literal) /v1/evidence/bulk",
       "method": "POST",
-      "site": "evidence.tsx:684",
+      "site": "evidence.tsx:827",
       "path": "/v1/evidence/bulk",
       "route": "POST /v1/evidence/bulk",
       "serverKeys": [
@@ -1524,7 +1556,7 @@
   ],
   "unbound": [],
   "counts": {
-    "OK": 75,
+    "OK": 76,
     "MISMATCH": 0,
     "UNRESOLVED": 0,
     "N/A": 0
