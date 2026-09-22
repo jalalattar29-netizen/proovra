@@ -128,6 +128,16 @@ export default function NotificationsScreen() {
         title="Notifications"
         action={unread > 0 ? <ProovraButton label={`Mark all read (${unread})`} variant="ghost" fullWidth={false} loading={busy} onPress={() => void markAllRead()} /> : undefined}
       >
+        {/*
+          The preferences that decide what appears in this list, reached from
+          the list itself. The web reaches them from a Settings pane; a phone
+          user looking to mute a category looks here first.
+        */}
+        <ProovraListRow
+          title="Notification preferences"
+          subtitle="Choose which notifications reach you, and how"
+          onPress={() => router.push("/(stack)/settings/notifications")}
+        />
         <ProovraFilterChips
           label="Show"
           value={filter}

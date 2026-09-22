@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, Pressable, Switch, View, StyleSheet } from "react-native";
+import { Alert, Pressable, Switch, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { useAuth } from "../../src/auth-context";
@@ -159,6 +159,11 @@ export default function SettingsScreen() {
             <Switch value={telemetry} onValueChange={onToggleTelemetry} accessibilityLabel="Crash and reliability reports" />
           </View>
           <ProovraListRow
+            title="Notification preferences"
+            subtitle="Which notifications reach you, in the app and by email"
+            onPress={() => router.push("/(stack)/settings/notifications")}
+          />
+          <ProovraListRow
             title="Legal acceptance"
             subtitle={legalOk === null ? "—" : legalOk ? "Up to date" : "Action needed"}
             onPress={() => router.push("/legal-acceptance")}
@@ -228,6 +233,24 @@ export default function SettingsScreen() {
         <ProovraCard style={styles.card}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Plan</ProovraText>
           <ProovraListRow title="Billing &amp; plan" subtitle="View your plan and usage" onPress={() => router.push("/(stack)/billing")} />
+          {/*
+            The web reaches these two self-service consoles contextually and
+            keeps them out of every nav surface (routeRegistry: sidebarEligible,
+            commandPaletteVisible and allToolsVisible are all false). A phone
+            has no contextual surface to reach them from, so they sit beside the
+            plan they are about — which is where a user looking for "how much
+            have I used" actually goes.
+          */}
+          <ProovraListRow
+            title="Quotas &amp; usage"
+            subtitle="Account allowances, usage breakdown, and reset windows"
+            onPress={() => router.push("/(stack)/operations/quotas")}
+          />
+          <ProovraListRow
+            title="Batch analysis"
+            subtitle="Batch processing jobs and queue status"
+            onPress={() => router.push("/(stack)/operations/batch-analysis")}
+          />
         </ProovraCard>
 
         <View style={styles.logout}>
