@@ -1,115 +1,73 @@
 /**
- * CANONICAL PROOVRA DESIGN TOKENS — cross-platform source of truth (Law of One).
+ * CANONICAL PROOVRA DESIGN TOKENS — cross-platform, DERIVED not mirrored.
  *
- * These values are mirrored verbatim from the web design authority
- * `apps/web/lib/design-tokens/tokens.css` (the `:root` block). Web renders them
- * as CSS custom properties; native maps them through a StyleSheet adapter
- * (`apps/mobile/src/theme`). The two renderers differ; the VALUES are one set.
+ * This file used to hold hand-copied literals from
+ * `apps/web/lib/design-tokens/tokens.css`: two authored sources for one set of
+ * values, guarded by a drift test that checked 27 of them. 63 of the CSS
+ * file's custom properties were mirrored and ~95 were not, so most of the web
+ * design language had no native counterpart at all — which is the mechanical
+ * reason Native read as a different product rather than a differently-shaped
+ * one.
  *
- * A drift guard (`apps/mobile/test/design-token-parity.test.mjs`) asserts these
- * values equal the web authority and the native adapter, so the platforms can
- * never silently diverge again (the root cause of the 2026-02→2026-09 drift).
+ * Now there is ONE authored source (the CSS) and one derived artefact
+ * (`proovra.generated.ts`, emitted by `packages/ui/tools/generate-tokens.mjs`,
+ * with every `var()` alias flattened because React Native has no cascade).
+ * This module only composes that artefact into the bundle both platforms read.
  *
- * This module is ADDITIVE. The legacy `colors`/`spacing`/`radius`/`typography`/
- * `shadows` exports remain for un-migrated mobile screens and are retired
- * per-surface as later convergence phases move screens onto `proovraTokens`.
- * Do not change a value here without updating tokens.css in the same change —
- * the parity guard will fail otherwise, which is the point.
+ * Re-run the generator after editing tokens.css;
+ * `packages/ui/tests/tokens-generated.test.mjs` fails when the checked-in file
+ * and a fresh generation disagree.
  */
+import {
+  proovraSurface,
+  proovraBorder,
+  proovraInk,
+  proovraAccent,
+  proovraSemantic,
+  proovraStatus,
+  proovraStatusText,
+  proovraRadius,
+  proovraSpace,
+  proovraNav,
+  proovraLayout,
+  proovraRaw,
+} from "./proovra.generated";
 
-/** Semantic surface backgrounds. */
-export const proovraSurface = {
-  app: "#F7F8FC",
-  card: "#FFFFFF",
-  elevated: "#FFFFFF",
-  muted: "#F1F4F9",
-  header: "#F8FAFC",
-} as const;
-
-/** Hairline/border tones (translucent slate). */
-export const proovraBorder = {
-  subtle: "rgba(15, 23, 42, 0.06)",
-  default: "rgba(15, 23, 42, 0.09)",
-  strong: "rgba(15, 23, 42, 0.14)",
-} as const;
-
-/** Text ("ink") hierarchy. */
-export const proovraInk = {
-  primary: "#0F172A",
-  secondary: "#475569",
-  muted: "#94A3B8",
-  inverse: "#F8FAFC",
-} as const;
-
-/** The ONE brand accent (purple). */
-export const proovraAccent = {
-  a050: "#F2ECFE",
-  a200: "#D9C7FB",
-  a500: "#7C3AED",
-  a600: "#6D28D9",
-} as const;
-
-/** Semantic status colors + WCAG-tuned "ink" variants. */
-export const proovraSemantic = {
-  success: "#10B981",
-  successInk: "#167A5B",
-  successStandard: "#15803D",
-  warning: "#F59E0B",
-  warningInk: "#B45309",
-  error: "#DC2626",
-  errorInk: "#B91C1C",
-  info: "#2563EB",
-  orangeFill: "#F97316",
-  orangeInk: "#C2410C",
-  silverInk: "#5B6B7B",
-} as const;
-
-/** AppStatusBadge palette: bg / fg / border / solid per tone. */
-export const proovraStatus = {
-  verified: { bg: "#ECFDF5", fg: "#065F46", border: "#A7F3D0", solid: "#10B981" },
-  pending: { bg: "#FEF3C7", fg: "#78350F", border: "#FDE68A", solid: "#F59E0B" },
-  risk: { bg: "#FEF2F2", fg: "#991B1B", border: "#FECACA", solid: "#DC2626" },
-  neutral: { bg: "#F1F5F9", fg: "#475569", border: "#CBD5E1", solid: "#64748B" },
-  governance: { bg: "#EEEBFF", fg: "#4634C9", border: "#D6CFFB", solid: "#7C3AED" },
-  info: { bg: "#EFF6FF", fg: "#1E40AF", border: "#BFDBFE", solid: "#2563EB" },
-} as const;
-
-/** Corner radii (px / RN numbers). Mirrors --radius-*. */
-export const proovraRadius = {
-  sm: 6,
-  md: 8,
-  lg: 12,
-  card: 14,
-  pill: 999,
-} as const;
-
-/** 4px spacing scale. Mirrors --space-N (N = px/4). */
-export const proovraSpace = {
-  s1: 4,
-  s2: 8,
-  s3: 12,
-  s4: 16,
-  s5: 20,
-  s6: 24,
-  s8: 32,
-  s10: 40,
-} as const;
+export {
+  proovraSurface,
+  proovraBorder,
+  proovraInk,
+  proovraAccent,
+  proovraSemantic,
+  proovraStatus,
+  proovraStatusText,
+  proovraRadius,
+  proovraSpace,
+  proovraNav,
+  proovraLayout,
+  proovraRaw,
+};
 
 /**
- * Elevation semantics. Web values (for reference/parity); the native adapter
- * translates these into RN shadow objects (iOS) + elevation (Android).
+ * Elevation semantics, read from the generated shadows rather than re-typed.
+ * The strings are CSS box-shadows (the web's form); the native adapter in
+ * `apps/mobile/src/theme` translates them into RN shadow objects + elevation.
  */
 export const proovraElevationWeb = {
-  card: "0 1px 2px rgba(15, 23, 42, 0.04)",
-  elevated: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  drawer: "0 0 40px rgba(15, 23, 42, 0.1)",
+  card: proovraRaw.shadowCard,
+  elevated: proovraRaw.shadowElevated,
+  dropdown: proovraRaw.shadowDropdown,
+  drawer: proovraRaw.shadowDrawer,
 } as const;
 
 /**
- * Type scale (native-authored, consistent with web body=14/600 card titles).
- * Web does not expose a single numeric scale as CSS vars, so this is NOT
- * parity-asserted against tokens.css — it is the canonical scale both platforms
- * consume. Fonts are the self-hosted Plus Jakarta Sans (latin) + Noto Arabic.
+ * Type scale. AUTHORED HERE, deliberately: the web expresses its type as
+ * composite CSS shorthands (`--font-card-title: 600 14px/1.4 …`) and Tailwind
+ * classes rather than a numeric scale, so there is nothing to derive. These
+ * numbers are the cross-platform scale both renderers target, and the three web
+ * shorthands they correspond to are carried in `proovraRaw.font*` so the two
+ * can be compared. Fonts are self-hosted Plus Jakarta Sans (latin) + Noto
+ * Arabic.
  */
 export const proovraType = {
   family: { latin: "Plus Jakarta Sans", arabic: "Noto Sans Arabic" },
@@ -126,8 +84,12 @@ export const proovraTokens = {
   accent: proovraAccent,
   semantic: proovraSemantic,
   status: proovraStatus,
+  statusText: proovraStatusText,
   radius: proovraRadius,
   space: proovraSpace,
+  nav: proovraNav,
+  layout: proovraLayout,
+  raw: proovraRaw,
   elevationWeb: proovraElevationWeb,
   type: proovraType,
 } as const;

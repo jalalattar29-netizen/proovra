@@ -39,7 +39,7 @@ const VALID = new Set([
   "NATIVE_REQUIRED",
   "ADMIN_ONLY",
   "ENTERPRISE_ONLY",
-  "PLATFORM_SPECIFIC_EQUIVALENT",
+  "PUBLIC_INFORMATIONAL_ONLY",
 ]);
 
 const manifest = await buildManifest();
@@ -71,7 +71,7 @@ test("every classification cites repository evidence", () => {
   for (const r of manifest.rows) {
     assert.ok(r.evidence && r.evidence.length > 10, `${r.routePath} has no evidence string`);
     assert.ok(
-      /routeRegistry|middleware|redirect shim|registry gap|public product surface|marketing site/.test(r.evidence),
+      /routeRegistry|middleware|redirect shim|registry gap|public product surface|marketing site|informational page/.test(r.evidence),
       `${r.routePath} evidence does not cite a canonical source: ${r.evidence}`,
     );
   }

@@ -46,7 +46,7 @@ const ENTERPRISE_DOMAINS = new Set(["GOVERNANCE", "REVIEW_OPERATIONS", "OPS"]);
  * across two hosts (`APP_PREFIXES` → app host, everything else → marketing
  * host), and these modules are what the marketing host renders. An installed
  * native app has no in-app acquisition funnel, so these map to disposition D
- * (PLATFORM_SPECIFIC_EQUIVALENT: the store listing + the installed app).
+ * (PUBLIC_INFORMATIONAL_ONLY: the store listing + the installed app).
  */
 const MARKETING_MODULES = [
   "components/marketing",
@@ -222,7 +222,38 @@ export function isPublicProductFlow(absFile, routePath) {
   if (callsApi && tokenParam) return "consumes a link token and calls the product API";
   if (callsApi) return "calls the product API (/v1) unauthenticated";
   if (tokenParam) return "is an emailed/deep-linked token destination";
+
+  // A page whose job is to put the user INTO the product is part of the
+  // product, even when it neither calls the API nor carries a token. `/verify`
+  // is the case that proved it: its hero takes a pasted id and pushes to
+  // `/verify/[token]`, and because the routing lives in `_components/` while
+  // the page imports the marketing chrome, it was being read as marketing.
+  const entersProduct = navigatesIntoProductRoute(absFile, src, routePath);
+  if (entersProduct) return `routes the user into the product surface ${entersProduct}`;
   return null;
+}
+
+/**
+ * Does this page (or a component under its own route folder) navigate to a
+ * DIFFERENT route under its own path — i.e. act as the entry point to a product
+ * surface? Scoped to the route's own folder so a shared header's links to
+ * unrelated pages cannot make every marketing page look like a product flow.
+ */
+function navigatesIntoProductRoute(absFile, src, routePath) {
+  const base = routePath.replace(/\/+$/, "");
+  if (base === "" || base === "/") return null;
+  const dir = dirname(absFile);
+  const texts = [src];
+  for (const m of src.matchAll(/from\s+["'](\.[^"']+)["']/g)) {
+    for (const ext of [".ts", ".tsx", "/index.ts", "/index.tsx"]) {
+      const candidate = resolve(dir, m[1] + ext);
+      if (existsSync(candidate)) texts.push(readFileSync(candidate, "utf8"));
+    }
+  }
+  const pattern = new RegExp(
+    `(?:router\\.(?:push|replace)|href[:=])\\s*[({]?\\s*[\`"']${base.replace(/[/]/g, "\\/")}\\/`,
+  );
+  return texts.some((t) => pattern.test(t)) ? `${base}/…` : null;
 }
 
 export function classify(route, enterpriseIds) {
@@ -300,7 +331,7 @@ export async function buildManifest() {
           classification = "NATIVE_REQUIRED";
           evidence = `public product surface (outside app/(app), so no registry gate): ${why}`;
         } else if (isMarketingPage(abs)) {
-          classification = "PLATFORM_SPECIFIC_EQUIVALENT";
+          classification = "PUBLIC_INFORMATIONAL_ONLY";
           evidence =
             "renders the public marketing site (components/marketing | use-case-page) and drives " +
             "neither the product API nor a link token; middleware.ts routes non-APP_PREFIXES to the " +
@@ -338,7 +369,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   } else {
     console.log(`registry entries          : ${registrySize}`);
     console.log(`web routes discovered     : ${rows.length}`);
-    for (const k of ["NATIVE_REQUIRED", "ADMIN_ONLY", "ENTERPRISE_ONLY", "PLATFORM_SPECIFIC_EQUIVALENT", "UNRESOLVED"]) {
+    for (const k of ["NATIVE_REQUIRED", "ADMIN_ONLY", "ENTERPRISE_ONLY", "PUBLIC_INFORMATIONAL_ONLY", "UNRESOLVED"]) {
       console.log(`${k.padEnd(26)}: ${counts[k] ?? 0}`);
     }
     const unresolved = rows.filter((r) => r.classification === "UNRESOLVED");

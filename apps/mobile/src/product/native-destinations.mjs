@@ -283,6 +283,12 @@ export const NATIVE_DESTINATIONS = {
   },
 
   /* ------------------------------------------------- public / trust / legal */
+  "/verify": {
+    routeFile: "verify.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/verify/page.tsx", "apps/web/app/verify/_components/VerifyHero.tsx"],
+    gaps: ["paste-to-verify entry present; the explanatory sections are not ported"],
+  },
   "/verify/[token]": {
     routeFile: "verify.tsx",
     status: "PARTIAL",

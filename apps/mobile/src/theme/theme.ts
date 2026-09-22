@@ -27,13 +27,36 @@ export interface NativeShadow {
   elevation: number;
 }
 
-const SHADOW_COLOR = "#0F172A";
+const SHADOW_COLOR = proovraTokens.ink.primary;
 
-/** Elevation semantics mapped from proovraTokens.elevationWeb to RN. */
-export const elevation: Record<"card" | "elevated" | "drawer", NativeShadow> = {
-  card: { shadowColor: SHADOW_COLOR, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
-  elevated: { shadowColor: SHADOW_COLOR, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8 },
-  drawer: { shadowColor: SHADOW_COLOR, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.1, shadowRadius: 40, elevation: 16 },
+/**
+ * Elevation, PARSED from the canonical CSS box-shadow strings rather than
+ * re-typed. `--shadow-card: 0 1px 2px rgba(15,23,42,0.04)` becomes the RN
+ * offset/radius/opacity triple, so changing the shadow in tokens.css changes it
+ * on both platforms instead of leaving native on a stale hand-copied value.
+ * Android has no equivalent of an offset shadow, so `elevation` is derived from
+ * the blur radius — the closest honest mapping the platform offers.
+ */
+function parseWebShadow(css: string): NativeShadow {
+  const m = /(-?\d+)px\s+(-?\d+)px\s+(-?\d+)px[^)]*rgba\([^)]*,\s*([\d.]+)\s*\)/.exec(css);
+  if (!m) {
+    return { shadowColor: SHADOW_COLOR, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 };
+  }
+  const [, x, y, blur, alpha] = m;
+  return {
+    shadowColor: SHADOW_COLOR,
+    shadowOffset: { width: Number(x), height: Number(y) },
+    shadowOpacity: Number(alpha),
+    shadowRadius: Number(blur),
+    elevation: Math.max(1, Math.round(Number(blur) / 3)),
+  };
+}
+
+export const elevation: Record<"card" | "elevated" | "dropdown" | "drawer", NativeShadow> = {
+  card: parseWebShadow(proovraTokens.elevationWeb.card),
+  elevated: parseWebShadow(proovraTokens.elevationWeb.elevated),
+  dropdown: parseWebShadow(proovraTokens.elevationWeb.dropdown),
+  drawer: parseWebShadow(proovraTokens.elevationWeb.drawer),
 };
 
 /** Canonical native theme. */
@@ -45,7 +68,20 @@ export const theme = {
     accent: proovraTokens.accent,
     semantic: proovraTokens.semantic,
     status: proovraTokens.status,
+    /** Text-only status tones (tokens.css declares these without a surface). */
+    statusText: proovraTokens.statusText,
+    /** Navigation shell tones — the web sidebar/rail palette. */
+    nav: proovraTokens.nav,
+    /**
+     * Every other web token, verbatim. Before the tokens were derived, ~95 of
+     * the CSS file's custom properties had NO native counterpart, so a screen
+     * reaching for the web's tone ramp, row heights or section gaps had to
+     * invent a value. They are all reachable here.
+     */
+    raw: proovraTokens.raw,
   },
+  /** Layout measures the web shell clamps to (page width, gutters, row heights). */
+  layout: proovraTokens.layout,
   space: proovraTokens.space,
   radius: proovraTokens.radius,
   type: {
