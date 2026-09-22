@@ -174,3 +174,41 @@ test("the filter list matches the canonical lifecycle vocabulary", () => {
     ["all", "report_ready", "report_pending", "report_failed", "package_ready", "package_pending", "package_blocked"],
   );
 });
+
+/* ------------------------------------------------- retrieving from the list */
+
+/**
+ * Minting a report URL is NOT a read: GET /v1/evidence/:id/report/latest
+ * records a custody download. A list that pre-fetched one per row would write
+ * a download event into the custody chain of every record a user merely
+ * scrolled past — and the chain would then say those reports were retrieved,
+ * which is a false statement in the one place this product exists to keep
+ * true. So the list mints on tap, one record at a time.
+ */
+test("only a READY report is offered for retrieval", () => {
+  assert.equal(R.isReportRetrievable({ reportState: "READY" }), true);
+  assert.equal(R.isReportRetrievable({ reportState: "ready" }), true);
+  assert.equal(R.isReportRetrievable({ reportState: "GENERATING" }), false);
+  assert.equal(R.isReportRetrievable({ reportState: "FAILED" }), false);
+  assert.equal(R.isReportRetrievable({ reportState: null }), false);
+  assert.equal(R.isReportRetrievable({}), false);
+});
+
+test("the retrieval path is per-record and encoded", () => {
+  assert.equal(R.buildReportLatestPath("ev-1"), "/v1/evidence/ev-1/report/latest");
+  assert.equal(R.buildReportLatestPath("a/b"), "/v1/evidence/a%2Fb/report/latest");
+});
+
+test("a response with no url is not a url", () => {
+  assert.equal(R.parseReportUrl({ url: "https://x/report.pdf" }), "https://x/report.pdf");
+  assert.equal(R.parseReportUrl({ url: "" }), null);
+  assert.equal(R.parseReportUrl({}), null);
+  assert.equal(R.parseReportUrl(null), null);
+});
+
+test("the module offers no way to mint URLs in bulk", () => {
+  // The absence is the point: a bulk minting helper is the thing that would
+  // make the custody chain lie.
+  const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8");
+  assert.doesNotMatch(src, /buildReportLatestPaths|mintAllReport|reportUrlsFor/);
+});

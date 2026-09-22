@@ -12,6 +12,7 @@
  * live on Evidence detail; this surface is the deliverables index.
  */
 import { useCallback, useEffect, useState } from "react";
+import { Alert, Linking, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
@@ -39,6 +40,9 @@ import {
   parseReportsSummary,
   parseArtifacts,
   artifactRowState,
+  buildReportLatestPath,
+  isReportRetrievable,
+  parseReportUrl,
   REPORTS_METRICS,
   REPORTS_FILTERS,
   type ArtifactRow,
@@ -54,6 +58,30 @@ export default function ReportsScreen() {
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [summary, setSummary] = useState<ReportsSummary | null>(null);
   const [items, setItems] = useState<ArtifactRow[]>([]);
+  const [retrieving, setRetrieving] = useState<string | null>(null);
+
+  /**
+   * Mint one report URL, for one record, at the moment it is asked for.
+   * See the note on the control itself: this call is audited.
+   */
+  const retrieve = useCallback(
+    async (evidenceId: string) => {
+      setRetrieving(evidenceId);
+      try {
+        const url = parseReportUrl(await apiFetch(buildReportLatestPath(evidenceId)));
+        if (url) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert("Report unavailable", "No report is available for this record yet.");
+        }
+      } catch (err) {
+        Alert.alert("Could not open report", toSafeUserError(err).message);
+      } finally {
+        setRetrieving(null);
+      }
+    },
+    [],
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [listUnavailable, setListUnavailable] = useState(false);
@@ -172,7 +200,30 @@ export default function ReportsScreen() {
                       .filter(Boolean)
                       .join(" · ")
                   }
-                  trailing={<ProovraBadge label={state.label} tone={state.tone} />}
+                  trailing={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2 }}>
+                      <ProovraBadge label={state.label} tone={state.tone} />
+                      {/*
+                        MINTED ON TAP, never per row.
+
+                        GET /v1/evidence/:id/report/latest records a custody
+                        download. Pre-fetching a URL for every row would write a
+                        download event into the custody chain of every record a
+                        user merely scrolled past — the chain would then say
+                        those reports were retrieved, which is a false statement
+                        in the one place this product exists to keep true.
+                      */}
+                      {isReportRetrievable(row) ? (
+                        <ProovraButton
+                          label="Get"
+                          variant="ghost"
+                          fullWidth={false}
+                          disabled={retrieving === row.evidenceId}
+                          onPress={() => void retrieve(row.evidenceId)}
+                        />
+                      ) : null}
+                    </View>
+                  }
                   onPress={() => router.push(`/evidence/${row.evidenceId}`)}
                 />
               );

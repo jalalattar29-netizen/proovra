@@ -277,16 +277,14 @@ export const NATIVE_DESTINATIONS = {
   },
   "/reports": {
     routeFile: "(stack)/reports.tsx",
-    status: "PARTIAL",
-    webSources: [
-      "apps/web/app/(app)/reports/page.tsx",
-      "apps/web/components/reports-experience/ReportsIndex.tsx",
-    ],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/components/reports-experience/ReportsIndex.tsx"],
     gaps: [
-      "deliverables index ported: six canonical counters, lifecycle filters, cursor paging, result count, per-row state",
-      "read-only, as the web index is — generation and download are gated on Evidence detail",
-      "no saved views (operator surface), no per-row download yet",
-      "device acceptance outstanding",
+      "six counters, lifecycle filters, cursor paging, rows that open the record, and per-row report retrieval",
+      "retrieval mints ON TAP, one record at a time. GET /v1/evidence/:id/report/latest records a custody download - Evidence Detail already takes the side-effect-free status first for that reason - so a list that pre-fetched a URL per row would write a download event into the custody chain of every record a user merely scrolled past. The chain would then say those reports were retrieved, which is a false statement in the one place this product exists to keep true.",
+      "only a READY report is offered: a retrieval on a report that does not exist mints nothing and audits an attempt",
+      "generation stays on Evidence detail, as it does on the web index, and saved views are an operator surface",
     ],
   },
   "/billing": {

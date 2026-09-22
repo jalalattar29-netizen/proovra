@@ -202,3 +202,44 @@ export function artifactRowState(row: ArtifactRow): { label: string; tone: Proov
   if (pkg === "PENDING" || rep === "PENDING") return { label: "In progress", tone: "pending" };
   return { label: "No artifact yet", tone: "neutral" };
 }
+
+// ---------------------------------------------------------------------------
+// Retrieving a report from the list
+// ---------------------------------------------------------------------------
+
+/**
+ * MINTING A REPORT URL IS NOT A READ.
+ *
+ * `GET /v1/evidence/:id/report/latest` records a custody/audit download — the
+ * Evidence Detail screen already notes this, and takes the side-effect-free
+ * status first for exactly that reason.
+ *
+ * So a Reports LIST must never pre-fetch a URL per row: a user who scrolled
+ * past forty records would have written forty download events into the custody
+ * chain of records they never opened. The chain would then say those reports
+ * were retrieved, which is a false statement in the one place the product
+ * exists to keep true.
+ *
+ * The list therefore mints on TAP, one record at a time, and only for a row
+ * the server has already reported READY.
+ */
+export function buildReportLatestPath(evidenceId: string): string {
+  return `/v1/evidence/${encodeURIComponent(evidenceId)}/report/latest`;
+}
+
+export function parseReportUrl(payload: unknown): string | null {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const url = d.url;
+  return typeof url === "string" && url.length > 0 ? url : null;
+}
+
+/**
+ * Whether this row's report can be retrieved at all.
+ *
+ * Only a READY report. Offering a download for a row that is still generating
+ * produces a request that mints nothing and an audit event that says a
+ * retrieval was attempted on a report that did not exist.
+ */
+export function isReportRetrievable(row: ArtifactRow): boolean {
+  return (row.reportState ?? "").toUpperCase() === "READY";
+}
