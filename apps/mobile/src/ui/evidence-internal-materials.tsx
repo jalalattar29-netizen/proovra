@@ -62,9 +62,25 @@ import {
 } from "../product/evidence-detail";
 import { EVIDENCE_LEGAL_NOTE_TYPES } from "../product/domain-enums.generated";
 
+/**
+ * Loading, failed and empty are three different things.
+ *
+ * Collapsing them onto one `null` made the section state "not available for
+ * this record" while the first fetch was still in flight, and made an
+ * authorization refusal look the same as a record that genuinely has no
+ * notes. In an evidence product the difference between "none" and "we could
+ * not read them" is the whole point of showing it.
+ */
+type ListState<T> =
+  | { status: "loading" }
+  | { status: "failed"; reason: string }
+  | { status: "ready"; items: T[] };
+
 export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }) {
-  const [notes, setNotes] = useState<LegalNote[] | null>(null);
-  const [annotations, setAnnotations] = useState<EvidenceAnnotation[] | null>(null);
+  const [notes, setNotes] = useState<ListState<LegalNote>>({ status: "loading" });
+  const [annotations, setAnnotations] = useState<ListState<EvidenceAnnotation>>({
+    status: "loading",
+  });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -74,14 +90,21 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
   const [annotationDraft, setAnnotationDraft] = useState("");
 
   const load = useCallback(async () => {
+    setNotes({ status: "loading" });
+    setAnnotations({ status: "loading" });
     // Independent: a refusal on one must not hide the other.
     await Promise.all([
       apiFetch(buildLegalNotesPath(evidenceId))
-        .then((d) => setNotes(parseLegalNotes(d)))
-        .catch(() => setNotes(null)),
+        .then((d) => setNotes({ status: "ready", items: parseLegalNotes(d) }))
+        // Covers an authorization refusal, a transport failure AND a response
+        // this build cannot read - parseLegalNotes throws on an envelope that
+        // is not the contract rather than reporting an empty list.
+        .catch((err) => setNotes({ status: "failed", reason: toSafeUserError(err).message })),
       apiFetch(buildAnnotationsPath(evidenceId))
-        .then((d) => setAnnotations(parseAnnotations(d)))
-        .catch(() => setAnnotations(null)),
+        .then((d) => setAnnotations({ status: "ready", items: parseAnnotations(d) }))
+        .catch((err) =>
+          setAnnotations({ status: "failed", reason: toSafeUserError(err).message }),
+        ),
     ]);
   }, [evidenceId]);
 
@@ -183,10 +206,19 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
         Legal notes
       </ProovraText>
 
-      {notes === null ? (
+      {notes.status === "loading" ? null : notes.status === "failed" ? (
         <ProovraEmpty
           presence="inline"
-          title="Legal notes are not available for this record."
+          title="Legal notes could not be loaded."
+          purpose={notes.reason}
+          action={
+            <ProovraButton
+              label="Try again"
+              variant="secondary"
+              fullWidth={false}
+              onPress={() => void load()}
+            />
+          }
         />
       ) : (
         <>
@@ -214,11 +246,11 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
             />
           </ProovraCard>
 
-          {notes.length === 0 ? (
+          {notes.items.length === 0 ? (
             <ProovraEmpty presence="inline" title="No legal notes on this record." />
           ) : (
             <ProovraCard>
-              {notes.map((n) => (
+              {notes.items.map((n) => (
                 <View key={n.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
                   <View
                     style={{
@@ -266,10 +298,19 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
         Annotations
       </ProovraText>
 
-      {annotations === null ? (
+      {annotations.status === "loading" ? null : annotations.status === "failed" ? (
         <ProovraEmpty
           presence="inline"
-          title="Annotations are not available for this record."
+          title="Annotations could not be loaded."
+          purpose={annotations.reason}
+          action={
+            <ProovraButton
+              label="Try again"
+              variant="secondary"
+              fullWidth={false}
+              onPress={() => void load()}
+            />
+          }
         />
       ) : (
         <>
@@ -301,11 +342,11 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
             />
           </ProovraCard>
 
-          {annotations.length === 0 ? (
+          {annotations.items.length === 0 ? (
             <ProovraEmpty presence="inline" title="No annotations on this record." />
           ) : (
             <ProovraCard>
-              {annotations.map((a) => (
+              {annotations.items.map((a) => (
                 <View key={a.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
                   <View
                     style={{
@@ -341,7 +382,7 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
         </>
       )}
 
-      {notes === null && annotations === null ? (
+      {notes.status === "loading" || annotations.status === "loading" ? (
         <ProovraLoadingState label="Loading internal materials" />
       ) : null}
 

@@ -354,13 +354,70 @@ test("privilege is a claim with consequences, and is recognised", () => {
   assert.equal(mod.legalNoteIsPrivileged("GENERAL"), false);
 });
 
-test("a raw user id is never shown where an author belongs", () => {
-  const [n] = mod.parseLegalNotes({ notes: [{ id: "n1", body: "x", authorUserId: "u-9" }] });
-  assert.equal(n.authorLabel, null);
-  const [named] = mod.parseLegalNotes({
-    notes: [{ id: "n1", body: "x", author: { displayName: "Ada" } }],
+test("a legal note is read out of the envelope the route actually sends", () => {
+  // Verbatim shape of GET /v1/evidence/:id/legal-notes
+  // (evidence.routes.ts:7515), author per mapCollaborativeAuthor (:3213).
+  const list = mod.parseLegalNotes({
+    items: [
+      {
+        id: "3f1c2a6e-1111-4a2b-8c3d-000000000001",
+        evidenceId: "9a0b1c2d-2222-4e5f-9a0b-000000000002",
+        noteType: "PRIVILEGED",
+        body: "Counsel reviewed the chain.",
+        createdAt: "2026-09-20T10:15:00.000Z",
+        updatedAt: "2026-09-20T10:15:00.000Z",
+        edited: false,
+        author: { id: "u-1", displayName: "Ada Lovelace", email: "ada@example.com" },
+      },
+    ],
   });
-  assert.equal(named.authorLabel, "Ada");
+  assert.equal(list.length, 1);
+  assert.equal(list[0].noteType, "PRIVILEGED");
+  assert.equal(list[0].body, "Counsel reviewed the chain.");
+  assert.equal(list[0].authorLabel, "Ada Lovelace");
+  assert.equal(list[0].createdAtIso, "2026-09-20T10:15:00.000Z");
+});
+
+test("a raw user id is never shown where an author belongs", () => {
+  // The server sends author: { id, displayName, email } with nulls preserved,
+  // so an account that has set neither has no label - not its user id.
+  const [n] = mod.parseLegalNotes({
+    items: [{ id: "n1", body: "x", author: { id: "u-9", displayName: null, email: null } }],
+  });
+  assert.equal(n.authorLabel, null);
+  const [byEmail] = mod.parseLegalNotes({
+    items: [{ id: "n2", body: "x", author: { id: "u-9", displayName: null, email: "a@b.c" } }],
+  });
+  assert.equal(byEmail.authorLabel, "a@b.c");
+});
+
+test("an envelope we do not recognise is not an empty list", () => {
+  // THE F-09 REGRESSION. Both parsers read notes/annotations and fell through
+  // to the bare payload, so the items envelope the route has always sent was
+  // refused by rows() and the tab rendered empty on every populated record.
+  const note = {
+    id: "n1",
+    body: "x",
+    author: { id: "u-1", displayName: "Ada", email: null },
+  };
+  assert.equal(mod.parseLegalNotes({ items: [note] }).length, 1);
+  assert.equal(mod.parseAnnotations({ items: [{ id: "a1", annotationType: "TEXT" }] }).length, 1);
+
+  // A legitimately empty list stays empty ...
+  assert.deepEqual(mod.parseLegalNotes({ items: [] }), []);
+  assert.deepEqual(mod.parseAnnotations({ items: [] }), []);
+
+  // ... but a shape we cannot read REFUSES. Returning [] here is exactly how
+  // this pair shipped unable to show a row while every test passed: the screen
+  // said "no legal notes on this record" about a record that had them. The
+  // throw reaches the caller's catch and renders the failed state instead.
+  for (const bad of [null, undefined, 42, "items", { data: [note] }, { items: { note } }]) {
+    assert.throws(() => mod.parseLegalNotes(bad), /Unreadable list response/);
+    assert.throws(() => mod.parseAnnotations(bad), /Unreadable list response/);
+  }
+  assert.equal(mod.parseLegalNotes({ notes: [note] }).length, 1);
+  assert.equal(mod.parseLegalNotes({ legalNotes: [note] }).length, 1);
+  assert.equal(mod.parseLegalNotes([note]).length, 1);
 });
 
 test("a phone writes a TEXT annotation with no spatial claim", () => {
@@ -378,13 +435,32 @@ test("a phone writes a TEXT annotation with no spatial claim", () => {
 });
 
 test("every annotation type is READ, and its anchor read honestly", () => {
+  // Verbatim shape of GET /v1/evidence/:id/annotations (evidence.routes.ts:7662).
+  const author = { id: "u-1", displayName: "Ada Lovelace", email: "ada@example.com" };
   const list = mod.parseAnnotations({
-    annotations: [
-      { id: "a1", annotationType: "TEXT", body: "note" },
-      { id: "a2", annotationType: "TIMESTAMP", mediaTimestampMs: 125000 },
-      { id: "a3", annotationType: "BOX", x: 0.1, y: 0.2 },
-      { id: "a4", annotationType: "TEXT", pageNumber: 4 },
-      { annotationType: "TEXT" },
+    items: [
+      {
+        id: "a1",
+        evidenceId: "ev-1",
+        evidencePartId: null,
+        annotationType: "TEXT",
+        body: "note",
+        pageNumber: null,
+        mediaTimestampMs: null,
+        x: null,
+        y: null,
+        width: null,
+        height: null,
+        coordinateSpace: "TIME_ONLY",
+        createdAt: "2026-09-20T10:15:00.000Z",
+        updatedAt: "2026-09-20T10:15:00.000Z",
+        edited: false,
+        author,
+      },
+      { id: "a2", annotationType: "TIMESTAMP", mediaTimestampMs: 125000, author },
+      { id: "a3", annotationType: "BOX", x: 0.1, y: 0.2, coordinateSpace: "NORMALIZED", author },
+      { id: "a4", annotationType: "TEXT", pageNumber: 4, author },
+      { annotationType: "TEXT", author },
     ],
   });
   assert.equal(list.length, 4);

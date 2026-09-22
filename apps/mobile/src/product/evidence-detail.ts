@@ -681,6 +681,30 @@ export function buildLegalNotePath(evidenceId: string, noteId: string): string {
   return `${buildLegalNotesPath(evidenceId)}/${encodeURIComponent(noteId)}`;
 }
 
+/**
+ * The array inside a list envelope, by the keys the server actually uses.
+ *
+ * A TOP-LEVEL array is accepted — some list routes answer bare — and so is
+ * any of the named keys. Anything else THROWS, because an envelope we cannot
+ * read is not an empty list: it is a contract we no longer match, and the two
+ * must never look the same on screen. Returning `[]` here is precisely how
+ * this pair shipped unable to display a single row while every test passed —
+ * the screen said "no legal notes on this record" about a record that had
+ * them, which in an evidence product is a false statement about the file.
+ *
+ * The caller's existing `catch` turns this into the failed state, so a shape
+ * change surfaces as a failure the user can report rather than as absence.
+ */
+function listEnvelope(payload: unknown, keys: readonly string[]): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  const d = obj(payload);
+  for (const key of keys) {
+    const value = d[key];
+    if (Array.isArray(value)) return value;
+  }
+  throw new Error(`Unreadable list response: expected an array under ${keys.join(" or ")}.`);
+}
+
 export const INTERNAL_MATERIALS_BOUNDARY =
   "Reviewer comments, legal notes and annotations are internal workspace materials. " +
   "They are not included in public verification, the fixed PDF report, or the " +
@@ -698,8 +722,17 @@ export interface LegalNote {
   createdAtIso: string | null;
 }
 
+/**
+ * `GET /v1/evidence/:id/legal-notes` → `{ items: [...] }`.
+ *
+ * `items` is the contract and is read first. `notes` / `legalNotes` are
+ * named compatibility shapes, kept because an older build may still be
+ * deployed; a bare `?? payload` fallback is deliberately NOT one of them,
+ * because it turns an unrecognised envelope into a silent empty list — which
+ * is exactly how this parser shipped unable to display a single row.
+ */
 export function parseLegalNotes(payload: unknown): LegalNote[] {
-  return rows(obj(payload).notes ?? obj(payload).legalNotes ?? payload)
+  return rows(listEnvelope(payload, ["items", "notes", "legalNotes"]))
     .map((raw) => {
       const n = obj(raw);
       const id = str(n.id);
@@ -760,8 +793,12 @@ export interface EvidenceAnnotation {
   createdAtIso: string | null;
 }
 
+/**
+ * `GET /v1/evidence/:id/annotations` → `{ items: [...] }`. See
+ * `parseLegalNotes` for why the bare-payload fallback is not accepted.
+ */
 export function parseAnnotations(payload: unknown): EvidenceAnnotation[] {
-  return rows(obj(payload).annotations ?? payload)
+  return rows(listEnvelope(payload, ["items", "annotations"]))
     .map((raw) => {
       const a = obj(raw);
       const id = str(a.id);
