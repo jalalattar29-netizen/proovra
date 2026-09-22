@@ -7,12 +7,27 @@ import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error"
 import { formatUserDateTime } from "../../../src/lib/date";
 import { caseStatusDisplay, CASE_STATUSES } from "../../../src/product/domain-display";
 import {
-  parseCaseNotes,
-  parseCaseAssignments,
+  CASE_NOTES_BOUNDARY,
+  DELETE_CASE_CONSEQUENCE,
+  buildCaseCommentResolvePath,
+  buildCaseCommentPath,
+  buildCaseCommentsPath,
+  buildCasePath,
+  buildCaseRenameBody,
   buildMemberNameMap,
+  buildResolveCommentBody,
+  caseDenialReason,
+  parseCaseAssignments,
+  parseCaseNotes,
+  parseCaseViewer,
   resolveMemberName,
-  type CaseNote,
+  summariseCaseDeliverables,
+  validateCaseName,
+  validateCaseNote,
   type CaseAssignment,
+  type CaseDeliverables,
+  type CaseNote,
+  type CaseViewer,
 } from "../../../src/product/case-workspace";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -28,6 +43,9 @@ import {
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
+  ProovraSheet,
+  ProovraConfirmSheet,
+  ProovraKpiGrid,
 } from "../../../src/ui";
 
 type EvidenceItem = { id: string; title?: string; type: string; status?: string; createdAt: string; itemCount?: number };
@@ -66,6 +84,16 @@ export default function CaseDetailScreen() {
   const [noteText, setNoteText] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
 
+  // The SERVER's answer to what this caller may do here. Absent means NOT
+  // allowed: a client that defaulted to "yes" would offer a destructive action
+  // to someone the server would refuse.
+  const [viewer, setViewer] = useState<CaseViewer>(parseCaseViewer(null));
+  const [deliverables, setDeliverables] = useState<CaseDeliverables | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     setState("loading");
@@ -96,9 +124,15 @@ export default function CaseDetailScreen() {
       const ws = await apiFetch(`/v1/cases/${id}/matter-workspace`);
       setNotes(parseCaseNotes(ws));
       setAssignments(parseCaseAssignments(ws));
+      setViewer(parseCaseViewer(ws));
+      setDeliverables(summariseCaseDeliverables(ws));
     } catch {
       setNotes([]);
       setAssignments([]);
+      // An envelope that could not be read closes the controls rather than
+      // opening them.
+      setViewer(parseCaseViewer(null));
+      setDeliverables(null);
     }
   }, [id]);
 
@@ -107,10 +141,17 @@ export default function CaseDetailScreen() {
 
   const addNote = useCallback(async () => {
     const body = noteText.trim();
-    if (!body) return;
+    const invalid = validateCaseNote(body);
+    if (invalid) {
+      Alert.alert("Could not add note", invalid);
+      return;
+    }
     setNoteBusy(true);
     try {
-      await apiFetch(`/v1/cases/${id}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+      await apiFetch(buildCaseCommentsPath(String(id)), {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      });
       setNoteText("");
       await loadWorkspace();
     } catch (err) {
@@ -119,6 +160,73 @@ export default function CaseDetailScreen() {
       setNoteBusy(false);
     }
   }, [noteText, id, loadWorkspace]);
+
+  const setNoteResolved = useCallback(
+    async (note: CaseNote, resolved: boolean) => {
+      setNoteBusy(true);
+      try {
+        await apiFetch(buildCaseCommentResolvePath(String(id), note.id), {
+          method: "POST",
+          body: JSON.stringify(buildResolveCommentBody(resolved)),
+        });
+        await loadWorkspace();
+      } catch (err) {
+        Alert.alert("Could not update note", toSafeUserError(err).message);
+      } finally {
+        setNoteBusy(false);
+      }
+    },
+    [id, loadWorkspace],
+  );
+
+  const deleteNote = useCallback(
+    async (note: CaseNote) => {
+      setNoteBusy(true);
+      try {
+        await apiFetch(buildCaseCommentPath(String(id), note.id), { method: "DELETE" });
+        await loadWorkspace();
+      } catch (err) {
+        Alert.alert("Could not delete note", toSafeUserError(err).message);
+      } finally {
+        setNoteBusy(false);
+      }
+    },
+    [id, loadWorkspace],
+  );
+
+  const renameCase = useCallback(async () => {
+    const invalid = validateCaseName(nameDraft, name);
+    if (invalid) {
+      Alert.alert("Could not rename", invalid);
+      return;
+    }
+    setSettingsBusy(true);
+    try {
+      await apiFetch(buildCasePath(String(id)), {
+        method: "PATCH",
+        body: JSON.stringify(buildCaseRenameBody(nameDraft)),
+      });
+      setRenaming(false);
+      await load();
+    } catch (err) {
+      Alert.alert("Could not rename", toSafeUserError(err).message);
+    } finally {
+      setSettingsBusy(false);
+    }
+  }, [id, nameDraft, name, load]);
+
+  const deleteCase = useCallback(async () => {
+    setDeleting(false);
+    setSettingsBusy(true);
+    try {
+      await apiFetch(buildCasePath(String(id)), { method: "DELETE" });
+      router.back();
+    } catch (err) {
+      Alert.alert("Could not delete", toSafeUserError(err).message);
+    } finally {
+      setSettingsBusy(false);
+    }
+  }, [id, router]);
 
   // Export → download then present via the platform share sheet (Files/AirDrop/
   // etc.) instead of leaving it in an inaccessible cache dir.
@@ -250,19 +358,36 @@ export default function CaseDetailScreen() {
           </View>
         ) : null}
         <View style={styles.heroActions}>
-          <ProovraButton
-            label={changingStatus ? "Cancel" : "Change status"}
-            variant="secondary"
-            fullWidth={false}
-            onPress={() => setChangingStatus((v) => !v)}
-          />
+          {/*
+            Offered only when the SERVER says this caller may change the
+            status. A control that is offered and then refused teaches a user
+            that the app is unreliable, when the server was right.
+          */}
+          {viewer.canChangeStatus ? (
+            <ProovraButton
+              label={changingStatus ? "Cancel" : "Change status"}
+              variant="secondary"
+              fullWidth={false}
+              onPress={() => setChangingStatus((v) => !v)}
+            />
+          ) : null}
           <ProovraButton label="Export" variant="secondary" fullWidth={false} loading={exporting} onPress={() => void exportZip()} />
         </View>
+        {!viewer.canChangeStatus && caseDenialReason(viewer, "changeStatus") ? (
+          // The server's own words, not a paraphrase of a refusal it made.
+          <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
+            {caseDenialReason(viewer, "changeStatus")}
+          </ProovraText>
+        ) : null}
       </ProovraCard>
 
       <ProovraSection
         title="Evidence"
-        action={<ProovraButton label="+ Add" variant="ghost" fullWidth={false} onPress={() => void openAdd()} />}
+        action={
+          viewer.canLinkEvidence ? (
+            <ProovraButton label="+ Add" variant="ghost" fullWidth={false} onPress={() => void openAdd()} />
+          ) : undefined
+        }
       >
         {available ? (
           <ProovraCard style={styles.addCard}>
@@ -293,7 +418,11 @@ export default function CaseDetailScreen() {
                 title={evidenceTitle(item)}
                 subtitle={formatUserDateTime(item.createdAt)}
                 onPress={() => router.push(`/(stack)/evidence/${item.id}` as never)}
-                trailing={<ProovraButton label="Remove" variant="ghost" fullWidth={false} loading={busyEvId === item.id} onPress={() => removeFromCase(item)} />}
+                trailing={
+                  viewer.canUnlinkEvidence ? (
+                    <ProovraButton label="Remove" variant="ghost" fullWidth={false} loading={busyEvId === item.id} onPress={() => removeFromCase(item)} />
+                  ) : undefined
+                }
               />
             ))}
           </ProovraCard>
@@ -301,12 +430,24 @@ export default function CaseDetailScreen() {
       </ProovraSection>
 
       <ProovraSection title="Notes">
-        <ProovraCard style={styles.notesComposer}>
-          <ProovraFormField label="Add a note">
-            <ProovraInput value={noteText} onChangeText={setNoteText} placeholder="Add a note to this case…" autoCapitalize="sentences" onSubmitEditing={() => void addNote()} />
-          </ProovraFormField>
-          <ProovraButton label="Add note" loading={noteBusy} disabled={!noteText.trim()} onPress={() => void addNote()} />
-        </ProovraCard>
+        {/*
+          The boundary sentence the web carries on this panel. It is not
+          decoration: a private note sitting beside integrity state reads as
+          part of the record unless something says it is not.
+        */}
+        <ProovraText variant="label" color={theme.color.ink.muted}>
+          {CASE_NOTES_BOUNDARY}
+        </ProovraText>
+
+        {viewer.canComment ? (
+          <ProovraCard style={styles.notesComposer}>
+            <ProovraFormField label="Add a note">
+              <ProovraInput value={noteText} onChangeText={setNoteText} placeholder="Add a note to this case…" autoCapitalize="sentences" multiline onSubmitEditing={() => void addNote()} />
+            </ProovraFormField>
+            <ProovraButton label="Add note" loading={noteBusy} disabled={validateCaseNote(noteText) !== null} onPress={() => void addNote()} />
+          </ProovraCard>
+        ) : null}
+
         {notes.length === 0 ? (
           <ProovraText variant="bodySm" color={theme.color.ink.muted}>No notes yet.</ProovraText>
         ) : (
@@ -317,11 +458,106 @@ export default function CaseDetailScreen() {
                 <ProovraText variant="label" color={theme.color.ink.muted}>
                   {[resolveMemberName(memberNames, note.authorUserId), note.createdAt ? formatUserDateTime(note.createdAt) : null, note.resolved ? "Resolved" : null].filter(Boolean).join(" · ")}
                 </ProovraText>
+                <View style={styles.noteActions}>
+                  {viewer.canResolveComment ? (
+                    <ProovraButton
+                      label={note.resolved ? "Reopen" : "Resolve"}
+                      variant="ghost"
+                      fullWidth={false}
+                      loading={noteBusy}
+                      onPress={() => void setNoteResolved(note, !note.resolved)}
+                    />
+                  ) : null}
+                  {viewer.canManage ? (
+                    <ProovraButton
+                      label="Delete"
+                      variant="ghost"
+                      fullWidth={false}
+                      loading={noteBusy}
+                      onPress={() => void deleteNote(note)}
+                    />
+                  ) : null}
+                </View>
               </View>
             ))}
           </ProovraCard>
         )}
       </ProovraSection>
+
+      {deliverables && deliverables.total > 0 ? (
+        <ProovraSection title="Reports and packages">
+          {/*
+            Counted from the envelope's own evidence rows — no second source
+            and no client arithmetic over a different list. REVIEW_REQUIRED is
+            counted with FAILED, as the web counts it: both mean the record
+            cannot be treated as cleanly verified.
+          */}
+          <ProovraKpiGrid
+            items={[
+              { key: "reports", label: "Reports ready", value: String(deliverables.reportsReady), tone: "verified" },
+              { key: "packages", label: "Packages ready", value: String(deliverables.packagesReady), tone: "verified" },
+              { key: "pending", label: "Pending", value: String(deliverables.pending), tone: "pending" },
+              { key: "attention", label: "Needs attention", value: String(deliverables.failed), tone: "risk" },
+            ]}
+          />
+        </ProovraSection>
+      ) : null}
+
+      {viewer.canMutate || viewer.canManage ? (
+        <ProovraSection title="Case settings">
+          {viewer.canMutate ? (
+            <ProovraButton
+              label="Rename this case"
+              variant="secondary"
+              fullWidth={false}
+              onPress={() => {
+                setNameDraft(name);
+                setRenaming(true);
+              }}
+            />
+          ) : null}
+          {viewer.canManage ? (
+            <ProovraButton
+              label="Delete this case"
+              variant="ghost"
+              fullWidth={false}
+              loading={settingsBusy}
+              onPress={() => setDeleting(true)}
+            />
+          ) : null}
+        </ProovraSection>
+      ) : null}
+
+      <ProovraSheet visible={renaming} title="Rename this case" onClose={() => setRenaming(false)}>
+        <ProovraFormField label="Case name">
+          <ProovraInput
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            autoCapitalize="sentences"
+            accessibilityLabel="Case name"
+          />
+        </ProovraFormField>
+        <ProovraButton
+          label="Save"
+          loading={settingsBusy}
+          disabled={validateCaseName(nameDraft, name) !== null}
+          onPress={() => void renameCase()}
+        />
+      </ProovraSheet>
+
+      <ProovraConfirmSheet
+        visible={deleting}
+        title={`Delete ${name}?`}
+        // The route unlinks evidence; it does not delete it. Saying so is the
+        // difference between deleting a case and believing you have destroyed
+        // your own records.
+        consequence={DELETE_CASE_CONSEQUENCE}
+        confirmLabel="Delete case"
+        tone="danger"
+        busy={settingsBusy}
+        onConfirm={() => void deleteCase()}
+        onCancel={() => setDeleting(false)}
+      />
 
       {assignments.length > 0 ? (
         <ProovraSection title="Assignments">
@@ -351,5 +587,6 @@ const styles = StyleSheet.create({
   addCard: { marginBottom: theme.space.s4, gap: theme.space.s2 },
   note: { marginTop: theme.space.s2 },
   noteRow: { paddingVertical: theme.space.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle, gap: 2 },
+  noteActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
   notesComposer: { marginBottom: theme.space.s3, gap: theme.space.s2 },
 });

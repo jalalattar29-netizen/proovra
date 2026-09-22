@@ -238,9 +238,20 @@ export const NATIVE_DESTINATIONS = {
   },
   "/cases/[id]": {
     routeFile: "(stack)/case/[id].tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/cases/[id]/page.tsx"],
-    gaps: ["no access management, assignment mutation, risk, or export"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/(app)/cases/[id]/page.tsx",
+      "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+    ],
+    gaps: [
+      "SCOPE CORRECTION. The web route branches on a SERVER-projected boolean: an enterprise workspace gets the 12-tab MatterWorkspace, and a personal or small-team workspace gets the 5-tab SimpleCaseDetail (Overview / Evidence / Reports & Packages / Notes / Settings). The page's own comment names what the simple branch does NOT have: SLA, Risk, SIU, Audit, Holds, Decisions, Assignments, Graph, Timeline. The old gap line - 'no access management, assignment mutation, risk, or export' - measured Native against the ENTERPRISE branch. Risk and assignment mutation are not on the surface Native renders, and export was already ported.",
+      "ported: overview, status change, evidence link/unlink, notes (add, resolve/reopen, delete), reports-and-packages counts, rename, delete, and the zip export through the share sheet",
+      "EVERY control is now gated on the envelope's viewer block, which is the SERVER's answer to what this caller may do. The screen previously offered every action unconditionally and let the refusal arrive as an error - a control that is offered and then refused teaches a user the app is unreliable when the server was right. Absent means NOT allowed, so an envelope that fails to load closes the controls rather than opening them.",
+      "a denial shows the server's own disabledReasons string rather than a paraphrase of a refusal the client did not make",
+      "the notes boundary sentence is carried verbatim: a private note sitting beside integrity state reads as part of the record unless something says it is not",
+      "deleting a case states that evidence is UNLINKED, not deleted - the difference between deleting a case and believing you destroyed your own records",
+    ],
   },
   "/search": {
     routeFile: "(stack)/search.tsx",

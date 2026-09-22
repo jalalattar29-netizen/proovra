@@ -135,3 +135,113 @@ test("a single-occupant workspace is told apart from a shared one", () => {
 test("the summary path is workspace-scoped", () => {
   assert.equal(mod.buildCasesSummaryPath("t1"), "/v1/cases/summary?teamId=t1");
 });
+
+/* --------------------------------------- the viewer's own case capabilities */
+
+test("absent capability flags mean NOT allowed", () => {
+  // A client that defaulted to yes would offer a destructive action to
+  // someone the server would refuse.
+  const v = mod.parseCaseViewer(null);
+  for (const k of [
+    "canManage",
+    "canMutate",
+    "canAssign",
+    "canChangeStatus",
+    "canLinkEvidence",
+    "canUnlinkEvidence",
+    "canComment",
+    "canResolveComment",
+    "canManageAccess",
+  ]) {
+    assert.equal(v[k], false, `${k} defaulted to true`);
+  }
+});
+
+test("the flags are read, never derived", () => {
+  const v = mod.parseCaseViewer({
+    viewer: { canComment: true, canResolveComment: true, canManage: false },
+  });
+  assert.equal(v.canComment, true);
+  assert.equal(v.canResolveComment, true);
+  // Not inferred from canComment, which would be the client deciding.
+  assert.equal(v.canManage, false);
+});
+
+test("a denial carries the server's own reason, or none", () => {
+  const v = mod.parseCaseViewer({
+    viewer: { disabledReasons: { changeStatus: "This case is closed.", comment: "" } },
+  });
+  assert.equal(mod.caseDenialReason(v, "changeStatus"), "This case is closed.");
+  // An empty string is not a reason.
+  assert.equal(mod.caseDenialReason(v, "comment"), null);
+  assert.equal(mod.caseDenialReason(v, "linkEvidence"), null);
+});
+
+/* --------------------------------------------------------- notes and bounds */
+
+test("the note bounds are the route's own", () => {
+  assert.equal(mod.CASE_NOTE_MAX, 4000);
+  assert.match(mod.validateCaseNote("   "), /Write something/);
+  assert.match(mod.validateCaseNote("x".repeat(4001)), /4000/);
+  assert.equal(mod.validateCaseNote("A note"), null);
+});
+
+test("the notes boundary sentence is not optional copy", () => {
+  // A private note beside integrity state reads as part of the record unless
+  // something says it is not.
+  assert.match(mod.CASE_NOTES_BOUNDARY, /private/i);
+  assert.match(mod.CASE_NOTES_BOUNDARY, /do not change/i);
+});
+
+test("the note paths are the canonical ones", () => {
+  assert.equal(mod.buildCaseCommentsPath("c1"), "/v1/cases/c1/comments");
+  assert.equal(mod.buildCaseCommentPath("c1", "n1"), "/v1/cases/c1/comments/n1");
+  assert.equal(mod.buildCaseCommentResolvePath("c1", "n1"), "/v1/cases/c1/comments/n1/resolve");
+  assert.deepEqual(mod.buildResolveCommentBody(false), { resolved: false });
+});
+
+/* ---------------------------------------------------- reports and packages */
+
+test("deliverables are counted from the envelope's own rows", () => {
+  const d = mod.summariseCaseDeliverables({
+    sections: {
+      evidence: {
+        items: [
+          { reportReady: true, packageReady: true, verificationStatus: "VERIFIED" },
+          { reportReady: true, packageReady: false },
+          { reportReady: false, packageReady: false, verificationStatus: "FAILED" },
+          { reportReady: true, packageReady: true, verificationStatus: "REVIEW_REQUIRED" },
+        ],
+      },
+    },
+  });
+  assert.equal(d.total, 4);
+  assert.equal(d.reportsReady, 3);
+  assert.equal(d.packagesReady, 2);
+  assert.equal(d.pending, 2);
+  // REVIEW_REQUIRED counts with FAILED: both mean the record cannot be
+  // treated as cleanly verified.
+  assert.equal(d.failed, 2);
+});
+
+test("an envelope with no evidence section counts nothing, and does not throw", () => {
+  const d = mod.summariseCaseDeliverables({});
+  assert.equal(d.total, 0);
+  assert.equal(d.failed, 0);
+});
+
+/* ------------------------------------------------------------- case settings */
+
+test("a rename that changes nothing is not a request worth sending", () => {
+  assert.match(mod.validateCaseName("  ", "Flood"), /needs a name/i);
+  assert.match(mod.validateCaseName("Flood", "Flood"), /already the name/i);
+  assert.equal(mod.validateCaseName("Flood 2", "Flood"), null);
+  assert.deepEqual(mod.buildCaseRenameBody("  Flood 2 "), { name: "Flood 2" });
+});
+
+test("deleting a case says what happens to the evidence", () => {
+  // The route unlinks evidence; it does not delete it. The difference is
+  // between deleting a case and believing you destroyed your own records.
+  assert.match(mod.DELETE_CASE_CONSEQUENCE, /will not delete preserved evidence/i);
+  assert.match(mod.DELETE_CASE_CONSEQUENCE, /Evidence Library/);
+});
