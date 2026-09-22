@@ -336,3 +336,116 @@ export function passwordFormBlocker(input: {
 //
 // The canonical understanding of a step-up challenge is `src/product/step-up.ts`,
 // and the prompt that answers one is `src/ui/step-up-sheet.tsx`.
+
+/* ------------------------------------------------------- TOTP enrolment */
+//
+// POST /v1/identity/mfa/enroll/start   { label? }
+//        → { factorId, otpauthUri, secretBase32 }
+// POST /v1/identity/mfa/enroll/verify  { factorId, code }
+//        → { factorId, recoveryCodes }
+//
+// Enrolment was absent from Native: the app could REMOVE a factor and report
+// whether one existed, but a person could not add one from the device. That is
+// the wrong half of a security control to ship — it could weaken the account
+// and not strengthen it.
+//
+// ===========================================================================
+// A PHONE IS NOT A DESKTOP HERE, AND THE DIFFERENCE IS THE POINT
+// ===========================================================================
+// The web shows a QR code because the authenticator is on a DIFFERENT device.
+// On a phone it is usually the SAME device, and photographing your own screen
+// is not possible. The `otpauth://` URI is therefore opened directly, which
+// hands the secret to whichever authenticator is installed. This is the
+// responsive/native-integration adaptation the product law allows: the
+// endpoint, the secret, the verification and the recovery codes are identical.
+//
+// The manual secret stays available, because a device with no authenticator
+// installed must still be able to enrol one elsewhere.
+
+export const MFA_ENROLL_START_PATH = "/v1/identity/mfa/enroll/start";
+export const MFA_ENROLL_VERIFY_PATH = "/v1/identity/mfa/enroll/verify";
+
+export function buildEnrollStartBody(label?: string | null) {
+  const l = (label ?? "").trim();
+  // `kind` is optional and defaults to TOTP; sending SMS/WHATSAPP here is an
+  // explicit refusal with its own route, so this never sends a kind at all.
+  return l.length > 0 ? { label: l } : {};
+}
+
+export interface TotpEnrollment {
+  factorId: string;
+  /** Handed to an installed authenticator. */
+  otpauthUri: string | null;
+  /** Typed in by hand when there is no authenticator on this device. */
+  secretBase32: string | null;
+}
+
+export function parseTotpEnrollment(payload: unknown): TotpEnrollment | null {
+  const d = obj(payload);
+  const factorId = str(d.factorId);
+  if (!factorId) return null;
+  return {
+    factorId,
+    otpauthUri: str(d.otpauthUri),
+    secretBase32: str(d.secretBase32),
+  };
+}
+
+export function buildEnrollVerifyBody(factorId: string, code: string) {
+  return { factorId, code: code.trim() };
+}
+
+/** The route takes 6–10 characters; a shorter code is a round trip wasted. */
+export function validateTotpCode(code: string): string | null {
+  const c = code.trim();
+  if (c.length < 6) return "Enter the 6-digit code from your authenticator.";
+  if (c.length > 10) return "That code is too long.";
+  return null;
+}
+
+/**
+ * The recovery codes, which the server returns EXACTLY ONCE.
+ *
+ * Its own comment says so: "Recovery codes returned ONCE here. The client must
+ * surface them immediately; we never return them again." A surface that showed
+ * them in a toast, or behind a step the user could skip, would be losing the
+ * only copy that exists.
+ */
+export function parseRecoveryCodes(payload: unknown): string[] {
+  return rows(obj(payload).recoveryCodes).filter((c): c is string => typeof c === "string");
+}
+
+export const RECOVERY_CODES_WARNING =
+  "These codes are shown once and cannot be shown again. Save them somewhere you can " +
+  "reach without this phone — they are how you get back in if you lose your authenticator.";
+
+/** The enrolment refusals, told apart so the recovery differs. */
+export type EnrollFailure = "CODE_INVALID" | "NOT_FOUND" | "RATE_LIMITED" | "UNKNOWN";
+
+export function classifyEnrollFailure(err: unknown): EnrollFailure {
+  const e = obj(err);
+  const code = str(obj(e.body).error) ?? str(e.code);
+  if (code === "rate_limited") return "RATE_LIMITED";
+  if (code === "code_invalid") return "CODE_INVALID";
+
+  const status = num(e.statusCode);
+  if (status === 429) return "RATE_LIMITED";
+  // The route answers 400 for a wrong code and 404 for an enrolment that is
+  // gone. "Try again" is right for one and wrong for the other.
+  if (status === 400) return "CODE_INVALID";
+  if (status === 404) return "NOT_FOUND";
+  return "UNKNOWN";
+}
+
+export function enrollFailureMessage(failure: EnrollFailure): string {
+  switch (failure) {
+    case "CODE_INVALID":
+      return "That code did not match. Codes change every 30 seconds — try the current one.";
+    case "NOT_FOUND":
+      return "This enrolment has expired. Start again to get a new code.";
+    case "RATE_LIMITED":
+      return "Too many attempts. Wait a moment before trying again.";
+    case "UNKNOWN":
+      return "The code could not be verified.";
+  }
+}

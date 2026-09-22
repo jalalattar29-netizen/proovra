@@ -20,6 +20,7 @@ import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../../src/api";
 import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
+import { TotpEnrolment } from "../../../src/ui/totp-enrolment";
 import { withStepUp } from "../../../src/product/step-up";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
@@ -369,6 +370,13 @@ export default function SecuritySettingsScreen() {
                 purpose="This section could not be loaded."
               />
             )}
+
+            {/*
+              Adding a factor, not only removing one. Until this existed the
+              app could weaken the account and not strengthen it: removal and
+              status were here, enrolment was not.
+            */}
+            <TotpEnrolment onEnrolled={() => void load()} />
           </ProovraPageSection>
 
           {/* ----------------------------------------------------- Sessions */}

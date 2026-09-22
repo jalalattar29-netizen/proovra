@@ -289,7 +289,7 @@ export const NATIVE_DESTINATIONS = {
       "(stack)/settings/privacy.tsx",
       "(stack)/settings/reviewer-criteria.tsx",
     ],
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: [
       "apps/web/app/(app)/settings/page.tsx",
@@ -300,7 +300,10 @@ export const NATIVE_DESTINATIONS = {
       "a responsive web PANE model split into native screens, because the web renders Settings as one page with a pane switcher and that does not fit a phone",
       "ported: account, language, security (password, sign-in methods, two-factor, sessions, activity), notification preferences and quiet hours, PRIVACY (data export and account closure), reviewer criteria, organizations, workspace people, quotas, batch analysis, billing, legal and support",
       "Privacy closes the largest hole: data export and account closure are rights a user has over their own account and neither existed on the device. All three safety facts come from the server and none is restated in the client - the blockers, the exact confirmationPhrase the route checks, and the cooling-off period. A phrase the client believed in and the route rejected would make closure impossible with no explanation the user could act on.",
-      "not ported: TOTP ENROLMENT start/verify (removal and status are present), and the cookie-consent control, which governs a web browser's storage and has no device analogue",
+      "TOTP ENROLMENT is now ported. Until it was, the app could REMOVE a second factor and report whether one existed but could not ADD one - the wrong half of a security control to ship, since it could weaken the account and not strengthen it.",
+      "no QR code, deliberately: the web shows one because the authenticator is on a DIFFERENT device, and on a phone it is usually the same one - you cannot photograph your own screen. The otpauth:// URI is handed to the installed authenticator, and the base32 setup key stays visible for a phone with none. Endpoint, secret, verification and recovery codes are unchanged.",
+      "the recovery codes are shown in a step the user must acknowledge, with a share action, because the route returns them exactly ONCE and says so: 'we never return them again'. A toast would lose the only copy that exists.",
+      "THE ONE REMAINING ABSENCE is the cookie-consent control, which governs a web browser's storage and has no device analogue. It is not a gap; there is nothing to consent to.",
     ],
   },
   "/reports": {

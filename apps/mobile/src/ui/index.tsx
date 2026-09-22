@@ -106,6 +106,7 @@ export function ProovraText({
   mono,
   style,
   numberOfLines,
+  selectable,
   accessibilityRole,
   accessibilityLabel,
   onPress,
@@ -118,6 +119,13 @@ export function ProovraText({
   mono?: boolean;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  /**
+   * Text the reader has to be able to take with them — a TOTP setup key, a
+   * recovery code, a request id in an error. Text is NOT selectable by default
+   * on Android, so a value that only exists once would otherwise be trapped on
+   * the screen it was shown on.
+   */
+  selectable?: boolean;
   accessibilityRole?: "header" | "text" | "link";
   accessibilityLabel?: string;
   /**
@@ -136,6 +144,7 @@ export function ProovraText({
   return (
     <Text
       numberOfLines={numberOfLines}
+      selectable={selectable}
       onPress={onPress}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={

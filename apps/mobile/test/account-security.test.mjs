@@ -203,3 +203,78 @@ test("re-submitting the current password is refused", () => {
 
 /* --------------------------------------------------------------- step-up */
 
+
+/* ------------------------------------------------------- TOTP enrolment */
+
+test("the enrolment paths are the canonical ones", () => {
+  assert.equal(A.MFA_ENROLL_START_PATH, "/v1/identity/mfa/enroll/start");
+  assert.equal(A.MFA_ENROLL_VERIFY_PATH, "/v1/identity/mfa/enroll/verify");
+});
+
+test("start never sends a kind, because SMS here is an explicit refusal", () => {
+  // The route answers MFA_ENROLL_WRONG_ROUTE for a phone factor; this route
+  // enrols an authenticator and nothing else.
+  assert.deepEqual(A.buildEnrollStartBody(), {});
+  assert.deepEqual(A.buildEnrollStartBody("  "), {});
+  assert.deepEqual(A.buildEnrollStartBody(" Personal phone "), { label: "Personal phone" });
+  assert.equal("kind" in A.buildEnrollStartBody("x"), false);
+});
+
+test("the enrolment carries what an authenticator needs, both ways", () => {
+  const e = A.parseTotpEnrollment({
+    factorId: "f1",
+    otpauthUri: "otpauth://totp/PROOVRA:a@b?secret=ABC",
+    secretBase32: "ABC",
+  });
+  // The URI is handed to an installed app; the key is for a phone with none.
+  assert.equal(e.otpauthUri, "otpauth://totp/PROOVRA:a@b?secret=ABC");
+  assert.equal(e.secretBase32, "ABC");
+});
+
+test("an enrolment with no factor id is not an enrolment", () => {
+  assert.equal(A.parseTotpEnrollment({ otpauthUri: "otpauth://x" }), null);
+  assert.equal(A.parseTotpEnrollment(null), null);
+});
+
+test("a short code is refused before the request", () => {
+  assert.match(A.validateTotpCode("123"), /6-digit/);
+  assert.match(A.validateTotpCode("12345678901"), /too long/);
+  assert.equal(A.validateTotpCode(" 123456 "), null);
+  assert.deepEqual(A.buildEnrollVerifyBody("f1", " 123456 "), {
+    factorId: "f1",
+    code: "123456",
+  });
+});
+
+test("the recovery codes are read from the one response that carries them", () => {
+  // The route: "Recovery codes returned ONCE here ... we never return them
+  // again." A surface that lost them would lose the only copy.
+  assert.deepEqual(A.parseRecoveryCodes({ recoveryCodes: ["aaa", "bbb", 7, null] }), [
+    "aaa",
+    "bbb",
+  ]);
+  assert.deepEqual(A.parseRecoveryCodes({}), []);
+});
+
+test("the recovery warning says they cannot be shown again", () => {
+  assert.match(A.RECOVERY_CODES_WARNING, /once/i);
+  assert.match(A.RECOVERY_CODES_WARNING, /cannot be shown again/i);
+});
+
+test("a wrong code and an expired enrolment are told apart", () => {
+  // "Try again" is right for one and wrong for the other.
+  assert.equal(A.classifyEnrollFailure({ statusCode: 400 }), "CODE_INVALID");
+  assert.equal(A.classifyEnrollFailure({ statusCode: 404 }), "NOT_FOUND");
+  assert.equal(A.classifyEnrollFailure({ statusCode: 429 }), "RATE_LIMITED");
+  assert.equal(
+    A.classifyEnrollFailure({ statusCode: 429, body: { error: "rate_limited" } }),
+    "RATE_LIMITED",
+  );
+  assert.equal(A.classifyEnrollFailure({ statusCode: 500 }), "UNKNOWN");
+});
+
+test("each enrolment failure names its own next step", () => {
+  assert.match(A.enrollFailureMessage("CODE_INVALID"), /30 seconds/);
+  assert.match(A.enrollFailureMessage("NOT_FOUND"), /Start again/);
+  assert.match(A.enrollFailureMessage("RATE_LIMITED"), /Wait/);
+});
