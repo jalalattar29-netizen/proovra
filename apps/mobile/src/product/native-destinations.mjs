@@ -174,9 +174,14 @@ export const NATIVE_DESTINATIONS = {
   },
   "/evidence": {
     routeFile: "(tabs)/evidence.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/evidence/page.tsx", "apps/web/app/(app)/evidence/evidence-library.css"],
-    gaps: ["no saved-view management", "no bulk archive/lock", "no lifecycle-state rendering"],
+    gaps: [
+      "LEDGER CORRECTION: two of the three recorded gaps were stale. Saved-view management and bulk actions are both wired - parseSavedViews / buildSavedViewBody and the per-scope bulk action set over POST /v1/evidence/bulk, whose EVIDENCE_BULK_MAX_IDS is read from @proovra/shared so an over-long selection is refused and EXPLAINED before submitting rather than returning as an opaque 400.",
+      "lifecycle state is now rendered, and only where it says something the scope tabs do not. The tabs already separate ARCHIVED and TRASHED; LOCKED is the one that coexists with ACTIVE, and a locked record was rendering identically to an unlocked one - 'this cannot be changed' is not a detail to leave a user to discover by trying.",
+      "four lifecycle scopes, search, type/status/source/report filters, sort, cursor paging, workspace metrics and the record inspector",
+    ],
   },
   "/evidence/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",

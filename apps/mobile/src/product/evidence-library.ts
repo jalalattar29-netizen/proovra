@@ -247,6 +247,16 @@ export interface InspectorEvidence {
   statusLabel: string | null;
   verificationStatus: string | null;
   verificationStatusLabel: string | null;
+  /**
+   * ACTIVE / ARCHIVED / TRASHED / LOCKED / DESTROYED.
+   *
+   * The scope tabs already separate archived and trashed records, so this
+   * looks redundant — until LOCKED, which coexists with ACTIVE. A locked
+   * record inside the Active scope was rendering identically to an unlocked
+   * one, and "this cannot be changed" is not a detail to leave the user to
+   * discover by trying.
+   */
+  lifecycleState: string | null;
   displayTitle: string | null;
   displayFileName: string | null;
   originalFileName: string | null;
@@ -319,6 +329,7 @@ export function projectInspectorEvidence(data: unknown): InspectorEvidence | nul
     statusLabel: inspectorString(evidence["statusLabel"]),
     verificationStatus: inspectorString(evidence["verificationStatus"]),
     verificationStatusLabel: inspectorString(evidence["verificationStatusLabel"]),
+    lifecycleState: inspectorString(evidence["lifecycleState"]),
     displayTitle: inspectorString(evidence["displayTitle"]),
     displayFileName: inspectorString(evidence["displayFileName"]),
     originalFileName: inspectorString(evidence["originalFileName"]),

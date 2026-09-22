@@ -25,7 +25,7 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
-import { evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES, humanizeEnum } from "../../src/product/domain-display";
+import { evidenceLifecycleDisplay, evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES, humanizeEnum } from "../../src/product/domain-display";
 import {
   buildLibraryQuery,
   projectLibraryMetrics,
@@ -188,6 +188,19 @@ function EvidenceInspector({
                   evidence.verificationStatusLabel?.trim() ||
                   humanizeEnum(evidence.verificationStatus)
                 }
+              />
+            ) : null}
+            {/*
+              Lifecycle, shown only when it says something the scope does not.
+              The tabs already separate ARCHIVED and TRASHED; LOCKED is the one
+              that coexists with ACTIVE, and a locked record was rendering
+              identically to an unlocked one. "This cannot be changed" is not a
+              detail to leave the user to discover by trying.
+            */}
+            {evidence.lifecycleState && evidence.lifecycleState !== "ACTIVE" ? (
+              <ProovraBadge
+                tone={evidenceLifecycleDisplay(evidence.lifecycleState).tone}
+                label={evidenceLifecycleDisplay(evidence.lifecycleState).label}
               />
             ) : null}
           </View>
