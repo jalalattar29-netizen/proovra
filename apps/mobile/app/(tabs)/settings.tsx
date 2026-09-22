@@ -183,6 +183,17 @@ export default function SettingsScreen() {
             subtitle="Members, roles and invitations"
             onPress={() => router.push("/(stack)/workspace-people")}
           />
+          {/*
+            The app used AI-assisted surfaces and could not say whether AI was
+            on in this workspace, which capabilities, or who decided. The read
+            behind this row is one every membership role holds, so a VIEWER
+            can learn what governs them.
+          */}
+          <ProovraListRow
+            title="AI & assistance"
+            subtitle="What AI does in this workspace, and who decides it"
+            onPress={() => router.push("/(stack)/settings/ai")}
+          />
           <ProovraListRow
             title="Notification preferences"
             subtitle="Which notifications reach you, in the app and by email"

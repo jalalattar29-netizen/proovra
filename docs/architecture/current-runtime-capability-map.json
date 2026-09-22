@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "d23ae19e73d809817e78aa818fd6cfa9d40a3f95f18de958c4e841c510c76fda",
   "routeInventoryHash": "10802b74014fdf7c1eff7d2b4ee7487ef7a4fbfccfaa1446906c441f5dd0a5c2",
-  "consumerInventoryHash": "e5c2a1ad445bdee86cc1e73b2095d138a11e20e12efcafd1378322df257b6285",
+  "consumerInventoryHash": "bb900892111aa7a8ea945172f3abf7c0b70d67a90c6473e895830632226a6052",
   "dispositionsHash": "84258bb75ea0397d36382918b8b5b556c1d7c9407eecac9698b9b3aede4b12fe",
   "totals": {
     "RegisteredRoutes": 1161,
@@ -6327,7 +6327,7 @@
       "method": "GET",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:149",
+      "productConsumer": "apps/mobile/app/(stack)/settings/ai.tsx:64",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6459,7 +6459,7 @@
       "method": "GET",
       "route": "/v1/teams/ai-assistance-status",
       "registeringFile": "services/api/src/routes/workspace-ai-policy.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:195",
+      "productConsumer": "apps/mobile/app/(stack)/settings/ai.tsx:64",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -119501,6 +119501,14 @@
       ],
       "productConsumers": [
         {
+          "file": "apps/mobile/app/(stack)/settings/ai.tsx",
+          "line": 64,
+          "caller": "AiSettingsScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
           "line": 149,
           "caller": "WorkspacePeopleScreen",
@@ -119560,7 +119568,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:149 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/settings/_sections/AiSection.tsx:179 (AiSection, WEB); apps/web/app/(app)/settings/_sections/AiSection.tsx:195 (AiSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/ai.tsx:64 (AiSettingsScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:149 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/settings/_sections/AiSection.tsx:179 (AiSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120391,6 +120399,14 @@
       ],
       "productConsumers": [
         {
+          "file": "apps/mobile/app/(stack)/settings/ai.tsx",
+          "line": 64,
+          "caller": "AiSettingsScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
           "line": 195,
           "caller": "AiSection",
@@ -120402,7 +120418,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:195 (AiSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/ai.tsx:64 (AiSettingsScreen, MOBILE); apps/web/app/(app)/settings/_sections/AiSection.tsx:195 (AiSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

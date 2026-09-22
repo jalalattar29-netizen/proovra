@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**78 bindings — OK 78, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**79 bindings — OK 79, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -97,6 +97,7 @@ top level of it.
 | OK | `parseClosureState` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | blockers, confirmationPhrase, coolingOffDays, request |
 | OK | `parseWorkspaceInvites` | `GET /v1/teams/:id/invites` | invites | invites |
 | OK | `parseWorkspaceMembers` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
+| OK | `parseAiAssistanceSettings` | `GET /v1/teams/ai-assistance-status` | available, enabled, features, processing, status | available, enabled, features, processing, status |
 | OK | `parseTrustArticles` | `GET /v1/trust/articles` | articles, degraded, reason | articles, degraded, denial, reason |
 | OK | `parseTrustArticleVersions` | `GET /v1/trust/articles/:id/versions` | versions | versions |
 | OK | `parseUsageStats` | `GET /v1/usage-stats` | data | costBreakdown, dailyAnalyses, data |

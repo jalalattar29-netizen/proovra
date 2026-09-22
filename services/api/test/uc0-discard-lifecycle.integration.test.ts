@@ -47,15 +47,39 @@ vi.mock("../src/storage.js", async (importOriginal) => {
       objects.set(id(p), Buffer.from(p.body));
       return { etag: createHash("md5").update(p.body).digest("hex") };
     },
+    putObjectBuffer: async (p: { bucket: string; key: string; body: Buffer }) => {
+      objects.set(id(p), Buffer.from(p.body));
+    },
+    deleteObject: async (p: { bucket: string; key: string }) => {
+      objects.delete(id(p));
+    },
+    applyDefaultObjectRetention: async () => ({ applied: false, reason: "test_store" }),
     getObjectStream: async (p: { bucket: string; key: string }) => {
       const body = objects.get(id(p));
       if (!body) throw new Error(`missing object ${id(p)}`);
       return Readable.from(body);
     },
+    /*
+     * ANSWER WHAT THE PRODUCT READS, AND FAIL THE WAY S3 FAILS.
+     *
+     * This returned `{ contentLength }` and `null` for a miss. The real
+     * `headObject` returns `sizeBytes` and THROWS NotFound, and completion
+     * reads `sizeBytes` — so the seal refused with a bounded 404 that the
+     * suite read as a product refusal. A double that answers a different
+     * shape is not a double; it is a second implementation nobody reviewed.
+     */
     headObject: async (p: { bucket: string; key: string }) => {
       const body = objects.get(id(p));
-      if (!body) return null;
-      return { contentLength: body.length };
+      if (!body) throw Object.assign(new Error("NotFound"), { name: "NotFound" });
+      return {
+        sizeBytes: body.length,
+        contentType: "application/octet-stream",
+        etag: null,
+        metadata: null,
+        objectLockMode: null,
+        objectLockRetainUntilDate: null,
+        objectLockLegalHoldStatus: null,
+      };
     },
   };
 });
@@ -127,7 +151,7 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
   }
 
   async function listActiveIds(token = owner().ownerToken): Promise<string[]> {
-    const res = await call("GET", "/v1/evidence?scope=active&limit=200", token);
+    const res = await call("GET", "/v1/evidence?scope=active&limit=100", token);
     expect(res.statusCode, res.body).toBe(200);
     return (res.json().items as Array<{ id: string }>).map((i) => i.id);
   }
@@ -140,7 +164,11 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
       where: { id: evidenceId },
       select: { status: true, deletedAt: true },
     });
-    expect(row?.status).toBe("CREATED");
+    // UPLOADING, not CREATED: `createEvidence` moves the record there in the
+    // same transaction that issues its upload location, and a reservation
+    // issues one. What matters for this test is the next assertion — an
+    // uncommitted record is not library content, whatever it is called.
+    expect(row?.status).toBe("UPLOADING");
     expect(row?.deletedAt).toBeNull();
 
     // … and is NOT offered to the user as evidence, because nothing has been
@@ -150,7 +178,11 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
 
     // Asking for in-flight records BY NAME still returns it — the default is a
     // default, not a concealment.
-    const explicit = await call("GET", "/v1/evidence?scope=active&status=CREATED&limit=200", owner().ownerToken);
+    const explicit = await call(
+      "GET",
+      "/v1/evidence?scope=active&status=UPLOADING&limit=100",
+      owner().ownerToken,
+    );
     expect(explicit.statusCode).toBe(200);
     expect((explicit.json().items as Array<{ id: string }>).map((i) => i.id)).toContain(evidenceId);
   });
@@ -194,7 +226,7 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
     // And it is gone from every user-facing scope, including Trash — an empty
     // reservation is not a restorable user item.
     expect(await listActiveIds()).not.toContain(evidenceId);
-    const trash = await call("GET", "/v1/evidence?scope=trash&limit=200", owner().ownerToken);
+    const trash = await call("GET", "/v1/evidence?scope=trash&limit=100", owner().ownerToken);
     expect((trash.json().items as Array<{ id: string }>).map((i) => i.id)).not.toContain(evidenceId);
   });
 
@@ -242,8 +274,12 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
       contentMd5Base64: createHash("md5").update(bytes).digest("base64"),
     });
     expect(part.statusCode, part.body).toBe(201);
-    const key = decodeURIComponent(String(part.json().upload.putUrl).split("/").pop() ?? "");
-    objects.set(key, bytes);
+    // The key comes from the response the route sends, not from parsing its
+    // presigned URL: the last URL segment is the ENCODED `bucket%2Fkey`, so
+    // nothing this test "uploaded" was ever findable under the key the double
+    // stores by.
+    const upload = part.json().upload as { bucket: string; key: string };
+    objects.set(`${upload.bucket}/${upload.key}`, bytes);
 
     const done = await call(
       "POST",

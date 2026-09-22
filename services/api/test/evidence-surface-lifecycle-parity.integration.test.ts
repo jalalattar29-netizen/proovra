@@ -81,7 +81,18 @@ describe("Evidence lifecycle parity across read surfaces (live PostgreSQL 16)", 
       data: {
         title: `Fictional parity record ${tag()}`,
         type: "PHOTO",
-        status: "CREATED",
+        /*
+         * SIGNED, NOT CREATED — because the Library deliberately does not list
+         * an uncommitted record.
+         *
+         * `evidence.routes.ts:2489` excludes CREATED and UPLOADING from every
+         * unfiltered scope, so a fixture in CREATED is invisible to the very
+         * list this suite compares against, and "the Library row must carry
+         * the projection" failed on a row the Library was right not to send.
+         * The subject here is a COMMITTED record that all three surfaces
+         * describe; an in-flight one is the UC-0 discard suite's subject.
+         */
+        status: "SIGNED",
         teamId: over.teamId,
         organizationId: over.organizationId,
         ownerUserId: over.ownerUserId,

@@ -133,11 +133,11 @@ Four gap lines were wrong, and said so rather than being quietly edited:
 | Axis | Item |
 |---|---|
 | **CLOSED 2026-09-22** | `ENVIRONMENT_BLOCKED_DATABASE_PROOF` is resolved. A disposable PostgreSQL 16 (pgvector) was brought up and every registered migration applied on a clean boot; `db:drift-check` and `db:raw-schema-verify` both OK; the UC-5 constraint verified from the live catalogue. The deployment-plan row now records the rehearsal because it was run. |
-| **ENVIRONMENT** | `apps/web` typecheck reports 179 errors, all from two `@types/react` in the pnpm store (18.2.46 and 18.3.31). None touches the 11 web files this branch changed. Pre-existing dependency resolution, not code. |
-| **BACKEND** | BD-1 `cancelJob` reports success without cancelling · BD-2 batch jobs are process memory · BD-3 `/v1/cases/summary` counters have no home on `matter-queue`. Recorded in `docs/backend-debt.md`, not worked around. |
+| **ENVIRONMENT** | CLEARED 2026-09-22. `pnpm typecheck` is clean across every workspace, `apps/web` included; the two-`@types/react` resolution no longer reproduces. |
+| **BACKEND** | ALL THREE CLOSED 2026-09-22. BD-1 cancellation now says what it did; BD-2 batch jobs are two durable tables, proven by 16 integration cases against live PostgreSQL; BD-3 was resolved during the convergence — `/v1/cases/summary` moved SUPERSEDED_REMOVE → PRODUCT_CONNECTED because the native Cases tab reads it. `docs/backend-debt.md` carries each with its evidence. |
 | **EXTERNAL** | UC-1 store listing · UC-5 signing identity · universal-link files carry `<APPLE_TEAM_ID>` and `<ANDROID_SIGNING_SHA256_FINGERPRINT>` placeholders, uninvented as §6 requires. |
 | **PHYSICAL** | UC-2 / UC-3 Android device · UC-5 iOS device. See `docs/uc-disposition.md`. |
-| **SCOPE** | Named per row from the §15 cross-check: saved-view update/delete/default, typeahead suggest, per-response review actions, AI-policy reads, and label / relationships / reviewer-workflow / original-download on evidence detail. |
+| **SCOPE** | CLOSED 2026-09-22, and most of it was already closed when this row was written. Re-checked against the tree one item at a time: saved-view create/read/rename/default/delete/apply are in `(tabs)/evidence.tsx`; typeahead is `GET /v1/search/suggest` in `(stack)/search.tsx`; label, relationships, reviewer-workflow and original-download are all in `(stack)/evidence/[id].tsx` with their own path builders and lifecycle refusals. The two that were genuinely absent are now built: PER-RESPONSE REVIEW (`POST /v1/evidence-requests/:id/responses/:responseId/review`, with the submissions the screen could not previously read at all) and the AI TRANSPARENCY READ (`GET /v1/workspaces/ai-assistance-status`, the member-safe read every role holds). |
 
 **CODE is complete for all five use cases and all 62 surfaces.** Everything in
 G is environment, hardware, a store, a signing identity, or a backend decision

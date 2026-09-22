@@ -293,6 +293,35 @@ export function indexServerRoutes() {
   const METHODS = new Set(["get", "post", "put", "patch", "delete"]);
   for (const file of files(API_ROUTES, ".ts")) {
     const src = sf(file);
+
+    /*
+     * A ROUTE PATH HELD IN A FILE-LOCAL CONST IS STILL A ROUTE PATH.
+     *
+     * `workspace-ai-policy.routes.ts` registers its three routes through
+     * `const AI_POLICY_PATH = "/v1/teams/ai-policy"` and so on, because the
+     * names carry a comment explaining the alias rewrite. Reading only
+     * string-literal first arguments made those three routes invisible here,
+     * and a caller of any of them reported UNRESOLVED — an instrument saying
+     * the route does not exist when it plainly does.
+     *
+     * Bounded deliberately: same file, `const`, string-literal initializer.
+     * Anything computed is left unresolved rather than guessed at.
+     */
+    const localPaths = new Map();
+    for (const stmt of src.statements) {
+      if (!ts.isVariableStatement(stmt)) continue;
+      for (const decl of stmt.declarationList.declarations) {
+        if (
+          ts.isIdentifier(decl.name) &&
+          decl.initializer &&
+          ts.isStringLiteral(decl.initializer) &&
+          decl.initializer.text.startsWith("/")
+        ) {
+          localPaths.set(decl.name.text, decl.initializer.text);
+        }
+      }
+    }
+
     walk(src, (n) => {
       if (!ts.isCallExpression(n)) return;
       const ex = n.expression;
@@ -300,9 +329,13 @@ export function indexServerRoutes() {
       const method = ex.name.text;
       if (!METHODS.has(method)) return;
       const first = n.arguments[0];
-      if (!first || !ts.isStringLiteral(first)) return;
-      const path = first.text;
-      if (!path.startsWith("/")) return;
+      if (!first) return;
+      const path = ts.isStringLiteral(first)
+        ? first.text
+        : ts.isIdentifier(first)
+          ? localPaths.get(first.text)
+          : undefined;
+      if (!path || !path.startsWith("/")) return;
 
       // The handler is the last argument - unless the route states its
       // options object last and carries the handler as a PROPERTY of it, which
@@ -837,9 +870,25 @@ export function audit() {
   return { rows, unbound, counts: tally(rows) };
 }
 
-/** A builder pattern against a Fastify route, both reduced to their shape. */
+/**
+ * A builder pattern against a Fastify route, both reduced to their shape.
+ *
+ * THE `/v1/workspaces` → `/v1/teams` REWRITE IS PART OF THE CONTRACT.
+ * `workspace-alias.plugin.ts` rewrites every incoming `/v1/workspaces…` URL in
+ * an `onRequest` hook that runs BEFORE Fastify matches a route, so a client
+ * calls `/v1/workspaces/…` and the handler is registered at `/v1/teams/…`.
+ * Without this, a correct caller reads UNRESOLVED here — and the cure would be
+ * to make the client call the post-rewrite spelling, which is exactly the
+ * defect FINAL-005 records: the Settings → AI section, the capability status
+ * table and the policy write were all dead in production because the rewrite
+ * in between was missing while both halves looked right.
+ */
 function matchRoute(routes, pattern, method) {
-  const norm = (p) => p.replace(/:[A-Za-z0-9_]+/g, ":p").replace(/\/+$/, "");
+  const norm = (p) =>
+    p
+      .replace(/^\/v1\/workspaces(?=\/|$)/, "/v1/teams")
+      .replace(/:[A-Za-z0-9_]+/g, ":p")
+      .replace(/\/+$/, "");
   const want = norm(pattern);
   for (const entry of routes.values()) {
     if (entry.method === method && norm(entry.path) === want) {

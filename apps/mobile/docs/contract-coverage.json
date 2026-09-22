@@ -906,6 +906,30 @@
       "why": "reads suggestions"
     },
     {
+      "parser": "parseAiAssistanceSettings",
+      "builder": "buildAiAssistanceStatusPath",
+      "method": "GET",
+      "site": "ai.tsx:65",
+      "path": "/v1/workspaces/ai-assistance-status",
+      "route": "GET /v1/teams/ai-assistance-status",
+      "serverKeys": [
+        "available",
+        "enabled",
+        "features",
+        "processing",
+        "status"
+      ],
+      "parserKeys": [
+        "available",
+        "enabled",
+        "features",
+        "processing",
+        "status"
+      ],
+      "verdict": "OK",
+      "why": "reads available, enabled, features, processing, status"
+    },
+    {
       "parser": "parsePreferences",
       "builder": "buildPreferencesPath",
       "method": "GET",
@@ -1591,7 +1615,7 @@
   ],
   "unbound": [],
   "counts": {
-    "OK": 78,
+    "OK": 79,
     "MISMATCH": 0,
     "UNRESOLVED": 0,
     "N/A": 0

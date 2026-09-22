@@ -1,10 +1,10 @@
 {
   "counts": {
-    "MATCHES_WEB": 205,
+    "MATCHES_WEB": 206,
     "NATIVE_ONLY": 12
   },
   "byKind": {
-    "WRITE": 125,
+    "WRITE": 126,
     "READ": 92
   },
   "navigation": {
@@ -1247,7 +1247,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:71"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:86"
       ],
       "webOwners": [
         {
@@ -1275,7 +1275,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:82"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:97"
       ],
       "webOwners": [
         {
@@ -1298,7 +1298,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:85"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:100"
       ],
       "webOwners": [
         {
@@ -4009,7 +4009,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
       ],
       "webOwners": [
         {
@@ -4032,7 +4032,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
       ],
       "webOwners": [
         {
@@ -4055,7 +4055,35 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
+      ],
+      "webOwners": [
+        {
+          "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+          "classification": "NATIVE_REQUIRED",
+          "via": null
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+          "classification": "NATIVE_REQUIRED",
+          "via": "apps/web/app/(app)/evidence/[id]/page.tsx",
+          "viaCount": 1
+        }
+      ],
+      "verdict": "MATCHES_WEB"
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/responses/:responseId/review",
+      "method": "POST",
+      "kind": "WRITE",
+      "path": "/v1/evidence-requests/:id/responses/:responseId/review",
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "securityFamily": "WORKSPACE_AUTHORIZED",
+      "nativeSites": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:149"
       ],
       "webOwners": [
         {
@@ -4083,7 +4111,7 @@
       ],
       "securityFamily": "WORKSPACE_AUTHORIZED",
       "nativeSites": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
       ],
       "webOwners": [
         {
