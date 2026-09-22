@@ -71,10 +71,25 @@ test("rejects an unknown schema version", () => {
   assert.equal(validateScreenContinuousManifest(goodManifest({ schemaVersion: "OTHER" })).ok, false);
 });
 
-test("rejects a non-android platform", () => {
+test("ACCEPTS ios — the same manifest describes an Apple system broadcast", () => {
+  // This case asserted the opposite, and the assertion was the defect. UC-5
+  // seals through this very pipeline (continuous-capture.service.ts admits
+  // DIRECT_SCREEN_CAPTURE_IOS by name), so refusing the platform the iOS
+  // broadcast extension honestly reports — "ios",
+  // ProovraBroadcastShared.swift:59 — meant no iOS session could be sealed at
+  // all. The only way past it was for an iOS app to call itself Android,
+  // which is a false statement about the device on a provenance record.
   const m = goodManifest();
   m.device = { ...m.device, platform: "ios" };
-  assert.equal(validateScreenContinuousManifest(m).ok, false);
+  assert.equal(validateScreenContinuousManifest(m).ok, true);
+});
+
+test("rejects any OTHER platform — widening is not abolishing", () => {
+  for (const platform of ["ios_pro", "windows", "", null, 7]) {
+    const m = goodManifest();
+    m.device = { ...m.device, platform };
+    assert.equal(validateScreenContinuousManifest(m).ok, false, String(platform));
+  }
 });
 
 test("rejects a bad segment digest", () => {

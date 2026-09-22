@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | e022be73aca96495457a34197f4d31695049af063637aa146bbcf58afb075535 |
+| engineHash    | c985cb4582e29e894eae35626cdab339a9532dcf53b76e80ea694b296dba9ad7 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -204,4 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 2 violation(s) — SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1269, facts say 1279 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1123, facts say 1133
+_(none)_

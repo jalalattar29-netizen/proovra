@@ -146,7 +146,22 @@ export type ScreenContinuousManifest = {
   captureStartedAtUtc: string;
   captureEndedAtUtc: string;
   device: {
-    platform: "android";
+    /**
+     * THE DEVICE THAT RECORDED IT, WHICH IS NOT ALWAYS AN ANDROID ONE.
+     *
+     * UC-5 (Apple system broadcast) is an ordered-segment continuous session
+     * with this identical manifest and seals through the same pipeline —
+     * `continuous-capture.service.ts` admits DIRECT_SCREEN_CAPTURE_IOS
+     * explicitly. This field said "android" only, so the iOS broadcast
+     * extension's own honest `"platform": "ios"`
+     * (ProovraBroadcastShared.swift:59) was refused as an invalid manifest and
+     * a UC-5 session could not be sealed at all. The alternative — an iOS app
+     * claiming to be Android to get past a validator — is a false statement
+     * about the device on a record whose entire purpose is provenance.
+     *
+     * UC-2's frame manifest stays Android-only, because THAT capture path is.
+     */
+    platform: "android" | "ios";
     osVersion: string;
     model: string;
     appVersion: string;
@@ -217,7 +232,9 @@ export function validateScreenContinuousManifest(
   }
   const device = m.device as Record<string, unknown> | undefined;
   if (!device || typeof device !== "object") return { ok: false, error: "missing device" };
-  if (device.platform !== "android") return { ok: false, error: "invalid device.platform" };
+  if (device.platform !== "android" && device.platform !== "ios") {
+    return { ok: false, error: "invalid device.platform" };
+  }
   for (const k of ["osVersion", "model", "appVersion"] as const) {
     if (!isBoundedString(device[k], B.maxStringLen)) return { ok: false, error: `invalid device.${k}` };
   }

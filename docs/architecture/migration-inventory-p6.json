@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 277,
-    "classifiedMigrations": 277,
+    "filesystemMigrations": 278,
+    "classifiedMigrations": 278,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 277,
+    "productionSnapshotUnknown": 278,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 277,
-    "classifiedMigrations": 277,
+    "filesystemMigrations": 278,
+    "classifiedMigrations": 278,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 277,
+    "productionSnapshotUnknown": 278,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 55,
+      "EXPAND": 56,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 66,
+      "SAFE_TO_APPLY_NOW": 67,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 277
+    "ProductionMigrationStateUnknown": 278
   },
   "gateFailures": [],
   "migrations": [
@@ -21505,8 +21505,84 @@
       "evidence": "UC-5 iOS NATIVE SCREEN CAPTURE (2026-09-19). Widens the same two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_IOS — the fourth isDirectCapture mode, produced by the PROOVRA iOS app recording the device screen through Apple’s user-authorised system broadcast (ReplayKit RPSystemBroadcastPickerView plus a PROOVRA Broadcast Upload Extension) in a server-issued capture session. EXPAND / SAFE_TO_APPLY_NOW, taken from the migration’s own header: \"A CHECK IN-list cannot be extended in place, so each constraint is dropped and RE-ADDED with the same name and a strictly wider list.\" Identical in shape to the UC-1, UC-2 and UC-3 entries in this file; no table, column, index or enum is added or removed, so no backfill and no code-deployment ordering applies."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280670000000_bd2_durable_batch_analysis_jobs",
       "order": 276,
+      "sqlPresent": true,
+      "byteLength": 3912,
+      "checksumSha256": "506474bec9b3fd537645ff0380aeb43ec919228b1dad345510e63ed954629114",
+      "checksumSha256Raw": "506474bec9b3fd537645ff0380aeb43ec919228b1dad345510e63ed954629114",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "batch_analysis_job_items",
+          "batch_analysis_jobs"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "batch_analysis_job_items"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [
+          "batchanalysisitemstatus",
+          "batchanalysisjobstatus"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "batch_analysis_job_items_job_id_position_key",
+          "batch_analysis_job_items_job_id_status_idx",
+          "batch_analysis_jobs_owner_user_id_created_at_idx",
+          "batch_analysis_jobs_team_id_status_created_at_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "batch_analysis_job_items_job_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BD-2 DURABLE BATCH ANALYSIS JOBS (2026-09-22). Creates two new tables (batch_analysis_jobs, batch_analysis_job_items) and two new enums (BatchAnalysisJobStatus, BatchAnalysisItemStatus). EXPAND / SAFE_TO_APPLY_NOW, taken from the migration's own header: purely additive, nothing existing is dropped, narrowed, renamed or backfilled. WHY: batch-analysis.service.ts stored jobs in a plain object on a module singleton, so a restart lost every job and two API instances could not see each other's — a job could simply vanish, and both clients reported that honestly because neither could do anything else. SHAPE: modelled on evidence_intelligence_jobs, this repository's existing durable-job shape, rather than a second one; the workspace is ON the job row so isolation is a query predicate rather than a filter each caller must remember. NO BACKFILL, deliberately: the rows being replaced only ever lived in the memory of a process that has since exited, so there is nothing to migrate and inventing rows for jobs nobody can evidence would be worse than starting empty. A deployment still running the prior build is unaffected — it keeps its jobs in memory and never reads these tables. CLEAN-BOOT REHEARSED on disposable PostgreSQL 16 (pgvector/pgvector:pg16): prisma migrate deploy applied all 278 migrations from empty, db:drift-check OK, db:raw-schema-verify OK. Proven by services/api/test/batch-analysis-durability.integration.test.ts (15 cases against a real database, including single-claim concurrency and cross-connection visibility)."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 277,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

@@ -194,11 +194,25 @@ export type ScreenContinuousStarted = {
   maxSegments: number;
 };
 
+/**
+ * The device that recorded a CONTINUOUS session, which is not always Android.
+ *
+ * `ScreenCaptureDevice` is pinned to `platform: "android"` and is right to
+ * be: the deliberate-frame API above is Android-only. The continuous API is
+ * shared with UC-5, where the iOS broadcast extension reports its own honest
+ * `"ios"` (ProovraBroadcastShared.swift:59) — so the frame type was stating
+ * something about an iOS session that was not true, and the manifest built
+ * from it could not be validated by a server that also read "android" only.
+ */
+export type ScreenContinuousDevice = Omit<ScreenCaptureDevice, "platform"> & {
+  platform: "android" | "ios";
+};
+
 export type ScreenContinuousResult = {
   osConsentGranted: boolean;
   captureStartedAtUtc: string;
   captureEndedAtUtc: string;
-  device: ScreenCaptureDevice;
+  device: ScreenContinuousDevice;
   totalDurationMs: number;
   segmentCount: number;
   sessionCompleteness: "COMPLETE_SESSION" | "INTERRUPTED_SESSION";

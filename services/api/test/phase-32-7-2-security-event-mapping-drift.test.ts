@@ -1324,6 +1324,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // identical in shape to the UC-1/UC-2/UC-3 entries above). No
       // `security_events` column, index, enum or mapping is touched.
       "20280660000000_uc5_ios_screen_capture_acquisition_mode",
+      // BD-2 (2026-09-22) — two new tables, batch_analysis_jobs and
+      // batch_analysis_job_items, replacing batch jobs that lived in a module
+      // singleton's memory. Purely additive: no `security_events` column,
+      // index, enum or mapping is touched, which is what this allowlist is
+      // about.
+      "20280670000000_bd2_durable_batch_analysis_jobs",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

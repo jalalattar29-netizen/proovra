@@ -294,10 +294,10 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:104",
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:119",
       "helper": "buildRequestTransitionPath(id, transition) — transition is the RequestTransition union",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
       ],
       "routes": [
         "POST /v1/evidence-requests/:id/send",
@@ -305,7 +305,7 @@
         "POST /v1/evidence-requests/:id/close",
         "POST /v1/evidence-requests/:id/needs-more-info"
       ],
-      "evidence": "apps/mobile/src/product/evidence-requests.ts:132 `export type RequestTransition = \"send\" | \"cancel\" | \"close\" | \"needs-more-info\"`, and availableRequestTransitions(status) is the ONE producer of the value. All four are registered in services/api/src/routes/evidence-requests.routes.ts (:392 send, :426 cancel, :463 close, :497 needs-more-info).",
+      "evidence": "RE-ANCHORED 104 -> 119 (2026-09-22): the per-response review handler was added above this call site; the call itself is unchanged. apps/mobile/src/product/evidence-requests.ts:132 `export type RequestTransition = \"send\" | \"cancel\" | \"close\" | \"needs-more-info\"`, and availableRequestTransitions(status) is the ONE producer of the value. All four are registered in services/api/src/routes/evidence-requests.routes.ts (:392 send, :426 cancel, :463 close, :497 needs-more-info).",
       "reviewedAtUtc": "2026-09-22"
     }
   ]
