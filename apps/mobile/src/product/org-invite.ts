@@ -47,7 +47,3 @@ export function parseOrgInviteAccept(payload: unknown): OrgInviteAccepted {
   };
 }
 
-/** The canonical web path for this invite, for intent preservation. */
-export function buildOrgInviteAcceptPath(token: string): string {
-  return `/v1/org-invites/${encodeURIComponent(token)}/accept`;
-}

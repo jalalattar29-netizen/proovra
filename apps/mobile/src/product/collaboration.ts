@@ -476,23 +476,6 @@ export function buildAssignmentUpdateBody(input: {
   return body;
 }
 
-export function buildAssignmentCreateBody(input: {
-  targetType: string;
-  targetId: string;
-  assigneeUserId?: string | null;
-  priority?: string;
-  note?: string | null;
-}) {
-  const note = (input.note ?? "").trim();
-  return {
-    targetType: input.targetType,
-    targetId: input.targetId,
-    ...(input.assigneeUserId !== undefined ? { assigneeUserId: input.assigneeUserId } : {}),
-    ...(input.priority ? { priority: input.priority } : {}),
-    ...(note.length > 0 ? { note } : {}),
-  };
-}
-
 /** "Showing 12 of 380" — the server's total, never the page length. */
 export function assignmentPageSummary(loaded: number, total: number | null): string {
   if (total === null || total <= loaded) {

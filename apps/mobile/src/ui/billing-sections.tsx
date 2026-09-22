@@ -30,6 +30,7 @@ import {
   STORAGE_ADDON_CANCEL_PATH,
   SUBSCRIPTION_CANCEL_PATH,
   buildBillingHistoryPath,
+  buildRetryStorageCancellationPath,
   buildStorageAddonCancelBody,
   formatPaymentAmount,
   isCancellableAddon,
@@ -79,6 +80,34 @@ export function BillingSections({
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Retry a storage cancellation the provider did not confirm.
+   *
+   * The route takes the ACCOUNT and nothing else — no add-on id, no provider
+   * reference — because "the server resolves the obligations IT recorded and
+   * retries exactly those — never the base subscription, and never an add-on
+   * whose cancellation the provider has already confirmed". So this passes no
+   * add-on, and does not offer a per-row retry that would imply otherwise.
+   */
+  const retryStorageCancellation = useCallback(async () => {
+    if (!accountType || !accountId) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await apiFetch(buildRetryStorageCancellationPath(accountType, accountId), {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setMessage("We have asked the provider again. This can take a few minutes.");
+      await load();
+      onChanged();
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [accountType, accountId, load, onChanged]);
 
   const cancel = useCallback(async () => {
     const target = pending;
@@ -145,6 +174,20 @@ export function BillingSections({
               <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
                 Storage add-ons
               </ProovraText>
+              {/*
+                Offered when an add-on is stuck mid-cancellation. It is ONE
+                control for the account, not one per row, because the route
+                resolves which obligations to retry itself.
+              */}
+              {overview.activeAddons.some((a) => !isCancellableAddon(a)) ? (
+                <ProovraButton
+                  label="Ask the provider again"
+                  variant="ghost"
+                  fullWidth={false}
+                  loading={busy}
+                  onPress={() => void retryStorageCancellation()}
+                />
+              ) : null}
               {overview.activeAddons.map((a) => (
                 <View
                   key={a.id}

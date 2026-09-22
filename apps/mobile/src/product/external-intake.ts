@@ -28,7 +28,6 @@
  *
  * Pure: no React, no react-native, no fetch.
  */
-import type { ProovraStatusTone } from "@proovra/ui";
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -65,10 +64,6 @@ export function buildIntakePartsPath(token: string, sessionId: string): string {
 
 export function buildIntakeSubmitPath(token: string, sessionId: string): string {
   return `${sessionBase(token, sessionId)}/submit`;
-}
-
-export function buildIntakeTransitionPath(token: string, sessionId: string): string {
-  return `${sessionBase(token, sessionId)}/transition`;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,10 +316,6 @@ export function buildIntakeSubmitBody(input: {
   return { location: loc };
 }
 
-export function buildIntakeTransitionBody(to: string) {
-  return { to };
-}
-
 // ---------------------------------------------------------------------------
 // Failures
 // ---------------------------------------------------------------------------
@@ -367,6 +358,3 @@ export function intakeFailureMessage(failure: IntakeFailure): string {
   }
 }
 
-export function intakeFailureTone(): ProovraStatusTone {
-  return "risk";
-}
