@@ -21,6 +21,16 @@ type MobileApiError = Error & {
   statusCode?: number;
   code?: string;
   details?: Record<string, unknown>;
+  /**
+   * The server's parsed error payload, verbatim.
+   *
+   * Not every field an error carries is `message`/`code`/`details`. A
+   * step-up challenge answers { error: { code, methods, message } }, and
+   * `methods` decides whether the device asks for a password or an
+   * authenticator code. Flattening the payload dropped it, so the client knew
+   * a challenge had been raised but not how to answer it.
+   */
+  body?: Record<string, unknown>;
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -96,6 +106,7 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     err.requestId = requestId;
     err.statusCode = res.status;
     err.code = code;
+    if (obj) err.body = obj;
 
     const detailsRaw = errObj ? errObj["details"] : undefined;
     if (detailsRaw && typeof detailsRaw === "object") {

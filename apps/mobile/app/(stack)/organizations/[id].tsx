@@ -8,17 +8,30 @@
  * thereby a member of every workspace inside it. Native shows what the
  * endpoint gives and asks for nothing else.
  *
- * The destructive governance actions — ownership transfer, leaving, closure —
- * are NOT here. Each is irreversible or near-irreversible and needs the
- * surrounding confirmation the web surface builds around it; a phone-sized
- * version of a one-way door is not a smaller feature, it is a worse one. The
- * ledger names them rather than the screen implying they do not exist.
+ * The audit timeline and the three lifecycle actions — leaving, ownership
+ * transfer, closure — are here. They were previously absent with the note that
+ * "a phone-sized version of a one-way door is not a smaller feature, it is a
+ * worse one". That is a claim about the affordance, and it does not survive
+ * contact with where the safety actually lives: the owner check, the typed
+ * confirmation phrase, the cooling-off period, the blocker list and the
+ * step-up proof are all enforced by the SERVER. The client's job is to state
+ * the consequence before the action and to carry the server's own words —
+ * which it does, and which it can do on a phone.
+ *
+ * Member and invitation management are NOT here, and that is not a gap: the
+ * web moved both to the organization admin console
+ * (/organizations/[id]/admin/members), which the route registry declares
+ * ENTERPRISE_ONLY. This page deep-links to them exactly as the web does.
  */
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { apiFetch } from "../../../src/api";
+import { toSafeUserError } from "../../../src/errors/safe-error";
+import { useToast } from "../../../src/toast-context";
+import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
+import { withStepUp } from "../../../src/product/step-up";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -34,9 +47,30 @@ import {
   ProovraLoadingState,
   ProovraErrorState,
   ProovraEmpty,
+  ProovraInput,
+  ProovraFormField,
+  ProovraSheet,
+  ProovraConfirmSheet,
 } from "../../../src/ui";
 import {
+  auditEventLabel,
+  buildOrgAuditPath,
+  buildOrgClosureCancelPath,
+  buildOrgClosurePath,
+  buildOrgLeavePath,
   buildOrgMembersPath,
+  buildOrgTransferPath,
+  canRequestClosure,
+  closureFailureNeedsReload,
+  closurePhraseMatches,
+  hasOpenClosure,
+  isOrgOwner,
+  orgLifecycleFailureMessage,
+  parseOrgAuditPage,
+  parseOrgClosureState,
+  transferTargets,
+  type OrgAuditEvent,
+  type OrgClosureState,
   buildOrgPath,
   buildOrgWorkspacesPath,
   orgRoleLabel,
@@ -63,6 +97,20 @@ export default function OrganizationDetailScreen() {
   const [state, setState] = useState<State>({ phase: "loading" });
   const [members, setMembers] = useState<OrgMember[] | null>(null);
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[] | null>(null);
+  const [audit, setAudit] = useState<OrgAuditEvent[] | null>(null);
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
+  const [closure, setClosure] = useState<OrgClosureState | null>(null);
+
+  const { addToast } = useToast();
+  const stepUp = useStepUp();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<OrgMember | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [cancellingClosure, setCancellingClosure] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -90,8 +138,136 @@ export default function OrganizationDetailScreen() {
       apiFetch(buildOrgWorkspacesPath(id))
         .then((d) => setWorkspaces(parseOrgWorkspaces(d)))
         .catch(() => setWorkspaces(null)),
+      // ORG_AUDITOR and above. A caller below that rank gets a refusal here
+      // and a null feed, which the section states as a visibility fact rather
+      // than as an error the page could retry out of.
+      apiFetch(buildOrgAuditPath(id, { take: 25 }))
+        .then((d) => {
+          const page = parseOrgAuditPage(d);
+          setAudit(page.events);
+          setAuditCursor(page.nextCursor);
+        })
+        .catch(() => setAudit(null)),
+      // Owner-only, and it carries the phrase, the cooling-off period and the
+      // blocker list. None of those three is ever restated by the client.
+      apiFetch(buildOrgClosurePath(id))
+        .then((d) => setClosure(parseOrgClosureState(d)))
+        .catch(() => setClosure(null)),
     ]);
   }, [id]);
+
+  const loadMoreAudit = useCallback(async () => {
+    if (!id || !auditCursor) return;
+    try {
+      const page = parseOrgAuditPage(
+        await apiFetch(buildOrgAuditPath(id, { take: 25, cursor: auditCursor })),
+      );
+      setAudit((prev) => [...(prev ?? []), ...page.events]);
+      setAuditCursor(page.nextCursor);
+    } catch (err) {
+      addToast(toSafeUserError(err).message, "error");
+    }
+  }, [id, auditCursor, addToast]);
+
+  const reloadClosure = useCallback(async () => {
+    if (!id) return;
+    try {
+      setClosure(parseOrgClosureState(await apiFetch(buildOrgClosurePath(id))));
+    } catch {
+      setClosure(null);
+    }
+  }, [id]);
+
+  const fail = useCallback(
+    (err: unknown, fallback: string) => {
+      // The named refusals say what actually happened. "Could not transfer
+      // ownership" hides both "you are no longer the owner" and "they left".
+      setNotice(orgLifecycleFailureMessage(err, toSafeUserError(err).message) ?? fallback);
+      if (closureFailureNeedsReload(err)) void reloadClosure();
+    },
+    [reloadClosure],
+  );
+
+  const leave = useCallback(async () => {
+    if (!id) return;
+    setLeaving(false);
+    setBusy(true);
+    setNotice(null);
+    await stepUp.start(
+      async (proof) => {
+        await apiFetch(buildOrgLeavePath(id), {
+          method: "POST",
+          body: JSON.stringify(withStepUp({}, proof)),
+        });
+        addToast("You have left this organization.", "success");
+        router.back();
+      },
+      (err) => fail(err, "Could not leave this organization."),
+    );
+    setBusy(false);
+  }, [id, stepUp, addToast, router, fail]);
+
+  const transfer = useCallback(async () => {
+    const target = transferTarget;
+    if (!id || !target) return;
+    setTransferTarget(null);
+    setTransferring(false);
+    setBusy(true);
+    setNotice(null);
+    await stepUp.start(
+      async (proof) => {
+        await apiFetch(buildOrgTransferPath(id), {
+          method: "POST",
+          body: JSON.stringify(withStepUp({ targetUserId: target.userId }, proof)),
+        });
+        addToast("Ownership transferred. You are now an organization admin.", "success");
+        await load();
+      },
+      (err) => fail(err, "Could not transfer ownership."),
+    );
+    setBusy(false);
+  }, [id, transferTarget, stepUp, addToast, load, fail]);
+
+  const requestClosure = useCallback(async () => {
+    if (!id) return;
+    setBusy(true);
+    setNotice(null);
+    await stepUp.start(
+      async (proof) => {
+        await apiFetch(buildOrgClosurePath(id), {
+          method: "POST",
+          // The phrase is sent exactly as typed and checked SERVER-side. The
+          // client compares it only to decide whether to enable the button.
+          body: JSON.stringify(withStepUp({ confirmation: phrase }, proof)),
+        });
+        setClosing(false);
+        setPhrase("");
+        await reloadClosure();
+      },
+      (err) => fail(err, "Could not request closure."),
+    );
+    setBusy(false);
+  }, [id, phrase, stepUp, reloadClosure, fail]);
+
+  const cancelClosure = useCallback(async () => {
+    const requestId = closure?.requestId;
+    if (!id || !requestId) return;
+    setCancellingClosure(false);
+    setBusy(true);
+    setNotice(null);
+    try {
+      await apiFetch(buildOrgClosureCancelPath(id, requestId), {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      addToast("The closure request was cancelled.", "success");
+      await reloadClosure();
+    } catch (err) {
+      fail(err, "Could not cancel the request.");
+    } finally {
+      setBusy(false);
+    }
+  }, [id, closure, addToast, reloadClosure, fail]);
 
   useEffect(() => {
     void load();
@@ -203,15 +379,247 @@ export default function OrganizationDetailScreen() {
             )}
           </ProovraPageSection>
 
-          {/*
-            Ownership transfer, leaving and closure are one-way doors. The web
-            builds real confirmation around each; a phone-sized version of that
-            is not a smaller feature, it is a worse one. Stated, not hidden.
-          */}
-          <ProovraText variant="label" color={theme.color.ink.muted}>
-            Transferring ownership, leaving this organization and closing it are done in the
-            PROOVRA web app.
-          </ProovraText>
+          <ProovraPageSection title="Audit timeline">
+            {audit === null ? (
+              // Auditor and above. A caller below that rank is not seeing a
+              // failure, they are seeing the limit of their role.
+              <ProovraEmpty
+                presence="inline"
+                title="The audit timeline is visible to organization auditors and administrators."
+              />
+            ) : audit.length === 0 ? (
+              <ProovraEmpty presence="inline" title="No events have been recorded yet." />
+            ) : (
+              <>
+                <ProovraCard>
+                  {audit.map((e) => (
+                    <View key={e.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
+                      <ProovraText variant="bodySm">{auditEventLabel(e.eventType)}</ProovraText>
+                      <ProovraText variant="label" color={theme.color.ink.muted}>
+                        {[
+                          // An unresolved actor is "system", not a raw uuid
+                          // printed where a person name belongs.
+                          e.actorLabel ?? "System",
+                          e.targetType,
+                          e.occurredAtIso ? formatUserDateTime(e.occurredAtIso) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </ProovraText>
+                    </View>
+                  ))}
+                </ProovraCard>
+                {auditCursor ? (
+                  <ProovraButton
+                    label="Load older events"
+                    variant="ghost"
+                    onPress={() => void loadMoreAudit()}
+                  />
+                ) : null}
+              </>
+            )}
+          </ProovraPageSection>
+
+          <ProovraPageSection title="This organization and you">
+            {notice ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {notice}
+              </ProovraText>
+            ) : null}
+
+            {/*
+              Leaving is offered to anyone who is NOT the owner — an owner must
+              transfer first, and the server says so in its own words if they
+              try. Nothing here decides that on the server's behalf.
+            */}
+            {!isOrgOwner(state.org) ? (
+              <ProovraButton
+                label="Leave this organization"
+                variant="ghost"
+                loading={busy}
+                onPress={() => setLeaving(true)}
+              />
+            ) : null}
+
+            {isOrgOwner(state.org) ? (
+              <>
+                <ProovraButton
+                  label="Transfer ownership"
+                  variant="ghost"
+                  loading={busy}
+                  onPress={() => setTransferring(true)}
+                />
+
+                {closure && hasOpenClosure(closure) ? (
+                  <ProovraCard>
+                    <ProovraText variant="body" weight="semibold">
+                      Closure requested
+                    </ProovraText>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>
+                      {closure.effectiveAtIso
+                        ? `This organization is scheduled to close on ${formatUserDateTime(closure.effectiveAtIso)}. It can be cancelled until then.`
+                        : "A closure request is open and can still be cancelled."}
+                    </ProovraText>
+                    <ProovraButton
+                      label="Cancel the closure request"
+                      loading={busy}
+                      onPress={() => setCancellingClosure(true)}
+                    />
+                  </ProovraCard>
+                ) : null}
+
+                {closure && !hasOpenClosure(closure) && closure.blockers.length > 0 ? (
+                  <ProovraCard>
+                    <ProovraText variant="label" weight="semibold">
+                      Closure is blocked
+                    </ProovraText>
+                    {/*
+                      The server wrote these sentences. Restating them here
+                      would put the client in the business of explaining a
+                      refusal it did not make.
+                    */}
+                    {closure.blockers.map((b) => (
+                      <ProovraText key={b.code} variant="label" color={theme.color.ink.muted}>
+                        {b.count !== null ? `${b.message} (${b.count})` : b.message}
+                      </ProovraText>
+                    ))}
+                  </ProovraCard>
+                ) : null}
+
+                {closure && canRequestClosure(closure) ? (
+                  <ProovraButton
+                    label="Close this organization"
+                    variant="ghost"
+                    loading={busy}
+                    onPress={() => setClosing(true)}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {/*
+              Members and invitations live in the organization admin console,
+              which the route registry declares ENTERPRISE_ONLY. The web page
+              deep-links to it from here too; it is not a native gap.
+            */}
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              Managing members, roles and pending invitations is done in the organization
+              admin console.
+            </ProovraText>
+          </ProovraPageSection>
+
+          {/* ---------------------------------------------------- the sheets */}
+
+          <ProovraConfirmSheet
+            visible={leaving}
+            title="Leave this organization?"
+            consequence="You lose organization-level access immediately. Workspace access is separate and is not changed by this."
+            confirmLabel="Leave"
+            tone="danger"
+            busy={busy}
+            onConfirm={() => void leave()}
+            onCancel={() => setLeaving(false)}
+          />
+
+          <ProovraSheet
+            visible={transferring}
+            title="Transfer ownership"
+            onClose={() => setTransferring(false)}
+          >
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              The person you choose becomes the organization owner and you become an admin.
+              Billing ownership follows the owner. This is atomic and audited.
+            </ProovraText>
+            {members === null || transferTargets(members).length === 0 ? (
+              <ProovraEmpty
+                presence="inline"
+                title="There is no other active member to transfer ownership to."
+              />
+            ) : (
+              transferTargets(members).map((m) => (
+                <ProovraListRow
+                  key={m.id}
+                  title={m.displayName}
+                  subtitle={m.email ?? undefined}
+                  onPress={() => {
+                    setTransferring(false);
+                    setTransferTarget(m);
+                  }}
+                />
+              ))
+            )}
+          </ProovraSheet>
+
+          <ProovraConfirmSheet
+            visible={transferTarget !== null}
+            title={transferTarget ? `Make ${transferTarget.displayName} the owner?` : ""}
+            consequence="They become the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited."
+            confirmLabel="Transfer ownership"
+            tone="danger"
+            busy={busy}
+            onConfirm={() => void transfer()}
+            onCancel={() => setTransferTarget(null)}
+          />
+
+          <ProovraSheet
+            visible={closing}
+            title="Close this organization"
+            onClose={() => setClosing(false)}
+          >
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {closure?.coolingOffDays !== null && closure?.coolingOffDays !== undefined
+                ? `Closure does not happen immediately: there is a ${closure.coolingOffDays}-day period in which it can be cancelled.`
+                : "Closure does not happen immediately; it can be cancelled during a cooling-off period."}
+            </ProovraText>
+
+            <ProovraFormField label="Type the confirmation phrase">
+              <ProovraInput
+                value={phrase}
+                onChangeText={setPhrase}
+                placeholder={closure?.confirmationPhrase ?? ""}
+                autoCapitalize="none"
+                accessibilityLabel="Closure confirmation phrase"
+              />
+            </ProovraFormField>
+            {/*
+              The phrase is the SERVER's. A client that believed in its own
+              copy and the route rejected it would make closure impossible with
+              no explanation the user could act on.
+            */}
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {closure?.confirmationPhrase
+                ? `Type exactly: ${closure.confirmationPhrase}`
+                : "The confirmation phrase could not be read. Try again in a moment."}
+            </ProovraText>
+
+            <ProovraButton
+              label="Request closure"
+              loading={busy}
+              disabled={closure === null || !closurePhraseMatches(closure, phrase)}
+              onPress={() => void requestClosure()}
+            />
+          </ProovraSheet>
+
+          <ProovraConfirmSheet
+            visible={cancellingClosure}
+            title="Cancel the closure request?"
+            consequence="The organization stays open and nothing is deleted. You can request closure again later."
+            confirmLabel="Cancel the request"
+            tone="warning"
+            busy={busy}
+            onConfirm={() => void cancelClosure()}
+            onCancel={() => setCancellingClosure(false)}
+          />
+
+          <StepUpSheet
+            challenge={stepUp.challenge}
+            title="Confirm it is you"
+            busy={busy}
+            onSubmit={(proof) =>
+              void stepUp.retry(proof, (err) => fail(err, "That could not be completed."))
+            }
+            onCancel={stepUp.dismiss}
+          />
         </>
       ) : null}
     </ProovraScreen>

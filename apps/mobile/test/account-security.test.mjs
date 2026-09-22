@@ -203,10 +203,3 @@ test("re-submitting the current password is refused", () => {
 
 /* --------------------------------------------------------------- step-up */
 
-test("a step-up challenge is not mistaken for a permission denial", () => {
-  // "Prove it is you, then retry" is not "you may not manage your own account".
-  assert.equal(A.isStepUpRequired({ code: "STEP_UP_REQUIRED" }), true);
-  assert.equal(A.isStepUpRequired({ body: { code: "MFA_REQUIRED" } }), true);
-  assert.equal(A.isStepUpRequired({ code: "FORBIDDEN" }), false);
-  assert.equal(A.isStepUpRequired(null), false);
-});

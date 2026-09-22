@@ -446,13 +446,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/organizations/[id]": {
     routeFile: "(stack)/organizations/[id].tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/organizations/[id]/page.tsx"],
     gaps: [
       "ported: governance detail, members and workspaces, each loading independently so one role-gated refusal never blanks the page",
-      "NOT ported, deliberately: ownership transfer, leaving the organization, and closure. Each is a one-way door the web builds real confirmation around, and a phone-sized version of a one-way door is not a smaller feature but a worse one. The screen says where they are rather than implying they do not exist.",
-      "not ported: the org audit-event feed and invitation management",
+      "the AUDIT TIMELINE is ported with its cursor pagination, gated as the route gates it (ORG_AUDITOR+); a caller below that rank sees a statement about their role, not a retryable error, and an unresolved actor reads as System rather than a raw uuid printed where a person's name belongs",
+      "LIFECYCLE is ported: leaving, ownership transfer, closure request and closure cancellation. The earlier reason for omitting them - 'a phone-sized version of a one-way door is not a smaller feature but a worse one' - was a claim about the affordance that does not survive contact with where the safety lives: the owner check, the typed phrase, the cooling-off period, the blocker list and the step-up proof are all SERVER-enforced. Every one of those figures is read from the endpoint and none is restated by the client.",
+      "INVITATION MANAGEMENT is not a gap on this route: the web moved members and invites to /organizations/[id]/admin/members, which routeRegistry declares ENTERPRISE_ONLY. This page deep-links there, exactly as the web page does. The earlier gap line misattributed an Enterprise console surface to this route.",
+      "two identifier defects closed here: parseOrgDetail dropped callerRole (so the screen could not tell an owner from a member) and parseOrgMembers collapsed the membership id with the user id (so a transfer would have sent the wrong one and been refused as target_not_member)",
     ],
   },
   "/people": {

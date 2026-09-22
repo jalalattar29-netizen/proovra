@@ -326,15 +326,13 @@ export function passwordFormBlocker(input: {
 }
 
 /* ------------------------------------------------------------- step-up */
-
-/**
- * A 401/403 carrying a step-up challenge means "prove it is you, then retry" —
- * not "you may not do this". Treating the two the same is how a security
- * surface ends up telling a user they lack permission to manage their own
- * account.
- */
-export function isStepUpRequired(err: unknown): boolean {
-  const e = obj(err);
-  const code = str(e.code) ?? str(obj(e.body).code);
-  return code === "STEP_UP_REQUIRED" || code === "MFA_REQUIRED";
-}
+//
+// RETIRED. `isStepUpRequired` lived here and matched on the code alone, so the
+// app could tell a user to "confirm it is you" without being able to ask them
+// for anything — it never read `methods`, which is what decides whether the
+// proof is a password or an authenticator code. It also matched MFA_REQUIRED,
+// a code the API does not define, and read `err.body.code` where the server
+// puts `err.body.error.code`.
+//
+// The canonical understanding of a step-up challenge is `src/product/step-up.ts`,
+// and the prompt that answers one is `src/ui/step-up-sheet.tsx`.

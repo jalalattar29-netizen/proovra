@@ -138,3 +138,139 @@ test("roles read as words and the admin gate mirrors the server's", () => {
   assert.equal(O.isOrgAdminRole("ORG_ADMIN"), true);
   assert.equal(O.isOrgAdminRole("ORG_MEMBER"), false);
 });
+
+/* ---------------------------------------------- audit timeline + lifecycle */
+
+test("the audit path carries the page size and the cursor", () => {
+  assert.equal(O.buildOrgAuditPath("o1"), "/v1/orgs/o1/audit-events?take=50");
+  assert.equal(
+    O.buildOrgAuditPath("o1", { take: 25, cursor: "e9" }),
+    "/v1/orgs/o1/audit-events?take=25&cursor=e9",
+  );
+});
+
+test("an unresolved actor is absent, never a raw id in a name's place", () => {
+  const page = O.parseOrgAuditPage({
+    summary: { totalEvents: 2, nextCursor: "e2" },
+    events: [
+      { id: "e1", eventType: "org.member_added", actorDisplayName: "Ada", createdAt: "2026-09-01T00:00:00.000Z" },
+      { id: "e2", eventType: "org.settings_changed", actorUserId: "u-9" },
+      { eventType: "no id" },
+    ],
+  });
+  assert.equal(page.events.length, 2);
+  assert.equal(page.events[0].actorLabel, "Ada");
+  // An id is not a person. The surface says "System" rather than printing it.
+  assert.equal(page.events[1].actorLabel, null);
+  assert.equal(page.nextCursor, "e2");
+  assert.equal(page.totalEvents, 2);
+});
+
+test("an actor known only by email is still named", () => {
+  const page = O.parseOrgAuditPage({ events: [{ id: "e1", actorEmail: "a@b.test" }] });
+  assert.equal(page.events[0].actorLabel, "a@b.test");
+});
+
+test("an event type reads as words", () => {
+  assert.equal(O.auditEventLabel("org.member_added"), "Org member added");
+  assert.equal(O.auditEventLabel(""), "Event");
+});
+
+test("the lifecycle paths are the canonical ones", () => {
+  assert.equal(O.buildOrgLeavePath("o1"), "/v1/orgs/o1/leave");
+  assert.equal(O.buildOrgTransferPath("o1"), "/v1/orgs/o1/transfer-ownership");
+  assert.equal(O.buildOrgClosurePath("o1"), "/v1/orgs/o1/closure");
+  assert.equal(O.buildOrgClosureCancelPath("o1", "r1"), "/v1/orgs/o1/closure/r1/cancel");
+});
+
+test("the caller's own role comes from the server, not from the member list", () => {
+  const org = O.parseOrgDetail({ organization: { id: "o1" }, callerRole: "ORG_OWNER" });
+  assert.equal(org.callerRole, "ORG_OWNER");
+  assert.equal(O.isOrgOwner(org), true);
+  assert.equal(O.isOrgOwner(O.parseOrgDetail({ organization: { id: "o1" } })), false);
+});
+
+test("the membership id and the user id are not the same identifier", () => {
+  // Transfer addresses the USER; member mutations address the MEMBERSHIP.
+  // Collapsing them sent a membership id as targetUserId and was refused as
+  // target_not_member — the right rule named for the wrong reason.
+  const [m] = O.parseOrgMembers({ members: [{ id: "mem-1", userId: "usr-1", role: "ORG_ADMIN" }] });
+  assert.equal(m.id, "mem-1");
+  assert.equal(m.userId, "usr-1");
+});
+
+test("ownership is never offered to a suspended or revoked member", () => {
+  const members = O.parseOrgMembers({
+    members: [
+      { id: "m1", userId: "u1", role: "ORG_OWNER", status: "ACTIVE" },
+      { id: "m2", userId: "u2", role: "ORG_ADMIN", status: "ACTIVE" },
+      { id: "m3", userId: "u3", role: "ORG_ADMIN", status: "REVOKED" },
+      { id: "m4", userId: "u4", role: "ORG_MEMBER", status: "SUSPENDED" },
+      { id: "m5", role: "ORG_MEMBER", status: "ACTIVE" },
+    ],
+  });
+  assert.deepEqual(O.transferTargets(members).map((m) => m.userId), ["u2"]);
+});
+
+test("the closure state carries the server's phrase, period and blockers", () => {
+  const c = O.parseOrgClosureState({
+    request: null,
+    blockers: [
+      { code: "WORKSPACE_MEMBERS_ACTIVE", message: "Other people are still in a workspace.", count: 3 },
+      { message: "no code" },
+    ],
+    confirmationPhrase: "CLOSE MY ORGANIZATION",
+    coolingOffDays: 30,
+  });
+  assert.equal(c.confirmationPhrase, "CLOSE MY ORGANIZATION");
+  assert.equal(c.coolingOffDays, 30);
+  assert.equal(c.blockers.length, 1);
+  assert.equal(c.blockers[0].count, 3);
+});
+
+test("closure needs the server's phrase, matched exactly", () => {
+  const c = O.parseOrgClosureState({ confirmationPhrase: "CLOSE MY ORGANIZATION" });
+  assert.equal(O.closurePhraseMatches(c, "CLOSE MY ORGANIZATION"), true);
+  // A typed confirmation a client quietly normalised is not a confirmation.
+  assert.equal(O.closurePhraseMatches(c, "close my organization"), false);
+  assert.equal(O.closurePhraseMatches(c, " CLOSE MY ORGANIZATION "), false);
+  // With no phrase from the server, nothing matches — the client has no copy.
+  assert.equal(O.closurePhraseMatches(O.parseOrgClosureState({}), "anything"), false);
+});
+
+test("closure is offered only when the server listed no blockers", () => {
+  const clean = O.parseOrgClosureState({ blockers: [] });
+  assert.equal(O.canRequestClosure(clean), true);
+
+  const blocked = O.parseOrgClosureState({ blockers: [{ code: "LEGAL_HOLD_ACTIVE", message: "x" }] });
+  assert.equal(O.canRequestClosure(blocked), false);
+
+  const open = O.parseOrgClosureState({ request: { id: "r1", status: "PENDING" }, blockers: [] });
+  assert.equal(O.hasOpenClosure(open), true);
+  assert.equal(O.canRequestClosure(open), false);
+});
+
+test("a cancelled or completed request is not an open one", () => {
+  for (const status of ["CANCELLED", "COMPLETED", "FAILED"]) {
+    assert.equal(
+      O.hasOpenClosure(O.parseOrgClosureState({ request: { id: "r1", status } })),
+      false,
+    );
+  }
+});
+
+test("a named refusal says what happened, not that something failed", () => {
+  const named = (code) => O.orgLifecycleFailureMessage({ body: { error: { code } } }, "fallback");
+  assert.match(named("owner_required"), /owner/i);
+  assert.match(named("target_not_member"), /no longer a member/i);
+  assert.match(named("confirmation_mismatch"), /does not match/i);
+  assert.match(named("closure_request_active"), /already open/i);
+  assert.equal(named("something_else"), "fallback");
+});
+
+test("only a stale-state refusal triggers a reload", () => {
+  const f = (code) => O.closureFailureNeedsReload({ body: { error: { code } } });
+  assert.equal(f("closure_blocked"), true);
+  assert.equal(f("closure_request_active"), true);
+  assert.equal(f("confirmation_mismatch"), false);
+});

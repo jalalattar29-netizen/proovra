@@ -19,6 +19,8 @@ import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../../src/api";
+import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
+import { withStepUp } from "../../../src/product/step-up";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
@@ -47,7 +49,6 @@ import {
   passwordFormBlocker,
   signInRisk,
   mfaFactorTone,
-  isStepUpRequired,
   type SignInMethods,
   type MfaStatus,
   type SessionInventory,
@@ -78,6 +79,7 @@ export default function SecuritySettingsScreen() {
 
   const [pending, setPending] = useState<Pending>(null);
   const [acting, setActing] = useState(false);
+  const stepUp = useStepUp();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,67 +121,77 @@ export default function SecuritySettingsScreen() {
   const changePassword = useCallback(async () => {
     if (blocker) return;
     setSavingPassword(true);
-    try {
-      await apiFetch("/v1/identity-security/password", {
-        method: "POST",
-        body: JSON.stringify({ currentPassword: current, newPassword: next }),
-      });
-      setCurrent("");
-      setNext("");
-      setConfirm("");
-      addToast("Password changed", "success");
-      // The change is itself a security event, and it may end other sessions.
-      void load();
-    } catch (err) {
-      addToast(
-        isStepUpRequired(err)
-          ? "Confirm it is you, then try again."
-          : toSafeUserError(err).message,
-        "error",
-      );
-    } finally {
-      setSavingPassword(false);
-    }
-  }, [blocker, current, next, addToast, load]);
+    // A step-up challenge is answered and the SAME request is retried, rather
+    // than being reported as a failure the user cannot act on.
+    await stepUp.start(
+      async (proof) => {
+        await apiFetch("/v1/identity-security/password", {
+          method: "POST",
+          body: JSON.stringify(
+            withStepUp({ currentPassword: current, newPassword: next }, proof),
+          ),
+        });
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+        addToast("Password changed", "success");
+        // The change is itself a security event, and it may end other sessions.
+        void load();
+      },
+      (err) => addToast(toSafeUserError(err).message, "error"),
+    );
+    setSavingPassword(false);
+  }, [blocker, current, next, addToast, load, stepUp]);
 
   const runPending = useCallback(async () => {
     if (!pending) return;
     setActing(true);
-    try {
-      if (pending.kind === "revoke-session") {
-        await apiFetch(`/v1/identity-security/my-sessions/${pending.id}/revoke`, { method: "POST" });
-        addToast("Session signed out", "success");
-      } else if (pending.kind === "revoke-others") {
-        await apiFetch("/v1/identity-security/my-sessions/revoke-others", { method: "POST" });
-        addToast("Other sessions signed out", "success");
-      } else if (pending.kind === "remove-factor") {
-        await apiFetch(`/v1/identity/mfa/factors/${pending.id}`, { method: "DELETE" });
-        addToast("Two-factor method removed", "success");
-      }
-      setPending(null);
-      await load();
-    } catch (err) {
-      addToast(
-        isStepUpRequired(err) ? "Confirm it is you, then try again." : toSafeUserError(err).message,
-        "error",
-      );
-    } finally {
-      setActing(false);
-    }
-  }, [pending, addToast, load]);
+    await stepUp.start(
+      async (proof) => {
+        const body = JSON.stringify(withStepUp({}, proof));
+        if (pending.kind === "revoke-session") {
+          await apiFetch(`/v1/identity-security/my-sessions/${pending.id}/revoke`, {
+            method: "POST",
+            body,
+          });
+          addToast("Session signed out", "success");
+        } else if (pending.kind === "revoke-others") {
+          await apiFetch("/v1/identity-security/my-sessions/revoke-others", {
+            method: "POST",
+            body,
+          });
+          addToast("Other sessions signed out", "success");
+        } else if (pending.kind === "remove-factor") {
+          // The route reads `req.body.stepUp` on a DELETE, so this one
+          // carries a body too — removing an ACTIVE factor is step-up guarded,
+          // and a DELETE sent bodyless could never satisfy it.
+          await apiFetch(`/v1/identity/mfa/factors/${pending.id}`, {
+            method: "DELETE",
+            body,
+          });
+          addToast("Two-factor method removed", "success");
+        }
+        setPending(null);
+        await load();
+      },
+      (err) => addToast(toSafeUserError(err).message, "error"),
+    );
+    setActing(false);
+  }, [pending, addToast, load, stepUp]);
 
   const regenerateRecoveryCodes = useCallback(async () => {
-    try {
-      await apiFetch("/v1/identity/mfa/recovery-codes/regenerate", { method: "POST" });
-      addToast("New recovery codes issued", "success");
-      await load();
-    } catch (err) {
-      addToast(
-        isStepUpRequired(err) ? "Confirm it is you, then try again." : toSafeUserError(err).message,
-        "error",
-      );
-    }
-  }, [addToast, load]);
+    await stepUp.start(
+      async (proof) => {
+        await apiFetch("/v1/identity/mfa/recovery-codes/regenerate", {
+          method: "POST",
+          body: JSON.stringify(withStepUp({}, proof)),
+        });
+        addToast("New recovery codes issued", "success");
+        await load();
+      },
+      (err) => addToast(toSafeUserError(err).message, "error"),
+    );
+  }, [addToast, load, stepUp]);
 
   const risk = methods && mfa ? signInRisk(methods, mfa) : null;
 
@@ -477,6 +489,16 @@ export default function SecuritySettingsScreen() {
         onConfirm={() => void runPending()}
         onCancel={() => setPending(null)}
       />
+      <StepUpSheet
+        challenge={stepUp.challenge}
+        title="Confirm it is you"
+        busy={acting || savingPassword}
+        onSubmit={(proof) =>
+          void stepUp.retry(proof, (err) => addToast(toSafeUserError(err).message, "error"))
+        }
+        onCancel={stepUp.dismiss}
+      />
+
     </ProovraScreen>
   );
 }

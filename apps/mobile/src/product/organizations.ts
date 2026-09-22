@@ -119,6 +119,15 @@ export interface OrgDetail {
   verifiedAtIso: string | null;
   timezone: string | null;
   createdAtIso: string | null;
+  /**
+   * The caller's OWN role in this organization.
+   *
+   * The endpoint returns it (`callerRole`) and the projection used to drop
+   * it, which left the screen unable to tell an owner from a member — and so
+   * unable to offer, or withhold, anything role-gated. It is the server's
+   * answer to "who are you here", not an inference from the member list.
+   */
+  callerRole: string | null;
 }
 
 export function parseOrgDetail(payload: unknown): OrgDetail | null {
@@ -135,11 +144,29 @@ export function parseOrgDetail(payload: unknown): OrgDetail | null {
     verifiedAtIso: str(d.verifiedAtUtc) ?? str(d.verifiedAt),
     timezone: str(d.timezone),
     createdAtIso: str(d.createdAt),
+    // On the envelope, beside `organization`, not inside it.
+    callerRole: str(obj(payload).callerRole) ?? str(d.callerRole),
   };
 }
 
+/** Only the owner may transfer ownership or close the organization. */
+export function isOrgOwner(org: OrgDetail): boolean {
+  return (org.callerRole ?? "").toUpperCase() === "ORG_OWNER";
+}
+
 export interface OrgMember {
+  /** The MEMBERSHIP id — what member mutations address. */
   id: string;
+  /**
+   * The USER id — what ownership transfer addresses.
+   *
+   * These are two different identifiers and the projection used to collapse
+   * them (`str(m.id) ?? str(m.userId)`), so a transfer built from a member row
+   * would have sent a membership id as `targetUserId` and been refused as
+   * `target_not_member` — a refusal naming the right rule for the wrong reason.
+   * Null when the server sent only a membership.
+   */
+  userId: string | null;
   displayName: string;
   email: string | null;
   role: string;
@@ -156,6 +183,7 @@ export function parseOrgMembers(payload: unknown): OrgMember[] {
       const email = str(user.email) ?? str(m.email);
       return {
         id,
+        userId: str(m.userId),
         displayName: str(user.displayName) ?? str(m.displayName) ?? email ?? "Unnamed member",
         email,
         role: str(m.role) ?? "",
@@ -231,4 +259,223 @@ export function orgSummaryLine(org: OrgSummary): string {
     parts.push(`${org.pendingInviteCount} pending invitation${org.pendingInviteCount === 1 ? "" : "s"}`);
   }
   return parts.join(" · ");
+}
+
+// ---------------------------------------------------------------------------
+// Audit events
+// ---------------------------------------------------------------------------
+//
+// GET /v1/orgs/:id/audit-events?take=&cursor=&eventType=
+// ORG_AUDITOR and above. This is the organization's own record of what was
+// done to it, and it is the surface a governance tenant exists for.
+
+export function buildOrgAuditPath(
+  orgId: string,
+  options: { take?: number; cursor?: string | null } = {},
+): string {
+  const p = new URLSearchParams({ take: String(options.take ?? 50) });
+  if (options.cursor) p.set("cursor", options.cursor);
+  return `/v1/orgs/${encodeURIComponent(orgId)}/audit-events?${p.toString()}`;
+}
+
+export interface OrgAuditEvent {
+  id: string;
+  eventType: string;
+  /** Who did it, as a person rather than an id, when the server named them. */
+  actorLabel: string | null;
+  targetType: string | null;
+  targetId: string | null;
+  occurredAtIso: string | null;
+}
+
+export interface OrgAuditPage {
+  events: OrgAuditEvent[];
+  nextCursor: string | null;
+  totalEvents: number | null;
+}
+
+export function parseOrgAuditPage(payload: unknown): OrgAuditPage {
+  const d = obj(payload);
+  const summary = obj(d.summary);
+  return {
+    events: rows(d.events)
+      .map((raw) => {
+        const e = obj(raw);
+        const id = str(e.id);
+        if (!id) return null;
+        return {
+          id,
+          eventType: str(e.eventType) ?? "unknown",
+          // An actor id alone tells a reader nothing. When the server resolved
+          // a name or an email it is used; when it did not, the field is null
+          // and the surface says "system" rather than printing a raw uuid as
+          // if it were a person.
+          actorLabel: str(e.actorDisplayName) ?? str(e.actorEmail),
+          targetType: str(e.targetType),
+          targetId: str(e.targetId),
+          occurredAtIso: str(e.createdAt),
+        };
+      })
+      .filter((e): e is OrgAuditEvent => e !== null),
+    nextCursor: str(summary.nextCursor) ?? str(d.nextCursor),
+    totalEvents: num(summary.totalEvents),
+  };
+}
+
+/** An event type as a sentence, without inventing detail the record lacks. */
+export function auditEventLabel(eventType: string): string {
+  const s = eventType.replace(/[._]/g, " ").trim();
+  return s.length === 0 ? "Event" : s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle: leaving, ownership transfer, closure
+// ---------------------------------------------------------------------------
+//
+// These were previously absent from Native with the note that "a phone-sized
+// version of a one-way door is not a smaller feature but a worse one". That is
+// a claim about the affordance, and the product does not support it: the web
+// builds real confirmation around each of these, Native has the same
+// confirmation primitive, and the actual safety in all three lives on the
+// SERVER — the owner check, the typed phrase, the cooling-off period and the
+// step-up proof are enforced there and cannot be weakened by the client.
+//
+// What the client must not do is state any of that safety itself. Every figure
+// below — the phrase, the cooling-off days, the blockers — is read from the
+// endpoint. A client that believed in its own phrase and the route rejected it
+// would make closure impossible with no explanation the user could act on.
+
+export function buildOrgLeavePath(orgId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/leave`;
+}
+
+export function buildOrgTransferPath(orgId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/transfer-ownership`;
+}
+
+export function buildOrgClosurePath(orgId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/closure`;
+}
+
+export function buildOrgClosureCancelPath(orgId: string, requestId: string): string {
+  return `${buildOrgClosurePath(orgId)}/${encodeURIComponent(requestId)}/cancel`;
+}
+
+export interface ClosureBlocker {
+  code: string;
+  message: string;
+  count: number | null;
+}
+
+export interface OrgClosureState {
+  /** The open request, when there is one. */
+  requestId: string | null;
+  requestStatus: string | null;
+  requestedAtIso: string | null;
+  effectiveAtIso: string | null;
+  blockers: ClosureBlocker[];
+  /** The exact phrase the ROUTE checks. Never restated by the client. */
+  confirmationPhrase: string | null;
+  coolingOffDays: number | null;
+}
+
+export function parseOrgClosureState(payload: unknown): OrgClosureState {
+  const d = obj(payload);
+  const req = obj(d.request);
+  return {
+    requestId: str(req.id),
+    requestStatus: str(req.status),
+    requestedAtIso: str(req.requestedAtUtc) ?? str(req.requestedAt),
+    effectiveAtIso: str(req.effectiveAtUtc) ?? str(req.effectiveAt),
+    blockers: rows(d.blockers)
+      .map((raw) => {
+        const b = obj(raw);
+        const code = str(b.code);
+        if (!code) return null;
+        return {
+          code,
+          // The server writes these sentences. Restating them here would put
+          // the client in the business of explaining a refusal it did not make.
+          message: str(b.message) ?? code,
+          count: num(b.count),
+        };
+      })
+      .filter((b): b is ClosureBlocker => b !== null),
+    confirmationPhrase: str(d.confirmationPhrase),
+    coolingOffDays: num(d.coolingOffDays),
+  };
+}
+
+/** A request that is open and still inside its cooling-off period. */
+export function hasOpenClosure(state: OrgClosureState): boolean {
+  const s = (state.requestStatus ?? "").toUpperCase();
+  return state.requestId !== null && (s === "PENDING" || s === "SCHEDULED" || s === "REQUESTED");
+}
+
+/** Closure may be requested only when the SERVER listed no blockers. */
+export function canRequestClosure(state: OrgClosureState): boolean {
+  return !hasOpenClosure(state) && state.blockers.length === 0;
+}
+
+/**
+ * Whether what was typed matches the phrase the route will check.
+ *
+ * Compared against the SERVER's phrase, never a copy. Exact, including case:
+ * a typed confirmation that a client quietly normalised is not a confirmation.
+ */
+export function closurePhraseMatches(state: OrgClosureState, typed: string): boolean {
+  return state.confirmationPhrase !== null && typed === state.confirmationPhrase;
+}
+
+/**
+ * Who could receive ownership.
+ *
+ * Everyone except the current owner, and only ACTIVE memberships: the
+ * administration roster deliberately includes suspended and revoked rows so an
+ * administrator can restore them, and handing an organization to a revoked
+ * member is the one transfer that must never be offered. A row with no user id
+ * is also excluded, because the transfer addresses the USER.
+ */
+export function transferTargets(members: OrgMember[]): OrgMember[] {
+  return members.filter(
+    (m) =>
+      m.role.toUpperCase() !== "ORG_OWNER" &&
+      m.status.toUpperCase() === "ACTIVE" &&
+      m.userId !== null,
+  );
+}
+
+/**
+ * The refusals these three routes raise, said in the words of what happened.
+ *
+ * `owner_required` and `target_not_member` are not generic failures: one means
+ * the caller is no longer the owner, the other that the person they chose has
+ * left. A single "could not transfer ownership" hides both.
+ */
+export function orgLifecycleFailureMessage(err: unknown, fallback: string): string | null {
+  const e = obj(err);
+  const code = str(obj(obj(e.body).error).code) ?? str(e.code);
+  switch (code) {
+    case "owner_required":
+      return "Only the organization owner can do this.";
+    case "target_not_member":
+      return "That person is no longer a member of this organization.";
+    case "transfer_to_self":
+      return "You already own this organization.";
+    case "closure_blocked":
+      return "Closure is blocked. Resolve the listed items and try again.";
+    case "confirmation_mismatch":
+      return "The confirmation phrase does not match.";
+    case "closure_request_active":
+      return "A closure request for this organization is already open.";
+    default:
+      return fallback;
+  }
+}
+
+/** True when the failure means the closure state on screen is now stale. */
+export function closureFailureNeedsReload(err: unknown): boolean {
+  const e = obj(err);
+  const code = str(obj(obj(e.body).error).code) ?? str(e.code);
+  return code === "closure_blocked" || code === "closure_request_active";
 }
