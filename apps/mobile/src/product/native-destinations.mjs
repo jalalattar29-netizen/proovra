@@ -325,22 +325,37 @@ export const NATIVE_DESTINATIONS = {
     gaps: ["member-safe org detail has no Native destination"],
   },
   "/people": {
-    routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/(app)/teams/[id]/page.tsx"],
-    gaps: ["workspace people/members surface has no Native destination"],
+    routeFile: "(stack)/workspace-people.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/people/page.tsx"],
+    gaps: [
+      "RESOLVER, not a surface: the web page reads no membership and renders no roster. Its whole job is to answer which workspace's people and replace() itself out of the back stack. Native has no URL bar, so the destination takes the active workspace from the canonical platform context directly and there is nothing left to resolve.",
+    ],
   },
   "/teams/[id]": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/workspace-people.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/teams/[id]/page.tsx"],
-    gaps: ["same surface as /people"],
+    gaps: [
+      "Workspace People ported: roster with roles and status, cursor paging, seats from the server's stats, invite/resend/revoke gated on canManageMembers",
+      "counts come from stats, never from members.length - the web route's own comment records what happened when a detail read carried every membership",
+      "not ported: ownership transfer, workspace closure, role changes on an existing member, case links and the activity feed",
+    ],
   },
   "/workspaces": {
-    routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/(app)/workspaces/page.tsx"],
-    gaps: ["workspace list has no Native destination"],
+    routeFile: "(stack)/workspace-people.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/(app)/workspaces/page.tsx",
+      "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx",
+    ],
+    gaps: [
+      "the canonical workspace-admin landing. Its people/seats half is ported onto the same native screen as /teams/[id] and /people - one workspace roster, not three.",
+      "not ported: the administration home's workspace LIST and cross-workspace administration; native switches workspace through the account menu rather than administering several at once",
+    ],
   },
   "/operations/batch-analysis": {
     routeFile: "(stack)/operations/batch-analysis.tsx",

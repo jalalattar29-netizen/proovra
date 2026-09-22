@@ -75,6 +75,17 @@ export default function CollaborationScreen() {
   return (
     <ProovraShell>
       <ProovraSection title="Collaboration">
+        {/*
+          Collaboration groups and the workspace roster are DIFFERENT things:
+          a collaboration group is a shared working set inside a workspace,
+          while People is the workspace's own membership, seats and invitations.
+          Both are reachable, and neither is renamed into the other.
+        */}
+        <ProovraListRow
+          title="People in this workspace"
+          subtitle="Members, roles and invitations"
+          onPress={() => router.push("/(stack)/workspace-people")}
+        />
         {phase === "loading" ? (
           <ProovraLoadingState label="Loading collaboration groups" />
         ) : phase === "unavailable" ? (
