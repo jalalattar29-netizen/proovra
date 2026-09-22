@@ -146,3 +146,162 @@ test("roles read as words, and an unknown role still renders", () => {
   assert.equal(W.roleLabel("VIEWER"), "Viewer");
   assert.equal(W.roleLabel("SOME_NEW_ROLE"), "some new role");
 });
+
+/* ------------------------------------------- role changes on a real member */
+
+const member = (over = {}) => ({
+  id: "mem-1",
+  userId: "usr-1",
+  role: "MEMBER",
+  status: "ACTIVE",
+  displayName: "Ada",
+  email: "ada@example.test",
+  joinedAtIso: null,
+  ...over,
+});
+
+test("the role PATCH addresses the membership, not the user", () => {
+  // The route resolves :memberId against TeamMember.id (WCR-02). A user id
+  // sent here answers 404.
+  assert.equal(W.buildWorkspaceMemberPath("t1", "mem-1"), "/v1/teams/t1/members/mem-1");
+  assert.deepEqual(W.buildRoleChangeBody("ADMIN"), { role: "ADMIN" });
+});
+
+test("ownership is not among the roles a member can be moved to", () => {
+  // Ownership is transferred, not assigned. Offering it in a role picker
+  // would be a different action under the wrong name.
+  assert.deepEqual([...W.MANAGEABLE_ROLES], ["ADMIN", "MEMBER", "VIEWER"]);
+  assert.equal(W.MANAGEABLE_ROLES.includes("OWNER"), false);
+});
+
+test("a role change is offered only where it can actually be made", () => {
+  assert.equal(W.canChangeRole(member(), true), true);
+  assert.equal(W.canChangeRole(member(), false), false);
+  // The owner's role is not changed from here.
+  assert.equal(W.canChangeRole(member({ role: "OWNER" }), true), false);
+  // Changing a revoked member's role would look like restoring them.
+  assert.equal(W.canChangeRole(member({ status: "REVOKED" }), true), false);
+  assert.equal(W.canChangeRole(member({ status: "SUSPENDED" }), true), false);
+});
+
+test("an accepted role change is not reported as a completed one", () => {
+  // The outcome comes from the RELOADED row. Announcing it from the request
+  // would be the client asserting what the server has not confirmed.
+  const m = member();
+  assert.equal(W.describeRoleChange(m, "ADMIN", null).ok, false);
+  assert.match(W.describeRoleChange(m, "ADMIN", null).message, /could not be reloaded/i);
+
+  const contradicted = W.describeRoleChange(m, "ADMIN", member({ role: "VIEWER" }));
+  assert.equal(contradicted.ok, false);
+  assert.match(contradicted.message, /shows a different role/i);
+
+  const confirmed = W.describeRoleChange(m, "ADMIN", member({ role: "ADMIN" }));
+  assert.equal(confirmed.ok, true);
+  assert.match(confirmed.message, /Ada is now Admin/);
+});
+
+/* -------------------------------------------------------------- case links */
+
+test("linking and unlinking are two permissions, not one", () => {
+  // POST /cases/link is MEMBER+; DELETE /cases/:caseId is ADMIN+. A MEMBER can
+  // bring a case in and cannot take one out.
+  assert.equal(W.canLinkCase("MEMBER"), true);
+  assert.equal(W.canUnlinkCase("MEMBER"), false);
+  assert.equal(W.canUnlinkCase("ADMIN"), true);
+  assert.equal(W.canUnlinkCase("OWNER"), true);
+  assert.equal(W.canLinkCase("VIEWER"), false);
+});
+
+test("the case paths are the canonical ones", () => {
+  assert.equal(W.buildWorkspaceCasesPath("t1"), "/v1/teams/t1/cases");
+  assert.equal(W.buildWorkspaceCaseLinkPath("t1"), "/v1/teams/t1/cases/link");
+  assert.equal(W.buildWorkspaceCaseUnlinkPath("t1", "c1"), "/v1/teams/t1/cases/c1");
+});
+
+test("a case row with no id is dropped rather than rendered", () => {
+  const list = W.parseWorkspaceCases({ items: [{ id: "c1", name: "Flood" }, {}, null] });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].name, "Flood");
+});
+
+test("an unnamed case is named, never blank", () => {
+  assert.equal(W.parseWorkspaceCases({ items: [{ id: "c1" }] })[0].name, "Untitled case");
+});
+
+test("the picker cannot offer a link that already exists", () => {
+  const all = W.parseWorkspaceCases({ items: [{ id: "c1" }, { id: "c2" }, { id: "c3" }] });
+  const linked = W.parseWorkspaceCases({ items: [{ id: "c2" }] });
+  assert.deepEqual(W.linkableCases(all, linked).map((c) => c.id), ["c1", "c3"]);
+});
+
+/* ---------------------------------------------------------------- activity */
+
+test("the activity read is bounded", () => {
+  assert.equal(W.buildWorkspaceActivityPath("t1"), "/v1/teams/t1/activity?limit=50");
+  assert.equal(W.buildWorkspaceActivityPath("t1", 25), "/v1/teams/t1/activity?limit=25");
+});
+
+test("an unresolved actor is absent, not a raw id", () => {
+  const list = W.parseWorkspaceActivity({
+    activities: [
+      { id: "a1", eventType: "team.member_added", actor: { displayName: "Ada" } },
+      { id: "a2", eventType: "team.case_linked", actor: null },
+      { eventType: "no id" },
+    ],
+  });
+  assert.equal(list.length, 2);
+  assert.equal(list[0].actorLabel, "Ada");
+  assert.equal(list[1].actorLabel, null);
+});
+
+test("an event type reads as words", () => {
+  assert.equal(W.activityLabel("team.case_linked"), "Team case linked");
+  assert.equal(W.activityLabel(""), "Activity");
+});
+
+/* ------------------------------------------------------------------ rename */
+
+test("a blank workspace name is refused before the request", () => {
+  assert.match(W.validateWorkspaceName("   "), /needs a name/i);
+  assert.equal(W.validateWorkspaceName("Field team"), null);
+  assert.deepEqual(W.buildRenameBody("  Field team  "), { name: "Field team" });
+});
+
+/* ----------------------------------------- workspace ownership and closure */
+
+test("the workspace transfer names its own field", () => {
+  // This route takes newOwnerUserId; the organization route spells the same
+  // thing targetUserId. A shared helper would have papered over that.
+  assert.equal(W.buildWorkspaceTransferPath("t1"), "/v1/teams/t1/transfer-ownership");
+  assert.deepEqual(W.buildWorkspaceTransferBody("u1"), { newOwnerUserId: "u1" });
+});
+
+test("the workspace closure paths are the canonical ones", () => {
+  assert.equal(W.buildWorkspaceClosurePath("t1"), "/v1/teams/t1/closure");
+  assert.equal(W.buildWorkspaceClosureCancelPath("t1", "r1"), "/v1/teams/t1/closure/r1/cancel");
+});
+
+test("only the owner is offered transfer and closure", () => {
+  const ov = (role) => ({ currentUserRole: role });
+  assert.equal(W.isWorkspaceOwner(ov("OWNER")), true);
+  assert.equal(W.isWorkspaceOwner(ov("ADMIN")), false);
+  assert.equal(W.isWorkspaceOwner(ov(null)), false);
+});
+
+test("a workspace is never handed to a suspended or revoked member", () => {
+  const list = [
+    member({ id: "m1", userId: "u1", role: "OWNER" }),
+    member({ id: "m2", userId: "u2", role: "ADMIN" }),
+    member({ id: "m3", userId: "u3", status: "REVOKED" }),
+    member({ id: "m4", userId: "u4", status: "SUSPENDED" }),
+    member({ id: "m5", userId: null }),
+  ];
+  assert.deepEqual(W.workspaceTransferTargets(list).map((m) => m.userId), ["u2"]);
+});
+
+test("a named refusal says what happened, in workspace words", () => {
+  const named = (code) => W.workspaceLifecycleFailureMessage({ body: { error: { code } } }, "fallback");
+  assert.match(named("owner_required"), /workspace owner/i);
+  assert.match(named("target_not_member"), /this workspace/i);
+  assert.equal(named("something_else"), "fallback");
+});

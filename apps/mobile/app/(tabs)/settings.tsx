@@ -169,6 +169,11 @@ export default function SettingsScreen() {
             onPress={() => router.push("/(stack)/settings/reviewer-criteria")}
           />
           <ProovraListRow
+            title="Spaces"
+            subtitle="Switch between your Personal Space and shared workspaces"
+            onPress={() => router.push("/(stack)/spaces")}
+          />
+          <ProovraListRow
             title="Organizations"
             subtitle="The organizations you belong to"
             onPress={() => router.push("/(stack)/organizations")}

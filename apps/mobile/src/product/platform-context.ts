@@ -62,6 +62,16 @@ export interface PlatformContextState {
   readonly loading: boolean;
   readonly error: boolean;
   readonly context: PlatformContextProjection | null;
+  /**
+   * The envelope as it arrived.
+   *
+   * `context` is the small projection nearly every screen wants. The Spaces
+   * surface wants the canonical block — personalSpace / ownedWorkspaces /
+   * organizations / organizationWorkspaces — and Law of One says it may not
+   * fetch `/v1/platform/context` for itself. So the raw body is kept here and
+   * projected by `src/product/spaces.ts`, which means one reader still.
+   */
+  readonly envelope: unknown;
   readonly refresh: () => void;
 }
 
@@ -76,24 +86,30 @@ export function usePlatformContext(): PlatformContextState {
     loading: true,
     error: false,
     context: null,
+    envelope: null,
   });
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let alive = true;
     if (!authReady || !token) {
-      setState({ loading: false, error: false, context: null });
+      setState({ loading: false, error: false, context: null, envelope: null });
       return;
     }
     setState((prev) => ({ ...prev, loading: true, error: false }));
     apiFetch("/v1/platform/context", { method: "GET" })
       .then((envelope) => {
         if (!alive) return;
-        setState({ loading: false, error: false, context: projectPlatformContext(envelope) });
+        setState({
+          loading: false,
+          error: false,
+          context: projectPlatformContext(envelope),
+          envelope,
+        });
       })
       .catch(() => {
         if (!alive) return;
-        setState({ loading: false, error: true, context: null });
+        setState({ loading: false, error: true, context: null, envelope: null });
       });
     return () => {
       alive = false;

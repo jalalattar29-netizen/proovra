@@ -32,6 +32,15 @@ import { toSafeUserError } from "../../../src/errors/safe-error";
 import { useToast } from "../../../src/toast-context";
 import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
 import { withStepUp } from "../../../src/product/step-up";
+import {
+  buildClosureBody,
+  canRequestClosure,
+  closureFailureNeedsReload,
+  closurePhraseMatches,
+  hasOpenClosure,
+  parseClosureState,
+  type ClosureState,
+} from "../../../src/product/closure";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -60,17 +69,11 @@ import {
   buildOrgLeavePath,
   buildOrgMembersPath,
   buildOrgTransferPath,
-  canRequestClosure,
-  closureFailureNeedsReload,
-  closurePhraseMatches,
-  hasOpenClosure,
   isOrgOwner,
   orgLifecycleFailureMessage,
   parseOrgAuditPage,
-  parseOrgClosureState,
   transferTargets,
   type OrgAuditEvent,
-  type OrgClosureState,
   buildOrgPath,
   buildOrgWorkspacesPath,
   orgRoleLabel,
@@ -99,7 +102,7 @@ export default function OrganizationDetailScreen() {
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[] | null>(null);
   const [audit, setAudit] = useState<OrgAuditEvent[] | null>(null);
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
-  const [closure, setClosure] = useState<OrgClosureState | null>(null);
+  const [closure, setClosure] = useState<ClosureState | null>(null);
 
   const { addToast } = useToast();
   const stepUp = useStepUp();
@@ -151,7 +154,7 @@ export default function OrganizationDetailScreen() {
       // Owner-only, and it carries the phrase, the cooling-off period and the
       // blocker list. None of those three is ever restated by the client.
       apiFetch(buildOrgClosurePath(id))
-        .then((d) => setClosure(parseOrgClosureState(d)))
+        .then((d) => setClosure(parseClosureState(d)))
         .catch(() => setClosure(null)),
     ]);
   }, [id]);
@@ -172,7 +175,7 @@ export default function OrganizationDetailScreen() {
   const reloadClosure = useCallback(async () => {
     if (!id) return;
     try {
-      setClosure(parseOrgClosureState(await apiFetch(buildOrgClosurePath(id))));
+      setClosure(parseClosureState(await apiFetch(buildOrgClosurePath(id))));
     } catch {
       setClosure(null);
     }
@@ -238,7 +241,7 @@ export default function OrganizationDetailScreen() {
           method: "POST",
           // The phrase is sent exactly as typed and checked SERVER-side. The
           // client compares it only to decide whether to enable the button.
-          body: JSON.stringify(withStepUp({ confirmation: phrase }, proof)),
+          body: JSON.stringify(withStepUp(buildClosureBody(phrase), proof)),
         });
         setClosing(false);
         setPhrase("");

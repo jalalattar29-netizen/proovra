@@ -212,53 +212,6 @@ test("ownership is never offered to a suspended or revoked member", () => {
   assert.deepEqual(O.transferTargets(members).map((m) => m.userId), ["u2"]);
 });
 
-test("the closure state carries the server's phrase, period and blockers", () => {
-  const c = O.parseOrgClosureState({
-    request: null,
-    blockers: [
-      { code: "WORKSPACE_MEMBERS_ACTIVE", message: "Other people are still in a workspace.", count: 3 },
-      { message: "no code" },
-    ],
-    confirmationPhrase: "CLOSE MY ORGANIZATION",
-    coolingOffDays: 30,
-  });
-  assert.equal(c.confirmationPhrase, "CLOSE MY ORGANIZATION");
-  assert.equal(c.coolingOffDays, 30);
-  assert.equal(c.blockers.length, 1);
-  assert.equal(c.blockers[0].count, 3);
-});
-
-test("closure needs the server's phrase, matched exactly", () => {
-  const c = O.parseOrgClosureState({ confirmationPhrase: "CLOSE MY ORGANIZATION" });
-  assert.equal(O.closurePhraseMatches(c, "CLOSE MY ORGANIZATION"), true);
-  // A typed confirmation a client quietly normalised is not a confirmation.
-  assert.equal(O.closurePhraseMatches(c, "close my organization"), false);
-  assert.equal(O.closurePhraseMatches(c, " CLOSE MY ORGANIZATION "), false);
-  // With no phrase from the server, nothing matches — the client has no copy.
-  assert.equal(O.closurePhraseMatches(O.parseOrgClosureState({}), "anything"), false);
-});
-
-test("closure is offered only when the server listed no blockers", () => {
-  const clean = O.parseOrgClosureState({ blockers: [] });
-  assert.equal(O.canRequestClosure(clean), true);
-
-  const blocked = O.parseOrgClosureState({ blockers: [{ code: "LEGAL_HOLD_ACTIVE", message: "x" }] });
-  assert.equal(O.canRequestClosure(blocked), false);
-
-  const open = O.parseOrgClosureState({ request: { id: "r1", status: "PENDING" }, blockers: [] });
-  assert.equal(O.hasOpenClosure(open), true);
-  assert.equal(O.canRequestClosure(open), false);
-});
-
-test("a cancelled or completed request is not an open one", () => {
-  for (const status of ["CANCELLED", "COMPLETED", "FAILED"]) {
-    assert.equal(
-      O.hasOpenClosure(O.parseOrgClosureState({ request: { id: "r1", status } })),
-      false,
-    );
-  }
-});
-
 test("a named refusal says what happened, not that something failed", () => {
   const named = (code) => O.orgLifecycleFailureMessage({ body: { error: { code } } }, "fallback");
   assert.match(named("owner_required"), /owner/i);
@@ -268,9 +221,3 @@ test("a named refusal says what happened, not that something failed", () => {
   assert.equal(named("something_else"), "fallback");
 });
 
-test("only a stale-state refusal triggers a reload", () => {
-  const f = (code) => O.closureFailureNeedsReload({ body: { error: { code } } });
-  assert.equal(f("closure_blocked"), true);
-  assert.equal(f("closure_request_active"), true);
-  assert.equal(f("confirmation_mismatch"), false);
-});

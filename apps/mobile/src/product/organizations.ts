@@ -361,81 +361,15 @@ export function buildOrgClosureCancelPath(orgId: string, requestId: string): str
   return `${buildOrgClosurePath(orgId)}/${encodeURIComponent(requestId)}/cancel`;
 }
 
-export interface ClosureBlocker {
-  code: string;
-  message: string;
-  count: number | null;
-}
+// The closure contract is IDENTICAL for an organization and a workspace —
+// same fields, same owner-only gate, same server-validated phrase, same
+// cooling-off period — so it lives ONCE, in `./closure`, and neither this
+// module nor `workspace-people` re-exports it. Two copies of a projection
+// that decides whether a destructive action is OFFERED is exactly the code
+// that drifts, and a re-export is how a copy starts.
+//
+// A surface that closes something imports `./closure` directly.
 
-export interface OrgClosureState {
-  /** The open request, when there is one. */
-  requestId: string | null;
-  requestStatus: string | null;
-  requestedAtIso: string | null;
-  effectiveAtIso: string | null;
-  blockers: ClosureBlocker[];
-  /** The exact phrase the ROUTE checks. Never restated by the client. */
-  confirmationPhrase: string | null;
-  coolingOffDays: number | null;
-}
-
-export function parseOrgClosureState(payload: unknown): OrgClosureState {
-  const d = obj(payload);
-  const req = obj(d.request);
-  return {
-    requestId: str(req.id),
-    requestStatus: str(req.status),
-    requestedAtIso: str(req.requestedAtUtc) ?? str(req.requestedAt),
-    effectiveAtIso: str(req.effectiveAtUtc) ?? str(req.effectiveAt),
-    blockers: rows(d.blockers)
-      .map((raw) => {
-        const b = obj(raw);
-        const code = str(b.code);
-        if (!code) return null;
-        return {
-          code,
-          // The server writes these sentences. Restating them here would put
-          // the client in the business of explaining a refusal it did not make.
-          message: str(b.message) ?? code,
-          count: num(b.count),
-        };
-      })
-      .filter((b): b is ClosureBlocker => b !== null),
-    confirmationPhrase: str(d.confirmationPhrase),
-    coolingOffDays: num(d.coolingOffDays),
-  };
-}
-
-/** A request that is open and still inside its cooling-off period. */
-export function hasOpenClosure(state: OrgClosureState): boolean {
-  const s = (state.requestStatus ?? "").toUpperCase();
-  return state.requestId !== null && (s === "PENDING" || s === "SCHEDULED" || s === "REQUESTED");
-}
-
-/** Closure may be requested only when the SERVER listed no blockers. */
-export function canRequestClosure(state: OrgClosureState): boolean {
-  return !hasOpenClosure(state) && state.blockers.length === 0;
-}
-
-/**
- * Whether what was typed matches the phrase the route will check.
- *
- * Compared against the SERVER's phrase, never a copy. Exact, including case:
- * a typed confirmation that a client quietly normalised is not a confirmation.
- */
-export function closurePhraseMatches(state: OrgClosureState, typed: string): boolean {
-  return state.confirmationPhrase !== null && typed === state.confirmationPhrase;
-}
-
-/**
- * Who could receive ownership.
- *
- * Everyone except the current owner, and only ACTIVE memberships: the
- * administration roster deliberately includes suspended and revoked rows so an
- * administrator can restore them, and handing an organization to a revoked
- * member is the one transfer that must never be offered. A row with no user id
- * is also excluded, because the transfer addresses the USER.
- */
 export function transferTargets(members: OrgMember[]): OrgMember[] {
   return members.filter(
     (m) =>
@@ -473,9 +407,3 @@ export function orgLifecycleFailureMessage(err: unknown, fallback: string): stri
   }
 }
 
-/** True when the failure means the closure state on screen is now stale. */
-export function closureFailureNeedsReload(err: unknown): boolean {
-  const e = obj(err);
-  const code = str(obj(obj(e.body).error).code) ?? str(e.code);
-  return code === "closure_blocked" || code === "closure_request_active";
-}
