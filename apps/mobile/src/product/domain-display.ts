@@ -21,6 +21,13 @@
  * mapped and no tone escapes the 6-value ProovraStatusTone contract.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import type {
+  EvidenceType,
+  EvidenceStatus,
+  VerificationStatus,
+  EvidenceLifecycleState,
+  CaseStatus,
+} from "./domain-enums.generated";
 
 export interface DomainDisplay {
   readonly label: string;
@@ -29,8 +36,8 @@ export interface DomainDisplay {
 
 /* ------------------------------------------------------------ Evidence type */
 // Prisma enum EvidenceType (schema.prisma) / @proovra/shared EvidenceTypeSchema.
-export const EVIDENCE_TYPES = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"] as const;
-export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+export { EVIDENCE_TYPES } from "./domain-enums.generated";
+export type { EvidenceType } from "./domain-enums.generated";
 
 const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
   PHOTO: "Photo",
@@ -41,15 +48,8 @@ const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
 
 /* ---------------------------------------------------------- Evidence status */
 // Prisma enum EvidenceStatus (ingestion pipeline).
-export const EVIDENCE_STATUSES = [
-  "CREATED",
-  "UPLOADING",
-  "UPLOADED",
-  "SIGNED",
-  "REPORTED",
-  "FAILED_HASH_MISMATCH",
-] as const;
-export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
+export { EVIDENCE_STATUSES } from "./domain-enums.generated";
+export type { EvidenceStatus } from "./domain-enums.generated";
 
 const EVIDENCE_STATUS_DISPLAY: Record<EvidenceStatus, DomainDisplay> = {
   CREATED: { label: "Created", tone: "neutral" },
@@ -63,13 +63,8 @@ const EVIDENCE_STATUS_DISPLAY: Record<EvidenceStatus, DomainDisplay> = {
 /* ------------------------------------------------------ Verification status */
 // Prisma enum VerificationStatus (integrity verdict). Honest claims only — never
 // upgrade REVIEW_REQUIRED/MATERIALS_AVAILABLE into a "verified" tone (§4.7).
-export const VERIFICATION_STATUSES = [
-  "MATERIALS_AVAILABLE",
-  "RECORDED_INTEGRITY_VERIFIED",
-  "REVIEW_REQUIRED",
-  "FAILED",
-] as const;
-export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
+export { VERIFICATION_STATUSES } from "./domain-enums.generated";
+export type { VerificationStatus } from "./domain-enums.generated";
 
 const VERIFICATION_STATUS_DISPLAY: Record<VerificationStatus, DomainDisplay> = {
   MATERIALS_AVAILABLE: { label: "Materials available", tone: "neutral" },
@@ -80,16 +75,8 @@ const VERIFICATION_STATUS_DISPLAY: Record<VerificationStatus, DomainDisplay> = {
 
 /* ------------------------------------------------- Evidence lifecycle state */
 // @proovra/shared EVIDENCE_LIFECYCLE_STATES (governance/retention state machine).
-export const EVIDENCE_LIFECYCLE_STATES = [
-  "ACTIVE",
-  "UNDER_REVIEW",
-  "ON_HOLD",
-  "RETENTION_LOCKED",
-  "PENDING_DESTRUCTION",
-  "DESTROYED",
-  "ARCHIVED",
-] as const;
-export type EvidenceLifecycleState = (typeof EVIDENCE_LIFECYCLE_STATES)[number];
+export { EVIDENCE_LIFECYCLE_STATES } from "./domain-enums.generated";
+export type { EvidenceLifecycleState } from "./domain-enums.generated";
 
 const EVIDENCE_LIFECYCLE_DISPLAY: Record<EvidenceLifecycleState, DomainDisplay> = {
   ACTIVE: { label: "Active", tone: "verified" },
@@ -97,21 +84,20 @@ const EVIDENCE_LIFECYCLE_DISPLAY: Record<EvidenceLifecycleState, DomainDisplay> 
   ON_HOLD: { label: "On hold", tone: "governance" },
   RETENTION_LOCKED: { label: "Retention locked", tone: "governance" },
   PENDING_DESTRUCTION: { label: "Pending destruction", tone: "risk" },
+  // TRASHED was absent from the hand-mirrored list and the old drift guard
+  // could not see it: it compared the native table to itself. Deriving the
+  // values from schema.prisma turned that into a compile error on the first
+  // run. The library speaks Active / Archived / Trash (the canonical scope
+  // vocabulary), so the label follows the scope the user sees.
+  TRASHED: { label: "In trash", tone: "neutral" },
   DESTROYED: { label: "Destroyed", tone: "neutral" },
   ARCHIVED: { label: "Archived", tone: "neutral" },
 };
 
 /* ---------------------------------------------------------------- Case status */
 // Prisma enum CaseStatus. Labels mirror the web CASE_STATUS_LABEL table.
-export const CASE_STATUSES = [
-  "OPEN",
-  "INVESTIGATING",
-  "ON_HOLD",
-  "RESOLVED",
-  "CLOSED",
-  "ARCHIVED",
-] as const;
-export type CaseStatus = (typeof CASE_STATUSES)[number];
+export { CASE_STATUSES } from "./domain-enums.generated";
+export type { CaseStatus } from "./domain-enums.generated";
 
 const CASE_STATUS_DISPLAY: Record<CaseStatus, DomainDisplay> = {
   OPEN: { label: "Open", tone: "verified" },
