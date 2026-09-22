@@ -34,11 +34,17 @@ import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import {
   beginContinuousSession,
   cleanupContinuousTempFiles,
-  finalizeContinuousCapture,
+  stageContinuousCapture,
   uploadContinuousSegment,
   type DeclaredSegment,
 } from "../../src/continuous-capture";
 import { sealDirectCapture, type DirectCaptureSession } from "../../src/direct-capture";
+import { saveCaptureSession } from "../../src/capture/capture-session-store";
+import { openCaptureDraft } from "../../src/capture/capture-draft";
+import {
+  toScreenDraftItem,
+  type ScreenAcquisitionMode,
+} from "../../src/capture/screen-acquisition";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import {
   INITIAL_CONTINUOUS_FLOW,
@@ -274,27 +280,61 @@ export default function ContinuousCaptureScreen() {
               limitations: Array.from(new Set([...(result.limitations ?? []), ...clientLimitationsRef.current])),
             }
           : result;
-      // Seal, or release the reservation. A failure between reserving the
-      // Evidence record and completing it used to leave a custody-logged empty
-      // record in the owner's library, and nothing ever removed it — the rule
-      // /capture has always applied and this screen did not.
-      const sealed = await sealDirectCapture(active.session, () =>
-        finalizeContinuousCapture(
+      // Stage, or release the reservation. A failure between reserving the
+      // Evidence record and staging it leaves a custody-logged empty record in
+      // the owner's library unless it is released — the rule /capture has
+      // always applied and this screen did not.
+      const staged = await sealDirectCapture(active.session, () =>
+        stageContinuousCapture(
           active.session,
           active.evidenceId,
           resultForManifest,
           declaredRef.current,
         ),
       );
+
+      // The canonical draft, and the durable record the Capture surface
+      // resumes. The segments are already at storage, so finalize seals
+      // without re-uploading them.
+      const mode: ScreenAcquisitionMode =
+        Platform.OS === "ios"
+          ? "DIRECT_SCREEN_CAPTURE_IOS"
+          : "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
+      const item = toScreenDraftItem({
+        mode,
+        clientItemId: active.session.captureSessionId,
+        partCount: staged.segmentCount,
+        sizeBytes: 0,
+      });
+      await openCaptureDraft({ items: [item] }).catch(() => undefined);
+      await saveCaptureSession({
+        captureSessionId: active.session.captureSessionId,
+        expiresAtUtc: active.session.expiresAtUtc,
+        evidenceId: active.evidenceId,
+        type: "VIDEO",
+        items: [
+          {
+            id: active.session.captureSessionId,
+            uri: "",
+            mimeType: item.mimeType,
+            partIndex: 0,
+            originalFilename: item.fileName,
+            source: "SCREEN_SEGMENT",
+            uploaded: true,
+          },
+        ],
+        acquisition: { mode, manifestJson: staged.manifestJson },
+      });
+
       sessionRef.current = null;
       dispatch({
         type: "FINALIZED",
-        evidenceId: sealed.evidenceId,
-        segmentCount: sealed.segmentCount,
-        completeness: sealed.sessionCompleteness,
+        evidenceId: active.evidenceId,
+        segmentCount: staged.segmentCount,
+        completeness: staged.sessionCompleteness,
       });
-      toast.addToast("Evidence created successfully", "success");
-      router.replace(`/evidence/${sealed.evidenceId}`);
+      toast.addToast("Recording staged — review and finish in Capture", "success");
+      router.replace("/capture");
     } catch (err) {
       // The reservation is already released by sealDirectCapture; this session
       // can no longer be sealed, so the screen must not offer to retry it.

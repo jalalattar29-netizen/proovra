@@ -52,7 +52,7 @@ import {
   useMicrophonePermissions
 } from "expo-camera";
 import {
-  completeDirectCapture,
+  completeAcquisition,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
   discardDirectCaptureSession,
@@ -80,6 +80,7 @@ import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/doma
 // Personal fallback) with a bounded explanation.
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { setCaptureActive } from "../../src/capture/active-capture";
+import type { ScreenAcquisitionMode } from "../../src/capture/screen-acquisition";
 import {
   saveCaptureSession,
   loadCaptureSession,
@@ -232,6 +233,15 @@ export default function CaptureScreen() {
   const sessionEvidenceIdRef = useRef<string | null>(null);
   const captureSessionRef = useRef<DirectCaptureSession | null>(null);
   const draftIdRef = useRef<string | null>(null);
+  /**
+   * What acquired the live session, when a screen engine did.
+   *
+   * Null for an ordinary phone capture. It decides which completion route
+   * Finish & Sign calls, and it arrives either from the screen surface that
+   * staged the session or from the durable record on resume — never from a
+   * guess about the items.
+   */
+  const acquisitionRef = useRef<{ mode: ScreenAcquisitionMode; manifestJson: string } | null>(null);
   const sessionItemsRef = useRef<CapturedItem[]>([]);
   const activeTypeRef = useRef<CaptureKind>(activeType);
   activeTypeRef.current = activeType;
@@ -414,6 +424,11 @@ hasActiveDraft: isSessionActive || isRecording,
           expiresAtUtc: persisted.expiresAtUtc,
         };
         sessionEvidenceIdRef.current = persisted.evidenceId;
+        // A resumed screen acquisition must seal through ITS route. Without
+        // this a continuous recording resumed after a restart would complete
+        // as a frame capture and lose the completeness that says whether it
+        // was interrupted.
+        acquisitionRef.current = persisted.acquisition ?? null;
         setSessionEvidenceId(persisted.evidenceId);
         const idx = CAPTURE_TYPES.indexOf(persisted.type);
         if (idx >= 0) setActiveIndex(idx);
@@ -423,6 +438,8 @@ hasActiveDraft: isSessionActive || isRecording,
           // Nothing recoverable — clear and start fresh.
           sessionEvidenceIdRef.current = null;
           captureSessionRef.current = null;
+        acquisitionRef.current = null;
+          acquisitionRef.current = null;
           setSessionEvidenceId(null);
           await clearCaptureSession();
           addToast("The interrupted capture could not be recovered", "warning");
@@ -691,6 +708,7 @@ hasActiveDraft: isSessionActive || isRecording,
         const draft = draftIdRef.current;
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
+        acquisitionRef.current = null;
         draftIdRef.current = null;
         setSessionEvidenceId(null);
         if (draft) void discardCaptureDraft(draft).catch(() => undefined);
@@ -754,6 +772,7 @@ hasActiveDraft: isSessionActive || isRecording,
 
     sessionEvidenceIdRef.current = null;
     captureSessionRef.current = null;
+        acquisitionRef.current = null;
     setSessionEvidenceId(null);
     setSessionState([]);
     setInfo(null);
@@ -1177,7 +1196,12 @@ setSessionState(
 
       // The server re-hashes every stored item, compares each with its
       // declared digest, and only then signs and binds the session.
-      await completeDirectCapture(captureSession);
+      //
+      // ONE finalization for every acquisition method. A screen session seals
+      // through the route its manifest belongs to; an ordinary phone capture
+      // through /complete. The screens no longer decide this for themselves —
+      // that is what made the product have two endings.
+      await completeAcquisition(captureSession, acquisitionRef.current);
 
       setUploadProgress(96);
       await pollReport(evidenceId);
@@ -1196,6 +1220,8 @@ setSessionState(
       await clearCaptureSession();
       sessionEvidenceIdRef.current = null;
       captureSessionRef.current = null;
+        acquisitionRef.current = null;
+      acquisitionRef.current = null;
       setSessionEvidenceId(null);
       setSessionState([]);
       setInfo(null);

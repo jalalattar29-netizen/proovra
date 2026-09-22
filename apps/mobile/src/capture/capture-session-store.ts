@@ -16,6 +16,10 @@
  * IO wrappers are thin and defensive (every read/write is try/caught).
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  isScreenAcquisitionMode,
+  type ScreenAcquisitionMode,
+} from "./screen-acquisition";
 
 const STORAGE_KEY = "proovra.capture.session.v1";
 /** A staged session older than this (by last update) is stale — resume refused. */
@@ -36,12 +40,32 @@ export interface PersistedCapturedItem {
   uploaded: boolean;
 }
 
+/**
+ * A screen acquisition carried on the session, when one produced it.
+ *
+ * The manifest is built by the acquiring surface at Stop — it is the record of
+ * what the device actually captured, including frame order and whether the
+ * session was interrupted — and is handed to the completion route at finalize.
+ * Carrying it here is what lets the canonical Capture surface finish a
+ * recording the user started on another screen.
+ */
+export interface PersistedScreenAcquisition {
+  mode: ScreenAcquisitionMode;
+  manifestJson: string;
+}
+
 export interface PersistedCaptureSession {
   captureSessionId: string;
   expiresAtUtc: string;
   evidenceId: string;
   type: PersistedCaptureType;
   items: PersistedCapturedItem[];
+  /**
+   * Absent for an ordinary phone capture (PROOVRA_MOBILE_APP), present when a
+   * screen engine acquired the session. It decides which completion route
+   * seals it; see `screenSealPath`.
+   */
+  acquisition?: PersistedScreenAcquisition | null;
   /** ISO timestamp of the last persist — drives the staleness policy. */
   updatedAtIso: string;
 }
@@ -52,6 +76,7 @@ export interface CaptureSessionInput {
   evidenceId: string;
   type: PersistedCaptureType;
   items: Array<Omit<PersistedCapturedItem, never>>;
+  acquisition?: PersistedScreenAcquisition | null;
   now?: number;
 }
 
@@ -74,6 +99,7 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
       durationMs: it.durationMs,
       uploaded: !!it.uploaded,
     })),
+    acquisition: input.acquisition ?? null,
     updatedAtIso: new Date(now).toISOString(),
   };
 }
@@ -134,12 +160,27 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
       uploaded: !!it.uploaded,
     });
   }
+  // An acquisition that does not name a mode this build knows is dropped
+  // rather than carried: sealing by a mode we cannot map would pick a
+  // completion route by default, and the default is the wrong one for a
+  // continuous recording. A dropped acquisition leaves an ordinary session,
+  // which the surface then refuses to seal as a screen capture.
+  let acquisition: PersistedScreenAcquisition | null = null;
+  const rawAcq = o.acquisition;
+  if (rawAcq && typeof rawAcq === "object") {
+    const a = rawAcq as Record<string, unknown>;
+    if (isScreenAcquisitionMode(a.mode) && typeof a.manifestJson === "string" && a.manifestJson) {
+      acquisition = { mode: a.mode, manifestJson: a.manifestJson };
+    }
+  }
+
   return {
     captureSessionId,
     expiresAtUtc: typeof o.expiresAtUtc === "string" ? o.expiresAtUtc : "",
     evidenceId,
     type,
     items,
+    acquisition,
     updatedAtIso: typeof o.updatedAtIso === "string" ? o.updatedAtIso : new Date(0).toISOString(),
   };
 }

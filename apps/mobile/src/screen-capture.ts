@@ -1,13 +1,20 @@
 /**
  * UC-2 — the mobile app's client for Android Direct Screen Capture.
  *
- * The native capture is USER-DRIVEN (start → the user triggers each frame from the
- * notification or the in-app button → stop). Only AFTER the user stops does this
- * client seal the frames into ONE Evidence record through the SAME canonical
- * direct-capture session the camera flow uses (open → reserve → declare part
- * digests → canonical presign/PUT → screen-complete). It creates NO second
- * evidence path; the PROOVRA session is opened at finalize (so a slow capture
- * cannot expire it), and the server recomputes every frame's SHA-256.
+ * The native capture is USER-DRIVEN (start → the user triggers each frame from
+ * the notification or the in-app button → stop). Only AFTER the user stops does
+ * this client STAGE the frames through the SAME canonical direct-capture
+ * session the camera flow uses: open → reserve → declare part digests →
+ * canonical presign/PUT. The server recomputes every frame's SHA-256.
+ *
+ * IT DOES NOT SEAL. Completion is the canonical Finish & Sign in Capture
+ * (F-08): this module used to call the completion route itself, which gave the
+ * product two endings — one for screen recordings and one for everything else.
+ * The manifest it builds travels with the session and is handed to
+ * `screen-complete` by `completeAcquisition` when the operator finishes.
+ *
+ * The PROOVRA session is opened at stage time, so a slow capture cannot expire
+ * it, and a discard before finalize releases the reservation.
  */
 import * as FileSystem from "expo-file-system";
 
@@ -18,7 +25,6 @@ import {
   uploadDirectCaptureItem,
   type DirectCaptureSession,
 } from "./direct-capture";
-import { apiFetch } from "./api";
 import type { ScreenCaptureResult } from "../modules/proovra-screen-capture";
 
 export const SCREEN_MANIFEST_SCHEMA_VERSION = "PROOVRA_SCREEN_CAPTURE_MANIFEST_V1";
@@ -76,16 +82,43 @@ export function buildScreenManifest(
   };
 }
 
+/**
+ * A screen capture that has been acquired and uploaded, but NOT sealed.
+ *
+ * The session and its reserved record exist; the parts are at storage with
+ * their digests declared. What has not happened is the completion — that is
+ * the canonical Finish & Sign, and until it runs there is no signed Evidence
+ * and a discard releases everything.
+ */
+export interface StagedScreenCapture {
+  session: DirectCaptureSession;
+  evidenceId: string;
+  /** Handed to `screen-complete` at finalize. */
+  manifestJson: string;
+  frameCount: number;
+  sizeBytes: number;
+  stopReason: string;
+}
+
 async function fileSizeBytes(uri: string): Promise<number> {
   const info = await FileSystem.getInfoAsync(uri, { size: true });
   return info.exists && typeof info.size === "number" ? info.size : 0;
 }
 
 /**
- * Seal a completed native capture into ONE canonical Evidence record. Called
- * AFTER the user stops the native session, from the review screen's Finalize.
+ * Stage a completed native capture into the canonical Capture lifecycle.
+ *
+ * This used to be `finalizeScreenCapture` and it SEALED — acquire, upload,
+ * complete, Evidence — which is exactly what made this surface a second
+ * product ending. It now stops one step short.
+ *
+ * What it returns is a session whose frames and manifest are uploaded and
+ * verified-in-place, ready for the ONE finalization. The canonical Capture
+ * surface resumes it, shows it beside anything else staged, and seals it at
+ * Finish & Sign through `completeAcquisition`. Nothing is signed here, and a
+ * discard before that point releases the reservation and commits nothing.
  */
-export async function finalizeScreenCapture(result: ScreenCaptureResult): Promise<ScreenCaptureEvidence> {
+export async function stageScreenCapture(result: ScreenCaptureResult): Promise<StagedScreenCapture> {
   if (result.frames.length === 0) {
     throw new Error("No screen frames were captured.");
   }
@@ -137,13 +170,16 @@ export async function finalizeScreenCapture(result: ScreenCaptureResult): Promis
     source: "SCREEN_MANIFEST",
   });
 
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/screen-complete`,
-    { method: "POST", body: JSON.stringify({ manifestJson }) },
-  );
-  const sealedId = res?.result?.evidenceId as string | undefined;
-  if (!sealedId) throw new Error("Could not complete the screen capture.");
-
-  return { evidenceId: sealedId, frameCount: result.frames.length, stopReason: result.stopReason };
+  // The manifest travels with the session rather than being sent now: the
+  // canonical finalize hands it to `screen-complete` when the operator
+  // finishes. Sending it here would be the seal this function no longer does.
+  return {
+    session,
+    evidenceId,
+    manifestJson,
+    frameCount: result.frames.length,
+    sizeBytes: declared.reduce((total, d) => total + d.sizeBytes, 0),
+    stopReason: result.stopReason,
+  };
   });
 }

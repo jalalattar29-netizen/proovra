@@ -29,6 +29,11 @@
 
 import { apiFetch } from "./api";
 import { computeFileIntegrityBase64, uploadWithPut } from "./upload-utils";
+import {
+  buildScreenCompletePath,
+  buildContinuousCompletePath,
+  type ScreenAcquisitionMode,
+} from "./capture/screen-acquisition";
 
 export type DirectCaptureSession = {
   captureSessionId: string;
@@ -158,15 +163,69 @@ export async function completeDirectCapture(
 }
 
 /**
- * Abort an unsealed session and release the Evidence it reserved.
+ * Complete a session by the acquisition that produced it.
  *
- * The record is created by `reserveDirectCaptureEvidence` on the FIRST staged
- * item, so abandoning a capture without telling the server left a permanent,
- * custody-logged, empty record in the owner's library. Discard is a server
- * lifecycle transition, not a client state reset.
+ * THE ONE FINALIZATION. An ordinary phone capture completes through
+ * `/complete`; a screen acquisition completes through the route its manifest
+ * belongs to — `screen-complete` for frame capture, `continuous-complete` for
+ * a continuous recording or an Apple system broadcast. The routes differ
+ * because they record different things, not because there are two products:
+ * `continuous-complete` carries the completeness that says whether the
+ * recording was interrupted, and sealing it as a frame capture would throw
+ * that away.
  *
- * Idempotent server-side; a session that is already terminal answers 200.
+ * The caller passes what the draft says the session is. Nothing here guesses.
  */
+export async function completeAcquisition(
+  session: DirectCaptureSession,
+  acquisition: { mode: ScreenAcquisitionMode; manifestJson: string } | null,
+): Promise<{ evidenceId: string }> {
+  if (!acquisition) return completeDirectCapture(session);
+  // Each branch NAMES the route it calls. Assembling one path from a runtime
+  // suffix is the shape evidence-detail.ts already records a lesson about —
+  // "neither a reader nor the capability analyzer could tell which endpoint a
+  // given button called" — and it showed up here immediately: the
+  // architecture map attributed screen-complete and lost continuous-complete,
+  // reporting a route the product calls on every finished recording as having
+  // no consumer at all.
+  return acquisition.mode === "DIRECT_SCREEN_CAPTURE_ANDROID"
+    ? sealScreenFrames(session, acquisition.manifestJson)
+    : sealContinuousRecording(session, acquisition.manifestJson);
+}
+
+/** `screen-complete` — the frame-capture manifest. */
+async function sealScreenFrames(
+  session: DirectCaptureSession,
+  manifestJson: string,
+): Promise<{ evidenceId: string }> {
+  const res = await apiFetch(buildScreenCompletePath(session.captureSessionId), {
+    method: "POST",
+    body: JSON.stringify({ manifestJson }),
+  });
+  return readSealedEvidence(res);
+}
+
+/**
+ * `continuous-complete` — the continuity manifest, which carries the
+ * completeness that says whether the recording was interrupted.
+ */
+async function sealContinuousRecording(
+  session: DirectCaptureSession,
+  manifestJson: string,
+): Promise<{ evidenceId: string }> {
+  const res = await apiFetch(buildContinuousCompletePath(session.captureSessionId), {
+    method: "POST",
+    body: JSON.stringify({ manifestJson }),
+  });
+  return readSealedEvidence(res);
+}
+
+function readSealedEvidence(res: { result?: { evidenceId?: string } }): { evidenceId: string } {
+  const evidenceId = res?.result?.evidenceId;
+  if (!evidenceId) throw new Error("Could not complete the capture session.");
+  return { evidenceId };
+}
+
 /**
  * Seal a direct-capture session, or release its reservation.
  *
@@ -194,6 +253,16 @@ export async function sealDirectCapture<T>(
   }
 }
 
+/**
+ * Abort an unsealed session and release the Evidence it reserved.
+ *
+ * The record is created by `reserveDirectCaptureEvidence` on the FIRST staged
+ * item, so abandoning a capture without telling the server left a permanent,
+ * custody-logged, empty record in the owner's library. Discard is a server
+ * lifecycle transition, not a client state reset.
+ *
+ * Idempotent server-side; a session that is already terminal answers 200.
+ */
 export async function discardDirectCaptureSession(
   session: DirectCaptureSession,
 ): Promise<{ releasedEvidenceId: string | null; discarded: boolean }> {

@@ -7,12 +7,20 @@
  * session (open → reserve → declare digest → presign/PUT) WHILE recording
  * continues — bounded by the on-disk segment ceiling, never buffering the whole
  * session in RAM. On Stop the client drains any pending uploads, builds the
- * continuity manifest referencing the declared segments, uploads it, and seals ONE
- * Evidence through /continuous-complete. Server recomputes every segment digest.
+ * continuity manifest referencing the declared segments, and uploads it. The
+ * server recomputes every segment digest.
  *
- * The PROOVRA session is opened at START (so segments upload during recording);
- * the bounded session (<= maxSegments * segmentMs) fits inside the capture-session
- * TTL. It creates NO second evidence path.
+ * IT DOES NOT SEAL. Completion is the canonical Finish & Sign in Capture
+ * (F-08): this module used to call `continuous-complete` itself, which gave the
+ * product two endings. The manifest travels with the session and is handed to
+ * that route by `completeAcquisition` when the operator finishes.
+ *
+ * The PROOVRA session is opened at START, and that is the one thing here that
+ * genuinely cannot move: streaming exists so segments upload WHILE recording,
+ * and a session opened at finalize could not receive them. The reservation it
+ * implies is released by a discard, so an abandoned recording leaves nothing.
+ * The bounded session (<= maxSegments * segmentMs) fits inside the
+ * capture-session TTL.
  */
 import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
@@ -25,7 +33,6 @@ import {
   uploadDirectCaptureItem,
   type DirectCaptureSession,
 } from "./direct-capture";
-import { apiFetch } from "./api";
 import type {
   ScreenContinuousResult,
   ScreenSegment,
@@ -45,6 +52,13 @@ export type DeclaredSegment = {
   heightPx: number;
   orientation: "portrait" | "landscape";
 };
+
+export interface StagedContinuousCapture {
+  /** Handed to `continuous-complete` at finalize. */
+  manifestJson: string;
+  segmentCount: number;
+  sessionCompleteness: string;
+}
 
 export type ContinuousCaptureEvidence = {
   evidenceId: string;
@@ -193,15 +207,20 @@ export async function uploadContinuousSegment(
 }
 
 /**
- * Seal the continuous session: build + upload the continuity manifest, then
- * complete. Called after Stop and after all segments have been declared.
+ * Stage the continuous session: build and upload the continuity manifest.
+ *
+ * This used to complete the session as well, which is what made this surface a
+ * second product ending. The completion is now the canonical Finish & Sign,
+ * which calls `continuous-complete` with the manifest returned here.
+ *
+ * Called after Stop and after every segment has been declared.
  */
-export async function finalizeContinuousCapture(
+export async function stageContinuousCapture(
   session: DirectCaptureSession,
   evidenceId: string,
   result: ScreenContinuousResult,
   declared: DeclaredSegment[],
-): Promise<ContinuousCaptureEvidence> {
+): Promise<StagedContinuousCapture> {
   if (declared.length === 0) throw new Error("No screen segments were captured.");
 
   const manifestPartIndex = declared.length;
@@ -217,18 +236,14 @@ export async function finalizeContinuousCapture(
     source: "CONTINUOUS_MANIFEST",
   });
 
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/continuous-complete`,
-    { method: "POST", body: JSON.stringify({ manifestJson }) },
-  );
-  const sealedId = res?.result?.evidenceId as string | undefined;
-  if (!sealedId) throw new Error("Could not complete the continuous capture.");
-
-  // Sealed and server-verified — the local manifest temp file is no longer needed.
+  // The manifest is uploaded as a part and ALSO returned: the part is what the
+  // record carries, and the returned copy is what the canonical finalize hands
+  // to `continuous-complete`. Sending it here would be the seal this function
+  // no longer performs.
   await deleteLocalFileQuietly(manifestUri);
 
   return {
-    evidenceId: sealedId,
+    manifestJson,
     segmentCount: declared.length,
     sessionCompleteness: manifest.sessionCompleteness,
   };

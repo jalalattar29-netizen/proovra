@@ -13,8 +13,20 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// The acquisition vocabulary is substituted FOR REAL: whether an unknown
+// mode is dropped rather than carried is exactly what these tests check.
+const ACQUISITION_URL =
+  "data:text/javascript," +
+  encodeURIComponent(
+    ts.transpileModule(
+      readFileSync(resolve(HERE, "../src/capture/screen-acquisition.ts"), "utf8"),
+      { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
+    ).outputText,
+  );
+
 const src = readFileSync(resolve(HERE, "../src/capture/capture-session-store.ts"), "utf8")
   .replace(/^import AsyncStorage.*$/m, "")
+  .replace('from "./screen-acquisition"', `from "${ACQUISITION_URL}"`)
   // Drop the three IO wrappers that reference AsyncStorage.
   .replace(/export async function saveCaptureSession[\s\S]*$/m, "");
 const js = ts.transpileModule(src, {

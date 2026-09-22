@@ -19,7 +19,10 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
-import { finalizeScreenCapture } from "../../src/screen-capture";
+import { stageScreenCapture } from "../../src/screen-capture";
+import { saveCaptureSession } from "../../src/capture/capture-session-store";
+import { toScreenDraftItem } from "../../src/capture/screen-acquisition";
+import { openCaptureDraft } from "../../src/capture/capture-draft";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import { INITIAL_SCREEN_FLOW, screenFlowReducer } from "../../src/screen-capture-flow";
 import {
@@ -114,18 +117,62 @@ export default function ScreenCaptureScreen() {
     }
   }, []);
 
-  const finalize = useCallback(async () => {
+  /**
+   * Hand the recording to the canonical Capture lifecycle.
+   *
+   * This screen used to seal here and produce Evidence, which is what made the
+   * product have two endings. It now STAGES: the frames and manifest upload,
+   * a canonical draft records what is in the session, and the operator
+   * reviews and finishes it in Capture like everything else they capture.
+   *
+   * Nothing is signed by this button. A discard in Capture releases the
+   * reservation and commits nothing.
+   */
+  const stageForReview = useCallback(async () => {
     dispatch({ type: "FINALIZE" });
     try {
       const result = await stopScreenCapture();
-      const sealed = await finalizeScreenCapture(result);
-      dispatch({ type: "FINALIZED", evidenceId: sealed.evidenceId });
-      toast.addToast("Evidence created successfully", "success");
-      // The canonical surface lands the user ON the record. Stopping on a card
-      // and asking them to tap "View Evidence" made one act feel like two.
-      router.replace(`/evidence/${sealed.evidenceId}`);
+      const staged = await stageScreenCapture(result);
+
+      // The canonical draft — the product's record of what this session holds.
+      const item = toScreenDraftItem({
+        mode: "DIRECT_SCREEN_CAPTURE_ANDROID",
+        clientItemId: staged.session.captureSessionId,
+        partCount: staged.frameCount,
+        sizeBytes: staged.sizeBytes,
+      });
+      await openCaptureDraft({ items: [item] }).catch(() => undefined);
+
+      // The durable record the canonical surface resumes. Its parts are
+      // already uploaded, so finalize seals without re-uploading them.
+      await saveCaptureSession({
+        captureSessionId: staged.session.captureSessionId,
+        expiresAtUtc: staged.session.expiresAtUtc,
+        evidenceId: staged.evidenceId,
+        type: "PHOTO",
+        items: [
+          {
+            id: staged.session.captureSessionId,
+            uri: "",
+            mimeType: item.mimeType,
+            partIndex: 0,
+            originalFilename: item.fileName,
+            source: "SCREEN_FRAME",
+            sizeBytes: staged.sizeBytes,
+            uploaded: true,
+          },
+        ],
+        acquisition: {
+          mode: "DIRECT_SCREEN_CAPTURE_ANDROID",
+          manifestJson: staged.manifestJson,
+        },
+      });
+
+      dispatch({ type: "FINALIZED", evidenceId: staged.evidenceId });
+      toast.addToast("Screen capture staged — review and finish in Capture", "success");
+      router.replace("/capture");
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not finalize the evidence." });
+      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not stage the capture." });
     }
   }, [toast]);
 
@@ -179,25 +226,27 @@ export default function ScreenCaptureScreen() {
 
         {state.phase === "review" && (
           <ProovraCard style={styles.card}>
-            <ProovraText variant="body" weight="semibold">{state.frameCount} frame(s) captured and ready to save.</ProovraText>
+            <ProovraText variant="body" weight="semibold">{state.frameCount} frame(s) captured.</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              The frames are on this device. Finish &amp; Sign uploads them; PROOVRA verifies each frame's integrity on the server before the record is sealed.
+              The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.
             </ProovraText>
-            <ProovraButton label="Finish &amp; Sign" onPress={finalize} />
+            <ProovraButton label="Add to capture session" onPress={stageForReview} />
             <ProovraButton label="Discard" variant="ghost" onPress={() => dispatch({ type: "RESET" })} />
           </ProovraCard>
         )}
 
         {state.phase === "uploading" && (
-          <ProovraLoadingState label={`Finalizing — uploading ${state.frameCount} frame(s) and verifying integrity`} />
+          <ProovraLoadingState label={`Uploading ${state.frameCount} frame(s) and verifying integrity`} />
         )}
 
         {state.phase === "success" && (
           <ProovraCard style={styles.card}>
-            <ProovraBadge tone="verified" label={`Evidence saved (${state.frameCount} frame(s))`} />
-            <ProovraButton label="View Evidence" onPress={() => router.replace(`/evidence/${state.evidenceId}`)} />
+            <ProovraBadge tone="pending" label={`Staged (${state.frameCount} frame(s))`} />
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+              Review and finish this session in Capture. It is not evidence until you do.
+            </ProovraText>
+            <ProovraButton label="Go to Capture" onPress={() => router.replace("/capture")} />
             <ProovraButton label="Capture Another" variant="secondary" onPress={() => dispatch({ type: "RESET" })} />
-            <ProovraButton label="Done" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}
 
