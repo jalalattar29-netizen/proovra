@@ -39,6 +39,7 @@ import {
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_TYPES,
   DELETE_TEAM_CONSEQUENCE,
+  buildCollaborationMemberPath,
   buildCollaborationTeamPath,
   buildTeamActivityPath,
   buildTeamArchivePath,
@@ -177,10 +178,10 @@ export function CollaborationSettingsSection({
       setBusy(true);
       setMessage(null);
       try {
-        await apiFetch(
-          `${buildCollaborationTeamPath(teamId)}/members/${encodeURIComponent(member.id)}`,
-          { method: "PATCH", body: JSON.stringify({ role }) },
-        );
+        await apiFetch(buildCollaborationMemberPath(teamId, member.id), {
+          method: "PATCH",
+          body: JSON.stringify({ role }),
+        });
         onChanged();
       } catch (err) {
         setMessage(toSafeUserError(err).message);

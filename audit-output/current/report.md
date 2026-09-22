@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 2b3f3510ca8d1c08bd5e66d3a35fb57d8873d8cfcb3419454407af93903a7c5b |
+| engineHash    | db249af314fe75f276020f773563264b11a3f17f3cfe62d3b554b59f98e68f5b |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -30,11 +30,11 @@ Every number below is produced by an analyzer executed at generation time and re
 | ----------------------------- | ----- |
 | registeredRoutes              | 1161  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 958   |
+| productConsumerRoutes         | 961   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 197   |
-| dispositionedNonProductRoutes | 200   |
-| undisposedRoutes              | 2     |
+| noConsumerRoutes              | 194   |
+| dispositionedNonProductRoutes | 199   |
+| undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 23    |
 
@@ -45,11 +45,11 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | counter                                        | value |
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
-| DynamicUnresolvedConsumers                     | 38    |
-| UnreviewedOriginConsumers                      | 1     |
-| AmbiguousConsumerSites                         | 1     |
+| DynamicUnresolvedConsumers                     | 0     |
+| UnreviewedOriginConsumers                      | 0     |
+| AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
-| ClassificationConflicts                        | 4     |
+| ClassificationConflicts                        | 1     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
 | TenantBindingUnresolved                        | 0     |
@@ -200,16 +200,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: DynamicUnresolvedConsumers = 38
-- INSTRUMENT: UnreviewedOriginConsumers = 1
-- INSTRUMENT: AmbiguousConsumerSites = 1
-- INSTRUMENT: ClassificationConflicts = 4
+- INSTRUMENT: ClassificationConflicts = 1
 
 ### Product closure
 
-- INSTRUMENT: DynamicUnresolvedConsumers = 38
-- INSTRUMENT: UnreviewedOriginConsumers = 1
-- INSTRUMENT: AmbiguousConsumerSites = 1
-- INSTRUMENT: ClassificationConflicts = 4
-- CHECKPOINT: 9 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1157, facts say 1160 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1158, facts say 1161 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 2 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 4 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1267, facts say 1269
-- ArchitectureBacklog: UndisposedRoutes = 2 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+- INSTRUMENT: ClassificationConflicts = 1
+- CHECKPOINT: 7 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1157, facts say 1160 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1158, facts say 1161 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1267, facts say 1269 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1121, facts say 1123

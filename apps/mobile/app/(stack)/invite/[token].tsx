@@ -51,9 +51,22 @@ export default function InviteAcceptScreen() {
     setPhase("accepting");
     setError(null);
     try {
-      const res = await apiFetch(`/v1/collaboration-team-invites/${encodeURIComponent(token)}/accept`, {
+      /*
+       * THE TOKEN TRAVELS IN THE BODY.
+       *
+       * This used to POST to `/v1/collaboration-team-invites/:token/accept`,
+       * the legacy path form. The route dispositions mark that form
+       * SUPERSEDED_REMOVE and the web's client records why it moved (D9):
+       * "a path token is written to access logs by every intermediary."
+       *
+       * The API keeps the path form only for links already sitting in
+       * mailboxes. A client written today has no reason to use it, and a
+       * native client putting a credential in a URL is the same leak on a
+       * phone as in a browser.
+       */
+      const res = await apiFetch("/v1/collaboration-team-invites/accept", {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ token }),
       });
       const teamId = typeof res?.teamId === "string" ? res.teamId : null;
       setPhase("accepted");

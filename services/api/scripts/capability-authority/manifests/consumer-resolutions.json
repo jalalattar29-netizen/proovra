@@ -240,6 +240,73 @@
       ],
       "evidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:125 const act = useCallback(async (label, id, path, body) => …); :136 await apiFetch(`/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`, { method: \"POST\" }). Both segments interpolate, so the matcher refuses the site — correctly. The four call sites supply the ACTION literally: :302 act(\"ack\", e.id, \"acknowledge\", {}), :373 \"reassign\", :377 \"resolve\", :381 \"suppress\". Each is registered POST in services/api/src/routes/reviewer-ops.routes.ts — :1428 acknowledge, :1451 reassign, :1480 resolve, :1526 suppress — and the file registers no other escalation action, so the four are the complete set.",
       "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:103",
+      "helper": "inboxItemActionPath(itemKey, action) — the action segment is an InboxItemAction; this site passes the literal \"remind\"",
+      "callSitesRead": [
+        "apps/mobile/app/(tabs)/notifications.tsx:103"
+      ],
+      "routes": [
+        "POST /v1/me/inbox/items/:itemKey/remind"
+      ],
+      "evidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/remind\", ..., remindHandler) under the comment \"// CANONICAL names.\". apps/mobile/src/product/inbox.ts inboxItemActionPath returns `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`; the call site passes the literal \"remind\" with a buildSnoozeBody(hours) body. Migrated off the tombstoned `snooze` alias on 2026-09-22. | Re-anchored 101 -> 103 on 2026-09-22: two lines, from the comment recording the migration off the tombstoned alias. The call itself is the same.",
+      "reviewedAtUtc": "2026-09-22"
+    },
+    {
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:127",
+      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union, filled by the row controls",
+      "callSitesRead": [
+        "apps/mobile/app/(tabs)/notifications.tsx:127"
+      ],
+      "routes": [
+        "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/unread",
+        "POST /v1/me/inbox/items/:itemKey/archive"
+      ],
+      "evidence": "apps/mobile/src/product/inbox.ts `export type InboxItemAction = \"read\" | \"unread\" | \"archive\" | \"remind\"` — the CANONICAL names. The remind branch is the separate site at :101 (it needs a body); this site carries the other three, and each is registered under the \"// CANONICAL names.\" comment in me-inbox.routes.ts. Migrated off the tombstoned `dismiss` alias on 2026-09-22. | Re-anchored 125 -> 127 on 2026-09-22: two lines, from the comment recording the migration off the tombstoned alias. The call itself is the same.",
+      "reviewedAtUtc": "2026-09-22"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175",
+      "helper": "buildCriteriaActionPath(setId, action) — action is the CriteriaAction union",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175"
+      ],
+      "routes": [
+        "POST /v1/reviewer-criteria/:setId/publish",
+        "POST /v1/reviewer-criteria/:setId/duplicate",
+        "POST /v1/reviewer-criteria/:setId/retire"
+      ],
+      "evidence": "apps/mobile/src/product/reviewer-criteria.ts:143 `export type CriteriaAction = \"publish\" | \"duplicate\" | \"retire\"`, and availableActions() in the same file is the ONE producer of the value this site passes. All three are registered in services/api/src/routes/reviewer-criteria.routes.ts.",
+      "reviewedAtUtc": "2026-09-22"
+    },
+    {
+      "site": "apps/mobile/src/ui/criteria-draft-editor.tsx:272",
+      "helper": "buildCriteriaActionPath(setId, \"duplicate\") — a literal action",
+      "callSitesRead": [
+        "apps/mobile/src/ui/criteria-draft-editor.tsx:272"
+      ],
+      "routes": [
+        "POST /v1/reviewer-criteria/:setId/duplicate"
+      ],
+      "evidence": "The save-as-new-draft recovery duplicates a version that was published while the operator was editing, then PATCHes the new draft. The action segment is the literal \"duplicate\".",
+      "reviewedAtUtc": "2026-09-22"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:104",
+      "helper": "buildRequestTransitionPath(id, transition) — transition is the RequestTransition union",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:104"
+      ],
+      "routes": [
+        "POST /v1/evidence-requests/:id/send",
+        "POST /v1/evidence-requests/:id/cancel",
+        "POST /v1/evidence-requests/:id/close",
+        "POST /v1/evidence-requests/:id/needs-more-info"
+      ],
+      "evidence": "apps/mobile/src/product/evidence-requests.ts:132 `export type RequestTransition = \"send\" | \"cancel\" | \"close\" | \"needs-more-info\"`, and availableRequestTransitions(status) is the ONE producer of the value. All four are registered in services/api/src/routes/evidence-requests.routes.ts (:392 send, :426 cancel, :463 close, :497 needs-more-info).",
+      "reviewedAtUtc": "2026-09-22"
     }
   ]
 }

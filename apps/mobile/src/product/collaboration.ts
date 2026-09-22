@@ -525,6 +525,11 @@ export function buildTeamArchivePath(teamId: string): string {
 export function buildTeamUnarchivePath(teamId: string): string {
   return `${buildCollaborationTeamPath(teamId)}/unarchive`;
 }
+/** The MEMBERSHIP a role change addresses, not the user. */
+export function buildCollaborationMemberPath(teamId: string, memberId: string): string {
+  return `${buildCollaborationTeamPath(teamId)}/members/${encodeURIComponent(memberId)}`;
+}
+
 export function buildTeamDisposabilityPath(teamId: string): string {
   return `${buildCollaborationTeamPath(teamId)}/disposability`;
 }

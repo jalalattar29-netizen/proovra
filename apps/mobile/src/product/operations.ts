@@ -231,7 +231,6 @@ export function sortBatchJobs(jobs: BatchJob[]): BatchJob[] {
 //   POST /v1/batch-analysis            create   {evidenceIds[], name, description?}
 //   POST /v1/batch-analysis/:id/process         start it
 //   GET  /v1/batch-analysis/:id                 one job
-//   GET  /v1/batch-analysis/:id/results         aggregate, ONCE it is finished
 //   POST /v1/batch-analysis/:id/cancel          stop a running one
 //   GET  /v1/batch-analysis/:id/export          text/csv
 //
@@ -248,9 +247,6 @@ export function buildBatchProcessPath(id: string): string {
 }
 export function buildBatchCancelPath(id: string): string {
   return `${buildBatchJobPath(id)}/cancel`;
-}
-export function buildBatchResultsPath(id: string): string {
-  return `${buildBatchJobPath(id)}/results`;
 }
 export function buildBatchExportPath(id: string): string {
   return `${buildBatchJobPath(id)}/export`;
@@ -301,47 +297,35 @@ export function canCancelBatch(job: BatchJob): boolean {
   return job.status.toLowerCase() === "processing";
 }
 
-/** Results are published once, at the end. Asking earlier is a 400. */
-export function canReadBatchResults(job: BatchJob): boolean {
+/**
+ * The export is offered once the job has stopped running.
+ *
+ * (The `/results` read this used to share a predicate with is gone — see
+ * BATCH_ANALYSIS_MODE_NOTE.)
+ */
+export function canExportBatch(job: BatchJob): boolean {
   const s = job.status.toLowerCase();
   return s === "completed" || s === "failed" || s === "cancelled";
 }
 
-/** Export reads the same items, so it is offered on the same terms. */
-export function canExportBatch(job: BatchJob): boolean {
-  return canReadBatchResults(job);
-}
-
-export interface BatchAggregate {
-  successRatePercent: number | null;
-  averageConfidence: number | null;
-  classifications: Array<{ label: string; count: number }>;
-  topTags: Array<{ tag: string; count: number }>;
-}
-
-export function parseBatchAggregate(payload: unknown): BatchAggregate | null {
-  const d = obj(obj(payload).data);
-  if (Object.keys(d).length === 0) return null;
-
-  const counted = (v: unknown): Array<{ label: string; count: number }> =>
-    Object.entries(obj(v))
-      .map(([label, n]) => ({ label, count: typeof n === "number" ? n : 0 }))
-      .filter((r) => r.count > 0)
-      .sort((a, b) => b.count - a.count);
-
-  return {
-    successRatePercent: num(d.successRate),
-    averageConfidence: num(d.averageConfidence),
-    classifications: counted(d.classifications),
-    topTags: rows(d.mostCommonTags)
-      .map((raw) => {
-        const t = obj(raw);
-        const tag = str(t.tag);
-        return tag ? { tag, count: num(t.count) ?? 0 } : null;
-      })
-      .filter((t): t is { tag: string; count: number } => t !== null),
-  };
-}
+/**
+ * THE AGGREGATE IS NOT READ, AND THAT IS THE FINDING.
+ *
+ * `GET /v1/batch-analysis/:id/results` is dispositioned SUPERSEDED_REMOVE.
+ * Its triage states that it aggregates "classification/moderation/tag fields
+ * that processBatch never writes", and the service confirms it: a completed
+ * item carries only { status, analysisMode: "metadata_only_legacy_batch",
+ * summary, evidence, warnings }.
+ *
+ * A card of classifications and an average confidence built from that endpoint
+ * would be an empty list and a zero presented as an analysis of the operator's
+ * evidence. An absent panel is honest; that would not be.
+ *
+ * What the batch DOES produce is stated instead, in the service's own words.
+ */
+export const BATCH_ANALYSIS_MODE_NOTE =
+  "This batch reads each record's metadata only. It does not determine factual truth, " +
+  "authorship, authenticity, or legal admissibility.";
 
 /** The filename the export route sets in its own Content-Disposition. */
 export function batchExportFilename(id: string): string {

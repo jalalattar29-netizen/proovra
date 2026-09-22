@@ -835,3 +835,22 @@ export function annotationAnchorLabel(a: EvidenceAnnotation): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Lifecycle action paths
+// ---------------------------------------------------------------------------
+//
+// One builder per action, so a call site names the route it hits. The screen
+// previously assembled them from one template with a runtime suffix, which
+// meant neither a reader nor the capability analyzer could tell which endpoint
+// a given button called.
+
+export function buildEvidencePath(evidenceId: string): string {
+  return `/v1/evidence/${encodeURIComponent(evidenceId)}`;
+}
+export function buildEvidenceLockPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/lock`;
+}
+export function buildEvidenceArchivePath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/archive`;
+}

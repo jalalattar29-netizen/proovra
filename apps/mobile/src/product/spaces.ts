@@ -45,19 +45,29 @@ const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
 export const SWITCH_WORKSPACE_PATH = "/v1/platform/context/switch-workspace";
-export const CREATE_WORKSPACE_PATH = "/v1/teams";
 
 export function buildSwitchWorkspaceBody(workspaceId: string) {
   return { workspaceId };
 }
 
-export function buildCreateWorkspaceBody(name: string) {
-  return { name: name.trim() };
-}
-
-export function validateNewWorkspaceName(name: string): string | null {
-  return name.trim().length === 0 ? "Give this workspace a name." : null;
-}
+/**
+ * WHY THERE IS NO CREATE HERE.
+ *
+ * `POST /v1/teams` exists but always refuses: the route is dispositioned
+ * COMPATIBILITY_TOMBSTONE and its handler returns
+ * 409 WORKSPACE_CREATION_NOT_SELF_SERVICE on every path, because
+ * "self-service workspace creation was removed with the commercial allowance
+ * that permitted it". It is kept so a stale client gets a code-bearing
+ * explanation instead of a 404.
+ *
+ * An earlier version of this module built a create body for it. A control
+ * that can only fail is worse than no control: it teaches the user that the
+ * app is broken when the server is doing exactly what it was asked to do.
+ * The surface says where a workspace comes from instead.
+ */
+export const WORKSPACE_CREATION_NOTE =
+  "New workspaces are set up with PROOVRA rather than created here. Your organization " +
+  "administrator or your account contact can add one.";
 
 export type SpaceKind = "PERSONAL" | "OWNED" | "ORGANIZATION";
 

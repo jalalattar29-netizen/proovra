@@ -186,7 +186,6 @@ test("every lifecycle path is built from the job id", () => {
   assert.equal(O.buildBatchJobPath("b 1"), "/v1/batch-analysis/b%201");
   assert.equal(O.buildBatchProcessPath("b1"), "/v1/batch-analysis/b1/process");
   assert.equal(O.buildBatchCancelPath("b1"), "/v1/batch-analysis/b1/cancel");
-  assert.equal(O.buildBatchResultsPath("b1"), "/v1/batch-analysis/b1/results");
   assert.equal(O.buildBatchExportPath("b1"), "/v1/batch-analysis/b1/export");
 });
 
@@ -224,33 +223,37 @@ test("cancel is offered only where the service actually cancels", () => {
   assert.equal(O.canCancelBatch(j("completed")), false);
 });
 
-test("results and export wait until the job has finished", () => {
-  // GET /results answers a 400 while the job is still running.
-  assert.equal(O.canReadBatchResults(j("processing")), false);
-  assert.equal(O.canReadBatchResults(j("pending")), false);
+test("the export waits until the job has stopped running", () => {
+  assert.equal(O.canExportBatch(j("processing")), false);
+  assert.equal(O.canExportBatch(j("pending")), false);
   for (const s of ["completed", "failed", "cancelled"]) {
-    assert.equal(O.canReadBatchResults(j(s)), true);
     assert.equal(O.canExportBatch(j(s)), true);
   }
 });
 
-test("the aggregate drops empty counts and orders by frequency", () => {
-  const a = O.parseBatchAggregate({
-    data: {
-      successRate: 66.6,
-      averageConfidence: 0.81,
-      classifications: { document: 2, photo: 5, video: 0 },
-      mostCommonTags: [{ tag: "invoice", count: 4 }, { count: 9 }, null],
-    },
-  });
-  assert.equal(a.successRatePercent, 66.6);
-  assert.deepEqual(a.classifications.map((c) => c.label), ["photo", "document"]);
-  assert.deepEqual(a.topTags, [{ tag: "invoice", count: 4 }]);
+test("the /results aggregate is NOT read, and the module says why", () => {
+  /*
+   * GET /v1/batch-analysis/:id/results is dispositioned SUPERSEDED_REMOVE, and
+   * its triage states that it aggregates "classification/moderation/tag fields
+   * that processBatch never writes". The service confirms it: a completed item
+   * carries only { status, analysisMode, summary, evidence, warnings }.
+   *
+   * A card of classifications and an average confidence built from it would be
+   * an empty list and a zero, presented as an analysis of the operator's
+   * evidence. That is worse than an absence, because a reader would take
+   * "0 classifications" as a finding about their records.
+   */
+  assert.equal(O.buildBatchResultsPath, undefined);
+  assert.equal(O.parseBatchAggregate, undefined);
+  assert.equal(O.canReadBatchResults, undefined);
 });
 
-test("an empty aggregate is null, not a job with zero of everything", () => {
-  assert.equal(O.parseBatchAggregate({}), null);
-  assert.equal(O.parseBatchAggregate(null), null);
+test("what the batch DOES do is stated, in the service's own words", () => {
+  assert.match(O.BATCH_ANALYSIS_MODE_NOTE, /metadata only/i);
+  assert.match(
+    O.BATCH_ANALYSIS_MODE_NOTE,
+    /does not determine factual truth, authorship, authenticity, or legal admissibility/i,
+  );
 });
 
 test("the export filename cannot escape the cache directory", () => {

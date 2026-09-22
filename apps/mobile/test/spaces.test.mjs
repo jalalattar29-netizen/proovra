@@ -109,8 +109,16 @@ test("spaces read in the order a person reads them", () => {
   );
 });
 
-test("a blank workspace name is refused before the request", () => {
-  assert.match(S.validateNewWorkspaceName("  "), /name/i);
-  assert.equal(S.validateNewWorkspaceName("Field team"), null);
-  assert.deepEqual(S.buildCreateWorkspaceBody("  Field team "), { name: "Field team" });
+test("no create path exists, because POST /v1/teams always refuses", () => {
+  // The route is a COMPATIBILITY_TOMBSTONE: its handler returns
+  // 409 WORKSPACE_CREATION_NOT_SELF_SERVICE on every path. A control that can
+  // only fail teaches the user the app is broken when the server is doing
+  // exactly what it was asked to do.
+  assert.equal(S.CREATE_WORKSPACE_PATH, undefined);
+  assert.equal(S.buildCreateWorkspaceBody, undefined);
+  assert.equal(S.validateNewWorkspaceName, undefined);
+});
+
+test("the surface says where a workspace does come from", () => {
+  assert.match(S.WORKSPACE_CREATION_NOTE, /administrator|account contact/i);
 });

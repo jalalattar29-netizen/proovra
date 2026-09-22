@@ -59,14 +59,27 @@ export function resolveInboxRoute(href: string | null | undefined): string | nul
 
 /* ---------------------------------------------------------------- additions
  * The canonical inbox is severity-ordered and carries per-item read / unread /
- * dismiss / snooze state, persisted through
- * `/v1/me/inbox/items/:itemKey/{read,unread,dismiss,snooze}`. Native offered
+ * archive / remind state, persisted through
+ * `/v1/me/inbox/items/:itemKey/{read,unread,archive,remind}`. Native offered
  * only mark-read and mark-all-read, so an item could be acknowledged but never
  * deferred or restored, and the list rendered in arrival order.
  */
 
-/** The per-item actions the canonical inbox persists. */
-export type InboxItemAction = "read" | "unread" | "dismiss" | "snooze";
+/**
+ * The per-item actions the canonical inbox persists — by their CANONICAL names.
+ *
+ * This read `"dismiss" | "snooze"`, which me-inbox.routes.ts registers under a
+ * comment reading "BACKWARD-COMPATIBLE aliases for shipped clients". Both are
+ * dispositioned COMPATIBILITY_TOMBSTONE, and the snooze disposition records
+ * that "the web client was migrated to the canonical name in Attention
+ * Architecture Phase 1, which is why it now shows zero product consumers".
+ *
+ * Native was that consumer. A tombstone with a live caller is a route nobody
+ * can retire, and the alias and the canonical name point at the SAME handler
+ * constant — so asking for the legacy name bought nothing and kept a legacy
+ * surface alive.
+ */
+export type InboxItemAction = "read" | "unread" | "archive" | "remind";
 
 export function inboxItemActionPath(itemKey: string, action: InboxItemAction): string {
   return `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`;

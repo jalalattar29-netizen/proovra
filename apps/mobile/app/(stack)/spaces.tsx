@@ -3,7 +3,12 @@
  * (`apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx`).
  *
  * Every space the caller belongs to, which one they are working in, and the
- * ability to move between them or make a new one.
+ * ability to move between them.
+ *
+ * There is no "create a workspace" here, and that is deliberate: POST /v1/teams
+ * is a COMPATIBILITY_TOMBSTONE whose handler refuses on every path. The screen
+ * says where a workspace comes from rather than offering a button that can
+ * only fail.
  *
  * SWITCHING DID NOT EXIST ANYWHERE IN THE NATIVE APP
  * The ledger said native "switches workspace through the account menu"; it
@@ -34,27 +39,22 @@ import {
   ProovraText,
   ProovraButton,
   ProovraBadge,
-  ProovraInput,
-  ProovraFormField,
   ProovraListRow,
   ProovraPageHeader,
   ProovraPageSection,
-  ProovraSheet,
   ProovraLoadingState,
   ProovraErrorState,
   ProovraEmpty,
 } from "../../src/ui";
 import {
-  CREATE_WORKSPACE_PATH,
   SWITCH_WORKSPACE_PATH,
-  buildCreateWorkspaceBody,
+  WORKSPACE_CREATION_NOTE,
   buildSwitchWorkspaceBody,
   canSwitchTo,
   isActiveSpace,
   projectSpaces,
   spaceKindLabel,
   spaceSummaryLine,
-  validateNewWorkspaceName,
   type Space,
 } from "../../src/product/spaces";
 
@@ -96,8 +96,6 @@ export default function SpacesScreen() {
   const { loading, error, envelope, refresh } = usePlatformContext();
 
   const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
 
   const view = useMemo(() => projectSpaces(envelope), [envelope]);
 
@@ -123,42 +121,12 @@ export default function SpacesScreen() {
     [view, refresh, addToast],
   );
 
-  const create = useCallback(async () => {
-    const invalid = validateNewWorkspaceName(newName);
-    if (invalid) {
-      addToast(invalid, "error");
-      return;
-    }
-    setBusy(true);
-    try {
-      await apiFetch(CREATE_WORKSPACE_PATH, {
-        method: "POST",
-        body: JSON.stringify(buildCreateWorkspaceBody(newName)),
-      });
-      setCreating(false);
-      setNewName("");
-      refresh();
-      addToast("Workspace created.", "success");
-    } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }, [newName, refresh, addToast]);
-
   return (
     <ProovraScreen testID="spaces">
       <ProovraPageHeader
         title="Spaces"
         eyebrow="Workspace administration"
         subtitle="Your Personal Space is private to you. Organization workspaces are shared — members, roles and governance live there."
-        primaryAction={
-          <ProovraButton
-            label="New workspace"
-            fullWidth={false}
-            onPress={() => setCreating(true)}
-          />
-        }
         secondaryActions={
           <ProovraButton
             label="Back"
@@ -235,6 +203,15 @@ export default function SpacesScreen() {
             )}
           </ProovraPageSection>
 
+          {/*
+            POST /v1/teams is a tombstone that refuses on every path, so there
+            is no create control. A button that can only fail teaches the user
+            the app is broken when the server is doing what it was asked to.
+          */}
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {WORKSPACE_CREATION_NOTE}
+          </ProovraText>
+
           <View style={{ gap: theme.space.s2 }}>
             {/*
               The web page cross-links these two for the same reason: this
@@ -255,27 +232,6 @@ export default function SpacesScreen() {
         </>
       ) : null}
 
-      <ProovraSheet
-        visible={creating}
-        title="New workspace"
-        onClose={() => setCreating(false)}
-      >
-        <ProovraFormField label="Workspace name">
-          <ProovraInput
-            value={newName}
-            onChangeText={setNewName}
-            placeholder="e.g. Field team"
-            autoCapitalize="sentences"
-            accessibilityLabel="Workspace name"
-          />
-        </ProovraFormField>
-        <ProovraButton
-          label="Create"
-          loading={busy}
-          disabled={validateNewWorkspaceName(newName) !== null}
-          onPress={() => void create()}
-        />
-      </ProovraSheet>
     </ProovraScreen>
   );
 }

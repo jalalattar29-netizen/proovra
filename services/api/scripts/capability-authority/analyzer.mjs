@@ -482,19 +482,61 @@ export function analyzeSources({ includeTests = false } = {}) {
         guard.add(`v:${name}`);
         return own;
       },
+      /**
+       * A helper that RETURNS a path, whether it lives in this file or is
+       * imported from another.
+       *
+       * The imported case was missing, and the asymmetry was the defect:
+       * `lookupConst` already follows an import to read a path held in an
+       * exported CONST, so the identical path held in an exported FUNCTION
+       * resolved in one shape and not the other.
+       *
+       * That gap is not theoretical. The native app states every endpoint as a
+       * pure builder in `src/product/*` — `apiFetch(buildCasesSummaryPath(teamId))`
+       * — which is the pattern its own tests pin. Under the local-only lookup
+       * every one of those call sites reported "unsupported expression kind
+       * CallExpression", so a hundred requests to routes this repository owns
+       * were counted as unresolvable, and every number downstream that depends
+       * on knowing which routes are consumed was that much of a guess.
+       *
+       * The imported function is resolved in ITS OWN module's context, so the
+       * constants and helpers IT uses resolve too. The recursion guard is
+       * keyed on the resolved file, so two modules that build paths from each
+       * other cannot spin.
+       */
       resolveCall: (name, call) => {
-        if (guard.has(`f:${name}`)) return undefined;
-        const fn = entry.pathFns.get(name);
-        if (fn === undefined) return undefined;
-        guard.add(`f:${name}`);
-        const inner = ctxFor(entry, guard);
-        for (const ret of fn.returns) {
+        const local = entry.pathFns.get(name);
+        const viaLocal = local !== undefined ? { fn: local, owner: entry } : null;
+
+        let viaImport = null;
+        if (viaLocal === null) {
+          const imp = entry.imports.get(name);
+          if (imp) {
+            const target = resolveModule(entry.file, imp.module, parsedByPath);
+            const owner = target ? parsedByPath.get(target) : undefined;
+            const fn = owner?.pathFns.get(imp.exported);
+            if (owner && fn !== undefined) viaImport = { fn, owner };
+          }
+        }
+
+        const found = viaLocal ?? viaImport;
+        if (found === null) return undefined;
+
+        const key = `f:${found.owner.file}#${name}`;
+        if (guard.has(key)) return undefined;
+        guard.add(key);
+
+        const inner = ctxFor(found.owner, guard);
+        for (const ret of found.fn.returns) {
           const r = resolvePathExpr(ret, inner);
           if (r.resolved && r.value.startsWith("/")) return r.value;
         }
         // Pass-through shape: the helper decorates a path its CALLER supplied.
+        // Resolved in the CALLER's context, because that is where the argument
+        // was written.
+        const callerCtx = ctxFor(entry, guard);
         for (const arg of call.arguments ?? []) {
-          const r = resolvePathExpr(arg, inner);
+          const r = resolvePathExpr(arg, callerCtx);
           if (r.resolved && r.value.startsWith("/")) return r.value;
         }
         return undefined;

@@ -31,6 +31,9 @@ import {
 } from "../../../src/product/domain-display";
 import {
   DUPLICATE_LIMITATION,
+  buildEvidenceArchivePath,
+  buildEvidenceLockPath,
+  buildEvidencePath,
   REGENERATE_CONSEQUENCE,
   buildDuplicatesPath,
   buildRegeneratePath,
@@ -344,7 +347,15 @@ export default function EvidenceDetailScreen() {
   }, [id]);
 
   const runAction = useCallback(
-    (label: string, opts: { path?: string; method?: "POST" | "DELETE"; body?: object; destructive?: boolean }) => {
+    (
+      label: string,
+      opts: {
+        buildPath: (evidenceId: string) => string;
+        method?: "POST" | "DELETE";
+        body?: object;
+        destructive?: boolean;
+      },
+    ) => {
       Alert.alert(label, `${label} this record?`, [
         { text: "Cancel", style: "cancel" },
         {
@@ -354,8 +365,11 @@ export default function EvidenceDetailScreen() {
             void (async () => {
               setActionBusy(true);
               try {
-                const suffix = opts.path ? `/${opts.path}` : "";
-                await apiFetch(`/v1/evidence/${id}${suffix}`, {
+                // The CALLER names its route. This was one
+                // `/v1/evidence/${id}${suffix}` for every lifecycle action, so
+                // neither a reader nor the capability analyzer could tell which
+                // endpoint a given button hits.
+                await apiFetch(opts.buildPath(String(id)), {
                   method: opts.method ?? "POST",
                   body: opts.body ? JSON.stringify(opts.body) : undefined,
                 });
@@ -486,9 +500,15 @@ export default function EvidenceDetailScreen() {
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>{provenance.statement}</ProovraText>
           ) : null}
           <View style={styles.actions}>
-            <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { path: "lock" })} />
-            <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { path: "archive" })} />
-            <ProovraButton label="Move to Trash" variant="danger" loading={actionBusy} onPress={() => runAction("Move to Trash", { method: "DELETE", destructive: true })} />
+            <ProovraButton label="Lock" variant="secondary" loading={actionBusy} onPress={() => runAction("Lock", { buildPath: buildEvidenceLockPath })} />
+            <ProovraButton label="Archive" variant="secondary" loading={actionBusy} onPress={() => runAction("Archive", { buildPath: buildEvidenceArchivePath })} />
+            <ProovraButton label="Move to Trash" variant="danger" loading={actionBusy} onPress={() =>
+                runAction("Move to Trash", {
+                  buildPath: buildEvidencePath,
+                  method: "DELETE",
+                  destructive: true,
+                })
+              } />
           </View>
         </ProovraSection>
       ) : null}

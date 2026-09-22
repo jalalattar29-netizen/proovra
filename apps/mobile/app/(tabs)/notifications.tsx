@@ -98,7 +98,9 @@ export default function NotificationsScreen() {
       // dismissed, and the difference is the whole point of the action.
       setItems((prev) => prev.filter((i) => i.itemKey !== item.itemKey));
       try {
-        await apiFetch(inboxItemActionPath(item.itemKey, "snooze"), {
+        // CANONICAL name. `snooze` is a tombstoned alias onto the same
+        // handler; the web migrated off it in Attention Architecture Phase 1.
+        await apiFetch(inboxItemActionPath(item.itemKey, "remind"), {
           method: "POST",
           body: JSON.stringify(buildSnoozeBody(hours)),
         });
@@ -113,7 +115,7 @@ export default function NotificationsScreen() {
   const act = useCallback(
     async (item: InboxItem, action: InboxItemAction) => {
       setItems((prev) =>
-        action === "dismiss"
+        action === "archive"
           ? prev.filter((i) => i.itemKey !== item.itemKey)
           : prev.map((i) =>
               i.itemKey === item.itemKey ? { ...i, isRead: action !== "unread" } : i,
@@ -223,7 +225,7 @@ export default function NotificationsScreen() {
                   label="Dismiss"
                   variant="ghost"
                   fullWidth={false}
-                  onPress={() => void act(item, "dismiss")}
+                  onPress={() => void act(item, "archive")}
                 />
                 {/*
                   Snooze was modelled and tested but had no control, so the

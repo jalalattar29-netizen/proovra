@@ -16,11 +16,11 @@
   ],
   "entries": [
     {
-      "site": "apps/mobile/src/api.ts:34",
+      "site": "apps/mobile/src/api.ts:61",
       "verdict": "PLUMBING",
       "originBinding": "base = process.env.EXPO_PUBLIC_API_BASE",
-      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers.",
-      "reviewedAtUtc": "2026-08-15"
+      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers. | Re-anchored :34 -> :61 on 2026-09-22 (NATIVE CLOSURE). THIS ONE IS A REAL MOVE, not a line shift: apiFetch was split into a single apiRequest that returns the Response, with apiFetch and apiFetchText as the two body readers, because the batch-analysis export answers text/csv and a hard-wired res.json() turned a correct response into a parse error. The fetch itself is unchanged — `fetch(\\`${base}${path}\\`, { ...init, headers })` — and it is still the ONE transport; paths still come from its callers.",
+      "reviewedAtUtc": "2026-09-22"
     },
     {
       "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:167",

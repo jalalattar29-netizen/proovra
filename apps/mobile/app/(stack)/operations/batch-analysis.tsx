@@ -49,6 +49,7 @@ import {
   ProovraEmpty,
 } from "../../../src/ui";
 import {
+  BATCH_ANALYSIS_MODE_NOTE,
   BATCH_ANALYSIS_PATH,
   batchExportFilename,
   batchStatusLabel,
@@ -57,16 +58,12 @@ import {
   buildBatchCreateBody,
   buildBatchExportPath,
   buildBatchProcessPath,
-  buildBatchResultsPath,
   canCancelBatch,
   canExportBatch,
-  canReadBatchResults,
-  parseBatchAggregate,
   parseBatchJobs,
   readCreatedBatchId,
   sortBatchJobs,
   validateBatchDraft,
-  type BatchAggregate,
   type BatchJob,
 } from "../../../src/product/operations";
 
@@ -108,15 +105,11 @@ function JobRow({
   busy,
   onCancel,
   onExport,
-  onResults,
-  aggregate,
 }: {
   job: BatchJob;
   busy: boolean;
   onCancel: () => void;
   onExport: () => void;
-  onResults: () => void;
-  aggregate: BatchAggregate | null;
 }) {
   const tone = batchStatusTone(job.status);
   const palette = theme.color.status[tone];
@@ -171,39 +164,7 @@ function JobRow({
             : ""}
       </ProovraText>
 
-      {aggregate ? (
-        <View style={{ gap: 2 }}>
-          {aggregate.successRatePercent !== null ? (
-            <ProovraText variant="label" color={theme.color.ink.secondary}>
-              {`${Math.round(aggregate.successRatePercent)}% of items analysed successfully`}
-            </ProovraText>
-          ) : null}
-          {aggregate.classifications.slice(0, 4).map((c) => (
-            <ProovraText key={c.label} variant="label" color={theme.color.ink.muted}>
-              {`${c.label} · ${c.count}`}
-            </ProovraText>
-          ))}
-          {aggregate.topTags.length > 0 ? (
-            <ProovraText variant="label" color={theme.color.ink.muted}>
-              {aggregate.topTags
-                .slice(0, 6)
-                .map((t) => t.tag)
-                .join(" · ")}
-            </ProovraText>
-          ) : null}
-        </View>
-      ) : null}
-
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-        {canReadBatchResults(job) && !aggregate ? (
-          <ProovraButton
-            label="Results"
-            variant="ghost"
-            fullWidth={false}
-            loading={busy}
-            onPress={onResults}
-          />
-        ) : null}
         {canExportBatch(job) ? (
           <ProovraButton
             label="Export CSV"
@@ -239,7 +200,6 @@ export default function BatchAnalysisScreen() {
   const [state, setState] = useState<State>({ phase: "loading" });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [aggregates, setAggregates] = useState<Record<string, BatchAggregate>>({});
 
   // The draft
   const [composing, setComposing] = useState(false);
@@ -338,24 +298,6 @@ export default function BatchAnalysisScreen() {
     }
   }, [cancelling, load]);
 
-  const readResults = useCallback(async (job: BatchJob) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const data = await apiFetch(buildBatchResultsPath(job.id));
-      const aggregate = parseBatchAggregate(data);
-      if (!aggregate) {
-        setMessage("This job published no aggregate results.");
-        return;
-      }
-      setAggregates((prev) => ({ ...prev, [job.id]: aggregate }));
-    } catch (err) {
-      setMessage(toSafeUserError(err).message);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
   const exportCsv = useCallback(async (job: BatchJob) => {
     setBusy(true);
     setMessage(null);
@@ -432,6 +374,16 @@ export default function BatchAnalysisScreen() {
       {state.phase === "loaded" && state.jobs.length > 0 ? (
         <>
           <ProovraResultCount count={state.jobs.length} noun="job" />
+          {/*
+            What the batch actually does, in the service's own words. The
+            /results aggregate is not read: it sums classification, moderation
+            and tag fields that processBatch never writes, so a card built from
+            it would be an empty list and a zero presented as an analysis of
+            the operator's evidence.
+          */}
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {BATCH_ANALYSIS_MODE_NOTE}
+          </ProovraText>
           <ProovraCard>
             <View style={{ gap: theme.space.s5 }}>
               {state.jobs.map((job) => (
@@ -439,10 +391,8 @@ export default function BatchAnalysisScreen() {
                   key={job.id}
                   job={job}
                   busy={busy}
-                  aggregate={aggregates[job.id] ?? null}
                   onCancel={() => setCancelling(job)}
                   onExport={() => void exportCsv(job)}
-                  onResults={() => void readResults(job)}
                 />
               ))}
             </View>
