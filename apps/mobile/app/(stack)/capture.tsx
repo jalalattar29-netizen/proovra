@@ -1,6 +1,7 @@
 import {
   Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -1086,6 +1087,57 @@ setSessionState(
             <View style={styles.toggleRow}>
               <ProovraText variant="body">Include location metadata</ProovraText>
               <Switch value={useLocation} onValueChange={setUseLocation} accessibilityLabel="Include location metadata" />
+
+            {/*
+             * NATIVE ACQUISITION SOURCES (UC-2 / UC-3 / UC-5).
+             *
+             * These used to sit in Home's hero as "Direct Screen Capture" /
+             * "Continuous Screen Capture" buttons, which made the landing page
+             * a list of platform capabilities rather than the canonical
+             * PROOVRA Home. They are SOURCES — a way of recording something —
+             * so they belong beside the photo/video/audio/document chooser,
+             * which is where a user decides how to capture.
+             *
+             * They open their own screens because each drives a protected
+             * native engine (ReplayKit on iOS, MediaProjection on Android)
+             * with its own permission ceremony and its own session. Making
+             * them a fifth chip here would promise they behave like the other
+             * four, and they do not yet — that convergence is a separate,
+             * larger piece of work recorded in the ledger.
+             */}
+            <View style={styles.sourcesBlock}>
+              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+                Other capture sources
+              </ProovraText>
+              {Platform.OS === "android" ? (
+                <>
+                  <ProovraButton
+                    label="Screen capture"
+                    variant="secondary"
+                    disabled={isSessionActive || isRecording}
+                    onPress={() => router.push("/screen-capture")}
+                  />
+                  <ProovraButton
+                    label="Continuous screen capture"
+                    variant="secondary"
+                    disabled={isSessionActive || isRecording}
+                    onPress={() => router.push("/continuous-capture")}
+                  />
+                </>
+              ) : (
+                <ProovraButton
+                  label="Screen capture"
+                  variant="secondary"
+                  disabled={isSessionActive || isRecording}
+                  onPress={() => router.push("/continuous-capture")}
+                />
+              )}
+              {isSessionActive || isRecording ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  Finish or discard the current session to use another source.
+                </ProovraText>
+              ) : null}
+            </View>
             </View>
 
             {activeType === "AUDIO" ? (
@@ -1228,6 +1280,7 @@ const styles = StyleSheet.create({
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   staleNote: { marginBottom: theme.space.s3 },
   typeRow: { flexDirection: "row", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  sourcesBlock: { gap: theme.space.s2, marginTop: theme.space.s3, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   typeChip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 40, borderRadius: theme.radius.pill, borderWidth: 1 },
   toggleRow: {
     flexDirection: "row",

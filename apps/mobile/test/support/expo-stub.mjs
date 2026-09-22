@@ -132,3 +132,13 @@ export const router = {
   canGoBack: () => true,
   setParams: () => {},
 };
+
+/* ---------------------------------------------------------- expo-secure-store */
+const secure = new Map();
+export const getItemAsync = async (k) => (secure.has(k) ? secure.get(k) : null);
+export const setItemAsync = async (k, v) => {
+  secure.set(k, v);
+};
+export const deleteItemAsync = async (k) => {
+  secure.delete(k);
+};

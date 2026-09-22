@@ -48,17 +48,23 @@ test("the first routed screen depends on AuthProvider (documents the guarded con
   assert.match(indexGate, /useAuth\(\)/, "app/index.tsx should consume useAuth (needs the provider)");
 });
 
-test("Android screen-capture entries are platform-gated in the Home screen", () => {
+test("native screen-capture entries live in CAPTURE, platform-gated — not on Home", () => {
+  // This test used to REQUIRE the opposite ("Home should route to UC-2
+  // /screen-capture"), which is how the landing page became a native-capability
+  // launcher. Screen capture is an acquisition SOURCE; it belongs beside the
+  // photo/video/audio/document chooser, where a user decides how to record.
   const home = readFileSync(join(APP_DIR, "(tabs)", "index.tsx"), "utf8");
-  assert.match(home, /Platform\.OS\s*===\s*"android"/, "Home must gate native capture on Android");
-  assert.ok(home.includes("/screen-capture"), "Home should route to UC-2 /screen-capture");
-  assert.ok(home.includes("/continuous-capture"), "Home should route to UC-3 /continuous-capture");
-  // The android gate must appear before the native capture routes (they live inside it).
-  const gateIdx = home.search(/Platform\.OS\s*===\s*"android"/);
-  const scIdx = home.indexOf("/screen-capture");
-  assert.ok(gateIdx >= 0 && gateIdx < scIdx, "native capture entries must sit under the Android gate");
-});
+  assert.ok(!home.includes("/screen-capture"), "UC-2 must not be reachable from Home");
+  assert.ok(!home.includes("/continuous-capture"), "UC-3/UC-5 must not be reachable from Home");
 
+  const capture = readFileSync(join(APP_DIR, "(stack)", "capture.tsx"), "utf8");
+  assert.match(capture, /Platform\.OS\s*===\s*"android"/, "Capture must gate the Android engines");
+  assert.ok(capture.includes("/screen-capture"), "Capture routes to UC-2 /screen-capture");
+  assert.ok(capture.includes("/continuous-capture"), "Capture routes to UC-3/UC-5");
+  const gateIdx = capture.search(/Platform\.OS\s*===\s*"android"/);
+  const scIdx = capture.indexOf('"/screen-capture"');
+  assert.ok(gateIdx >= 0 && gateIdx < scIdx, "the Android-only entries sit under the Android gate");
+});
 test("Home has no hardcoded placeholder evidence row / dead link", () => {
   const home = readFileSync(join(APP_DIR, "(tabs)", "index.tsx"), "utf8");
   // The former defect: an empty list rendered a fake row linking to /evidence/1.

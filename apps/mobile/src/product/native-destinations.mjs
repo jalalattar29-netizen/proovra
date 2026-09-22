@@ -84,15 +84,18 @@ export const NATIVE_DESTINATIONS = {
   /* --------------------------------------------------------------- product */
   "/home": {
     routeFile: "(tabs)/index.tsx",
-    status: "SHELL",
+    status: "PARTIAL",
     webSources: [
       "apps/web/app/(app)/home/page.tsx",
       "apps/web/components/home-experience/SelfServeHomeDashboard.tsx",
       "apps/web/components/home-experience/useHomeData.ts",
+      "apps/web/components/home-experience/home-view-model.ts",
     ],
     gaps: [
-      "reads 2 of the 9+ canonical Home data sources",
-      "no records-by-type, ops summary, billing overview, reports, intake links, communications",
+      "Overview tab ported: summary band, five canonical KPIs, severity-ranked priority queue, recent evidence, active matters, storage",
+      "the web Operations / Analytics / Activity tabs are not ported — records-by-type donut, activity chart and the workspace-health matrix",
+      "no enterprise CommandCenter fork (native targets the self-serve surface)",
+      "device acceptance outstanding",
     ],
   },
   "/capture": {

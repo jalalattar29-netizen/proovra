@@ -39,6 +39,9 @@ const ALIASES = {
   "expo-auth-session": resolve(HERE, "expo-stub.mjs"),
   "expo-auth-session/providers/google": resolve(HERE, "expo-stub.mjs"),
   "@react-native-async-storage/async-storage": resolve(HERE, "expo-stub.mjs"),
+  "expo-secure-store": resolve(HERE, "expo-stub.mjs"),
+  "expo-constants": resolve(HERE, "expo-stub.mjs"),
+  "@sentry/react-native": resolve(HERE, "expo-stub.mjs"),
 };
 
 /**
