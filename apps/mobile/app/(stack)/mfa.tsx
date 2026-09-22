@@ -6,6 +6,7 @@ import { useCompleteLogin, type LoginMode } from "../../src/auth/use-auth-flow";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField, ProovraSection } from "../../src/ui";
+import { MfaRecoveryRequestPanel } from "../../src/ui/mfa-recovery-request";
 import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** MFA challenge — reached when a login returns mfaRequired (pending token). */
@@ -67,6 +68,16 @@ export default function MfaScreen() {
             />
           </View>
         </ProovraCard>
+
+        {/*
+          THE CREATE LEG. The verify leg and the admin approve/reject legs were
+          wired long before anything in the product could FILE a request, and
+          native had neither half — a user who lost their authenticator had a
+          code box and nothing else. The panel resolves its own eligibility,
+          because this route refuses an MFA-pending token and a control that
+          401s on tap is worse than one that says why it cannot be used.
+        */}
+        <MfaRecoveryRequestPanel teamId={null} />
       </ProovraSection>
     </ProovraScreen>
   );

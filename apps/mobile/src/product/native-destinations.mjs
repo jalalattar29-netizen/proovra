@@ -66,27 +66,43 @@ export const NATIVE_DESTINATIONS = {
   },
   "/forgot-password": {
     routeFile: "(stack)/forgot-password.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/forgot-password/page.tsx"],
-    gaps: [],
+    gaps: [
+      "POST /v1/auth/password-reset/request, the same single endpoint the web calls, with the same deliberately indistinguishable answer for a known and an unknown address",
+    ],
   },
   "/reset-password": {
     routeFile: "(stack)/reset-password.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/reset-password/page.tsx"],
-    gaps: [],
+    gaps: [
+      "POST /v1/auth/password-reset/confirm, reached by the emailed link through the credential deep-link family",
+    ],
   },
   "/auth/verify-email": {
     routeFile: "(stack)/verify-email.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/auth/verify-email/page.tsx"],
-    gaps: [],
+    gaps: [
+      "POST /v1/auth/email/verify and the resend, reached by the emailed link",
+      "the web additionally POSTs /v1/evidence/claim to adopt evidence captured while anonymous. Native has NO guest mode at all - auth-context.tsx states 'guest is no longer an authentication mode' and 'there is NO guest fallback: with no stored token the app stays signed out' - so there is nothing to claim, and porting it would post a guestToken that can never exist.",
+    ],
   },
   "/auth/mfa-challenge": {
     routeFile: "(stack)/mfa.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/auth/mfa-challenge/page.tsx"],
-    gaps: [],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/auth/mfa-challenge/page.tsx","apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx"],
+    gaps: [
+      "TOTP and recovery-code verification over POST /v1/auth/mfa/verify",
+      "the lost-factor recovery CREATE leg is now here too. The verify leg and the admin approve/reject legs were wired long before anything in the product could FILE a request, and native had neither half: a user who lost their authenticator saw a code box and nothing else.",
+      "the panel resolves its own eligibility with GET /v1/auth/session-light, because the create route refuses an MFA-pending token - a control that 401s on tap is worse than one that says why it cannot be used",
+      "a 409 is not a failure: it carries the id of the request already in flight, which is the only route to the resend control for a user whose verification email never arrived",
+    ],
   },
   "/auth/mfa-recovery/verify": {
     routeFile: "(stack)/mfa-recovery-verify.tsx",
@@ -100,15 +116,21 @@ export const NATIVE_DESTINATIONS = {
   },
   "/auth": {
     routeFile: "(stack)/auth.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/auth/page.tsx"],
-    gaps: [],
+    gaps: [
+      "the auth gateway; email, Google and Apple, with the same canonical endpoints",
+    ],
   },
   "/auth/callback/ui": {
     routeFile: "(stack)/auth.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/auth/callback/ui/page.tsx"],
-    gaps: ["native OAuth returns in-app rather than via a web callback route"],
+    gaps: [
+      "NOT A GAP, a platform difference: the web callback route exists because a browser OAuth flow has to land somewhere after the redirect. Native OAuth returns in-app through expo-auth-session, so there is no redirect to land, and a native screen for it would be a page nothing can reach.",
+    ],
   },
 
   /* --------------------------------------------------------------- product */
@@ -305,15 +327,22 @@ export const NATIVE_DESTINATIONS = {
   },
   "/collaboration-teams/invites/[token]/accept": {
     routeFile: "(stack)/invite/[token].tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"],
-    gaps: [],
+    gaps: [
+      "the same acceptance surface as /invite/[token] - one native screen, because they are one flow reached by one link",
+    ],
   },
   "/invite/[token]": {
     routeFile: "(stack)/invite/[token].tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/invite/[token]/page.tsx"],
-    gaps: [],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"],
+    gaps: [
+      "POST /v1/collaboration-team-invites/:token/accept, with the intent preserved through Sign In when there is no session",
+      "400/404 collapse to one answer (invalid, expired or already used), which is the anti-enumeration behaviour the route intends",
+    ],
   },
   "/org-invites/[token]/accept": {
     routeFile: "(stack)/org-invite/[token].tsx",
@@ -424,9 +453,12 @@ export const NATIVE_DESTINATIONS = {
   },
   "/verify/[token]": {
     routeFile: "verify.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/verify/[token]/page.tsx"],
-    gaps: [],
+    gaps: [
+      "public verification of a record by its token, over the same public endpoint",
+    ],
   },
   "/share/[id]": {
     routeFile: null,

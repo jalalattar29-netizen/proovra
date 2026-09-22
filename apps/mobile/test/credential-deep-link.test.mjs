@@ -152,3 +152,59 @@ test("the organization invite screen exists", () => {
     "org-invite screen is missing",
   );
 });
+
+/* ------------------------------------------------- the recovery CREATE leg */
+
+const R = await (async () => {
+  const ts = (await import("typescript")).default;
+  const s = readFileSync(resolve(HERE, "../src/product/mfa-recovery.ts"), "utf8");
+  const js = ts.transpileModule(s, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  return import(`data:text/javascript,${encodeURIComponent(js)}`);
+})();
+
+test("a 409 yields the in-flight request id rather than an error", () => {
+  // This is the ONLY route to the resend control for a user whose
+  // verification email never arrived. Dropping it leaves them blocked.
+  assert.equal(
+    R.inFlightRequestIdFrom({ statusCode: 409, details: { requestId: "req-7" } }),
+    "req-7",
+  );
+  assert.equal(R.inFlightRequestIdFrom({ statusCode: 400, details: { requestId: "x" } }), null);
+  assert.equal(R.inFlightRequestIdFrom({ statusCode: 409, details: {} }), null);
+});
+
+test("the reason bounds are the route's, and the hint says what is missing", () => {
+  assert.equal(R.isValidRecoveryReason("too short"), false);
+  assert.equal(R.isValidRecoveryReason("lost my phone in a river"), true);
+  assert.equal(R.isValidRecoveryReason("x".repeat(401)), false);
+  // Whitespace is trimmed before measuring, as the route does.
+  assert.equal(R.isValidRecoveryReason("   " + "a".repeat(9) + "   "), false);
+
+  assert.match(R.recoveryReasonHint(""), /at least 10/);
+  assert.match(R.recoveryReasonHint("short"), /5 more character/);
+  assert.equal(R.recoveryReasonHint("lost my phone in a river"), null);
+});
+
+test("each create failure is told apart, and none leaks a raw error", () => {
+  assert.equal(R.classifyCreateFailure({ statusCode: 401 }), "not_eligible");
+  assert.equal(R.classifyCreateFailure({ statusCode: 400 }), "invalid_reason");
+  assert.equal(R.classifyCreateFailure({ statusCode: 403 }), "not_a_member");
+  assert.equal(R.classifyCreateFailure({ statusCode: 429 }), "throttled");
+  assert.equal(R.classifyCreateFailure(new Error("boom")), "unknown");
+
+  for (const kind of ["not_eligible", "invalid_reason", "not_a_member", "throttled", "unknown"]) {
+    const msg = R.createFailureMessage(kind);
+    assert.ok(msg.length > 0, kind);
+    assert.doesNotMatch(msg, /statusCode|Error:|undefined/, kind);
+  }
+});
+
+test("the verification boundary is stated, not implied", () => {
+  // A user who thinks this signed them in will wait for an app that is never
+  // going to let them in.
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /did not sign you in/i);
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /did not change your two-factor/i);
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /administrator/i);
+});

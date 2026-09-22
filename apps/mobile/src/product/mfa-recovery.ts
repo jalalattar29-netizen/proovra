@@ -124,3 +124,113 @@ export function parseRecoveryLink(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// The CREATE leg
+// ---------------------------------------------------------------------------
+
+/**
+ * Filing the recovery request in the first place.
+ *
+ * The verify leg above and the admin approve/reject legs were wired long
+ * before anything in the product could CREATE one. Native had neither: it
+ * could not file a request and could not land on the emailed link.
+ *
+ * The route sits behind `requireAuth`, and `requireAuth` explicitly REFUSES
+ * MFA-pending tokens — a client sitting on the login-time challenge has no
+ * session yet. So eligibility is resolved rather than assumed, and the submit
+ * control is disabled with the reason spelled out instead of being a control
+ * that would 401 on tap.
+ */
+export const MFA_RECOVERY_CREATE_PATH = "/v1/identity/mfa-admin/recovery-requests";
+
+export function buildRecoveryResendPath(requestId: string): string {
+  return `/v1/identity/mfa/recovery-requests/${encodeURIComponent(requestId)}/resend-email`;
+}
+
+export function buildRecoveryCancelPath(requestId: string): string {
+  return `/v1/identity/mfa/recovery-requests/${encodeURIComponent(requestId)}/cancel`;
+}
+
+/** The reason bounds the route enforces: 10..400 characters, trimmed. */
+export const RECOVERY_REASON_MIN = 10;
+export const RECOVERY_REASON_MAX = 400;
+
+export function isValidRecoveryReason(reason: string): boolean {
+  const v = reason.trim();
+  return v.length >= RECOVERY_REASON_MIN && v.length <= RECOVERY_REASON_MAX;
+}
+
+export function recoveryReasonHint(reason: string): string | null {
+  const v = reason.trim();
+  if (v.length === 0) return `Describe what happened (at least ${RECOVERY_REASON_MIN} characters).`;
+  if (v.length < RECOVERY_REASON_MIN) {
+    return `${RECOVERY_REASON_MIN - v.length} more character(s) needed.`;
+  }
+  if (v.length > RECOVERY_REASON_MAX) {
+    return `${v.length - RECOVERY_REASON_MAX} character(s) too many.`;
+  }
+  return null;
+}
+
+export function buildRecoveryRequestBody(teamId: string, reason: string) {
+  return { teamId, reason: reason.trim() };
+}
+
+export interface RecoveryRequestRef {
+  id: string;
+  status: string | null;
+  expiresAtIso: string | null;
+}
+
+export function parseRecoveryRequest(payload: unknown): RecoveryRequestRef | null {
+  const r = obj(obj(payload).request ?? payload);
+  const id = str(r.id);
+  if (!id) return null;
+  return { id, status: str(r.status), expiresAtIso: str(r.expiresAt) };
+}
+
+/**
+ * A 409 means a request is ALREADY in flight, and it carries that request's
+ * id. That is not a failure — it is the answer, and it is the only way a user
+ * who lost the verification email can reach the resend control. Dropping it
+ * would leave them blocked with no way forward, which is the state this whole
+ * family exists to get them out of.
+ */
+export function inFlightRequestIdFrom(err: unknown): string | null {
+  const e = obj(err);
+  if (typeof e.statusCode === "number" && e.statusCode !== 409) return null;
+  return str(obj(e.details).requestId);
+}
+
+export type RecoveryCreateFailure =
+  | "not_eligible"
+  | "invalid_reason"
+  | "not_a_member"
+  | "throttled"
+  | "unknown";
+
+export function classifyCreateFailure(err: unknown): RecoveryCreateFailure {
+  const e = obj(err);
+  const status = typeof e.statusCode === "number" ? e.statusCode : null;
+  if (status === 400) return "invalid_reason";
+  if (status === 401) return "not_eligible";
+  if (status === 403) return "not_a_member";
+  if (status === 429) return "throttled";
+  return "unknown";
+}
+
+export function createFailureMessage(reason: RecoveryCreateFailure): string {
+  switch (reason) {
+    case "not_eligible":
+      return "Filing a recovery request needs a signed-in session, and a two-factor challenge is not one yet. Sign in on a device that still works, or contact your administrator.";
+    case "invalid_reason":
+      return "Describe what happened in a little more detail so an administrator can act on it.";
+    case "not_a_member":
+      return "You are not an active member of that workspace.";
+    case "throttled":
+      return "A recovery request was filed recently. Wait before filing another.";
+    case "unknown":
+      return "The recovery request could not be filed. Try again shortly.";
+  }
+}
