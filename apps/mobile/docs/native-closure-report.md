@@ -149,3 +149,89 @@ No hard reset · no destructive clean · no stash pop or drop (7 stashes, byte
 identical before and after) · no force push · **no push** · no production
 deployment · no production mutation. `services/api/.env` is absent, so no local
 boot could reach production. Every generator run was verified read-only first.
+
+---
+
+# I. FINAL EXECUTION PASS — 2026-09-22
+
+Everything below was executed in this pass, not inherited. Where a number
+moved, the cause is named; where something was already closed, it is said
+plainly rather than re-claimed as new work.
+
+## F-08 — ONE capture lifecycle
+
+UC-2, UC-3 and UC-5 each owned a second user-facing Evidence finalization:
+the acquisition screens sealed their own record and returned to the library,
+so the product had two ways to finish a capture and they disagreed about what
+a draft was. Acquisition now STAGES into the canonical Capture session — the
+engines are untouched (MediaProjection, continuous segmentation, ReplayKit,
+the Broadcast Extension, native hashing, segment sealing, continuity
+manifests, the whole UC-0 provenance and transport spine) — and `capture.tsx`
+performs the ONE finalization through `completeAcquisition`.
+
+No new session model, no adapter hierarchy, no second Evidence path. A
+standalone screen capture creates or resumes a canonical session like any
+other capture.
+
+MIXED MEDIA IS REFUSED, and this is the architectural point rather than a
+limitation: a session carries ONE `acquisitionMode`, the server stamps the
+record from it, and `SESSION_ALREADY_RESERVED` allows exactly one record per
+session. Sealing a phone photo and a screen recording into one record would
+be a false provenance claim, so the product states `MIXED_ORIGIN` instead of
+quietly picking one.
+
+Proven by `apps/mobile/test/capture-lifecycle-e2e.test.mjs` — the ten
+mandated scenarios driving the real modules against a recording transport,
+asserting the requests that actually leave the device.
+
+## BD-1, BD-2, BD-3 — closed
+
+BD-1's cancellation now says what it did (`CANCELLED` / `ALREADY_TERMINAL` /
+`NOT_FOUND` rather than a boolean that reported success for doing nothing).
+BD-2's jobs are two durable tables on the existing infrastructure — no
+parallel job system, the workspace on the row so isolation is a predicate,
+and one migration registered through the canonical inventory and the
+deployment plan. BD-3 was resolved during the convergence and is recorded
+with its cause.
+
+16 cases in `services/api/test/batch-analysis-durability.integration.test.ts`
+against live PostgreSQL 16, including single-claim concurrency across two
+connections, cross-instance visibility, workspace isolation and a stranger
+refused.
+
+## F-01 — reads, navigation, and a check that can fail
+
+The action inventory classified WRITES only. Showing an ordinary user an
+Enterprise console's DATA is the same failure as letting them change it, so
+every method is classified now: 217 actions, 92 of them reads. Four negative
+tests prove each refusal fires, and a fifth proves an open surface below a
+reserved one is not caught. A link into a reserved console is classified too,
+because a control that opens one makes no API call at all.
+
+0 ENTERPRISE_ONLY, 0 unclassifiable owners, 0 reserved links.
+
+## UC-5 — a defect the shared pipeline hid
+
+The continuity-manifest validator required `device.platform === "android"`,
+while the iOS Broadcast Extension reports its own honest `"ios"` — so no UC-5
+session could be sealed, and every Android suite passed. Closed, with eight
+integration cases that go red again if the validator is reverted.
+
+## The gates
+
+| Gate | Result |
+|---|---|
+| api unit | **25193 passed, 1 skipped — 819/819 files** |
+| api integration (live PostgreSQL 16) | **2294/2294 — 160/160 files** |
+| worker | **974/974 — 65/65 files** |
+| web | **3222 node:test + 1470 render** |
+| mobile | **932/932** |
+| shared | continuity manifest 15/15 |
+| typecheck (all workspaces) | clean |
+| lint (all workspaces) | clean |
+| contract audit | **79/79 OK, 0 MISMATCH, 0 UNRESOLVED** |
+| `audit:architecture --engine-check` | **AuditEngineIntegrity = PASS** |
+| `audit:architecture --closure-check` | **ReleaseBlockingClosure = PASS** |
+| clean-boot database | 278 migrations from empty · drift OK · raw-schema 880 objects, 0 divergences · preflight 4 pass / 1 warn (historical baseline) |
+| Playwright layout projects | settings 74 · search 382 · intake+evidence+attention 230 |
+
