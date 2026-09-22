@@ -51,6 +51,18 @@ export interface DraftItemInput {
   /** Where the app took it from — client-reported, recorded as such. */
   sourceLabel?: string | null;
   uploadState?: "pending" | "uploading" | "uploaded" | "failed";
+  /*
+   * THE PLAN FIELDS, which `CaptureSessionItemSchema` has always accepted.
+   *
+   * The native draft was not sending them, so an item captured on a phone
+   * reached the session with no role and no context note — and the readiness
+   * the web computes from exactly those fields had nothing to read. They are
+   * the operator's words about what an item IS and why it was taken; dropping
+   * them on the way to the server loses them permanently.
+   */
+  role?: string | null;
+  privateNote?: string | null;
+  checklistStepId?: string | null;
 }
 
 export interface CaptureDraft {
@@ -98,6 +110,9 @@ export function toDraftItems(items: readonly DraftItemInput[]) {
     sizeBytes: Math.max(0, Math.trunc(it.sizeBytes || 0)),
     durationMs: it.durationMs ?? null,
     sourceLabel: it.sourceLabel ?? null,
+    role: it.role ?? null,
+    privateNote: it.privateNote ?? null,
+    checklistStepId: it.checklistStepId ?? null,
     uploadState: it.uploadState ?? "pending",
   }));
 }
@@ -109,6 +124,8 @@ export async function openCaptureDraft(input: {
   teamId?: string | null;
   useLocation?: boolean;
   items?: readonly DraftItemInput[];
+  /** The collection plan the operator chose, snapshotted by the server. */
+  templateId?: string | null;
 }): Promise<CaptureDraft> {
   const res = await apiFetch("/v1/capture/sessions", {
     method: "POST",
@@ -117,6 +134,9 @@ export async function openCaptureDraft(input: {
       // gates itself (a managed identity with no personal space is refused
       // before any row is written).
       ...(input.teamId ? { teamId: input.teamId } : {}),
+      // Absent, not null: the create body takes `templateId?` and sending an
+      // empty one would record a plan that was not chosen.
+      ...(input.templateId ? { templateId: input.templateId } : {}),
       useLocation: !!input.useLocation,
       items: toDraftItems(input.items ?? []),
     }),
@@ -129,13 +149,25 @@ export async function openCaptureDraft(input: {
 /** Persist the staged items. The draft is the durable record of the session. */
 export async function updateCaptureDraft(
   draftId: string,
-  input: { items: readonly DraftItemInput[]; useLocation?: boolean },
+  input: {
+    items: readonly DraftItemInput[];
+    useLocation?: boolean;
+    /**
+     * The chosen plan, or `null` to clear one.
+     *
+     * The PATCH body takes `templateId?: string | null`, so null is
+     * meaningful here — it is how an operator un-chooses a plan — and
+     * `undefined` leaves whatever the session already records.
+     */
+    templateId?: string | null;
+  },
 ): Promise<void> {
   await apiFetch(`/v1/capture/sessions/${draftId}`, {
     method: "PATCH",
     body: JSON.stringify({
       items: toDraftItems(input.items),
       ...(input.useLocation === undefined ? {} : { useLocation: input.useLocation }),
+      ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
     }),
   });
 }

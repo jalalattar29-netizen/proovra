@@ -85,9 +85,32 @@ test("staged items are shaped for the canonical itemsSnapshot", () => {
       sizeBytes: 12345,
       durationMs: null,
       sourceLabel: "CAMERA",
+      // The plan fields the canonical schema has always accepted. The native
+      // draft was not sending them, so a role and a context note the operator
+      // typed were lost at unmount and readiness had nothing to read.
+      role: null,
+      privateNote: null,
+      checklistStepId: null,
       uploadState: "pending",
     },
   ]);
+});
+
+test("the plan fields travel when the operator has set them", () => {
+  const [out] = D.toDraftItems([
+    {
+      clientItemId: "a1",
+      fileName: "f",
+      mimeType: "image/jpeg",
+      sizeBytes: 1,
+      role: "Primary evidence",
+      privateNote: "Taken from the doorway",
+      checklistStepId: "primary_overview_media",
+    },
+  ]);
+  assert.equal(out.role, "Primary evidence");
+  assert.equal(out.privateNote, "Taken from the doorway");
+  assert.equal(out.checklistStepId, "primary_overview_media");
 });
 
 test("a missing or negative size is normalised — the schema requires int >= 0", () => {

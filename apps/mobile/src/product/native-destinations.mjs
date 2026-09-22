@@ -190,12 +190,16 @@ export const NATIVE_DESTINATIONS = {
   "/capture": {
     routeFile: "(stack)/capture.tsx",
     alsoRouteFiles: ["(stack)/screen-capture.tsx", "(stack)/continuous-capture.tsx"],
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/capture/page.tsx", "apps/web/app/(app)/capture/_lib/*"],
     gaps: [
       "LEDGER CORRECTION: three of the four gaps recorded here were closed by the capture convergence and the row was never updated. Mixed media is supported (the type lock is gone; deriveBatchEvidenceType yields DOCUMENT for a mixed session); uploads compute their digests through expo-crypto with no crypto.subtle; and Discard no longer leaves a reserved Evidence record, because staging now opens a DRAFT capture session that holds no Evidence at all.",
-      "still absent: capture templates, intake stages, readiness checks and suggestions",
+      "TEMPLATES, INTAKE STAGES, READINESS and SUGGESTIONS are now ported. Templates come from GET /v1/capture/intake-templates and there is NO native seed list: the web keeps one as an offline fallback, and a second catalogue on the device would be a second authority. A template is guidance rather than a gate, so when the catalogue cannot be read capture proceeds without one and says so.",
+      "the predicates are pinned to the web source by test/capture-plan.test.mjs, which READS apps/web/.../captureReadiness.ts and asserts the native module agrees - the primary-step regex, the three supporting prefixes, the three canonical criteria, the 0.99/0.5 thresholds, the five stage ids and labels, and the suggestion catalogue. captureReadiness.ts says in its own words that 'Duplicating the predicate is the bug class this file is now armoured against'; Native cannot import it, so the armour is a drift test.",
+      "the ROLE string is the load-bearing branch of the primary detector and is what the item editor writes. A template whose server step ids do not follow primary_* - Insurance Claim ships overview_media, Incident ships scene_overview - defeats the prefix test, and the surface would keep asking for a primary item the operator had already marked.",
+      "DEFECT CLOSED: the native draft was not sending role, privateNote or checklistStepId, which CaptureSessionItemSchema has always accepted. A role and a context note the operator typed were lost at unmount, and the readiness the web computes from exactly those fields had nothing to read. The chosen templateId now travels on both the create and the PATCH, where null clears a plan the operator un-chose.",
+      "readiness and the stage rail NEVER block, and say so on screen. Readiness is operational completeness: the boundary sentence states that it is not an assertion about admissibility or authenticity, rendered rather than left in a comment.",
       "native acquisition sources (UC-2 / UC-3 / UC-5) are reached from here and are deliberately NOT on Home",
       "device acceptance outstanding — docs/physical-acceptance.md section 2",
     ],

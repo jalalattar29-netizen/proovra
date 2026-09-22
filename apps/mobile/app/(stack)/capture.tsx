@@ -19,9 +19,21 @@ import {
   ProovraBadge,
   ProovraListRow,
   ProovraEmptyState,
+  ProovraSheet,
+  ProovraFormField,
+  ProovraInput,
 } from "../../src/ui";
 import { useLocale } from "../../src/locale-context";
 import { useToast } from "../../src/toast-context";
+import {
+  CapturePlanSections,
+  useIntakeTemplates,
+} from "../../src/ui/capture-plan-sections";
+import {
+  roleForStep,
+  type CollectionPlanTemplate,
+  type PlannedItem,
+} from "../../src/product/capture-plan";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../src/api";
 import * as DocumentPicker from "expo-document-picker";
@@ -103,6 +115,18 @@ type CapturedItem = {
   uploading: boolean;
   uploaded: boolean;
   error?: string | null;
+  /*
+   * THE PLAN FIELDS.
+   *
+   * Readiness reads checklistStepId, role, privateNote, sourceLabel and the
+   * location signal, and every one of them is something the operator sets. A
+   * template without these on the staged items is a list of headings.
+   */
+  checklistStepId?: string | null;
+  role?: string | null;
+  privateNote?: string | null;
+  itemSourceLabel?: string | null;
+  locationIncluded?: boolean;
 };
 
 type RecentEvidenceItem = {
@@ -145,8 +169,52 @@ export default function CaptureScreen() {
   const [sessionCompletingEvidence, setSessionCompletingEvidence] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [discarding, setDiscarding] = useState(false);
+
+  // The collection plan. The catalogue is the SERVER's; nothing is seeded here.
+  const templates = useIntakeTemplates();
+  const [template, setTemplate] = useState<CollectionPlanTemplate | null>(null);
+  const [planningItem, setPlanningItem] = useState<CapturedItem | null>(null);
+  const templateRef = useRef<CollectionPlanTemplate | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  /**
+   * The staged session, in the shape the plan reads.
+   *
+   * `useLocation` is the session-wide switch this screen already owns, so it
+   * IS the location signal for every item — not a per-item guess.
+   */
+  useEffect(() => {
+    templateRef.current = template;
+  }, [template]);
+
+  const plannedItems: PlannedItem[] = sessionItems.map((i) => ({
+    checklistStepId: i.checklistStepId ?? null,
+    role: i.role ?? null,
+    privateNote: i.privateNote ?? null,
+    sourceLabel: i.itemSourceLabel ?? null,
+    locationIncluded: useLocation,
+    // The device has no duplicate check at capture time, and a null here says
+    // "not checked" rather than "no duplicates" — the criterion is satisfied
+    // because nothing is FLAGGED, which is the same reading the web uses.
+    duplicateStatus: null,
+  }));
+
+  const applyPlan = useCallback(
+    (itemId: string, patch: Partial<CapturedItem>) => {
+      setSessionItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i)));
+    },
+    [],
+  );
   /** The canonical /v1/capture/sessions DRAFT id — the session, before commit. */
-  const [draftId, setDraftId] = useState<string | null>(null);
+  /*
+   * WRITE-ONLY STATE, retired.
+   *
+   * `draftId` was set in four places and read in none: every reader goes
+   * through `draftIdRef`, which is what the callbacks need. A state variable
+   * nothing reads is a re-render on every draft transition for no effect, and
+   * the next person to touch this file has to prove it is dead before moving
+   * anything. Both the state and its four writes are gone.
+   */
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -224,9 +292,19 @@ hasActiveDraft: isSessionActive || isRecording,
           mimeType: it.mimeType,
           sizeBytes: it.sizeBytes ?? 0,
           durationMs: it.durationMs ?? null,
-          sourceLabel: it.source,
+          sourceLabel: it.itemSourceLabel ?? it.source,
           uploadState: it.uploaded ? "uploaded" : "pending",
+          // The operator's words about what this item IS and why it was
+          // taken. The canonical item schema has always accepted them; the
+          // native draft was not sending them, so they were lost at unmount
+          // and the readiness had nothing to read.
+          role: it.role ?? null,
+          privateNote: it.privateNote ?? null,
+          checklistStepId: it.checklistStepId ?? null,
         })),
+        // null clears a plan the operator un-chose; undefined would leave a
+        // stale one recorded on the session.
+        templateId: templateRef.current?.id ?? null,
       }).catch(() => undefined);
     }
 
@@ -500,9 +578,12 @@ hasActiveDraft: isSessionActive || isRecording,
     setSessionCreatingEvidence(true);
     setInfo("Starting capture session...");
     try {
-      const draft = await openCaptureDraft({ teamId, useLocation });
+      const draft = await openCaptureDraft({
+        teamId,
+        useLocation,
+        templateId: templateRef.current?.id ?? null,
+      });
       draftIdRef.current = draft.id;
-      setDraftId(draft.id);
       return draft.id;
     } finally {
       setSessionCreatingEvidence(false);
@@ -582,7 +663,6 @@ hasActiveDraft: isSessionActive || isRecording,
         captureSessionRef.current = null;
         draftIdRef.current = null;
         setSessionEvidenceId(null);
-        setDraftId(null);
         if (draft) void discardCaptureDraft(draft).catch(() => undefined);
         if (session) void discardDirectCaptureSession(session).catch(() => undefined);
         void clearCaptureSession();
@@ -629,7 +709,6 @@ hasActiveDraft: isSessionActive || isRecording,
       if (draftIdRef.current) {
         await discardCaptureDraft(draftIdRef.current);
         draftIdRef.current = null;
-        setDraftId(null);
       }
       if (session) {
         await discardDirectCaptureSession(session);
@@ -1083,7 +1162,6 @@ setSessionState(
       if (draftIdRef.current) {
         await discardCaptureDraft(draftIdRef.current).catch(() => undefined);
         draftIdRef.current = null;
-        setDraftId(null);
       }
       await clearCaptureSession();
       sessionEvidenceIdRef.current = null;
@@ -1292,6 +1370,15 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
             </ProovraText>
 
             {sessionItems.length > 0 ? (
+              <CapturePlanSections
+                items={plannedItems}
+                templates={templates}
+                template={template}
+                onSelectTemplate={setTemplate}
+              />
+            ) : null}
+
+            {sessionItems.length > 0 ? (
               <ProovraCard style={styles.sessionCard}>
                 <ProovraText variant="h3" weight="semibold">Capture Session</ProovraText>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
@@ -1311,6 +1398,23 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
                         </View>
                         <ProovraText variant="label" numberOfLines={1} style={styles.thumbLabel}>{item.originalFilename || `Item ${index + 1}`}</ProovraText>
                         <ProovraText variant="label" color={theme.color.ink.muted}>{item.uploading ? `${item.uploadProgress}%` : item.uploaded ? "Uploaded" : "Ready"}</ProovraText>
+                        {/*
+                          What this item IS, and why it was captured. The plan
+                          reads both; without them a template is headings.
+                        */}
+                        <ProovraText variant="label" color={theme.color.ink.muted} numberOfLines={1}>
+                          {item.role ?? "No role set"}
+                        </ProovraText>
+                        <Pressable
+                          onPress={() => {
+                            setNoteDraft(item.privateNote ?? "");
+                            setPlanningItem(item);
+                          }}
+                          disabled={sessionCompletingEvidence || isRecording}
+                          style={styles.removePill}
+                        >
+                          <Text style={styles.removePillText}>Describe</Text>
+                        </Pressable>
                         <Pressable onPress={() => removeFromSession(item.id)} disabled={sessionCompletingEvidence || isRecording} style={styles.removePill}>
                           <Text style={styles.removePillText}>Remove</Text>
                         </Pressable>
@@ -1346,6 +1450,69 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
                 </View>
               </ProovraCard>
             ) : null}
+
+            <ProovraSheet
+              visible={planningItem !== null}
+              title={planningItem?.originalFilename ?? "This item"}
+              onClose={() => setPlanningItem(null)}
+            >
+              {template && template.steps.length > 0 ? (
+                <>
+                  <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+                    What is this item?
+                  </ProovraText>
+                  {template.steps.map((step) => (
+                    <ProovraListRow
+                      key={step.id}
+                      title={step.title}
+                      subtitle={step.description || undefined}
+                      onPress={() => {
+                        if (!planningItem) return;
+                        // The ROLE string is what readiness reads first: a
+                        // template whose step ids do not follow primary_*
+                        // would otherwise never satisfy the criterion.
+                        applyPlan(planningItem.id, {
+                          checklistStepId: step.id,
+                          role: roleForStep(step),
+                        });
+                        setPlanningItem((cur) =>
+                          cur ? { ...cur, checklistStepId: step.id, role: roleForStep(step) } : cur,
+                        );
+                      }}
+                      trailing={
+                        planningItem?.checklistStepId === step.id ? (
+                          <ProovraBadge label="Chosen" tone="verified" />
+                        ) : undefined
+                      }
+                    />
+                  ))}
+                </>
+              ) : (
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  Choose a collection plan to give items a role.
+                </ProovraText>
+              )}
+
+              <ProovraFormField label="Context note">
+                <ProovraInput
+                  value={noteDraft}
+                  onChangeText={setNoteDraft}
+                  placeholder="Why this was captured, in your words"
+                  autoCapitalize="sentences"
+                  multiline
+                  accessibilityLabel="Context note"
+                />
+              </ProovraFormField>
+              <ProovraButton
+                label="Save"
+                onPress={() => {
+                  if (planningItem) {
+                    applyPlan(planningItem.id, { privateNote: noteDraft.trim() || null });
+                  }
+                  setPlanningItem(null);
+                }}
+              />
+            </ProovraSheet>
 
             {error ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
             {info ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{info}</ProovraText> : null}
