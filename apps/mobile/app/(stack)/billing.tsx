@@ -5,13 +5,23 @@ import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
+import { BillingSections } from "../../src/ui/billing-sections";
+import {
+  BILLING_ACCOUNTS_PATH,
+  buildBillingAccountPath,
+} from "../../src/product/billing";
 import {
   buildPricingPath,
   formatMonthlyPrice,
   isCurrentPlan,
   parsePricingCatalogue,
   planSummaryLine,
+  formatAddonSize,
+  parseEvidenceCreditOffer,
+  parseStorageAddons,
+  type EvidenceCreditOffer,
   type PricingCatalogue,
+  type StorageAddonOffer,
 } from "../../src/product/pricing";
 import {
   ProovraScreen,
@@ -34,6 +44,9 @@ export default function BillingScreen() {
   const router = useRouter();
   const [plan, setPlan] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<PricingCatalogue | null>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [addons, setAddons] = useState<StorageAddonOffer[]>([]);
+  const [credit, setCredit] = useState<EvidenceCreditOffer | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<SafeError | null>(null);
 
@@ -41,10 +54,11 @@ export default function BillingScreen() {
     setState("loading");
     setError(null);
     try {
-      const { accounts } = await apiFetch("/v1/billing/accounts");
+      const { accounts } = await apiFetch(BILLING_ACCOUNTS_PATH);
       const personal = (accounts ?? []).find((a: { type?: string }) => a.type === "PERSONAL");
-      if (!personal) { setPlan("FREE"); setState("ready"); return; }
-      const projection = await apiFetch(`/v1/billing/accounts/PERSONAL/${personal.id}`);
+      if (!personal) { setPlan("FREE"); setAccountId(null); setState("ready"); return; }
+      setAccountId(typeof personal.id === "string" ? personal.id : null);
+      const projection = await apiFetch(buildBillingAccountPath("PERSONAL", personal.id));
       setPlan(projection.plan?.planKey ?? "FREE");
       setState("ready");
     } catch (err) {
@@ -60,7 +74,11 @@ export default function BillingScreen() {
   // catalogue read that fails must not hide it.
   useEffect(() => {
     void apiFetch(buildPricingPath())
-      .then((d) => setCatalogue(parsePricingCatalogue(d)))
+      .then((d) => {
+        setCatalogue(parsePricingCatalogue(d));
+        setAddons(parseStorageAddons(d));
+        setCredit(parseEvidenceCreditOffer(d));
+      })
       .catch(() => setCatalogue(null));
   }, []);
 
@@ -122,18 +140,68 @@ export default function BillingScreen() {
               </ProovraSection>
             ) : null}
 
-            <ProovraCard style={styles.card}>
-              {/*
-                No purchase, upgrade or checkout control, and the reason is
-                stated rather than left as a missing button: mobile app-store
-                payment rules govern digital-goods purchases inside an app.
-                The catalogue above answers what each plan includes, which is
-                the question this screen has to answer anyway.
-              */}
-              <ProovraText variant="body" color={theme.color.ink.secondary}>
-                Plan changes and payment are handled in the PROOVRA web app.
-              </ProovraText>
-            </ProovraCard>
+            {/*
+              What the customer is paying for, every payment they have made,
+              and the ability to stop paying.
+
+              This used to be one line saying plan changes happen on the web,
+              justified by "app-store rules". That was not evidence, and it
+              removed reads and cancellations that no store has a position on.
+              The transaction matrix in src/product/billing.ts classifies every
+              billing action; exactly three — the subscription, storage and
+              credit CHECKOUTS — are a distribution-policy question, and they
+              are named there rather than here.
+            */}
+            {/* What can be bought, and what it costs. Display, not purchase. */}
+            {catalogue && addons.length > 0 ? (
+              <ProovraSection title="Storage add-ons">
+                <ProovraCard style={styles.card}>
+                  {addons.map((a) => (
+                    <View key={a.key} style={styles.planRow}>
+                      <ProovraText variant="bodySm">
+                        {formatAddonSize(a.storageBytes) ?? a.label}
+                      </ProovraText>
+                      <ProovraText variant="label" color={theme.color.ink.muted}>
+                        {formatMonthlyPrice(a.priceCents, catalogue.currency).replace(" / month", "")}
+                      </ProovraText>
+                    </View>
+                  ))}
+                </ProovraCard>
+              </ProovraSection>
+            ) : null}
+
+            {credit ? (
+              <ProovraSection title="Pay per record">
+                <ProovraCard style={styles.card}>
+                  <ProovraText variant="body" weight="semibold">
+                    {credit.displayName}
+                  </ProovraText>
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    {[
+                      credit.unitPriceCents !== null
+                        ? formatMonthlyPrice(credit.unitPriceCents, catalogue?.currency ?? null)
+                            .replace(" / month", " per credit")
+                        : null,
+                      credit.creditsRequiredPerCompletion !== null
+                        ? `${credit.creditsRequiredPerCompletion} credit(s) per completed record`
+                        : null,
+                      // Reported, not assumed: "credits do not expire" is a
+                      // commercial promise, and stating it without reading it
+                      // would be making that promise on the product's behalf.
+                      credit.creditsExpire === false ? "Credits do not expire" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </ProovraText>
+                </ProovraCard>
+              </ProovraSection>
+            ) : null}
+
+            <BillingSections
+              accountType="PERSONAL"
+              accountId={accountId}
+              onChanged={() => void load()}
+            />
           </>
         )}
       </ProovraSection>

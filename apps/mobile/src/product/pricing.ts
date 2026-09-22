@@ -14,13 +14,19 @@
  * what they are currently on.
  *
  * ===========================================================================
- * WHAT THIS DELIBERATELY DOES NOT DO
+ * DISPLAY IS NOT A TRANSACTION
  * ===========================================================================
- * It offers no purchase, no upgrade and no checkout link. That is a decision
- * about mobile app-store payment rules, not an oversight, and the surface says
- * so rather than leaving a user to wonder why the button is missing. The
- * catalogue is informational: it answers "what does each plan include", which
- * is the question a billing screen has to answer anyway.
+ * This module shows what each plan, storage add-on and credit offer contains
+ * and costs. None of that is a purchase.
+ *
+ * An earlier version of this comment said the absent checkout was "a decision
+ * about mobile app-store payment rules". That was an unsourced claim doing a
+ * lot of work: it was used to justify withholding the catalogue itself, which
+ * no store has a position on. The classification now lives in
+ * `src/product/billing.ts`, where every billing action is placed on a row —
+ * and exactly three, the subscription, storage and credit CHECKOUTS, are the
+ * distribution-policy question. Blocking the price because of the checkout
+ * would be blocking a read on a write.
  *
  * Every figure is the server's. Nothing here recomputes a price, a storage
  * allowance or a seat count — those live in PLAN_CAPABILITIES behind the
@@ -158,4 +164,85 @@ export function planSummaryLine(offer: PlanOffer): string {
 /** Whether this offer is the plan the workspace is currently on. */
 export function isCurrentPlan(offer: PlanOffer, activePlan: string | null): boolean {
   return activePlan !== null && offer.plan.toUpperCase() === activePlan.toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Storage add-ons and the pay-per-evidence offer
+// ---------------------------------------------------------------------------
+
+/**
+ * Both are DISPLAY. The catalogue answers "what can I buy and what does it
+ * cost", which a customer is entitled to know wherever they are — the
+ * transaction matrix in `billing.ts` puts only the CHECKOUT itself on the
+ * unresolved row, and blocking the price on the checkout would be blocking a
+ * read on a write.
+ */
+export interface StorageAddonOffer {
+  key: string;
+  label: string;
+  storageBytes: number | null;
+  priceCents: number | null;
+  billingCycle: string | null;
+}
+
+export function parseStorageAddons(payload: unknown): StorageAddonOffer[] {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const list = Array.isArray(d.storageAddons) ? d.storageAddons : [];
+  return list
+    .map((raw) => {
+      const a = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      const key = typeof a.key === "string" && a.key.length > 0 ? a.key : null;
+      if (!key) return null;
+      return {
+        key,
+        label: typeof a.label === "string" && a.label.length > 0 ? a.label : key,
+        storageBytes: typeof a.storageBytes === "number" ? a.storageBytes : null,
+        priceCents: typeof a.priceCents === "number" ? a.priceCents : null,
+        billingCycle: typeof a.billingCycle === "string" ? a.billingCycle : null,
+      };
+    })
+    .filter((a): a is StorageAddonOffer => a !== null);
+}
+
+export interface EvidenceCreditOffer {
+  displayName: string;
+  unitPriceCents: number | null;
+  creditsGrantedPerPurchase: number | null;
+  creditsRequiredPerCompletion: number | null;
+  /**
+   * Whether a credit expires.
+   *
+   * Reported, not assumed. "Credits do not expire" is a commercial promise,
+   * and a surface that states it without reading it would be making the
+   * promise on the product's behalf.
+   */
+  creditsExpire: boolean | null;
+  requiresSubscription: boolean;
+}
+
+export function parseEvidenceCreditOffer(payload: unknown): EvidenceCreditOffer | null {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const p = (d.payg && typeof d.payg === "object" ? d.payg : null) as Record<string, unknown> | null;
+  if (!p) return null;
+
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return {
+    displayName:
+      typeof p.displayName === "string" && p.displayName.length > 0
+        ? p.displayName
+        : "Pay per evidence record",
+    unitPriceCents: n(p.unitPriceCents),
+    creditsGrantedPerPurchase: n(p.creditsGrantedPerPurchase),
+    creditsRequiredPerCompletion: n(p.creditsRequiredPerCompletion),
+    creditsExpire: typeof p.creditsExpire === "boolean" ? p.creditsExpire : null,
+    requiresSubscription: p.requiresSubscription === true,
+  };
+}
+
+/** Bytes as the label a person reads, or null when the server sent none. */
+export function formatAddonSize(bytes: number | null): string | null {
+  if (bytes === null || bytes <= 0) return null;
+  const gb = bytes / 1_000_000_000;
+  if (gb >= 1000) return `${Math.round(gb / 1000)} TB`;
+  return `${Math.round(gb)} GB`;
 }

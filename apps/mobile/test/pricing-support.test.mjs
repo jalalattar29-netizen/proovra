@@ -140,3 +140,60 @@ test("mailto links are well formed and encode their subject", () => {
   assert.equal(S.mailtoUrl("a@b.test"), "mailto:a@b.test");
   assert.equal(S.mailtoUrl("a@b.test", "Help me"), "mailto:a@b.test?subject=Help%20me");
 });
+
+/* ------------------------------------------ add-ons and the credit offer */
+
+/**
+ * Display is not a transaction. Blocking the price because of the checkout
+ * would be blocking a read on a write — and the earlier version of this
+ * surface did exactly that, on an unsourced store-policy claim.
+ */
+test("storage add-ons are projected, and a row with no key is dropped", () => {
+  const list = P.parseStorageAddons({
+    storageAddons: [
+      { key: "gb100", label: "100 GB", storageBytes: 100_000_000_000, priceCents: 500, billingCycle: "ONE_TIME" },
+      { label: "no key" },
+      null,
+    ],
+  });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].priceCents, 500);
+});
+
+test("an add-on size reads as a person would say it", () => {
+  assert.equal(P.formatAddonSize(100_000_000_000), "100 GB");
+  assert.equal(P.formatAddonSize(1_000_000_000_000), "1 TB");
+  // Absent or nonsensical sizes produce no label rather than "0 GB".
+  assert.equal(P.formatAddonSize(null), null);
+  assert.equal(P.formatAddonSize(0), null);
+});
+
+test("the credit offer reports expiry rather than assuming it", () => {
+  // "Credits do not expire" is a commercial promise. Stating it without
+  // reading it would be making that promise on the product's behalf.
+  const offer = P.parseEvidenceCreditOffer({
+    payg: {
+      displayName: "Pay per record",
+      unitPriceCents: 300,
+      creditsGrantedPerPurchase: 1,
+      creditsRequiredPerCompletion: 1,
+      creditsExpire: false,
+      requiresSubscription: false,
+    },
+  });
+  assert.equal(offer.creditsExpire, false);
+  assert.equal(offer.unitPriceCents, 300);
+
+  // An offer that says nothing about expiry reports null, not "does not".
+  const silent = P.parseEvidenceCreditOffer({ payg: { displayName: "x" } });
+  assert.equal(silent.creditsExpire, null);
+
+  assert.equal(P.parseEvidenceCreditOffer({}), null);
+});
+
+test("the pricing module no longer justifies a removal with store policy", () => {
+  const src = readFileSync(resolve(HERE, "../src/product/pricing.ts"), "utf8");
+  // The claim may be DISCUSSED (the comment explains why it was wrong), but it
+  // must not be the stated reason anything is withheld.
+  assert.doesNotMatch(src, /That is a decision about mobile app-store payment rules/);
+});
