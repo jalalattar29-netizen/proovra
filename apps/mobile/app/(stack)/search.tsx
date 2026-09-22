@@ -18,6 +18,11 @@ import {
   documentTypeDisplay,
   searchRowKey,
   type SearchRow,
+  type SearchDocumentType,
+  NATIVE_SEARCH_FILTERS,
+  filterToDocumentTypes,
+  buildSuggestPath,
+  parseSuggestions,
 } from "../../src/product/search";
 import { theme } from "../../src/theme/theme";
 import {
@@ -29,6 +34,9 @@ import {
   ProovraInput,
   ProovraListRow,
   ProovraEmptyState,
+  ProovraFilterChips,
+  ProovraResultCount,
+  ProovraCursorPager,
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../src/ui";
@@ -41,6 +49,9 @@ export default function SearchScreen() {
   const teamId = context?.activeTeamId ?? null;
 
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"ALL" | SearchDocumentType>("ALL");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [debounced, setDebounced] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [rows, setRows] = useState<SearchRow[]>([]);
@@ -57,7 +68,12 @@ export default function SearchScreen() {
 
   const run = useCallback(
     async (query: string, existing: SearchRow[], nextCursor: string | null) => {
-      const path = buildSearchPath({ teamId, q: query, cursor: nextCursor });
+      const path = buildSearchPath({
+        teamId,
+        q: query,
+        cursor: nextCursor,
+        documentTypes: filterToDocumentTypes(filter),
+      });
       if (!path) {
         setPhase("idle");
         setRows([]);
@@ -74,6 +90,7 @@ export default function SearchScreen() {
         const parsed = parseSearchResponse(data);
         setRows(nextCursor ? [...existing, ...parsed.rows] : parsed.rows);
         setCursor(parsed.nextCursor);
+        setTotal(parsed.total ?? null);
         setPhase("ready");
       } catch (err) {
         if (seq !== reqSeq.current) return;
@@ -83,12 +100,33 @@ export default function SearchScreen() {
         if (seq === reqSeq.current) setLoadingMore(false);
       }
     },
-    [teamId],
+    [teamId, filter],
   );
 
   useEffect(() => {
     void run(debounced, [], null);
   }, [debounced, run]);
+
+  /*
+   * Typeahead. A failure here yields NO suggestions rather than an error state:
+   * this is a convenience above the field, and a user who is already typing a
+   * working query should not be told something went wrong because the
+   * suggestion service is down.
+   */
+  useEffect(() => {
+    let alive = true;
+    const path = buildSuggestPath({ teamId, q: debounced });
+    if (!path) {
+      setSuggestions([]);
+      return;
+    }
+    void apiFetch(path)
+      .then((d) => alive && setSuggestions(parseSuggestions(d)))
+      .catch(() => alive && setSuggestions([]));
+    return () => {
+      alive = false;
+    };
+  }, [debounced, teamId]);
 
   const open = useCallback(
     (row: SearchRow) => {
@@ -110,6 +148,27 @@ export default function SearchScreen() {
           autoCapitalize="none"
           editable={workspaceReady}
           testID="search-input"
+        />
+        {suggestions.length > 0 && phase !== "loading" ? (
+          <View style={styles.suggestions}>
+            {suggestions.map((sug) => (
+              <ProovraButton
+                key={sug}
+                label={sug}
+                variant="ghost"
+                fullWidth={false}
+                onPress={() => setQ(sug)}
+              />
+            ))}
+          </View>
+        ) : null}
+        {/* Result families, as the web filter bar offers them. */}
+        <ProovraFilterChips
+          label="Type"
+          value={filter}
+          onChange={setFilter}
+          options={NATIVE_SEARCH_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+          disabled={!workspaceReady}
         />
       </ProovraSection>
 
@@ -133,6 +192,9 @@ export default function SearchScreen() {
         <ProovraEmptyState title="No results" message={`Nothing matched “${debounced}”.`} />
       ) : (
         <>
+          <View style={styles.count}>
+            <ProovraResultCount count={rows.length} total={total} noun="result" />
+          </View>
           <ProovraCard>
             {rows.map((row) => {
               const type = documentTypeDisplay(row.documentType);
@@ -153,16 +215,11 @@ export default function SearchScreen() {
               );
             })}
           </ProovraCard>
-          {cursor ? (
-            <View style={styles.more}>
-              <ProovraButton
-                label="Load more"
-                variant="secondary"
-                loading={loadingMore}
-                onPress={() => void run(debounced, rows, cursor)}
-              />
-            </View>
-          ) : null}
+          <ProovraCursorPager
+            hasMore={!!cursor}
+            loading={loadingMore}
+            onLoadMore={() => void run(debounced, rows, cursor)}
+          />
         </>
       )}
     </ProovraScreen>
@@ -171,4 +228,6 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   more: { marginTop: theme.space.s4 },
+  count: { marginBottom: theme.space.s2 },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
 });

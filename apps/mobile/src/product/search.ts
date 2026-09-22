@@ -45,6 +45,8 @@ export interface SearchRow {
 }
 
 export interface SearchResponse {
+  /** Workspace total when the server reports one; null means "page only". */
+  total?: number | null;
   rows: SearchRow[];
   nextCursor: string | null;
 }
@@ -74,6 +76,11 @@ export interface SearchQueryInput {
   cursor?: string | null;
   limit?: number;
   mode?: "KEYWORD" | "SEMANTIC" | "HYBRID";
+  /**
+   * Narrow the result families, as the web filter bar does. Empty or omitted
+   * means every family — the same default the web applies when no chip is on.
+   */
+  documentTypes?: readonly SearchDocumentType[];
 }
 
 /**
@@ -90,7 +97,64 @@ export function buildSearchPath(input: SearchQueryInput): string | null {
   params.set("limit", String(input.limit ?? SEARCH_PAGE_SIZE));
   params.set("mode", input.mode ?? "KEYWORD");
   if (input.cursor) params.set("cursor", input.cursor);
+  // The web sends one repeated param per selected family; an empty selection
+  // sends none, which the server reads as "all".
+  for (const t of input.documentTypes ?? []) params.append("documentType", t);
   return `/v1/search?${params.toString()}`;
+}
+
+/**
+ * The families a native user can actually ACT on, in the order the web lists
+ * them. The full SEARCH_DOCUMENT_TYPES union includes operator families
+ * (audit events, workflow steps, incidents) whose results native can show but
+ * not open — offering them as a filter would promise a destination that does
+ * not exist.
+ */
+export const NATIVE_SEARCH_FILTERS: ReadonlyArray<{
+  value: "ALL" | SearchDocumentType;
+  label: string;
+}> = [
+  { value: "ALL", label: "All" },
+  { value: "EVIDENCE", label: "Evidence" },
+  { value: "CASE", label: "Cases" },
+  { value: "REPORT", label: "Reports" },
+  { value: "INTAKE_LINK", label: "Intake links" },
+];
+
+/** Translate the single-select chip into the query's family list. */
+export function filterToDocumentTypes(
+  filter: "ALL" | SearchDocumentType,
+): readonly SearchDocumentType[] | undefined {
+  return filter === "ALL" ? undefined : [filter];
+}
+
+/**
+ * GET /v1/search/suggest — the typeahead the web offers above the field.
+ * Returns at most `limit` suggestion strings; a failure yields none rather
+ * than surfacing an error over a convenience feature.
+ */
+export function buildSuggestPath(input: {
+  teamId: string | null;
+  q: string;
+  limit?: number;
+}): string | null {
+  const q = input.q.trim();
+  if (!input.teamId || q.length < 2) return null;
+  const params = new URLSearchParams();
+  params.set("teamId", input.teamId);
+  params.set("q", q);
+  params.set("limit", String(input.limit ?? 8));
+  return `/v1/search/suggest?${params.toString()}`;
+}
+
+/** Normalise the suggest envelope; anything unexpected yields no suggestions. */
+export function parseSuggestions(data: unknown): string[] {
+  const o = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const raw = Array.isArray(o["suggestions"]) ? o["suggestions"] : Array.isArray(o["items"]) ? o["items"] : [];
+  return raw
+    .map((r) => (typeof r === "string" ? r : typeof (r as { text?: unknown })?.text === "string" ? (r as { text: string }).text : null))
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .slice(0, 8);
 }
 
 /** Normalize the API envelope (defensive against missing fields). */
@@ -98,7 +162,8 @@ export function parseSearchResponse(data: unknown): SearchResponse {
   const obj = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   const rows = Array.isArray(obj["rows"]) ? (obj["rows"] as SearchRow[]) : [];
   const nextCursor = typeof obj["nextCursor"] === "string" ? (obj["nextCursor"] as string) : null;
-  return { rows, nextCursor };
+  const total = typeof obj["total"] === "number" ? (obj["total"] as number) : null;
+  return { rows, nextCursor, total };
 }
 
 /**

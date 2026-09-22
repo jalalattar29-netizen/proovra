@@ -52,7 +52,7 @@ test("result routes only to surfaces native has; unknown/missing → not tappabl
 });
 
 test("response parsing is defensive", () => {
-  assert.deepEqual(mod.parseSearchResponse(null), { rows: [], nextCursor: null });
+  assert.deepEqual(mod.parseSearchResponse(null), { rows: [], nextCursor: null, total: null });
   assert.deepEqual(mod.parseSearchResponse({ rows: [{ documentId: "d" }], nextCursor: "n" }).nextCursor, "n");
 });
 
@@ -60,4 +60,63 @@ test("document type display never leaves a raw enum", () => {
   assert.equal(mod.documentTypeDisplay("EVIDENCE").label, "Evidence");
   assert.equal(mod.documentTypeDisplay("CASE").tone, "governance");
   assert.ok(mod.documentTypeDisplay("SOMETHING_NEW").label.length > 0);
+});
+
+/* ------------------------------------------------------------------ added
+ * Filters, typeahead and result count — the remaining normal-user gaps.
+ *
+ * Nine of the eleven /v1/search* endpoints are operator surfaces gated on the
+ * server-projected isPlatformAdmin flag (saved views, audit, diagnostics,
+ * reconcile, semantic backfill), so they are correctly absent from native.
+ * These cover what a normal user actually has on the web and did not have here.
+ */
+
+test("a workspace total is carried through when the server reports one", () => {
+  // Without it the surface can only say "N on this page", which reads as a
+  // workspace total to anyone not looking closely.
+  assert.equal(mod.parseSearchResponse({ rows: [], total: 1280 }).total, 1280);
+  assert.equal(mod.parseSearchResponse({ rows: [] }).total, null);
+});
+
+test("the type filter narrows the query and ALL sends no family param", () => {
+  const all = mod.buildSearchPath({
+    teamId: "t1",
+    q: "roof",
+    documentTypes: mod.filterToDocumentTypes("ALL"),
+  });
+  assert.equal(all.includes("documentType="), false, "no chip means every family");
+
+  const one = mod.buildSearchPath({
+    teamId: "t1",
+    q: "roof",
+    documentTypes: mod.filterToDocumentTypes("EVIDENCE"),
+  });
+  assert.ok(one.includes("documentType=EVIDENCE"));
+});
+
+test("the filter chips only offer families native can actually open", () => {
+  // AUDIT_EVENT and WORKFLOW_STEP are real document types, but native has no
+  // destination for them — offering them as filters would promise a dead end.
+  const values = mod.NATIVE_SEARCH_FILTERS.map((f) => f.value);
+  assert.deepEqual(values, ["ALL", "EVIDENCE", "CASE", "REPORT", "INTAKE_LINK"]);
+  for (const v of ["EVIDENCE", "CASE"]) {
+    assert.ok(
+      mod.resolveSearchResultRoute({ documentType: v, sourceId: "x", documentId: "d" }),
+      `${v} is offered as a filter but has no native route`,
+    );
+  }
+});
+
+test("suggest is not requested for a query too short to be useful", () => {
+  assert.equal(mod.buildSuggestPath({ teamId: "t1", q: "" }), null);
+  assert.equal(mod.buildSuggestPath({ teamId: "t1", q: "a" }), null);
+  assert.equal(mod.buildSuggestPath({ teamId: null, q: "roof" }), null, "no workspace, no request");
+  assert.ok(mod.buildSuggestPath({ teamId: "t1", q: "roof" }).startsWith("/v1/search/suggest?"));
+});
+
+test("suggestions parse from either envelope and drop anything unusable", () => {
+  assert.deepEqual(mod.parseSuggestions({ suggestions: ["roof", "roofing"] }), ["roof", "roofing"]);
+  assert.deepEqual(mod.parseSuggestions({ items: [{ text: "roof" }, { nope: 1 }, ""] }), ["roof"]);
+  assert.deepEqual(mod.parseSuggestions(null), []);
+  assert.equal(mod.parseSuggestions({ suggestions: Array(50).fill("x") }).length, 8, "bounded");
 });

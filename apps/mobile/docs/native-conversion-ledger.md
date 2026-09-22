@@ -5,103 +5,136 @@ Scope is decided by `tools/derive-product-manifest.mjs` from canonical Web/backe
 evidence; per-surface destinations live in `src/product/native-destinations.mjs`;
 this file records what has actually been done and what is still owed.
 
-Regenerate the numbers with:
-
 ```bash
-node tools/derive-product-manifest.mjs
+node tools/derive-product-manifest.mjs      # scope
+node --test "test/**/*.test.mjs"            # mobile suite
 ```
 
 ---
 
-## 1. Scope (derived, closed)
+## 1. Scope — derived, closed, verified
 
 | Disposition | Count | Decided by |
 |---|---:|---|
-| NATIVE_REQUIRED | **60** | not excluded by any admin/enterprise gate |
-| ADMIN_ONLY | **36** | `routeRegistry` `domain: PLATFORM_ADMIN` / `requiredActiveSpace: PLATFORM_ADMIN` |
-| ENTERPRISE_ONLY | **93** | `ENTERPRISE_ONLY_ROUTE_IDS`, `requiredActiveSpace: ORGANIZATION_ONLY`, or domain GOVERNANCE/OPS/REVIEW_OPERATIONS |
-| PLATFORM_SPECIFIC_EQUIVALENT | **19** | public marketing site (no product API, no link token); native equivalent is the store listing |
+| NATIVE_REQUIRED | **61** | not excluded by any admin/enterprise gate |
+| ADMIN_ONLY | **36** | `routeRegistry` `domain: PLATFORM_ADMIN` (26) or `requiredActiveSpace: PLATFORM_ADMIN` (10) |
+| ENTERPRISE_ONLY | **93** | `ENTERPRISE_ONLY_ROUTE_IDS` (91), `domain: OPS` (2) |
+| PUBLIC_INFORMATIONAL_ONLY | **18** | renders the marketing site AND drives neither the product API nor a link token |
 | UNRESOLVED | **0** | — |
-| **Total web routes discovered** | **208** | filesystem walk of `apps/web/app` |
+| **Total** | **208** | filesystem walk of `apps/web/app` |
 
-`208 = 60 + 36 + 93 + 19`. The guard `test/product-manifest-coverage.test.mjs`
-fails when a new Web route appears with no disposition.
+`208 = 61 + 36 + 93 + 18`. A new Web route with no disposition fails the build
+(`test/product-manifest-coverage.test.mjs`).
 
-## 2. Implementation status of the 60 NATIVE_REQUIRED surfaces
+**Classification verification (§2).** Every disposition was re-inspected:
+
+- All 36 ADMIN_ONLY rest on a `PLATFORM_ADMIN` gate. Accepted.
+- 91 of 93 ENTERPRISE_ONLY come from the web registry's own explicit
+  `ENTERPRISE_ONLY_ROUTE_IDS` set, which the access resolver turns into
+  `NEEDS_UPGRADE` for non-enterprise actors. The two borderline rows were
+  checked individually: `/security-center/mfa-recovery` is the **admin queue for
+  approving other people's** recovery requests (the user's own recovery is
+  `/auth/mfa-recovery/verify`, which IS native-required), and
+  `/settings/notifications/deliveries` is an **operator** delivery log with
+  resend. Both correctly excluded.
+- The marketing set found **one misclassification**: `/verify` drives the
+  paste-a-token flow that pushes into `/verify/[token]`, and was being read as
+  marketing because its routing lives in `_components/` while the page imports
+  the marketing chrome. Product evidence now beats chrome, and a page that
+  routes a user INTO a product surface counts as a product flow. NATIVE_REQUIRED
+  went 60 → 61.
+- The remaining 18 are genuinely informational (`/about`, `/faq`, `/for-*`,
+  `/pricing`… ) — public pages with no product behaviour behind them.
+
+## 2. Implementation status of the 61 NATIVE_REQUIRED surfaces
 
 | Status | Count |
 |---|---:|
-| PARITY (device-verified) | **0** |
-| PARTIAL (primary journey works, named gaps) | **20** |
-| SHELL (materially thinner than Web) | **6** |
-| NOT_STARTED | **34** |
+| PARITY (device-verified) | **0 / 61** |
+| PARTIAL (primary journey works, named gaps) | **24 / 61** |
+| SHELL (materially thinner than Web) | **3 / 61** |
+| NOT_STARTED | **34 / 61** |
 
-`PARITY` may not be claimed from CI. It requires the physical-device acceptance
-recorded in §5.
+`PARITY` may not be claimed from CI. It requires the physical acceptance in §6.
 
-## 3. Done so far
+## 3. Done
 
-### Foundation
-- **Derived product manifest** replaces the hand-authored
-  `native-surface-contract.ts` (deleted). The old table held 33 rows against 208
-  routes and its guard only validated rows it already contained, so an omitted
-  surface could never fail it; 79 web routes were absent from it entirely.
-- **Protected native capture register** extracted to
-  `src/product/protected-native-paths.mjs` and its guard now imports it as data
-  rather than regexing source.
-- **Derived reachability guard** replaces the declared `reachability` field.
+### Foundation — one source of truth per dimension
+| Dimension | Was | Now |
+|---|---|---|
+| Product scope | hand-authored 33-row table; guard could not see an omission | derived from `routeRegistry` + `middleware`; 0 unresolved, new route fails the build |
+| Design tokens | 63 of 158 hand-mirrored; 27 pairs guarded | **generated** from `tokens.css`; 151 values, every `var()` flattened, drift impossible |
+| Domain enums | 5 Prisma enums re-declared verbatim | **generated** from `schema.prisma`; a canonical value without a mapping is a compile error |
+| Component language | 12 generic primitives vs 214 web components | + a pattern family: PageHeader, FilterBar/Search/Chips, Empty (page\|inline), ResultCount, CursorPager, ConfirmSheet, Sheet, KpiGrid, DetailRows, AsyncView |
+| Render coverage | **zero** tests rendered a component | esbuild + react-test-renderer harness; 48 render tests |
 
-### Blockers closed (code; device acceptance still owed)
+### Blockers closed in code (device acceptance still owed)
 | # | Defect | Fix |
 |---|---|---|
-| B-1 | `crypto.subtle` on every native upload path — no capture of any kind could be sealed | native digests: `expo-crypto` SHA-256, platform MD5 via `getInfoAsync`, chunked reads (peak memory ~3.3x → ~1x). Hand-rolled MD5 and `atob`/`btoa` deleted |
-| B-2 | Discard left a reserved Evidence record in the Active library | `POST /v1/capture/direct-sessions/:id/discard` + never-committed list invariant + client awaits the server |
+| B-1 | `crypto.subtle` on every native upload path — no capture of any kind could be sealed | `expo-crypto` SHA-256, platform MD5, chunked reads (peak memory ~3.3× → ~1×) |
+| B-2 | Discard left a reserved Evidence record in Active | `POST /v1/capture/direct-sessions/:id/discard` + never-committed list invariant + client awaits the server |
 | B-3 | `NativeSharedObjectNotFoundException` on every exit from Capture | stop on blur, not unmount; 250 ms recorder poller deleted |
-| B-4 | Google unconfigured in every built binary | client ids moved into all four EAS profiles; iOS reversed-client-id URL scheme registered |
+| B-4 | Google unconfigured in every built binary | client ids into all four EAS profiles; iOS reversed-client-id scheme registered |
 
-### Defect found by the new guards
-`verify-email`, `reset-password` and `invite/[token]` were complete screens that
-**nothing navigated to** — every emailed account-recovery link dead-ended. The
-superseded contract declared all three "REACHABLE". Fixed by
-`parseCredentialDeepLink`, deliberately outside the tenant resolve gate.
-
-### Tests deleted (source-text self-certification) and what replaced them
-| Deleted | Why it could not fail | Replacement |
+### Surfaces ported
+| Surface | Before | After |
 |---|---|---|
-| `surface-parity-contract.test.mjs` | validated a hand-written table against itself | `product-manifest-coverage.test.mjs` (walks `apps/web/app`) |
-| `native-surface-contract.test.mjs` | compared the tree to a hand-declared `reachability` field; also asserted `PRODUCT_DECISIONS` ids existed as text | `native-route-reachability.test.mjs` (derives reachability from the navigation graph) |
-| `oauth-config.test.mjs` | asserted variable NAMES appeared in `use-oauth.ts` while all three were `undefined` in every build | `oauth-build-config.test.mjs` (reads `eas.json` + `app.json`) |
+| **Settings › Security** | web handoff link — no password change, no sessions, no MFA on the device most likely to be lost | all five canonical sections native |
+| **Home** | 2 of 7 canonical sources; UC screen capture in the hero | canonical overview: summary band, 5 KPIs, severity-ranked queue, recent work, matters, storage. UC moved to Capture |
+| **Search** | query + paging only | + result families, typeahead, result count. 9 of 11 `/v1/search*` endpoints are `isPlatformAdmin` operator surfaces and stay excluded |
 
-Two pre-existing API tests had been throwing `ENOENT` rather than asserting ever
-since Phase 12 removed the mobile files they read
-(`app/(tabs)/deleted.tsx`, `app/(tabs)/reports.tsx`). Both repaired.
+### Defects found by the new guards and tests
+1. `verify-email`, `reset-password`, `invite/[token]` — complete screens **nothing
+   navigated to**; every emailed account-recovery link dead-ended. The old
+   contract declared all three "REACHABLE".
+2. `TRASHED` missing from the lifecycle display table — the old drift guard
+   compared the native table to itself.
+3. `ProovraInput` named itself from its **placeholder**, so every `ProovraFormField`
+   without one rendered an unnamed text box.
+4. The capture CTA rendered **"+ + Capture Evidence"** — the canonical string
+   already contains the plus.
+5. `mobile-boot-contract.test.mjs` **required** UC-2 to be reachable from Home.
 
-## 4. Owed — ordered
+## 4. Deletion ledger
 
-1. **Device acceptance of B-1…B-4.** Nothing above is proven until it runs on a
-   phone/tablet. Until then Capture remains unproven end to end.
-2. **Apple audience in the deployed API runtime.** `GOOGLE_CLIENT_IDS` /
-   `APPLE_CLIENT_IDS` must include the native audiences and the iOS bundle id.
-   Repository code is correct; this is deployment configuration and must be
-   verified through the real deployment mechanism, not by restarting anything.
-3. **Capture session model (C-1).** Web drives `/v1/capture/sessions` +
+| Deleted | Duplicate truth it held | Canonical replacement | Proof |
+|---|---|---|---|
+| `src/product/native-surface-contract.ts` | product scope, native-authored | `tools/derive-product-manifest.mjs` | reverse-reference search before and after; zero runtime consumers |
+| `test/surface-parity-contract.test.mjs` | validated the table against itself | `test/product-manifest-coverage.test.mjs` | walks `apps/web/app` |
+| `test/native-surface-contract.test.mjs` | hand-declared `reachability` | `test/native-route-reachability.test.mjs` | derives from the navigation graph |
+| `test/design-token-parity.test.mjs` | 27 literal pairs across two authored files | `packages/ui/tests/tokens-generated.test.mjs` | artefact must equal a fresh generation |
+| `test/domain-display.test.mjs` | module compared to its own exports | `test/domain-enums-generated.test.mjs` | asserts against `schema.prisma` |
+| `test/oauth-config.test.mjs` | asserted variable NAMES in source | `test/oauth-build-config.test.mjs` | reads `eas.json` + `app.json` |
+| `test/ui-kit-contract.test.mjs` | source contained "theme.", no hex, "44" | `test/ui-kit.render.test.mjs` | presses buttons, reads resolved style |
+| hand-rolled `md5ArrayBuffer` (~80 lines) | second implementation of a canonical digest | platform MD5 via `getInfoAsync` | — |
+| hand-mirrored token literals | second design source | generated module | zero colour literals asserted |
+
+Preserved deliberately: `src/product/protected-native-paths.mjs` (the ReplayKit /
+MediaProjection register — a platform concern, not a product one).
+
+## 5. Owed — ordered
+
+1. **Device acceptance of everything above.** Nothing is proven until it runs on
+   hardware. Capture remains unproven end to end.
+2. **`GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS` in the deployed API runtime.**
+   Repository code is correct; this is deployment configuration.
+3. **Capture convergence (§15).** Web drives `/v1/capture/sessions` +
    `/v1/uploads/sessions` with a multi-kind `CollectionPlanTemplate`; native
-   drives UC-0, where one session reserves exactly one Evidence of one type.
-   That is why there is no mixed-media composer — the server model cannot
-   express it. Needs one canonical decision, then both clients speak it.
-4. **Domain rewiring**, by data starvation: Settings (1 of 26 endpoints),
-   Home (2 of 9), Search (1 of 11), Notifications (3 of 13), Cases (6 of 12).
-5. **The 34 NOT_STARTED surfaces**, notably Reports (a canonical primary-nav
-   destination), account security, organizations/people/workspaces, legal and
-   trust-center readers, share/intake/portal flows.
-6. **Design system.** 63 of 158 web tokens mirrored, 27 guarded; 12 native
-   primitives against 214 web components. Tokens must be generated from
-   `tokens.css`, not mirrored.
-7. **Domain enums.** `src/product/domain-display.ts` mirrors Prisma enums
-   verbatim; must be generated or shared so a canonical change reaches Native.
-8. **Component/native-runtime test tiers.** Nothing renders a component today.
+   drives UC-0, where one session reserves exactly one Evidence of one type —
+   which is why there is no mixed-media composer. The UC-0 *provenance
+   primitive* is worth keeping; what must go is its role as a competing product
+   lifecycle. Largest remaining piece.
+4. **The 34 NOT_STARTED surfaces**, notably Reports (a canonical primary-nav
+   destination), organizations/people/workspaces, legal and trust-center
+   readers, and the share/intake/portal flows.
+5. **Remaining PARTIAL gaps** — see `gaps` on each row in
+   `src/product/native-destinations.mjs`.
+6. **Notifications** (3 of 13 endpoints), **Cases** (6 of 12), Evidence actions
+   (download original, comments, annotations, relationships).
+7. **Component tests for the remaining surfaces** — Auth, Capture, Evidence,
+   Cases and Notifications have projection tests but no render tests yet.
 
-## 5. Physical acceptance matrix
+## 6. Physical acceptance matrix
 
 Nothing here may be ticked from CI.
 
@@ -121,15 +154,23 @@ Nothing here may be ticked from CI.
 | UC-5 ReplayKit → segments → manifest → SIGNED | ☐ | ☐ | n/a |
 | UC-2 MediaProjection → SIGNED | n/a | n/a | ☐ |
 | UC-3 continuous → continuity manifest → SIGNED | n/a | n/a | ☐ |
+| Settings › Security: change password, revoke a session | ☐ | ☐ | ☐ |
+| Home renders the canonical sections against real data | ☐ | ☐ | ☐ |
+| Search: query, family filter, typeahead, paging | ☐ | ☐ | ☐ |
 | Tablet rail nav at ≥840 pt, RTL | n/a | ☐ | ☐ |
+| Side-by-side design comparison against the PWA | ☐ | ☐ | ☐ |
 
-## 6. Known limits stated honestly
+## 7. Known limits, stated
 
 - `expo-crypto` exposes no **incremental** digest, so a file must still be
   resident once to hash it. Chunked hashing needs a native streaming digest.
   Not claimed as done.
-- `globalThis.atob` / `btoa` are no longer used, but whether Hermes provides
-  them was never established — it no longer matters on the integrity path.
-- The UC-0 discard integration suite has not been executed in this environment
-  (no Docker / `TEST_DATABASE_URL`). It runs in the integration environment.
-  Production was not contacted at any point.
+- The **UC-0 discard integration suite has not been executed** — this
+  environment has no Docker and no `TEST_DATABASE_URL`. It runs in the
+  integration environment. Production was not contacted at any point.
+- The render harness proves what a component renders, which branch it takes and
+  what a press does. It does **not** prove native layout, gestures, fonts, safe
+  areas or anything about Hermes.
+- 14 API test files fail in `services/api`, all pre-existing and none referencing
+  changed files. Two that did were repaired (they had been throwing `ENOENT`
+  rather than asserting since Phase 12 deleted the mobile files they read).

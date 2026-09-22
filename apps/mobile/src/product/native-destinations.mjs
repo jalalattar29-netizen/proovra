@@ -139,9 +139,14 @@ export const NATIVE_DESTINATIONS = {
   },
   "/search": {
     routeFile: "(stack)/search.tsx",
-    status: "SHELL",
+    status: "PARTIAL",
     webSources: ["apps/web/app/(app)/search/page.tsx", "apps/web/app/(app)/search/search.css"],
-    gaps: ["reads 1 of 11 search endpoints", "no suggest, saved views, or relationship search"],
+    gaps: [
+      "query, result families, typeahead, cursor paging and result count ported",
+      "9 of the 11 /v1/search* endpoints are operator surfaces gated on isPlatformAdmin (saved views, audit, diagnostics, reconcile, semantic backfill) and are correctly excluded",
+      "no semantic/hybrid mode switch, no updatedSince filter, no relationship search",
+      "device acceptance outstanding",
+    ],
   },
   "/notifications": {
     routeFile: "(tabs)/notifications.tsx",
