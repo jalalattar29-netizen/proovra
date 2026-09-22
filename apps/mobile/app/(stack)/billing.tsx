@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
+import {
+  buildPricingPath,
+  formatMonthlyPrice,
+  isCurrentPlan,
+  parsePricingCatalogue,
+  planSummaryLine,
+  type PricingCatalogue,
+} from "../../src/product/pricing";
 import {
   ProovraScreen,
   ProovraCard,
@@ -25,6 +33,7 @@ export default function BillingScreen() {
   const { t } = useLocale();
   const router = useRouter();
   const [plan, setPlan] = useState<string | null>(null);
+  const [catalogue, setCatalogue] = useState<PricingCatalogue | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<SafeError | null>(null);
 
@@ -46,6 +55,15 @@ export default function BillingScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // The plan catalogue loads separately and never blocks the current plan:
+  // what you are on is the question this screen exists to answer, and a
+  // catalogue read that fails must not hide it.
+  useEffect(() => {
+    void apiFetch(buildPricingPath())
+      .then((d) => setCatalogue(parsePricingCatalogue(d)))
+      .catch(() => setCatalogue(null));
+  }, []);
+
   return (
     <ProovraScreen>
       <View style={styles.headerRow}>
@@ -65,15 +83,56 @@ export default function BillingScreen() {
                 <ProovraBadge tone="info" label="Active" />
               </View>
             </ProovraCard>
+            {/*
+              WHAT EACH PLAN INCLUDES, from GET /v1/billing/pricing — the same
+              canonical source the public Pricing page reads. That endpoint's
+              own comment says the catalogue is published "so the public
+              Pricing page AND in-app Billing UI both source Enterprise
+              capability copy from the same place", so this is the surface it
+              was published for. Nothing here recomputes a price, a storage
+              allowance or a seat count.
+            */}
+            {catalogue && catalogue.plans.length > 0 ? (
+              <ProovraSection title="What each plan includes">
+                {catalogue.plans.map((offer) => (
+                  <ProovraCard key={offer.key} style={styles.card}>
+                    <View style={styles.planRow}>
+                      <ProovraText variant="body" weight="semibold">
+                        {offer.displayName}
+                      </ProovraText>
+                      {isCurrentPlan(offer, plan) ? (
+                        <ProovraBadge tone="verified" label="Your plan" />
+                      ) : null}
+                    </View>
+                    <ProovraText variant="body">
+                      {formatMonthlyPrice(offer.monthlyPriceCents, catalogue.currency)}
+                    </ProovraText>
+                    {planSummaryLine(offer) ? (
+                      <ProovraText variant="label" color={theme.color.ink.muted}>
+                        {planSummaryLine(offer)}
+                      </ProovraText>
+                    ) : null}
+                    {offer.capabilities.map((c, i) => (
+                      <ProovraText key={i} variant="label" color={theme.color.ink.secondary}>
+                        {`• ${c}`}
+                      </ProovraText>
+                    ))}
+                  </ProovraCard>
+                ))}
+              </ProovraSection>
+            ) : null}
+
             <ProovraCard style={styles.card}>
+              {/*
+                No purchase, upgrade or checkout control, and the reason is
+                stated rather than left as a missing button: mobile app-store
+                payment rules govern digital-goods purchases inside an app.
+                The catalogue above answers what each plan includes, which is
+                the question this screen has to answer anyway.
+              */}
               <ProovraText variant="body" color={theme.color.ink.secondary}>
-                Plan changes and payment are managed on the web app.
+                Plan changes and payment are handled in the PROOVRA web app.
               </ProovraText>
-              <ProovraButton
-                label="Manage plan on the web"
-                variant="secondary"
-                onPress={() => void Linking.openURL("https://www.proovra.com/billing")}
-              />
             </ProovraCard>
           </>
         )}

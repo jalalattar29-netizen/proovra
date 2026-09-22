@@ -13,6 +13,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 
+import {
+  TRUST_CENTER_PAGE_BOUNDARY_CALLOUT,
+  TRUST_CENTER_PAGE_INTRO,
+  TRUST_CENTER_SECTIONS,
+} from "@proovra/shared-evidence-presentation";
+
 import { apiFetch } from "../../src/api";
 import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
@@ -76,6 +82,71 @@ export default function TrustCenterScreen() {
           <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
         }
       />
+
+      {/*
+        THE CANONICAL TRUST COPY, RENDERED IN-PRODUCT.
+
+        `@proovra/shared-evidence-presentation` is the declared source of truth
+        for every Trust Center section title, summary, bullet and limitation,
+        and the public /trust page keeps importing it specifically so it "stays
+        available to any private/authenticated Trust Center surface (e.g. an
+        in-product hub) that needs to render the full list" — its own words.
+        That surface is this one. Native imports the module rather than copying
+        its text or asking the API to re-serve it: it is already a shared
+        package, and a second copy of a boundary statement is the one kind of
+        drift this page cannot afford.
+
+        The public page dropped the visible sections band as a UX decision on a
+        marketing surface. That decision was about that page, not about the
+        content, which is why it is still exported.
+      */}
+      <ProovraCard>
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {TRUST_CENTER_PAGE_INTRO}
+        </ProovraText>
+      </ProovraCard>
+
+      <ProovraCard>
+        <ProovraBadge label="What PROOVRA does not claim" tone="governance" />
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {TRUST_CENTER_PAGE_BOUNDARY_CALLOUT}
+        </ProovraText>
+      </ProovraCard>
+
+      <ProovraPageSection title="How PROOVRA works">
+        {TRUST_CENTER_SECTIONS.map((section) => (
+          <ProovraCard key={section.id}>
+            <ProovraText variant="body" weight="semibold">
+              {section.title}
+            </ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {section.summary}
+            </ProovraText>
+            {section.bullets.map((b, i) => (
+              <ProovraText key={`b${i}`} variant="label" color={theme.color.ink.secondary}>
+                {`• ${b}`}
+              </ProovraText>
+            ))}
+            {/*
+              The limitations are not a footnote. A trust surface that lists
+              what a subsystem records and omits what it does not establish is
+              making the overclaim the whole boundary contract exists to stop.
+            */}
+            {section.limitations.length > 0 ? (
+              <>
+                <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>
+                  Limitations
+                </ProovraText>
+                {section.limitations.map((l, i) => (
+                  <ProovraText key={`l${i}`} variant="label" color={theme.color.ink.muted}>
+                    {`• ${l}`}
+                  </ProovraText>
+                ))}
+              </>
+            ) : null}
+          </ProovraCard>
+        ))}
+      </ProovraPageSection>
 
       {TRUST_SECTIONS.map((section) => {
         const state = sections[section.kind];

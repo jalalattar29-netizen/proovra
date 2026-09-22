@@ -199,6 +199,11 @@ export default function SettingsScreen() {
             subtitle="Policies, agreements and disclosures"
             onPress={() => router.push("/legal")}
           />
+          <ProovraListRow
+            title="Support"
+            subtitle="Product, billing, security and legal routes"
+            onPress={() => router.push("/(stack)/support")}
+          />
           <ProovraListRow title="Verify a record" subtitle="Check the authenticity of a PROOVRA verification link" onPress={() => router.push("/verify")} />
           <ProovraListRow
             title="Trust Center"

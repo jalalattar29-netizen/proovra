@@ -254,10 +254,15 @@ export const NATIVE_DESTINATIONS = {
     gaps: ["read-only; no plan change, storage add-ons, or checkout handoff"],
   },
   "/pricing": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/billing.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/pricing/page.tsx"],
-    gaps: ["no Native plan catalogue; upgrade path undefined"],
+    gaps: [
+      "converged onto Billing, which is where the endpoint says this content belongs: buildPricingCatalogResponse is published 'so the public Pricing page AND in-app Billing UI both source Enterprise capability copy from the same place'. Same GET /v1/billing/pricing, no second price list.",
+      "NO purchase, upgrade or checkout control, and the screen states the reason rather than leaving a missing button: mobile app-store rules govern digital-goods purchases inside an app. This is a commercial/compliance decision, not an implementation gap.",
+      "not ported: the marketing page's comparison chrome, storage add-on catalogue and the pay-per-evidence credit offer",
+    ],
   },
   "/intake-links": {
     routeFile: "(stack)/intake-links.tsx",
@@ -508,25 +513,28 @@ export const NATIVE_DESTINATIONS = {
   },
 
   "/support": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/support.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/support/page.tsx"],
     gaps: [
-      "LEDGER CORRECTION: this row was recorded as blocked by Q1 (legal delivery). It is not. apps/web/app/support/page.tsx is a Support Operations Center page built from marketing components and contact routes, and reads no legal document. The legal corpus does contain a `support` slug (Support Policy), which is a different thing and is now reachable through the legal reader.",
-      "signed-in users are routed here by app/(app)/error.tsx, not-found.tsx, billing and Search, so it is a real destination with no Native equivalent",
+      "a real in-app destination despite being a public page: the authenticated app routes users here from five call sites (app/(app)/error.tsx, not-found.tsx, Search, billing), so a phone user who hit an error had nowhere to go",
+      "every reference document opens in the canonical legal reader by SLUG, so no DPA or security overview text is copied into the app; the Trust Center route is the IN-APP one, not the public marketing page",
+      "the four route cards and their contact addresses are UI copy over a fixed set of destinations, which is the one thing here with no canonical source to read from",
     ],
   },
   "/trust": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/trust-center.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: [
       "apps/web/app/trust/page.tsx",
-      "apps/web/lib/trust/trust-center-copy.ts",
+      "packages/shared-evidence-presentation/src/trust-center-content.ts",
     ],
     gaps: [
-      "LEDGER CORRECTION: this row was recorded as blocked by Q1 (legal delivery). It is not. The public Trust Center renders TRUST_CENTER_SECTIONS / TRUST_CENTER_PAGE_INTRO constants under a safe-language contract, and reads no legal document.",
-      "distinct from the in-app /trust-center/* articles, which ARE ported ((stack)/trust-center.tsx) and come from GET /v1/trust/articles",
-      "the public page's copy has no API; porting it needs the constants to become canonical data or the page to be accepted as web-only",
+      "the canonical copy is ALREADY a shared package. apps/web/app/trust/page.tsx imports TRUST_CENTER_SECTIONS / PAGE_INTRO / BOUNDARY_CALLOUT from @proovra/shared-evidence-presentation and keeps importing them specifically so the module 'stays available to any private/authenticated Trust Center surface (e.g. an in-product hub) that needs to render the full list'. That surface is the native Trust Center, which now renders it.",
+      "Native imports the shared package rather than copying the text or adding an endpoint to re-serve it: it is already the declared source of truth, and a second copy of a boundary statement is the one kind of drift a trust surface cannot afford.",
+      "the public page's marketing chrome is not ported and is not meant to be - the web itself treats /trust as a PUBLIC EXIT from the App Shell (isAuthenticatedPublicExit), and it dropped its own visible sections band as a UX decision about that page, not about the content",
     ],
   },
   "/trust-center": {
