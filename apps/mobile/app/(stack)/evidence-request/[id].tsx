@@ -12,6 +12,9 @@ import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error"
 import { formatUserDateTime } from "../../../src/lib/date";
 import {
   availableRequestTransitions,
+  availableResponseDecisions,
+  buildResponseReviewBody,
+  buildResponseReviewPath,
   buildRequestDeliveriesPath,
   buildRequestEventsPath,
   buildRequestTransitionPath,
@@ -24,7 +27,15 @@ import {
   requestTransitionConsequence,
   requestTransitionIsDestructive,
   requestTransitionLabel,
+  responseContributorLabel,
+  responseDecisionConsequence,
+  responseDecisionIsDestructive,
+  responseDecisionLabel,
+  responseStatusDisplay,
+  validateResponseReviewerNote,
   type EvidenceRequestDetail,
+  type EvidenceRequestResponse,
+  type ResponseReviewDecision,
   type RequestDelivery,
   type RequestEvent,
   type RequestTransition,
@@ -62,6 +73,10 @@ export default function EvidenceRequestDetailScreen() {
   const [pending, setPending] = useState<RequestTransition | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** The submission being judged, and the decision chosen for it. */
+  const [reviewing, setReviewing] = useState<EvidenceRequestResponse | null>(null);
+  const [decision, setDecision] = useState<ResponseReviewDecision | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -115,6 +130,37 @@ export default function EvidenceRequestDetailScreen() {
     }
   }, [id, pending, note, load]);
 
+  /**
+   * THE REVIEWER'S DECISION ON ONE SUBMISSION.
+   *
+   * Separate from the request transitions above, because judging what was
+   * sent in and moving the thread are different acts: a request can hold one
+   * accepted submission and one rejected as insufficient at the same time.
+   */
+  const reviewResponse = useCallback(async () => {
+    if (!id || !reviewing || !decision) return;
+    const invalid = validateResponseReviewerNote(reviewNote);
+    if (invalid) {
+      Alert.alert("Note too long", invalid);
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFetch(buildResponseReviewPath(String(id), reviewing.id), {
+        method: "POST",
+        body: JSON.stringify(buildResponseReviewBody({ status: decision, reviewerNote: reviewNote })),
+      });
+      setReviewing(null);
+      setDecision(null);
+      setReviewNote("");
+      await load();
+    } catch (err) {
+      Alert.alert("Could not record that decision", toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [id, reviewing, decision, reviewNote, load]);
+
   useEffect(() => { void load(); }, [load]);
 
   if (phase === "loading") return <ProovraScreen scroll={false}><ProovraLoadingState label="Loading request" /></ProovraScreen>;
@@ -159,6 +205,44 @@ export default function EvidenceRequestDetailScreen() {
                 trailing={<ProovraBadge tone={d.fulfilledCount > 0 ? "verified" : "neutral"} label={d.fulfilledCount > 0 ? `${d.fulfilledCount} added` : "Pending"} />}
               />
             ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+
+      {/*
+        WHAT WAS ACTUALLY SENT IN, and the reviewer's answer to each piece of
+        it. Native could read none of this: a reviewer holding a phone could
+        see that a request had moved without seeing what moved it.
+      */}
+      <ProovraSection title="Submissions">
+        {r.responses.length === 0 ? (
+          <ProovraEmpty presence="inline" title="Nothing has been submitted against this request yet." />
+        ) : (
+          <ProovraCard>
+            {r.responses.map((resp) => {
+              const rs = responseStatusDisplay(resp.status);
+              return (
+                <ProovraListRow
+                  key={resp.id}
+                  title={responseContributorLabel(resp)}
+                  subtitle={
+                    [
+                      resp.submittedAtUtc ? formatUserDateTime(resp.submittedAtUtc) : null,
+                      resp.reviewerNote,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                  trailing={<ProovraBadge tone={rs.tone} label={rs.label} />}
+                  onPress={() => {
+                    setReviewing(resp);
+                    setDecision(null);
+                    setReviewNote("");
+                  }}
+                  accessibilityHint="Opens the reviewer decision for this submission."
+                />
+              );
+            })}
           </ProovraCard>
         )}
       </ProovraSection>
@@ -274,6 +358,65 @@ export default function EvidenceRequestDetailScreen() {
           loading={busy}
           onPress={() => void runTransition()}
         />
+      </ProovraSheet>
+
+      <ProovraSheet
+        visible={reviewing !== null}
+        title={reviewing ? responseContributorLabel(reviewing) : "Submission"}
+        onClose={() => { setReviewing(null); setDecision(null); setReviewNote(""); }}
+      >
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {reviewing
+            ? `Submitted ${reviewing.submittedAtUtc ? formatUserDateTime(reviewing.submittedAtUtc) : "at an unrecorded time"} · ${responseStatusDisplay(reviewing.status).label}`
+            : ""}
+        </ProovraText>
+        {reviewing?.reviewerNote ? (
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {reviewing.reviewerNote}
+          </ProovraText>
+        ) : null}
+
+        {/* The decision, then what it does, then the note it is recorded with. */}
+        {reviewing
+          ? availableResponseDecisions(reviewing.status).map((d) => (
+              <ProovraButton
+                key={d}
+                label={responseDecisionLabel(d)}
+                variant={
+                  decision === d
+                    ? responseDecisionIsDestructive(d)
+                      ? "danger"
+                      : "primary"
+                    : "secondary"
+                }
+                onPress={() => setDecision(d)}
+              />
+            ))
+          : null}
+
+        {decision ? (
+          <>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {responseDecisionConsequence(decision)}
+            </ProovraText>
+            <ProovraFormField label="Reviewer note (optional)">
+              <ProovraInput
+                value={reviewNote}
+                onChangeText={setReviewNote}
+                placeholder="Recorded on the submission"
+                multiline
+                autoCapitalize="sentences"
+                accessibilityLabel="Reviewer note"
+              />
+            </ProovraFormField>
+            <ProovraButton
+              label={responseDecisionLabel(decision)}
+              variant={responseDecisionIsDestructive(decision) ? "danger" : "primary"}
+              loading={busy}
+              onPress={() => void reviewResponse()}
+            />
+          </>
+        ) : null}
       </ProovraSheet>
     </ProovraScreen>
   );

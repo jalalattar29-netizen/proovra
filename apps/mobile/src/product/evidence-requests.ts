@@ -53,11 +53,31 @@ export interface EvidenceRequestDeliverable {
   fulfilledCount: number;
 }
 
+/**
+ * ONE SUBMISSION against this request, as the authenticated projection sends
+ * it (`evidence-request.service.ts:1606`).
+ *
+ * `submittedByExternalLabel` is the contributor's own label and may be
+ * absent — an anonymous source has no name to show, and inventing "Unknown
+ * contributor" as an identity rather than as an absence is the kind of small
+ * lie a custody surface cannot afford.
+ */
+export interface EvidenceRequestResponse {
+  id: string;
+  status: string;
+  submittedAtUtc: string | null;
+  submittedByExternalLabel: string | null;
+  responseEvidenceId: string | null;
+  reviewerNote: string | null;
+  reviewedAtUtc: string | null;
+}
+
 export interface EvidenceRequestDetail extends EvidenceRequestListItem {
   instructions: string | null;
   priority: string | null;
   recipientLabel: string | null;
   deliverables: EvidenceRequestDeliverable[];
+  responses: EvidenceRequestResponse[];
 }
 
 function o(v: unknown): Record<string, unknown> {
@@ -104,12 +124,28 @@ export function parseEvidenceRequestDetail(data: unknown): EvidenceRequestDetail
       fulfilledCount: typeof d["fulfilledCount"] === "number" ? (d["fulfilledCount"] as number) : 0,
     });
   }
+  const responses: EvidenceRequestResponse[] = [];
+  for (const raw of Array.isArray(r["responses"]) ? (r["responses"] as unknown[]) : []) {
+    const p = o(raw);
+    const id = s(p["id"]);
+    if (!id) continue;
+    responses.push({
+      id,
+      status: s(p["status"]) ?? "",
+      submittedAtUtc: s(p["submittedAtUtc"]),
+      submittedByExternalLabel: s(p["submittedByExternalLabel"]),
+      responseEvidenceId: s(p["responseEvidenceId"]),
+      reviewerNote: s(p["reviewerNote"]),
+      reviewedAtUtc: s(p["reviewedAtUtc"]),
+    });
+  }
   return {
     ...base,
     instructions: s(r["instructions"]),
     priority: s(r["priority"]),
     recipientLabel: s(r["recipientLabel"]),
     deliverables,
+    responses,
   };
 }
 
@@ -303,4 +339,151 @@ export function parseRequestEvents(payload: unknown): RequestEvent[] {
       const bt = b.occurredAtIso ? Date.parse(b.occurredAtIso) : 0;
       return bt - at;
     });
+}
+
+// ---------------------------------------------------------------------------
+// PER-RESPONSE REVIEW — the reviewer's decision on ONE submission
+// ---------------------------------------------------------------------------
+//
+// A request's own transitions (`send`, `close`, `cancel`, `needs-more-info`)
+// act on the whole thread. They are not the same act as judging one
+// submission, and a request can hold several submissions in different states:
+// one accepted, one rejected as insufficient, one still to look at. Native
+// could read none of them, so a reviewer holding a phone could see that a
+// request had moved but not what had actually been sent in, and had no way to
+// answer it.
+//
+// The decision vocabulary is the ROUTE'S OWN enum
+// (`evidence-requests.routes.ts:581`), not a native paraphrase of it.
+
+export const RESPONSE_REVIEW_DECISIONS = [
+  "UNDER_REVIEW",
+  "ACCEPTED",
+  "NEEDS_MORE_INFO",
+  "REJECTED",
+] as const;
+
+export type ResponseReviewDecision = (typeof RESPONSE_REVIEW_DECISIONS)[number];
+
+/** `reviewerNote: z.string().max(4000)` on the review route. */
+export const RESPONSE_REVIEWER_NOTE_MAX = 4000;
+
+const RESPONSE_STATUS_TONE: Record<string, ProovraStatusTone> = {
+  RECEIVED: "pending",
+  UNDER_REVIEW: "pending",
+  NEEDS_MORE_INFO: "pending",
+  ACCEPTED: "verified",
+  REJECTED: "risk",
+};
+
+/**
+ * What a submission's state is CALLED.
+ *
+ * "Accepted for internal review" rather than "Accepted", because accepting a
+ * submission admits it to review — it is not a finding about the evidence, and
+ * the shorter word would let a reviewer read one as the other.
+ */
+const RESPONSE_STATUS_LABEL: Record<string, string> = {
+  RECEIVED: "Received",
+  UNDER_REVIEW: "Under internal review",
+  ACCEPTED: "Accepted for internal review",
+  NEEDS_MORE_INFO: "Needs additional context",
+  REJECTED: "Rejected as insufficient",
+};
+
+export function responseStatusDisplay(status: string | null | undefined): {
+  label: string;
+  tone: ProovraStatusTone;
+} {
+  const key = status ?? "";
+  if (!key) return { label: "Unknown", tone: "neutral" };
+  return {
+    label: RESPONSE_STATUS_LABEL[key] ?? humanizeEnum(key),
+    tone: RESPONSE_STATUS_TONE[key] ?? "neutral",
+  };
+}
+
+export function responseDecisionLabel(decision: ResponseReviewDecision): string {
+  switch (decision) {
+    case "UNDER_REVIEW":
+      return "Mark under review";
+    case "ACCEPTED":
+      return "Accept for review";
+    case "NEEDS_MORE_INFO":
+      return "Ask for more context";
+    case "REJECTED":
+      return "Reject as insufficient";
+  }
+}
+
+/**
+ * What each decision does, said before it happens.
+ *
+ * Rejection is the one that reads as a judgement on the CONTRIBUTOR rather
+ * than on the submission, and on an external contributor it can be the last
+ * thing they hear, so it says what it actually means and what it does not.
+ */
+export function responseDecisionConsequence(decision: ResponseReviewDecision): string {
+  switch (decision) {
+    case "UNDER_REVIEW":
+      return "The submission is marked as being looked at. Nothing is sent to the contributor.";
+    case "ACCEPTED":
+      return "The submission is admitted to internal review. This records that it was accepted, not that its contents are verified.";
+    case "NEEDS_MORE_INFO":
+      return "The submission is marked as needing more context. The contributor can add to it.";
+    case "REJECTED":
+      return "The submission is recorded as insufficient for this request. What was sent is kept and stays on the record.";
+  }
+}
+
+export function responseDecisionIsDestructive(decision: ResponseReviewDecision): boolean {
+  return decision === "REJECTED";
+}
+
+/**
+ * Which decisions to OFFER for a submission in this state.
+ *
+ * The one it is already in is left out — re-recording the same decision
+ * writes a fresh `reviewedAtUtc` and a timeline event saying a reviewer
+ * decided something they had already decided.
+ */
+export function availableResponseDecisions(status: string): ResponseReviewDecision[] {
+  return RESPONSE_REVIEW_DECISIONS.filter((d) => d !== status);
+}
+
+export function buildResponseReviewPath(requestId: string, responseId: string): string {
+  return `/v1/evidence-requests/${encodeURIComponent(requestId)}/responses/${encodeURIComponent(responseId)}/review`;
+}
+
+/**
+ * The review body.
+ *
+ * An empty note is sent as `null`, not as "": the field is
+ * `.nullable().optional()`, and "" would overwrite a note a previous reviewer
+ * left with a note that says nothing. `notifyContributor` is deliberately NOT
+ * sent — it makes the server issue an SMS to an external contributor, and
+ * that is a message going out under the reviewer's name, which needs its own
+ * deliberate control rather than a default.
+ */
+export function buildResponseReviewBody(input: {
+  status: ResponseReviewDecision;
+  reviewerNote?: string | null;
+}): { status: ResponseReviewDecision; reviewerNote: string | null } {
+  const note = (input.reviewerNote ?? "").trim();
+  return {
+    status: input.status,
+    reviewerNote: note.length > 0 ? note.slice(0, RESPONSE_REVIEWER_NOTE_MAX) : null,
+  };
+}
+
+export function validateResponseReviewerNote(note: string): string | null {
+  if (note.trim().length > RESPONSE_REVIEWER_NOTE_MAX) {
+    return `A reviewer note cannot be longer than ${RESPONSE_REVIEWER_NOTE_MAX} characters.`;
+  }
+  return null;
+}
+
+/** How one submission is named in a list, without inventing an identity. */
+export function responseContributorLabel(response: EvidenceRequestResponse): string {
+  return response.submittedByExternalLabel ?? "Contributor";
 }

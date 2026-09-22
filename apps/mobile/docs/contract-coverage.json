@@ -259,7 +259,7 @@
       "parser": "parseEvidenceRequestDetail",
       "builder": "(literal) /v1/evidence-requests/:p",
       "method": "GET",
-      "site": "[id].tsx:72",
+      "site": "[id].tsx:87",
       "path": "/v1/evidence-requests/:p",
       "route": "GET /v1/evidence-requests/:id",
       "serverKeys": [
@@ -270,7 +270,8 @@
         "instructions",
         "priority",
         "recipientLabel",
-        "request"
+        "request",
+        "responses"
       ],
       "verdict": "OK",
       "why": "reads request"
@@ -279,7 +280,7 @@
       "parser": "parseRequestDeliveries",
       "builder": "buildRequestDeliveriesPath",
       "method": "GET",
-      "site": "[id].tsx:83",
+      "site": "[id].tsx:98",
       "path": "/v1/evidence-requests/:p/deliveries",
       "route": "GET /v1/evidence-requests/:id/deliveries",
       "serverKeys": [
@@ -297,7 +298,7 @@
       "parser": "parseRequestEvents",
       "builder": "buildRequestEventsPath",
       "method": "GET",
-      "site": "[id].tsx:86",
+      "site": "[id].tsx:101",
       "path": "/v1/evidence-requests/:p/events",
       "route": "GET /v1/evidence-requests/:id/events",
       "serverKeys": [

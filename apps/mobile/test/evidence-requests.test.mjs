@@ -148,3 +148,120 @@ test("history reads newest first", () => {
   });
   assert.deepEqual(events.map((e) => e.id), ["e3", "e2", "e1"]);
 });
+
+// ---------------------------------------------------------------------------
+// PER-RESPONSE REVIEW — the reviewer's decision on ONE submission
+// ---------------------------------------------------------------------------
+
+test("detail carries the submissions, dropping rows without an id", () => {
+  const d = mod.parseEvidenceRequestDetail({
+    request: {
+      id: "r1", title: "Send photos", status: "RESPONSE_RECEIVED",
+      responses: [
+        {
+          id: "p1", status: "RECEIVED", submittedAtUtc: "2026-09-20T10:00:00.000Z",
+          submittedByExternalLabel: "Witness A", responseEvidenceId: "e1", reviewerNote: null,
+        },
+        { status: "RECEIVED" },
+      ],
+    },
+  });
+  assert.equal(d.responses.length, 1);
+  assert.equal(d.responses[0].submittedByExternalLabel, "Witness A");
+  assert.equal(d.responses[0].reviewerNote, null);
+});
+
+test("a request with no submissions reads as none, not as a broken shape", () => {
+  const d = mod.parseEvidenceRequestDetail({ request: { id: "r1", title: "t", status: "OPEN" } });
+  assert.deepEqual(d.responses, []);
+});
+
+test("an anonymous submission is labelled as a contributor, not given a name", () => {
+  // An anonymous source HAS no name. Inventing one as an identity rather than
+  // as an absence is the kind of small lie a custody surface cannot afford.
+  assert.equal(
+    mod.responseContributorLabel({ id: "p1", status: "RECEIVED", submittedByExternalLabel: null }),
+    "Contributor",
+  );
+  assert.equal(
+    mod.responseContributorLabel({ id: "p1", status: "RECEIVED", submittedByExternalLabel: "Ana" }),
+    "Ana",
+  );
+});
+
+test("the decision vocabulary is the route's own enum", () => {
+  // evidence-requests.routes.ts:581 — z.enum([...]). A native paraphrase here
+  // would be refused by the route at the moment the reviewer acted.
+  assert.deepEqual(mod.RESPONSE_REVIEW_DECISIONS, [
+    "UNDER_REVIEW", "ACCEPTED", "NEEDS_MORE_INFO", "REJECTED",
+  ]);
+});
+
+test("the decision already recorded is not offered again", () => {
+  // Re-recording it writes a fresh reviewedAtUtc and a timeline event saying
+  // a reviewer decided something they had already decided.
+  assert.ok(!mod.availableResponseDecisions("ACCEPTED").includes("ACCEPTED"));
+  assert.equal(mod.availableResponseDecisions("ACCEPTED").length, 3);
+  // A submission nobody has judged yet is offered all four.
+  assert.equal(mod.availableResponseDecisions("RECEIVED").length, 4);
+});
+
+test("the review path names the request AND the response, both encoded", () => {
+  assert.equal(
+    mod.buildResponseReviewPath("r 1", "p/1"),
+    "/v1/evidence-requests/r%201/responses/p%2F1/review",
+  );
+});
+
+test("an empty note is sent as null, not as an empty string", () => {
+  // The field is .nullable().optional(); "" would overwrite a note a previous
+  // reviewer left with a note that says nothing.
+  assert.deepEqual(mod.buildResponseReviewBody({ status: "ACCEPTED", reviewerNote: "   " }), {
+    status: "ACCEPTED", reviewerNote: null,
+  });
+  assert.deepEqual(mod.buildResponseReviewBody({ status: "REJECTED" }), {
+    status: "REJECTED", reviewerNote: null,
+  });
+  assert.deepEqual(mod.buildResponseReviewBody({ status: "ACCEPTED", reviewerNote: " ok " }), {
+    status: "ACCEPTED", reviewerNote: "ok",
+  });
+});
+
+test("the body never sends notifyContributor", () => {
+  // It makes the server send an SMS to an external contributor under the
+  // reviewer's name. That needs a deliberate control, not a default.
+  const body = mod.buildResponseReviewBody({ status: "REJECTED", reviewerNote: "no" });
+  assert.deepEqual(Object.keys(body).sort(), ["reviewerNote", "status"]);
+});
+
+test("a note longer than the route accepts is refused before it is sent", () => {
+  assert.equal(mod.validateResponseReviewerNote("x".repeat(4000)), null);
+  assert.match(mod.validateResponseReviewerNote("x".repeat(4001)), /4000/);
+  // And a note that slips through is bounded rather than rejected by the route.
+  assert.equal(
+    mod.buildResponseReviewBody({ status: "ACCEPTED", reviewerNote: "x".repeat(5000) }).reviewerNote.length,
+    4000,
+  );
+});
+
+test("acceptance is stated as admission to review, not as verification", () => {
+  const { label, tone } = mod.responseStatusDisplay("ACCEPTED");
+  assert.equal(label, "Accepted for internal review");
+  assert.equal(tone, "verified");
+  assert.match(mod.responseDecisionConsequence("ACCEPTED"), /not that its contents are verified/);
+  assert.equal(mod.responseStatusDisplay("REJECTED").tone, "risk");
+  assert.equal(mod.responseStatusDisplay(null).label, "Unknown");
+  // An unknown status is shown, not hidden.
+  assert.equal(mod.responseStatusDisplay("SOMETHING_NEW").tone, "neutral");
+});
+
+test("rejection is the destructive one, and says what it does not do", () => {
+  assert.equal(mod.responseDecisionIsDestructive("REJECTED"), true);
+  assert.equal(mod.responseDecisionIsDestructive("ACCEPTED"), false);
+  // What was sent is KEPT — rejection judges the submission, not the record.
+  assert.match(mod.responseDecisionConsequence("REJECTED"), /kept and stays on the record/);
+  for (const d of mod.RESPONSE_REVIEW_DECISIONS) {
+    assert.ok(mod.responseDecisionLabel(d).length > 0);
+    assert.ok(mod.responseDecisionConsequence(d).length > 0);
+  }
+});

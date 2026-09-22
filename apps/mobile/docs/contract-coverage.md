@@ -56,7 +56,7 @@ top level of it.
 | OK | `parseDiscussionMessages` | `GET /v1/collaboration/threads/:id/messages` | messages | messages |
 | OK | `parseEvidencePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
 | OK | `parseEvidenceRequestList` | `GET /v1/evidence-requests` | requests | map, requests |
-| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | deliverables, instructions, priority, recipientLabel, request |
+| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | deliverables, instructions, priority, recipientLabel, request, responses |
 | OK | `parseRequestDeliveries` | `GET /v1/evidence-requests/:id/deliveries` | deliveries | deliveries, items, map |
 | OK | `parseRequestEvents` | `GET /v1/evidence-requests/:id/events` | events | events, items, map |
 | OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId | evidenceId, keyframeBytesUrls, projection, status |
