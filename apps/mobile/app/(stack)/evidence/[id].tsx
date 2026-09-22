@@ -14,6 +14,9 @@ import {
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
+  ProovraInput,
+  ProovraFormField,
+  ProovraFilterChips,
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
@@ -28,6 +31,17 @@ import {
   projectCustodyEvents,
   projectPreservation,
   projectRelationships,
+  EVIDENCE_COMMENT_VISIBILITIES,
+  buildCommentBody,
+  buildCommentsPath,
+  commentVisibilityLabel,
+  isSendableComment,
+  projectComments,
+  type EvidenceComment,
+  type EvidenceCommentVisibility,
+  projectMaterials,
+  materialBlockedReason,
+  type MaterialItem,
   projectProvenance,
   projectTechnical,
   projectCertifications,
@@ -71,7 +85,16 @@ function reportStateMessage(state: EvidenceOutputState | null): string {
   }
 }
 
-type Tab = "overview" | "integrity" | "custody" | "technical" | "links" | "artifacts" | "derived";
+type Tab =
+  | "overview"
+  | "integrity"
+  | "custody"
+  | "technical"
+  | "links"
+  | "materials"
+  | "discussion"
+  | "artifacts"
+  | "derived";
 type LoadState = "loading" | "ready" | "error" | "notfound";
 
 interface Core {
@@ -107,6 +130,11 @@ export default function EvidenceDetailScreen() {
   // UC-4 reads are workspace-scoped, so the derived tab needs the active team.
   const platform = usePlatformContext();
   const [technical, setTechnical] = useState<TechnicalView | null>(null);
+  const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [comments, setComments] = useState<EvidenceComment[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [visibility, setVisibility] = useState<EvidenceCommentVisibility>("INTERNAL");
+  const [commentBusy, setCommentBusy] = useState(false);
   const [certifications, setCertifications] = useState<CertificationView[]>([]);
 
   const load = useCallback(async () => {
@@ -170,6 +198,7 @@ export default function EvidenceDetailScreen() {
       setPreservation(projectPreservation(rw));
       setRelationships(projectRelationships(rw));
       setProvenance(projectProvenance(rw));
+      setMaterials(projectMaterials(rw));
     } catch {
       setCustody({ forensic: [], access: [] });
       setPreservation(null);
@@ -195,6 +224,38 @@ export default function EvidenceDetailScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Comments load when the tab is opened rather than with the record: a
+  // reviewer who never opens the discussion should not pay for it.
+  const loadComments = useCallback(async () => {
+    if (!id) return;
+    try {
+      setComments(projectComments(await apiFetch(buildCommentsPath(String(id)))));
+    } catch {
+      setComments([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (tab === "discussion" && comments === null) void loadComments();
+  }, [tab, comments, loadComments]);
+
+  const postComment = useCallback(async () => {
+    if (!id || !isSendableComment(draft)) return;
+    setCommentBusy(true);
+    try {
+      await apiFetch(buildCommentsPath(String(id)), {
+        method: "POST",
+        body: JSON.stringify(buildCommentBody(draft, visibility)),
+      });
+      setDraft("");
+      await loadComments();
+    } catch (err) {
+      Alert.alert("Could not post comment", toSafeUserError(err).message);
+    } finally {
+      setCommentBusy(false);
+    }
+  }, [id, draft, visibility, loadComments]);
 
   // Share the PUBLIC verification link — only the server-provided publicUrl is
   // ever shared (never an invented URL). If public verification isn't published,
@@ -283,6 +344,10 @@ export default function EvidenceDetailScreen() {
     { key: "custody", label: "Custody" },
     { key: "technical", label: "Technical" },
     ...(relationships.length > 0 ? ([{ key: "links", label: "Links" }] as Array<{ key: Tab; label: string }>) : []),
+    ...(materials.length > 0
+      ? ([{ key: "materials", label: "Files" }] as Array<{ key: Tab; label: string }>)
+      : []),
+    { key: "discussion", label: "Discussion" },
     { key: "artifacts", label: "Artifacts" },
     // UC-4 — Derived Review is a RECORD property (screen-capture originals
     // only), never a workspace-kind gate, exactly as the web states it. The
@@ -473,6 +538,125 @@ export default function EvidenceDetailScreen() {
               </ProovraText>
             </ProovraCard>
           )}
+        </ProovraSection>
+      ) : null}
+
+      {tab === "materials" ? (
+        <ProovraSection title="Files in this record">
+          {/*
+            The record's preserved files. The screen had custody, integrity and
+            technical metadata but never listed the files themselves, so on a
+            multi-part record — which is what every mixed-media capture
+            produces — there was no way to see what was actually in it.
+
+            `downloadable` is the SERVER's decision. A control the server has
+            already refused is not offered, and when it cannot be offered the
+            reason is shown rather than a button that silently does nothing.
+          */}
+          <ProovraCard>
+            {materials.map((m) => (
+              <View key={m.id} style={styles.detailRow}>
+                <ProovraText variant="bodySm" weight="semibold">
+                  {m.label}
+                </ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {[m.kind, m.mimeType, m.sizeLabel].filter(Boolean).join(" · ")}
+                </ProovraText>
+                {m.representationNote ? (
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    {m.representationNote}
+                  </ProovraText>
+                ) : null}
+                {m.sha256 ? (
+                  <ProovraText variant="label" mono numberOfLines={1} color={theme.color.ink.muted}>
+                    {m.sha256}
+                  </ProovraText>
+                ) : null}
+                {materialBlockedReason(m) ? (
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    {materialBlockedReason(m)}
+                  </ProovraText>
+                ) : (
+                  <ProovraButton
+                    label="Open file"
+                    variant="secondary"
+                    fullWidth={false}
+                    onPress={() => void Linking.openURL(m.viewUrl as string)}
+                  />
+                )}
+              </View>
+            ))}
+          </ProovraCard>
+        </ProovraSection>
+      ) : null}
+
+      {tab === "discussion" ? (
+        <ProovraSection title="Reviewer comments">
+          {/*
+            A record under review is discussed by the people reviewing it, and
+            that conversation lived only on the web — a reviewer on a phone
+            could read every hash and custody event and not a single word
+            anyone had said about them.
+
+            Visibility defaults to workspace-only. A comment that turns out to
+            be wider than its author intended cannot be un-seen, so the default
+            is the narrow one and the choice is explicit.
+          */}
+          {comments === null ? (
+            <ProovraLoadingState label="Loading comments" />
+          ) : comments.length === 0 ? (
+            <ProovraCard>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                No comments on this record yet.
+              </ProovraText>
+            </ProovraCard>
+          ) : (
+            <ProovraCard>
+              {comments.map((c) => (
+                <View key={c.id} style={styles.detailRow}>
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    {[
+                      c.authorName,
+                      c.createdAtIso ? formatUserDateTime(c.createdAtIso) : null,
+                      commentVisibilityLabel(c.visibility),
+                      c.edited ? "edited" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </ProovraText>
+                  <ProovraText variant="bodySm">{c.body}</ProovraText>
+                </View>
+              ))}
+            </ProovraCard>
+          )}
+
+          <ProovraCard>
+            <ProovraFormField label="Add a comment">
+              <ProovraInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="What should a reviewer know?"
+                multiline
+                autoCapitalize="sentences"
+                accessibilityLabel="Add a comment"
+              />
+            </ProovraFormField>
+            <ProovraFilterChips
+              label="Visible to"
+              value={visibility}
+              onChange={(v: string) => setVisibility(v as EvidenceCommentVisibility)}
+              options={EVIDENCE_COMMENT_VISIBILITIES.map((v) => ({
+                value: v,
+                label: commentVisibilityLabel(v),
+              }))}
+            />
+            <ProovraButton
+              label="Post comment"
+              loading={commentBusy}
+              disabled={!isSendableComment(draft)}
+              onPress={() => void postComment()}
+            />
+          </ProovraCard>
         </ProovraSection>
       ) : null}
 

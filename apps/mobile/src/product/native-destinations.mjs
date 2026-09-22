@@ -180,15 +180,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/evidence/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",
+    alsoRouteFiles: ["(stack)/legal/[slug].tsx"],
     status: "PARTIAL",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/evidence/[id]/page.tsx", "apps/web/app/(app)/evidence/[id]/_tabs/*"],
     gaps: [
-      "no download of the original",
-      "no comments / annotations / legal notes / duplicates",
-      "no report regeneration (retrieval is present)",
-      "UC-4 DISPOSITION: the Derived Review tab is ported, under the SAME record-property gate the web applies (acquisition category DIRECT_SCREEN_CAPTURE, never a workspace kind). Read + generate/regenerate over /v1/evidence/:id/derived-review. It matters more here than on the web: UC-2, UC-3 and UC-5 are the modes that PRODUCE those records, and the device that made the recording could not read what was reconstructed from it.",
-      "derived blocks are paged server-side; the native tab reads the first page and states the remainder rather than paging",
+      "ported: overview, integrity, custody, technical metadata, relationships, artifacts, the record's FILES, reviewer DISCUSSION, and the UC-4 derived review",
+      "Files: the screen had custody, integrity and technical metadata but never listed the files themselves, so on a multi-part record - what every mixed-media capture produces - there was no way to see what was actually in it. `downloadable` is the SERVER's decision and is never widened: a control the server refused is not offered, and when it cannot be offered the reason is shown rather than a button that silently does nothing.",
+      "Discussion: a record under review is discussed by the people reviewing it, and that conversation lived only on the web - a reviewer on a phone could read every hash and custody event and not a single word anyone had said. Visibility defaults to workspace-only, and an unrecognised visibility reads as the NARROWER one, because a comment that turns out wider than its author intended cannot be un-seen.",
+      "not ported: annotations, legal notes, duplicate detection, and report REGENERATION (retrieval is present)",
     ],
   },
   "/cases": {

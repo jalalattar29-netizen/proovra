@@ -221,3 +221,166 @@ export function projectCertifications(data: unknown): CertificationView[] {
   }
   return out;
 }
+
+/* ----------------------------------------------------------------- Materials */
+
+/**
+ * THE PRESERVED FILES OF A RECORD.
+ *
+ * `contentItems` on the review-workspace projection. The native detail screen
+ * had custody, integrity and technical metadata but never listed the files
+ * themselves, so on a multi-part record — which is what every mixed-media
+ * capture produces — there was no way to see what was actually in it.
+ *
+ * `downloadable` and `previewable` are the SERVER'S decisions, computed from
+ * the content-access policy and the record's own state. The client renders
+ * them; it does not derive them, and it never offers an action the server has
+ * already said no to.
+ *
+ * `viewUrl` is a short-lived presigned URL (600s) and is deliberately NOT
+ * stored, logged or re-derived — it is used at the moment of the tap and
+ * forgotten.
+ */
+export interface MaterialItem {
+  id: string;
+  index: number | null;
+  label: string;
+  kind: string | null;
+  mimeType: string | null;
+  sizeLabel: string | null;
+  sha256: string | null;
+  isPrimary: boolean;
+  downloadable: boolean;
+  previewable: boolean;
+  viewUrl: string | null;
+  /** The server's own note about what this file represents for a reviewer. */
+  representationNote: string | null;
+}
+
+export function projectMaterials(rw: unknown): MaterialItem[] {
+  const raw = o(rw)["contentItems"];
+  const items = Array.isArray(raw) ? raw : [];
+
+  return items
+    .map((entry) => {
+      const it = o(entry);
+      const id = s(it["id"]);
+      if (!id) return null;
+      return {
+        id,
+        index: num(it["index"]),
+        label: s(it["label"]) ?? s(it["originalFileName"]) ?? "Untitled file",
+        kind: s(it["kind"]),
+        mimeType: s(it["mimeType"]),
+        sizeLabel: s(it["displaySizeLabel"]),
+        sha256: s(it["sha256"]),
+        isPrimary: b(it["isPrimary"]),
+        // Never widened: a client that decided for itself would offer a
+        // download the server refuses.
+        downloadable: b(it["downloadable"]),
+        previewable: b(it["previewable"]),
+        viewUrl: s(it["viewUrl"]),
+        representationNote: s(it["reviewerRepresentationNote"]),
+      };
+    })
+    .filter((m): m is MaterialItem => m !== null)
+    .sort((a, b2) => (a.index ?? 0) - (b2.index ?? 0));
+}
+
+/**
+ * Why a file cannot be opened, or null when it can.
+ *
+ * "Download" that silently does nothing is the worst of the three states; a
+ * disabled control with a reason is the honest one.
+ */
+export function materialBlockedReason(item: MaterialItem): string | null {
+  if (item.downloadable && item.viewUrl) return null;
+  if (!item.downloadable) return "This file is not available for download in this workspace.";
+  return "A download link could not be issued for this file.";
+}
+
+/* ------------------------------------------------------------------ Comments */
+
+/**
+ * REVIEWER COMMENTS on a record.
+ *
+ * `GET|POST /v1/evidence/:id/comments`. A record under review is discussed by
+ * the people reviewing it, and until now that conversation existed only on the
+ * web — a reviewer on a phone could read every hash and custody event and not
+ * a single word anyone had said about them.
+ *
+ * VISIBILITY IS NOT COSMETIC. `INTERNAL` is private to the workspace and
+ * `TEAM` is visible to the collaboration group; the default is INTERNAL and
+ * this module keeps it, because a comment that turns out to be wider than its
+ * author intended cannot be un-seen.
+ */
+export const EVIDENCE_COMMENT_VISIBILITIES = ["INTERNAL", "TEAM"] as const;
+export type EvidenceCommentVisibility = (typeof EVIDENCE_COMMENT_VISIBILITIES)[number];
+
+export const COMMENT_BODY_MAX = 4000;
+
+export function buildCommentsPath(evidenceId: string): string {
+  return `/v1/evidence/${encodeURIComponent(evidenceId)}/comments`;
+}
+
+export function buildCommentPath(evidenceId: string, commentId: string): string {
+  return `${buildCommentsPath(evidenceId)}/${encodeURIComponent(commentId)}`;
+}
+
+export interface EvidenceComment {
+  id: string;
+  body: string;
+  visibility: EvidenceCommentVisibility;
+  authorName: string;
+  authorId: string | null;
+  createdAtIso: string | null;
+  edited: boolean;
+}
+
+export function projectComments(payload: unknown): EvidenceComment[] {
+  const raw = o(payload)["items"];
+  const items = Array.isArray(raw) ? raw : [];
+
+  return items
+    .map((entry) => {
+      const c = o(entry);
+      const id = s(c["id"]);
+      if (!id) return null;
+      const author = o(c["author"]);
+      const visibility = s(c["visibility"]);
+      return {
+        id,
+        body: typeof c["body"] === "string" ? (c["body"] as string) : "",
+        // An unrecognised visibility reads as the NARROWER one. Guessing wide
+        // on a comment nobody can un-share is the wrong direction to be wrong.
+        visibility: (visibility === "TEAM" ? "TEAM" : "INTERNAL") as EvidenceCommentVisibility,
+        authorName: s(author["displayName"]) ?? s(author["email"]) ?? "Someone",
+        authorId: s(author["id"]),
+        createdAtIso: s(c["createdAt"]),
+        edited: b(c["edited"]),
+      };
+    })
+    .filter((c): c is EvidenceComment => c !== null)
+    // Oldest first: a conversation reads forwards.
+    .sort((a, b2) => {
+      const at = a.createdAtIso ? Date.parse(a.createdAtIso) : 0;
+      const bt = b2.createdAtIso ? Date.parse(b2.createdAtIso) : 0;
+      return at - bt;
+    });
+}
+
+export function isSendableComment(body: string): boolean {
+  const v = body.trim();
+  return v.length >= 1 && v.length <= COMMENT_BODY_MAX;
+}
+
+export function buildCommentBody(
+  body: string,
+  visibility: EvidenceCommentVisibility = "INTERNAL",
+) {
+  return { body: body.trim(), visibility };
+}
+
+export function commentVisibilityLabel(visibility: EvidenceCommentVisibility): string {
+  return visibility === "TEAM" ? "Visible to the group" : "Workspace only";
+}

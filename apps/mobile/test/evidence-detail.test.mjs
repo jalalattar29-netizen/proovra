@@ -100,3 +100,94 @@ test("garbage review-workspace fails safe to empty projections", () => {
   assert.deepEqual(mod.projectRelationships(null), []);
   assert.equal(mod.projectProvenance(null), null);
 });
+
+/* ----------------------------------------------------- materials + comments */
+
+/**
+ * The record's files and the conversation about them. The detail screen had
+ * custody, integrity and technical metadata but never listed the files, so on
+ * a multi-part record — what every mixed-media capture produces — there was no
+ * way to see what was actually in it. And a reviewer on a phone could read
+ * every hash and not a word anyone had said.
+ */
+test("materials are ordered by part index and drop rows with no id", () => {
+  const list = mod.projectMaterials({
+    contentItems: [
+      { id: "p2", index: 1, label: "second.jpg", downloadable: true, viewUrl: "https://x/2" },
+      { index: 0, label: "orphan" },
+      { id: "p1", index: 0, label: "first.jpg", downloadable: true, viewUrl: "https://x/1" },
+    ],
+  });
+  assert.deepEqual(list.map((m) => m.id), ["p1", "p2"]);
+});
+
+test("downloadability is the SERVER's answer, never widened here", () => {
+  const [locked] = mod.projectMaterials({
+    contentItems: [{ id: "p1", label: "x", downloadable: false, viewUrl: "https://x/1" }],
+  });
+  // A url without permission is still not a download.
+  assert.equal(locked.downloadable, false);
+  assert.match(mod.materialBlockedReason(locked), /not available for download/i);
+
+  const [noUrl] = mod.projectMaterials({
+    contentItems: [{ id: "p1", label: "x", downloadable: true, viewUrl: null }],
+  });
+  assert.match(mod.materialBlockedReason(noUrl), /could not be issued/i);
+
+  const [ok] = mod.projectMaterials({
+    contentItems: [{ id: "p1", label: "x", downloadable: true, viewUrl: "https://x/1" }],
+  });
+  assert.equal(mod.materialBlockedReason(ok), null);
+});
+
+test("a file with no label still has a name", () => {
+  const [a] = mod.projectMaterials({
+    contentItems: [{ id: "p1", originalFileName: "IMG_1.jpg" }],
+  });
+  assert.equal(a.label, "IMG_1.jpg");
+  const [b] = mod.projectMaterials({ contentItems: [{ id: "p1" }] });
+  assert.equal(b.label, "Untitled file");
+});
+
+test("an unrecognised comment visibility reads as the NARROWER one", () => {
+  // Guessing wide on a comment nobody can un-share is the wrong direction to
+  // be wrong.
+  const [c] = mod.projectComments({
+    items: [{ id: "c1", body: "x", visibility: "EVERYONE" }],
+  });
+  assert.equal(c.visibility, "INTERNAL");
+
+  const [t] = mod.projectComments({ items: [{ id: "c1", body: "x", visibility: "TEAM" }] });
+  assert.equal(t.visibility, "TEAM");
+});
+
+test("comments read forwards and name their author", () => {
+  const list = mod.projectComments({
+    items: [
+      { id: "c2", body: "later", createdAt: "2026-09-02T00:00:00.000Z", author: {} },
+      { id: "c1", body: "earlier", createdAt: "2026-09-01T00:00:00.000Z", author: { displayName: "Sam" } },
+      { body: "orphan" },
+    ],
+  });
+  assert.deepEqual(list.map((c) => c.id), ["c1", "c2"]);
+  assert.equal(list[0].authorName, "Sam");
+  assert.equal(list[1].authorName, "Someone");
+});
+
+test("a comment body is bounded by the route's own limits", () => {
+  assert.equal(mod.isSendableComment(""), false);
+  assert.equal(mod.isSendableComment("   "), false);
+  assert.equal(mod.isSendableComment("ok"), true);
+  assert.equal(mod.isSendableComment("x".repeat(4000)), true);
+  assert.equal(mod.isSendableComment("x".repeat(4001)), false);
+});
+
+test("the default visibility is the narrow one", () => {
+  assert.deepEqual(mod.buildCommentBody("  hi  "), { body: "hi", visibility: "INTERNAL" });
+  assert.deepEqual(mod.buildCommentBody("hi", "TEAM"), { body: "hi", visibility: "TEAM" });
+});
+
+test("the comment paths are the canonical ones", () => {
+  assert.equal(mod.buildCommentsPath("ev-1"), "/v1/evidence/ev-1/comments");
+  assert.equal(mod.buildCommentPath("ev-1", "c1"), "/v1/evidence/ev-1/comments/c1");
+});
