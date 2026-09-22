@@ -166,7 +166,10 @@ export default function EvidenceDetailScreen() {
   // The SERVER gate for reviewer-ops surfaces, read exactly as the web reads
   // it. Nothing native derives "enterprise" from a plan name; absent is false,
   // which withholds rather than offers.
-  const enterpriseSurfaces = platform.context?.enterpriseSurfaces === true;
+  // Internal materials are reviewer operations, which TEAM and above include.
+  // This screen read enterpriseSurfaces for them - its ONLY use of that flag -
+  // so the internal tab was withheld from every plan that pays for it.
+  const reviewerOperations = platform.context?.reviewerOperations === true;
   const [technical, setTechnical] = useState<TechnicalView | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [comments, setComments] = useState<EvidenceComment[] | null>(null);
@@ -440,7 +443,7 @@ export default function EvidenceDetailScreen() {
     { key: "discussion", label: "Discussion" },
     { key: "artifacts", label: "Artifacts" },
     { key: "duplicates", label: "Duplicates" },
-    ...(enterpriseSurfaces
+    ...(reviewerOperations
       ? ([{ key: "internal", label: "Internal" }] as Array<{ key: Tab; label: string }>)
       : []),
     // UC-4 — Derived Review is a RECORD property (screen-capture originals
@@ -709,7 +712,7 @@ export default function EvidenceDetailScreen() {
         </ProovraSection>
       ) : null}
 
-      {tab === "internal" && enterpriseSurfaces ? (
+      {tab === "internal" && reviewerOperations ? (
         <EvidenceInternalMaterials evidenceId={String(id)} />
       ) : null}
 

@@ -36,13 +36,26 @@ export interface PlatformContextProjection {
    * The SERVER-projected enterprise-surface gate, read exactly as the web
    * reads it: `platform.isPlatformAdmin === true || flags.isEnterpriseWorkspace === true`.
    *
-   * It decides whether reviewer-ops surfaces — reviewer comments, legal notes,
-   * annotations — are shown. Nothing native derives it: a client that inferred
-   * "enterprise" from a plan name would be a second authority that disagrees
-   * the moment either changes. Absent reads as false, which withholds rather
-   * than offers.
+   * It decides whether ENTERPRISE surfaces — governance, intelligence,
+   * investigation — are shown. Nothing native derives it: a client that
+   * inferred "enterprise" from a plan name would be a second authority that
+   * disagrees the moment either changes. Absent reads as false, which
+   * withholds rather than offers.
    */
   readonly enterpriseSurfaces: boolean;
+  /**
+   * Reviewer operations — reviewer comments, legal notes, annotations.
+   *
+   * A COMMERCIAL entitlement, not an Enterprise surface. The catalog includes
+   * it for TEAM and above (`PlanCapabilities.reviewerOperationsIncluded`) and
+   * `reviewer-workspace.routes.ts` enforces that same field, so reading
+   * `enterpriseSurfaces` here hid the internal materials from every TEAM
+   * workspace that pays for them.
+   *
+   * A platform admin passes, matching `usePlanFeatureGate` on the web.
+   * Absent reads as false.
+   */
+  readonly reviewerOperations: boolean;
 }
 
 function str(v: unknown): string | null {
@@ -67,14 +80,23 @@ export function projectPlatformContext(envelope: unknown): PlatformContextProjec
     personalSpaceAllowed: !isPersonalSpaceDisallowed(env as { personalSpaceAllowed?: boolean }),
     displayName: str(active["displayName"]),
     enterpriseSurfaces: readEnterpriseSurfaces(env),
+    reviewerOperations: readReviewerOperations(env),
   };
 }
 
+function envObject(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+
 function readEnterpriseSurfaces(env: Record<string, unknown>): boolean {
-  const o = (v: unknown): Record<string, unknown> =>
-    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-  return o(env["platform"])["isPlatformAdmin"] === true ||
-    o(env["flags"])["isEnterpriseWorkspace"] === true;
+  return envObject(env["platform"])["isPlatformAdmin"] === true ||
+    envObject(env["flags"])["isEnterpriseWorkspace"] === true;
+}
+
+/** `planFeatures.reviewerOperationsIncluded`, with the platform-admin pass. */
+function readReviewerOperations(env: Record<string, unknown>): boolean {
+  if (envObject(env["platform"])["isPlatformAdmin"] === true) return true;
+  return envObject(env["planFeatures"])["reviewerOperationsIncluded"] === true;
 }
 
 export interface PlatformContextState {

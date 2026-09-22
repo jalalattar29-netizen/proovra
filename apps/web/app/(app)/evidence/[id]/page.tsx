@@ -125,11 +125,11 @@ function EvidenceDetailPageInner() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
-  // Track 1A (surface-tier removal) — reviewer-ops / governance / intelligence
-  // / investigation affordances belong to the Enterprise experience; the gate
-  // is the SERVER-projected isEnterpriseWorkspace / isPlatformAdmin booleans.
+  // Track 1A — governance / intelligence / investigation are Enterprise
+  // surfaces (isEnterpriseWorkspace / isPlatformAdmin). Reviewer ops are
+  // not: TEAM+, the field the server itself enforces.
   const enterpriseSurfaces = useEnterpriseSurfaceAccess();
-  const canSeeReviewerOps = enterpriseSurfaces;
+  const canSeeReviewerOps = usePlanFeatureGate("reviewerOperationsIncluded");
   const canSeeGovernance = enterpriseSurfaces;
   const canSeeIntelligence = enterpriseSurfaces;
   // Intake links are a COMMERCIAL entitlement — the SERVER-projected

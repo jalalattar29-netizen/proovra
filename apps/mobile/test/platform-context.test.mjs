@@ -60,3 +60,51 @@ test("garbage / missing envelope fails safely", () => {
     assert.equal(p.personalSpaceAllowed, true);
   }
 });
+
+/* --------------------------------------------- F-02 reviewer operations -- */
+
+test("reviewer operations read their own entitlement, not the enterprise flag", () => {
+  // THE DEFECT. The catalog includes reviewer operations for TEAM and above
+  // (PlanCapabilities.reviewerOperationsIncluded) and the server enforces that
+  // field (reviewer-workspace.routes.ts:430). Both clients gated the surface on
+  // enterpriseSurfaces, so a TEAM workspace paid for reviewer comments, legal
+  // notes and annotations and could not see any of them.
+  const team = projectPlatformContext({
+    activeSpace: { type: "ORGANIZATION", id: "t1", plan: "TEAM" },
+    flags: { isEnterpriseWorkspace: false },
+    planFeatures: { reviewerOperationsIncluded: true },
+  });
+  assert.equal(team.reviewerOperations, true, "a TEAM workspace is entitled");
+  assert.equal(team.enterpriseSurfaces, false, "and is not an enterprise surface");
+});
+
+test("a plan without reviewer operations does not get them", () => {
+  const free = projectPlatformContext({
+    activeSpace: { type: "PERSONAL", id: null, plan: "FREE" },
+    planFeatures: { reviewerOperationsIncluded: false },
+  });
+  assert.equal(free.reviewerOperations, false);
+});
+
+test("an enterprise workspace is not, by itself, the authority", () => {
+  // The two flags are independent: the envelope decides each one. A surface
+  // that inferred either from the other would be a second authority.
+  const enterpriseNoFlag = projectPlatformContext({
+    flags: { isEnterpriseWorkspace: true },
+    planFeatures: { reviewerOperationsIncluded: false },
+  });
+  assert.equal(enterpriseNoFlag.enterpriseSurfaces, true);
+  assert.equal(enterpriseNoFlag.reviewerOperations, false);
+});
+
+test("a platform admin passes, exactly as usePlanFeatureGate does on the web", () => {
+  const admin = projectPlatformContext({ platform: { isPlatformAdmin: true } });
+  assert.equal(admin.reviewerOperations, true);
+  assert.equal(admin.enterpriseSurfaces, true);
+});
+
+test("an absent entitlement withholds rather than offers", () => {
+  for (const bad of [null, undefined, 42, {}, { planFeatures: null }]) {
+    assert.equal(projectPlatformContext(bad).reviewerOperations, false);
+  }
+});

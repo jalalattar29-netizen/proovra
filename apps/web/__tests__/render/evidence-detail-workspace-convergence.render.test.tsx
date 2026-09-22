@@ -1027,6 +1027,7 @@ type ContextKey =
   | "organization"
   | "enterprise"
   | "platformAdmin"
+  | "team"
   | "legacy"
   | "missing";
 
@@ -1079,7 +1080,19 @@ function makeEnvelope(key: ContextKey): unknown {
         account: { accountPlan: "ENTERPRISE", accountStatus: "active" },
         flags: { isEnterpriseWorkspace: true },
         platform: { isPlatformAdmin: false },
-        planFeatures: { intakeIncluded: true },
+        planFeatures: { intakeIncluded: true, reviewerOperationsIncluded: true },
+      };
+    case "team":
+      // F-02. TEAM is NOT an enterprise workspace and DOES include reviewer
+      // operations (plan-catalog.ts:462) - the case the page used to get
+      // wrong, and the one no fixture here covered.
+      return {
+        ...base,
+        ...space("ORGANIZATION", "ws-team", "Harbour Investigations"),
+        account: { accountPlan: "TEAM", accountStatus: "active" },
+        flags: { isEnterpriseWorkspace: false },
+        platform: { isPlatformAdmin: false },
+        planFeatures: { intakeIncluded: true, reviewerOperationsIncluded: true },
       };
     case "platformAdmin":
       return {
@@ -1130,8 +1143,20 @@ async function mountLoaded(key: ContextKey) {
   return utils;
 }
 
+/*
+ * The reviewer-ops axis is the ENTITLEMENT, not the workspace tier.
+ *
+ * These were named ENTERPRISE / NON_ENTERPRISE, which is what the page gated
+ * on and is not what the server enforces: reviewer operations are included for
+ * TEAM and above (PlanCapabilities.reviewerOperationsIncluded) and
+ * reviewer-workspace.routes.ts:430 checks that field. `team` therefore belongs
+ * with `enterprise`, and `organization` - whose plan does not include them -
+ * belongs with `personal`.
+ */
+const REVIEWER_OPS_CONTEXTS: ContextKey[] = ["enterprise", "platformAdmin", "team"];
+const NO_REVIEWER_OPS_CONTEXTS: ContextKey[] = ["personal", "organization", "legacy"];
 const ENTERPRISE_CONTEXTS: ContextKey[] = ["enterprise", "platformAdmin"];
-const NON_ENTERPRISE_CONTEXTS: ContextKey[] = ["personal", "organization", "legacy"];
+const NON_ENTERPRISE_CONTEXTS: ContextKey[] = ["personal", "organization", "legacy", "team"];
 const LOADED_CONTEXTS: ContextKey[] = [...NON_ENTERPRISE_CONTEXTS, ...ENTERPRISE_CONTEXTS];
 
 beforeEach(() => {
@@ -1212,12 +1237,12 @@ describe("convergence — capability controls modules only", () => {
     });
   }
 
-  it.each(ENTERPRISE_CONTEXTS)("%s reaches the reviewer-ops panels", async (key) => {
+  it.each(REVIEWER_OPS_CONTEXTS)("%s reaches the reviewer-ops panels", async (key) => {
     await openReviewTab(key);
     expect(document.querySelector("[data-evidence-review-enterprise-panels]")).not.toBeNull();
   });
 
-  it.each(NON_ENTERPRISE_CONTEXTS)("%s does not reach the reviewer-ops panels", async (key) => {
+  it.each(NO_REVIEWER_OPS_CONTEXTS)("%s does not reach the reviewer-ops panels", async (key) => {
     await openReviewTab(key);
     expect(document.querySelector("[data-evidence-review-enterprise-panels]")).toBeNull();
   });

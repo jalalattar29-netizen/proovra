@@ -246,3 +246,35 @@ test("Fix 3 — backend reviewerAlerts severity is normalized through buildRiskS
   assert.match(LIB, /if\s*\(s === "critical"\s*\|\|\s*s === "high"\)\s*return\s*"danger"/);
   assert.match(LIB, /return\s*"info"/);
 });
+
+// ---------------------------------------------------------------------------
+// F-02 — reviewer operations are a COMMERCIAL entitlement, not an Enterprise
+// surface
+// ---------------------------------------------------------------------------
+
+test("F-02 — canSeeReviewerOps reads reviewerOperationsIncluded, not the enterprise flag", () => {
+  // THE DEFECT. The catalog includes reviewer operations for TEAM and above
+  // (PlanCapabilities.reviewerOperationsIncluded, plan-catalog.ts:462/492) and
+  // the server enforces exactly that field
+  // (workspaceIncludesReviewerOperations -> reviewer-workspace.routes.ts:430).
+  // This page gated the whole surface on `enterpriseSurfaces`, so a TEAM
+  // workspace paid for reviewer comments, legal notes and annotations and
+  // could not see one of them.
+  assert.match(PAGE, /const canSeeReviewerOps = usePlanFeatureGate\("reviewerOperationsIncluded"\)/);
+  assert.ok(
+    !/const canSeeReviewerOps = enterpriseSurfaces/.test(PAGE),
+    "reviewer operations must not be gated on the enterprise-surface flag",
+  );
+});
+
+test("F-02 — the enterprise flag still gates the surfaces that ARE enterprise", () => {
+  // Governance, intelligence and investigation are unchanged: the fix narrows
+  // one gate to its own authority, it does not open the others.
+  for (const gate of ["canSeeGovernance", "canSeeIntelligence", "canSeeInvestigation"]) {
+    assert.match(
+      PAGE,
+      new RegExp(`const ${gate} = enterpriseSurfaces`),
+      `${gate} must remain an enterprise-surface gate`,
+    );
+  }
+});
