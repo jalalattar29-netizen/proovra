@@ -144,11 +144,14 @@ export const NATIVE_DESTINATIONS = {
   "/evidence/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",
     status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/evidence/[id]/page.tsx", "apps/web/app/(app)/evidence/[id]/_tabs/*"],
     gaps: [
       "no download of the original",
-      "no comments / annotations / legal notes / relationships / duplicates",
-      "no report retrieval or regeneration",
+      "no comments / annotations / legal notes / duplicates",
+      "no report regeneration (retrieval is present)",
+      "UC-4 DISPOSITION: the Derived Review tab is ported, under the SAME record-property gate the web applies (acquisition category DIRECT_SCREEN_CAPTURE, never a workspace kind). Read + generate/regenerate over /v1/evidence/:id/derived-review. It matters more here than on the web: UC-2, UC-3 and UC-5 are the modes that PRODUCE those records, and the device that made the recording could not read what was reconstructed from it.",
+      "derived blocks are paged server-side; the native tab reads the first page and states the remainder rather than paging",
     ],
   },
   "/cases": {

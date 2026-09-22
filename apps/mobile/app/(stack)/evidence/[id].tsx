@@ -38,6 +38,9 @@ import {
   type TechnicalView,
   type CertificationView,
 } from "../../../src/product/evidence-detail";
+import { isDerivedReviewEligible } from "../../../src/product/derived-review";
+import { DerivedReviewTab } from "../../../src/ui/derived-review-tab";
+import { usePlatformContext } from "../../../src/product/platform-context";
 
 /**
  * P2-3 CLOSURE — one sentence per canonical output state. TOTAL over
@@ -68,7 +71,7 @@ function reportStateMessage(state: EvidenceOutputState | null): string {
   }
 }
 
-type Tab = "overview" | "integrity" | "custody" | "technical" | "links" | "artifacts";
+type Tab = "overview" | "integrity" | "custody" | "technical" | "links" | "artifacts" | "derived";
 type LoadState = "loading" | "ready" | "error" | "notfound";
 
 interface Core {
@@ -101,6 +104,8 @@ export default function EvidenceDetailScreen() {
   const [preservation, setPreservation] = useState<PreservationView | null>(null);
   const [relationships, setRelationships] = useState<RelationshipView[]>([]);
   const [provenance, setProvenance] = useState<ProvenanceView | null>(null);
+  // UC-4 reads are workspace-scoped, so the derived tab needs the active team.
+  const platform = usePlatformContext();
   const [technical, setTechnical] = useState<TechnicalView | null>(null);
   const [certifications, setCertifications] = useState<CertificationView[]>([]);
 
@@ -279,6 +284,13 @@ export default function EvidenceDetailScreen() {
     { key: "technical", label: "Technical" },
     ...(relationships.length > 0 ? ([{ key: "links", label: "Links" }] as Array<{ key: Tab; label: string }>) : []),
     { key: "artifacts", label: "Artifacts" },
+    // UC-4 — Derived Review is a RECORD property (screen-capture originals
+    // only), never a workspace-kind gate, exactly as the web states it. The
+    // category comes from the provenance projection this screen already loads,
+    // so eligibility has one source.
+    ...(isDerivedReviewEligible(provenance?.category ?? null)
+      ? ([{ key: "derived", label: "Derived" }] as Array<{ key: Tab; label: string }>)
+      : []),
   ];
 
   return (
@@ -462,6 +474,10 @@ export default function EvidenceDetailScreen() {
             </ProovraCard>
           )}
         </ProovraSection>
+      ) : null}
+
+      {tab === "derived" ? (
+        <DerivedReviewTab evidenceId={String(id)} teamId={platform.context?.activeTeamId ?? null} />
       ) : null}
     </ProovraScreen>
   );
