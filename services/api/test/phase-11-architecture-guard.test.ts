@@ -99,6 +99,8 @@ describe("Phase 11 — canonical authority counts (anti-divergence)", () => {
 // never satisfy — or falsely trip — a metric. Each metric names the exact
 // production expression it counts.
 describe("Phase 11 — final adoption metrics (machine-enforced)", () => {
+  /** A tenant value read out of the URL — the thing the rule actually forbids. */
+  const TENANT_PARAM_READ = new RegExp("searchParams[\\s\\S]{0,12}get\\([^)]*(workspace|team|org|tenant)", "i");
   const WEB = resolve(API, "../../apps/web");
   const MOBILE = resolve(API, "../../apps/mobile");
   const read = (rel: string, base: string) => readFileSync(resolve(base, rel), "utf8");
@@ -129,8 +131,21 @@ describe("Phase 11 — final adoption metrics (machine-enforced)", () => {
     const layout = stripComments(read("app/_layout.tsx", MOBILE));
     expect(layout).toContain("DeepLinkGate"); // mounted at the app root
     const authority = stripComments(read("src/deep-link.ts", MOBILE));
-    // The parser never reads workspace/team from the URL as truth.
-    expect(/searchParams|[?&](workspace|team)=/.test(authority)).toBe(false);
+    /*
+     * The parser never reads TENANT truth from the URL.
+     *
+     * This used to ban `searchParams` outright, as a proxy for that rule. The
+     * proxy broke when credential deep links landed: verify-email, password
+     * reset and invitation links carry an opaque `?token=`, which the parser
+     * must read and which is NOT tenant inference — the token is proven by the
+     * destination screen's own API call, and the server re-derives the
+     * workspace regardless.
+     *
+     * Asserted against the rule itself: no workspace/team/org/tenant value is
+     * read from the URL, by param name or by accessor.
+     */
+    expect(/[?&](workspace|team|org|tenant)=/.test(authority)).toBe(false);
+    expect(TENANT_PARAM_READ.test(authority)).toBe(false);
   });
 
   it("AUDIT UI consumer > 0 and export uses the SAME endpoint (authorities = 1)", () => {
