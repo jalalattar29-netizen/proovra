@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../providers";
 import { apiFetch, ApiError } from "../../../lib/api";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
+import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 
 /**
  * EV5 — Email verification landing page.
@@ -42,11 +43,12 @@ type VerifyState =
 
 // Match the versions used by register.tsx + login.tsx so the
 // acceptance write here is bit-for-bit identical to those flows.
-const REQUIRED_LEGAL_VERSIONS = {
-  terms: "2026-04-06",
-  privacy: "2026-04-06",
-  cookies: "2026-04-06",
-} as const;
+// The acceptance requirement is DERIVED from the canonical legal corpus in
+// `@proovra/shared/legal`, not restated here. This page used to carry its own
+// copy of the three dates; so did login and verify-email and the API. All four
+// said 2026-04-06 while the documents said 2026-06-23 / 2026-06-26, so a user
+// was recorded as accepting a revision of the Terms that was not the one on
+// screen.
 
 function getRequiredAcceptances() {
   return [

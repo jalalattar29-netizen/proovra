@@ -91,3 +91,68 @@ export function listLegalDocuments(): LegalDocumentSummary[] {
     lastUpdated: LEGAL_CORPUS[slug].lastUpdated,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Acceptance
+// ---------------------------------------------------------------------------
+
+/**
+ * THE policies a user must accept, and THE version they must accept.
+ *
+ * ===========================================================================
+ * WHY THIS IS DERIVED AND NOT WRITTEN DOWN
+ * ===========================================================================
+ * The required version used to be a hand-maintained table of three date
+ * strings, and it existed in FOUR places: the API's `legal-versioning.ts` and
+ * a local `const REQUIRED_LEGAL_VERSIONS` in each of the register, login and
+ * verify-email pages. All four said `2026-04-06`. The documents themselves had
+ * moved to `2026-06-23` and `2026-06-26` months earlier.
+ *
+ * So every user was accepting a version of the Terms that no longer matched
+ * the Terms they were shown, and the acceptance record said they had agreed to
+ * a document revision that was not the one on screen. That is the one thing an
+ * acceptance record exists to state correctly.
+ *
+ * A table that has to be edited when a document changes will go stale again.
+ * This is computed from the corpus instead: the document's own `Last Updated:`
+ * line IS the version a user accepts, because that is how the product has
+ * always expressed it — `policyVersion` is a `VarChar(32)` holding exactly
+ * that date string.
+ *
+ * Version and effective date are NOT separate concepts here. The corpus
+ * publishes one date per document and nothing else, so collapsing them would
+ * be inventing a distinction the repository does not make. If a document ever
+ * gains a genuinely separate effective date, this is the one place to split
+ * them.
+ */
+export const REQUIRED_LEGAL_POLICY_KEYS = ["terms", "privacy", "cookies"] as const;
+
+export type RequiredLegalPolicyKey = (typeof REQUIRED_LEGAL_POLICY_KEYS)[number];
+
+export type RequiredLegalVersions = Record<RequiredLegalPolicyKey, string>;
+
+/**
+ * The version of each acceptance-gated policy, as its document states it.
+ *
+ * Computed once at module load. The corpus is immutable for the lifetime of a
+ * build, so there is nothing to recompute and no way for a caller to observe a
+ * different answer than its neighbour.
+ */
+export const REQUIRED_LEGAL_VERSIONS: RequiredLegalVersions = Object.freeze(
+  Object.fromEntries(
+    REQUIRED_LEGAL_POLICY_KEYS.map((key) => [key, LEGAL_CORPUS[key].lastUpdated]),
+  ) as RequiredLegalVersions,
+);
+
+export function getRequiredLegalVersions(): RequiredLegalVersions {
+  return REQUIRED_LEGAL_VERSIONS;
+}
+
+/** The acceptance requirement for one slug, or null when it is not gated. */
+export function requiredAcceptanceFor(
+  slug: string,
+): { policyKey: RequiredLegalPolicyKey; requiredVersion: string } | null {
+  if (!(REQUIRED_LEGAL_POLICY_KEYS as readonly string[]).includes(slug)) return null;
+  const key = slug as RequiredLegalPolicyKey;
+  return { policyKey: key, requiredVersion: REQUIRED_LEGAL_VERSIONS[key] };
+}

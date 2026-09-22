@@ -467,8 +467,8 @@ vi.mock("../src/services/legal-acceptance.service.js", () => ({
       ok: missing.length === 0,
       requiresReacceptance: missing.length > 0,
       missingPolicies: missing,
-      acceptedVersions: H.legalOk ? { terms: "2026-04-06" } : { terms: "2025-01-01" },
-      requiredVersions: { terms: "2026-04-06", privacy: "2026-04-06", cookies: "2026-04-06" },
+      acceptedVersions: H.legalOk ? { terms: REQUIRED_TERMS_VERSION } : { terms: "2025-01-01" },
+      requiredVersions: { ...REQUIRED_LEGAL_VERSIONS },
     };
   },
   recordLegalAcceptances: async () => {
@@ -585,6 +585,17 @@ import { communicationsRoutes } from "../src/routes/communications.routes.js";
 import { presenceRoutes } from "../src/routes/presence.routes.js";
 import { collaborationRoutes } from "../src/routes/collaboration.routes.js";
 import { adminAuditRoutes } from "../src/routes/admin-audit.routes.js";
+
+/**
+ * The required acceptance version is DERIVED from the legal corpus, so this
+ * test reads it rather than restating it. It used to hard-code "2026-04-06"
+ * in four places — the same literal the production code carried, and equally
+ * stale: the documents had said 2026-06-23 for months. A test that pins the
+ * wrong constant cannot notice that the constant is wrong.
+ */
+import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
+
+const REQUIRED_TERMS_VERSION = REQUIRED_LEGAL_VERSIONS.terms;
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
@@ -998,7 +1009,7 @@ describe("PLATFORM_CORE §2 — legal acceptance status", () => {
     expect(body.ok).toBe(true);
     expect(body.requiresReacceptance).toBe(false);
     expect(body.missingPolicies).toEqual([]);
-    expect(body.requiredVersions.terms).toBe("2026-04-06");
+    expect(body.requiredVersions.terms).toBe(REQUIRED_TERMS_VERSION);
   });
 
   it("behind a policy version — the SERVER names what is outstanding and at which version", async () => {
@@ -1010,7 +1021,7 @@ describe("PLATFORM_CORE §2 — legal acceptance status", () => {
     expect(body.missingPolicies).toEqual(["terms"]);
     // The accepted-vs-required delta is server-computed, not client-derived.
     expect(body.acceptedVersions.terms).toBe("2025-01-01");
-    expect(body.requiredVersions.terms).toBe("2026-04-06");
+    expect(body.requiredVersions.terms).toBe(REQUIRED_TERMS_VERSION);
   });
 
   it("SERVER-derived subject — a client-declared userId is ignored", async () => {
@@ -1031,7 +1042,7 @@ describe("PLATFORM_CORE §2 — legal acceptance status", () => {
       method: "POST",
       url: "/v1/users/legal-acceptance",
       headers: JSON_HEADERS,
-      payload: { source: "settings", acceptances: [{ policyKey: "terms", policyVersion: "2026-04-06" }] },
+      payload: { source: "settings", acceptances: [{ policyKey: "terms", policyVersion: REQUIRED_TERMS_VERSION }] },
     });
     expect(res.statusCode).toBe(200);
     expect(H.writes).toContain("recordLegalAcceptances");

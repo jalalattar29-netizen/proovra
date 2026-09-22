@@ -29,6 +29,7 @@ import {
   clearPendingOAuthLegalAcceptance,
   savePendingOAuthLegalAcceptance,
 } from "../../lib/legalAcceptance";
+import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -114,11 +115,12 @@ function ShieldIcon() {
   );
 }
 
-const REQUIRED_LEGAL_VERSIONS = {
-  terms: "2026-04-06",
-  privacy: "2026-04-06",
-  cookies: "2026-04-06",
-} as const;
+// The acceptance requirement is DERIVED from the canonical legal corpus in
+// `@proovra/shared/legal`, not restated here. This page used to carry its own
+// copy of the three dates; so did login and verify-email and the API. All four
+// said 2026-04-06 while the documents said 2026-06-23 / 2026-06-26, so a user
+// was recorded as accepting a revision of the Terms that was not the one on
+// screen.
 
 /**
  * PHASE 12 — POINT 7 (final pass): an ACCESSIBLE shell, not `null`.

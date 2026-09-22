@@ -2,10 +2,10 @@ import type { FastifyInstance } from "fastify";
 import {
   getLegalDocument,
   listLegalDocuments,
+  requiredAcceptanceFor,
   LEGAL_CORPUS_SHA256,
   LEGAL_LOCALE,
 } from "@proovra/shared/legal";
-import { REQUIRED_LEGAL_VERSIONS } from "../legal/legal-versioning.js";
 
 /**
  * CANONICAL LEGAL DOCUMENT DELIVERY.
@@ -32,22 +32,22 @@ import { REQUIRED_LEGAL_VERSIONS } from "../legal/legal-versioning.js";
  * not of a document. Where it applies it is reported as `acceptance`, so a
  * client can state which version it displayed when it records acceptance.
  *
- * NOTE — these two dates do not currently agree. `REQUIRED_LEGAL_VERSIONS`
- * pins terms/privacy/cookies at `2026-04-06` while those documents state
- * `2026-06-23`/`2026-06-26`. Reconciling them forces every user to re-accept,
- * which is a product and legal decision rather than a delivery detail, so this
- * route reports both honestly instead of hiding the difference behind one field.
+ * RECONCILED (2026-09-22). These two once disagreed: the acceptance table
+ * pinned terms/privacy/cookies at `2026-04-06` while the documents said
+ * `2026-06-23`/`2026-06-26`, so a user was recorded as accepting a revision
+ * that was not the one on screen. The requirement is now DERIVED from each
+ * document's own date, in `@proovra/shared/legal`, and cannot drift again.
  */
 
-type AcceptancePolicyKey = keyof typeof REQUIRED_LEGAL_VERSIONS;
-
-function acceptanceFor(slug: string) {
-  if (!Object.prototype.hasOwnProperty.call(REQUIRED_LEGAL_VERSIONS, slug)) {
-    return null;
-  }
-  const key = slug as AcceptancePolicyKey;
-  return { policyKey: key, requiredVersion: REQUIRED_LEGAL_VERSIONS[key] };
-}
+/**
+ * The acceptance requirement, from the ONE place that computes it.
+ *
+ * `requiredAcceptanceFor` derives the version from the document's own
+ * `Last Updated:` line, so this route reports the version a user is actually
+ * shown rather than a hand-maintained date that had drifted two months behind
+ * the text.
+ */
+const acceptanceFor = requiredAcceptanceFor;
 
 // The corpus is immutable for the lifetime of a deployed build, so it is safe
 // to let clients cache it and to answer a conditional request from the digest.
