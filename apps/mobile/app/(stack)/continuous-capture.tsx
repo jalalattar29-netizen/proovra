@@ -38,7 +38,7 @@ import {
   uploadContinuousSegment,
   type DeclaredSegment,
 } from "../../src/continuous-capture";
-import type { DirectCaptureSession } from "../../src/direct-capture";
+import { sealDirectCapture, type DirectCaptureSession } from "../../src/direct-capture";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import {
   INITIAL_CONTINUOUS_FLOW,
@@ -274,11 +274,17 @@ export default function ContinuousCaptureScreen() {
               limitations: Array.from(new Set([...(result.limitations ?? []), ...clientLimitationsRef.current])),
             }
           : result;
-      const sealed = await finalizeContinuousCapture(
-        active.session,
-        active.evidenceId,
-        resultForManifest,
-        declaredRef.current,
+      // Seal, or release the reservation. A failure between reserving the
+      // Evidence record and completing it used to leave a custody-logged empty
+      // record in the owner's library, and nothing ever removed it — the rule
+      // /capture has always applied and this screen did not.
+      const sealed = await sealDirectCapture(active.session, () =>
+        finalizeContinuousCapture(
+          active.session,
+          active.evidenceId,
+          resultForManifest,
+          declaredRef.current,
+        ),
       );
       sessionRef.current = null;
       dispatch({
@@ -287,8 +293,12 @@ export default function ContinuousCaptureScreen() {
         segmentCount: sealed.segmentCount,
         completeness: sealed.sessionCompleteness,
       });
-      toast.addToast("Evidence saved.", "success");
+      toast.addToast("Evidence created successfully", "success");
+      router.replace(`/evidence/${sealed.evidenceId}`);
     } catch (err) {
+      // The reservation is already released by sealDirectCapture; this session
+      // can no longer be sealed, so the screen must not offer to retry it.
+      sessionRef.current = null;
       dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not finalize the evidence." });
     }
   }, [drainUploads, toast]);
@@ -361,9 +371,9 @@ export default function ContinuousCaptureScreen() {
               label={state.completeness === "COMPLETE_SESSION" ? "Complete — no known interruption" : "Interrupted — ended before a clean stop"}
             />
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              Finalize to seal these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.
+              Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.
             </ProovraText>
-            <ProovraButton label="Finalize Evidence" onPress={finalize} />
+            <ProovraButton label="Finish &amp; Sign" onPress={finalize} />
             <ProovraButton label="Discard" variant="ghost" onPress={reset} />
           </ProovraCard>
         )}

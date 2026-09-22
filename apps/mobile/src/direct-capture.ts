@@ -167,6 +167,33 @@ export async function completeDirectCapture(
  *
  * Idempotent server-side; a session that is already terminal answers 200.
  */
+/**
+ * Seal a direct-capture session, or release its reservation.
+ *
+ * THE RULE EVERY DIRECT CAPTURE OBEYS. Sealing reserves an Evidence record
+ * before the first part is uploaded and completes it last, so a failure
+ * anywhere between the two leaves a reserved, custody-logged record with
+ * nothing in it. `discardDirectCaptureSession` exists precisely to release
+ * that, and `/capture` has always called it on failure — the two
+ * screen-capture surfaces did not, so every failed screen capture left an
+ * empty record in the owner's library and nothing ever removed it.
+ *
+ * The release is best-effort and never masks the original error: the caller
+ * needs to know that the capture failed, not that the cleanup did. A session
+ * that is already terminal answers 200, so a double release is harmless.
+ */
+export async function sealDirectCapture<T>(
+  session: DirectCaptureSession,
+  seal: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await seal();
+  } catch (err) {
+    await discardDirectCaptureSession(session).catch(() => undefined);
+    throw err;
+  }
+}
+
 export async function discardDirectCaptureSession(
   session: DirectCaptureSession,
 ): Promise<{ releasedEvidenceId: string | null; discarded: boolean }> {

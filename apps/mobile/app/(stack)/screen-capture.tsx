@@ -120,7 +120,10 @@ export default function ScreenCaptureScreen() {
       const result = await stopScreenCapture();
       const sealed = await finalizeScreenCapture(result);
       dispatch({ type: "FINALIZED", evidenceId: sealed.evidenceId });
-      toast.addToast("Evidence saved.", "success");
+      toast.addToast("Evidence created successfully", "success");
+      // The canonical surface lands the user ON the record. Stopping on a card
+      // and asking them to tap "View Evidence" made one act feel like two.
+      router.replace(`/evidence/${sealed.evidenceId}`);
     } catch (err) {
       dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not finalize the evidence." });
     }
@@ -178,9 +181,9 @@ export default function ScreenCaptureScreen() {
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" weight="semibold">{state.frameCount} frame(s) captured and ready to save.</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              The frames are on this device. Finalize to upload them; PROOVRA verifies each frame's integrity on the server before the record is sealed.
+              The frames are on this device. Finish &amp; Sign uploads them; PROOVRA verifies each frame's integrity on the server before the record is sealed.
             </ProovraText>
-            <ProovraButton label="Finalize Evidence" onPress={finalize} />
+            <ProovraButton label="Finish &amp; Sign" onPress={finalize} />
             <ProovraButton label="Discard" variant="ghost" onPress={() => dispatch({ type: "RESET" })} />
           </ProovraCard>
         )}

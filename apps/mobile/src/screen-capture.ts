@@ -13,6 +13,7 @@ import * as FileSystem from "expo-file-system";
 
 import {
   openDirectCaptureSession,
+  sealDirectCapture,
   reserveDirectCaptureEvidence,
   uploadDirectCaptureItem,
   type DirectCaptureSession,
@@ -90,6 +91,12 @@ export async function finalizeScreenCapture(result: ScreenCaptureResult): Promis
   }
 
   const session: DirectCaptureSession = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID");
+
+  // Everything after the reservation goes through the ONE rule: seal, or
+  // release. A failure between reserving the record and completing it used to
+  // leave a custody-logged empty record in the owner's library, and nothing
+  // in the product ever removed it.
+  return sealDirectCapture(session, async () => {
   const evidenceId = await reserveDirectCaptureEvidence(session, {
     type: "PHOTO",
     mimeType: "image/png",
@@ -138,4 +145,5 @@ export async function finalizeScreenCapture(result: ScreenCaptureResult): Promis
   if (!sealedId) throw new Error("Could not complete the screen capture.");
 
   return { evidenceId: sealedId, frameCount: result.frames.length, stopReason: result.stopReason };
+  });
 }
