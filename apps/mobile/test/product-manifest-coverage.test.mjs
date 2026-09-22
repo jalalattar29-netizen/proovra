@@ -114,7 +114,8 @@ test("every NATIVE_REQUIRED route has a declared Native destination", () => {
 
 test("every declared Native destination points at route files that exist", () => {
   for (const [webRoute, dest] of Object.entries(NATIVE_DESTINATIONS)) {
-    if (dest.status === "NOT_STARTED") continue;
+    // NOT_STARTED and BLOCKED_BY_DECISION have no file yet, by definition.
+    if (dest.status === "NOT_STARTED" || dest.status === "BLOCKED_BY_DECISION") continue;
     assert.ok(dest.routeFile, `${webRoute} is ${dest.status} but declares no routeFile`);
     // One responsive web surface may legitimately split into several native
     // screens (Settings panes are the case that forced it), so every file the
@@ -134,4 +135,18 @@ test("no declared Native destination maps to a route the manifest excludes", () 
   );
   const wrong = Object.keys(NATIVE_DESTINATIONS).filter((p) => excluded.has(p));
   assert.deepEqual(wrong, [], "Native destinations declared for ADMIN/ENTERPRISE/marketing surfaces");
+});
+
+test("a blocked row names the question that blocks it", () => {
+  // BLOCKED_BY_DECISION must never become a quiet synonym for "skipped": the
+  // row has to point at a recorded question with evidence and options.
+  const questions = readFileSync(resolve(MOBILE_ROOT, "docs/open-questions.md"), "utf8");
+  for (const [route, dest] of Object.entries(NATIVE_DESTINATIONS)) {
+    if (dest.status !== "BLOCKED_BY_DECISION") continue;
+    assert.ok(dest.blockedBy, `${route} is blocked but names no question`);
+    assert.ok(
+      questions.includes(`## ${dest.blockedBy} `),
+      `${route} cites ${dest.blockedBy}, which is not recorded in docs/open-questions.md`,
+    );
+  }
 });

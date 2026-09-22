@@ -22,7 +22,13 @@
  * reviewer can diff the two without rediscovering the mapping.
  */
 
-/** @typedef {"NOT_STARTED"|"SHELL"|"PARTIAL"|"PARITY"} DestinationStatus */
+/**
+ * @typedef {"NOT_STARTED"|"BLOCKED_BY_DECISION"|"SHELL"|"PARTIAL"|"PARITY"} DestinationStatus
+ *
+ * BLOCKED_BY_DECISION is counted separately from NOT_STARTED so the
+ * denominators stay honest: those rows are not waiting on effort, they are
+ * waiting on a product decision recorded in docs/open-questions.md.
+ */
 
 export const NATIVE_DESTINATIONS = {
   /* ------------------------------------------------------------------ auth */
@@ -339,43 +345,158 @@ export const NATIVE_DESTINATIONS = {
   },
   "/legal/[slug]": {
     routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/legal/[slug]/page.tsx"],
-    gaps: ["public legal reader has no Native destination"],
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
   },
   "/settings/legal/[slug]": {
     routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/(app)/settings/legal/[slug]/page.tsx"],
-    gaps: ["authenticated legal reader has no Native destination"],
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
   },
-  "/privacy": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/privacy/page.tsx"], gaps: ["redirects to /legal/privacy"] },
-  "/terms": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/terms/page.tsx"], gaps: ["redirects to /legal/terms"] },
-  "/subprocessors": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/subprocessors/page.tsx"], gaps: ["redirects to /legal/subprocessors"] },
-  "/data-retention": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/data-retention/page.tsx"], gaps: ["redirects to /legal/data-retention"] },
-  "/abuse-reporting": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/abuse-reporting/page.tsx"], gaps: ["redirects to /legal/abuse-reporting"] },
+  "/privacy": {
+    routeFile: null,
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
+  },
+  "/terms": {
+    routeFile: null,
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
+  },
+  "/subprocessors": {
+    routeFile: null,
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
+  },
+  "/data-retention": {
+    routeFile: null,
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
+  },
+  "/abuse-reporting": {
+    routeFile: null,
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
+  },
 
   "/support": {
     routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/support/page.tsx"],
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
     gaps: [
-      "the app routes users here from its own error boundary, not-found and Search — native has no equivalent escape hatch",
-      "content lives at /legal/support, which the legal reader covers; the SUPPORT ENTRY POINT is what is missing",
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
     ],
   },
   "/trust": {
     routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/trust/page.tsx"],
-    gaps: ["linked from Settings privacy and the legal document shell; public Trust Center content"],
+    status: "BLOCKED_BY_DECISION",
+    blockedBy: "Q1",
+    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    gaps: [
+      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+    ],
   },
-  "/trust-center": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/page.tsx"], gaps: [] },
-  "/trust-center/ai-disclosure": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/ai-disclosure/page.tsx"], gaps: [] },
-  "/trust-center/methodology": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/methodology/page.tsx"], gaps: [] },
-  "/trust-center/security": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/security/page.tsx"], gaps: [] },
-  "/trust-center/status": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/status/page.tsx"], gaps: [] },
-  "/trust-center/subprocessors": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/subprocessors/page.tsx"], gaps: [] },
+  "/trust-center": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
+  "/trust-center/ai-disclosure": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
+  "/trust-center/methodology": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
+  "/trust-center/security": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
+  "/trust-center/status": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
+  "/trust-center/subprocessors": {
+    // The five web trust-centre routes converge onto ONE native screen with a
+    // section per article kind. Same canonical source (/v1/trust/articles); a
+    // phone has no sidebar to hold five destinations that each show one list.
+    routeFile: "(stack)/trust-center.tsx",
+    status: "PARTIAL",
+    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    gaps: [
+      "version history (/v1/trust/articles/:id/versions) not ported",
+      "device acceptance outstanding",
+    ],
+  },
 
   /* --------------------------------------------------- intake / portal flows */
   "/intake/[token]": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/intake/[token]/page.tsx"], gaps: ["external intake has no Native destination"] },
@@ -388,7 +509,7 @@ export const NATIVE_DESTINATIONS = {
 
 /** Counts by status — used by the ledger report and the coverage guard. */
 export function destinationCounts() {
-  const counts = { NOT_STARTED: 0, SHELL: 0, PARTIAL: 0, PARITY: 0 };
+  const counts = { NOT_STARTED: 0, BLOCKED_BY_DECISION: 0, SHELL: 0, PARTIAL: 0, PARITY: 0 };
   for (const d of Object.values(NATIVE_DESTINATIONS)) counts[d.status] += 1;
   return counts;
 }
