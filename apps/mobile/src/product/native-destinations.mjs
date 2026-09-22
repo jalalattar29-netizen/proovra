@@ -341,6 +341,21 @@ export const NATIVE_DESTINATIONS = {
   "/data-retention": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/data-retention/page.tsx"], gaps: ["redirects to /legal/data-retention"] },
   "/abuse-reporting": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/abuse-reporting/page.tsx"], gaps: ["redirects to /legal/abuse-reporting"] },
 
+  "/support": {
+    routeFile: null,
+    status: "NOT_STARTED",
+    webSources: ["apps/web/app/support/page.tsx"],
+    gaps: [
+      "the app routes users here from its own error boundary, not-found and Search — native has no equivalent escape hatch",
+      "content lives at /legal/support, which the legal reader covers; the SUPPORT ENTRY POINT is what is missing",
+    ],
+  },
+  "/trust": {
+    routeFile: null,
+    status: "NOT_STARTED",
+    webSources: ["apps/web/app/trust/page.tsx"],
+    gaps: ["linked from Settings privacy and the legal document shell; public Trust Center content"],
+  },
   "/trust-center": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/page.tsx"], gaps: [] },
   "/trust-center/ai-disclosure": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/ai-disclosure/page.tsx"], gaps: [] },
   "/trust-center/methodology": { routeFile: null, status: "NOT_STARTED", webSources: ["apps/web/app/(app)/trust-center/methodology/page.tsx"], gaps: [] },

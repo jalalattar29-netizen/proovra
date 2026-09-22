@@ -48,6 +48,14 @@ import {
   type DirectCaptureItemSource,
   type DirectCaptureSession,
 } from "../../src/direct-capture";
+import {
+  openCaptureDraft,
+  updateCaptureDraft,
+  discardCaptureDraft,
+  deriveBatchEvidenceType,
+  primaryItem,
+} from "../../src/capture/capture-draft";
+import { usePlatformContext } from "../../src/product/platform-context";
 import { formatUserDateTime } from "../../src/lib/date";
 import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 // UC-0 — every item goes through ONE server-issued direct-capture session
@@ -118,6 +126,8 @@ export default function CaptureScreen() {
   // active (see isSessionActive + shouldBlockMobileCapture below), so the
   // final `personalSpaceBlocked` is computed after that flag is known.
   const personalSpace = usePersonalSpaceAllowed();
+  const platform = usePlatformContext();
+  const teamId = platform.context?.activeTeamId ?? null;
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [useLocation, setUseLocation] = useState(false);
@@ -135,6 +145,8 @@ export default function CaptureScreen() {
   const [sessionCompletingEvidence, setSessionCompletingEvidence] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [discarding, setDiscarding] = useState(false);
+  /** The canonical /v1/capture/sessions DRAFT id — the session, before commit. */
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -151,6 +163,7 @@ export default function CaptureScreen() {
   const cameraRef = useRef<CameraView | null>(null);
   const sessionEvidenceIdRef = useRef<string | null>(null);
   const captureSessionRef = useRef<DirectCaptureSession | null>(null);
+  const draftIdRef = useRef<string | null>(null);
   const sessionItemsRef = useRef<CapturedItem[]>([]);
   const activeTypeRef = useRef<CaptureKind>(activeType);
   activeTypeRef.current = activeType;
@@ -183,19 +196,46 @@ hasActiveDraft: isSessionActive || isRecording,
     setSessionItems(items);
   }, []);
 
-  // M5 — persist the current session (server handle + evidence id + per-item
-  // upload state) so it survives background / process death. Best-effort; a
-  // failed write never breaks live capture. Cleared on complete/discard/empty.
+  /**
+   * Persist the staged session in the TWO places it has to live.
+   *
+   * The canonical DRAFT is the durable record of the session — it survives a
+   * reinstall and is what Discard deletes. But it cannot hold the local file
+   * URIs, because the bytes are still only on this device; that is a genuine
+   * platform concern, so the AsyncStorage record stays as the local half.
+   *
+   * This is not two sources of truth: the draft owns the SESSION, the local
+   * record owns the on-device FILE LOCATIONS, and neither can answer the
+   * other's question.
+   *
+   * Both writes are best-effort — a failed persist must never break live
+   * capture.
+   */
   const persistSession = useCallback(() => {
-    const session = captureSessionRef.current;
-    const evidenceId = sessionEvidenceIdRef.current;
     const items = sessionItemsRef.current;
-    if (!session || !evidenceId || items.length === 0) return;
+    const draft = draftIdRef.current;
+    if (items.length === 0) return;
+
+    if (draft) {
+      void updateCaptureDraft(draft, {
+        items: items.map((it) => ({
+          clientItemId: it.id,
+          fileName: it.originalFilename ?? `${it.id}`,
+          mimeType: it.mimeType,
+          sizeBytes: it.sizeBytes ?? 0,
+          durationMs: it.durationMs ?? null,
+          sourceLabel: it.source,
+          uploadState: it.uploaded ? "uploaded" : "pending",
+        })),
+      }).catch(() => undefined);
+    }
+
+    const session = captureSessionRef.current;
     void saveCaptureSession({
-      captureSessionId: session.captureSessionId,
-      expiresAtUtc: session.expiresAtUtc,
-      evidenceId,
-      type: activeTypeRef.current,
+      captureSessionId: session?.captureSessionId ?? draft ?? "",
+      expiresAtUtc: session?.expiresAtUtc ?? "",
+      evidenceId: sessionEvidenceIdRef.current ?? draft ?? "",
+      type: deriveBatchEvidenceType(items.map((i) => i.mimeType)),
       items: items.map((it) => ({
         id: it.id,
         uri: it.uri,
@@ -443,40 +483,32 @@ hasActiveDraft: isSessionActive || isRecording,
     }
   }, [useLocation, addToast]);
 
-  const ensureSessionEvidence = useCallback(
-    async (firstMimeType: string) => {
-      if (sessionEvidenceIdRef.current) {
-        return sessionEvidenceIdRef.current;
-      }
-
-      setSessionCreatingEvidence(true);
-      setInfo("Creating evidence session...");
-
-      const gps = await getGps();
-
-      // UC-0 — the server issues the session, then reserves the record for
-      // it; the record's acquisition is the session's (PROOVRA mobile app).
-      try {
-        const session = await openDirectCaptureSession();
-        captureSessionRef.current = session;
-        const createdId = await reserveDirectCaptureEvidence(session, {
-          type: activeType,
-          mimeType: firstMimeType,
-          deviceTimeIso: new Date().toISOString(),
-          gps
-        });
-        sessionEvidenceIdRef.current = createdId;
-        setSessionEvidenceId(createdId);
-        setSessionCreatingEvidence(false);
-        setInfo(null);
-        return createdId;
-      } catch (err) {
-        captureSessionRef.current = null;
-        throw err;
-      }
-    },
-    [activeType, getGps]
-  );
+  /**
+   * Open the CANONICAL capture draft on the first staged item.
+   *
+   * This replaces `ensureSessionEvidence`, which opened a UC-0 direct-session
+   * and RESERVED an Evidence record here — before any bytes existed. That is
+   * why Discard left an orphan and why the session was locked to one media
+   * type: the record's `type` was fixed by the first item.
+   *
+   * A `/v1/capture/sessions` DRAFT holds items and no Evidence. Nothing is
+   * committed until Finalize, which is what the canonical lifecycle already
+   * specified ("Finalization is initiated by the existing Evidence routes").
+   */
+  const ensureDraft = useCallback(async () => {
+    if (draftIdRef.current) return draftIdRef.current;
+    setSessionCreatingEvidence(true);
+    setInfo("Starting capture session...");
+    try {
+      const draft = await openCaptureDraft({ teamId, useLocation });
+      draftIdRef.current = draft.id;
+      setDraftId(draft.id);
+      return draft.id;
+    } finally {
+      setSessionCreatingEvidence(false);
+      setInfo(null);
+    }
+  }, [teamId, useLocation]);
 
   const addCapturedItemToSession = useCallback(
     async (input: {
@@ -491,7 +523,7 @@ hasActiveDraft: isSessionActive || isRecording,
       setInfo(null);
 
       try {
-        await ensureSessionEvidence(input.mimeType);
+        await ensureDraft();
 
         const nextItem: CapturedItem = {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -523,7 +555,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setInfo(null);
       }
     },
-    [ensureSessionEvidence, setSessionState, addToast]
+    [ensureDraft, setSessionState, addToast]
   );
 
   const removeFromSession = useCallback(
@@ -545,12 +577,14 @@ hasActiveDraft: isSessionActive || isRecording,
         // it through the same server transition rather than only clearing local
         // state, or this becomes a second way to strand an empty record.
         const session = captureSessionRef.current;
+        const draft = draftIdRef.current;
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
+        draftIdRef.current = null;
         setSessionEvidenceId(null);
-        if (session) {
-          void discardDirectCaptureSession(session).catch(() => undefined);
-        }
+        setDraftId(null);
+        if (draft) void discardCaptureDraft(draft).catch(() => undefined);
+        if (session) void discardDirectCaptureSession(session).catch(() => undefined);
         void clearCaptureSession();
       } else {
         persistSession();
@@ -583,6 +617,20 @@ hasActiveDraft: isSessionActive || isRecording,
     setDiscarding(true);
     setError(null);
     try {
+      /*
+       * Discard the canonical DRAFT. This is correct BY CONSTRUCTION: a draft
+       * holds items and no Evidence, so there is nothing to release and no
+       * custody chain to terminate. Staging on the canonical session is what
+       * fixes the orphan-evidence defect at its root.
+       *
+       * The direct-session discard is still called when one exists, which
+       * happens only if a FINALIZE failed part-way and left a reservation.
+       */
+      if (draftIdRef.current) {
+        await discardCaptureDraft(draftIdRef.current);
+        draftIdRef.current = null;
+        setDraftId(null);
+      }
       if (session) {
         await discardDirectCaptureSession(session);
       }
@@ -896,17 +944,39 @@ if (!isRecording || busy) return;
     addToast,
   ]);
 
+  /**
+   * FINALIZE — the one point at which Evidence comes into existence.
+   *
+   * Staging produced a DRAFT and nothing else. Here the canonical acquisition
+   * ingress runs once for the whole session:
+   *
+   *   open direct-session   → server nonce, acquisition = PROOVRA_MOBILE_APP
+   *   reserve(rootType)     → ONE Evidence for the session
+   *   declare + PUT each item as a PART of that record
+   *   complete              → server re-hashes, compares, seals, binds
+   *   close the draft       → the session records that it finalized
+   *
+   * One Evidence with many parts is the canonical shape — the web does exactly
+   * this (`deriveBatchEvidenceType` + `POST /v1/evidence` once, remaining items
+   * uploaded as parts), and `CaptureSession.finalizedEvidenceId` is unique, so
+   * the model permits nothing else.
+   *
+   * The type is DERIVED from what was actually staged rather than fixed by the
+   * first item, which is what makes a mixed-media session expressible: a
+   * uniform session keeps its kind, a mixed one is DOCUMENT.
+   *
+   * UC-0 is used HERE and only here. It is the native ingress and sealing
+   * primitive — POST /v1/evidence hardcodes PROOVRA_WEB_UPLOAD, so submitting
+   * a phone capture through it would record a false provenance claim.
+   */
   const completeSession = useCallback(async () => {
     if (isRecording) {
       addToast("Stop the current recording before finishing the session", "warning");
       return;
     }
 
-    const evidenceId = sessionEvidenceIdRef.current;
-    const captureSession = captureSessionRef.current;
     const items = sessionItemsRef.current;
-
-    if (!evidenceId || !captureSession || items.length === 0) {
+    if (items.length === 0) {
       setError("No items in session");
       addToast("No items in session", "error");
       return;
@@ -915,10 +985,29 @@ if (!isRecording || busy) return;
     setSessionCompletingEvidence(true);
     setBusy(true);
     setError(null);
-    setInfo("Uploading session...");
+    setInfo("Preserving evidence...");
     setUploadProgress(0);
 
+    let captureSession = captureSessionRef.current;
+    let evidenceId = sessionEvidenceIdRef.current;
+
     try {
+      if (!captureSession || !evidenceId) {
+        const gps = await getGps();
+        const rootType = deriveBatchEvidenceType(items.map((i) => i.mimeType));
+        const primary = primaryItem(items);
+        captureSession = await openDirectCaptureSession();
+        captureSessionRef.current = captureSession;
+        evidenceId = await reserveDirectCaptureEvidence(captureSession, {
+          type: rootType,
+          mimeType: primary?.mimeType ?? "application/octet-stream",
+          deviceTimeIso: new Date().toISOString(),
+          gps,
+        });
+        sessionEvidenceIdRef.current = evidenceId;
+        setSessionEvidenceId(evidenceId);
+      }
+
       for (let i = 0; i < items.length; i += 1) {
         const item = items[i];
 
@@ -989,6 +1078,13 @@ setSessionState(
 
       // M5 — completion confirmed: drop the durable record so it can never be
       // offered for resume again.
+      // The draft has done its job; closing it records the session as
+      // finalized rather than leaving an orphan DRAFT behind.
+      if (draftIdRef.current) {
+        await discardCaptureDraft(draftIdRef.current).catch(() => undefined);
+        draftIdRef.current = null;
+        setDraftId(null);
+      }
       await clearCaptureSession();
       sessionEvidenceIdRef.current = null;
       captureSessionRef.current = null;
@@ -1066,10 +1162,17 @@ setSessionState(
                         addToast("Stop the current recording before changing type", "warning");
                         return;
                       }
-                      if (isSessionActive) {
-                        addToast("Finish or discard the current session before changing type", "warning");
-                        return;
-                      }
+                      /*
+                       * Switching source mid-session is now allowed.
+                       *
+                       * It was refused because UC-0 fixed the Evidence
+                       * record's type when the FIRST item was staged, so a
+                       * second kind could not be attached. Staging into the
+                       * canonical draft removes that constraint: the type is
+                       * derived from what was actually staged, at finalize —
+                       * a uniform session keeps its kind, a mixed one is
+                       * DOCUMENT, exactly as the web derives it.
+                       */
                       setActiveIndex(index);
                       setCameraOpen(false);
                       setError(null);

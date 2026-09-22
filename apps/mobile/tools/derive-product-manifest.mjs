@@ -234,6 +234,48 @@ export function isPublicProductFlow(absFile, routePath) {
 }
 
 /**
+ * Does the AUTHENTICATED app send users to this public page?
+ *
+ * A page can carry marketing chrome, post no form and consume no token, and
+ * still be a destination the product depends on. `/support` is the case that
+ * proved it: `app/(app)/error.tsx`, `app/(app)/not-found.tsx`, the billing page
+ * and Search all route a signed-in user there. A native app that drops it
+ * leaves its own error and not-found states with nowhere to send anyone.
+ *
+ * Only `app/(app)` and the app's own components count — a link from one
+ * marketing page to another proves nothing about the product.
+ */
+export function linkedFromAuthenticatedApp(routePath, excludedDirs = []) {
+  const roots = [resolve(WEB_APP_DIR, "(app)"), resolve(WEB_APP_DIR, "../components")];
+  const needle = `"${routePath}"`;
+  const hits = [];
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        if (name === "marketing" || name === "node_modules") continue;
+        walk(full);
+        continue;
+      }
+      if (!/\.tsx?$/.test(name)) continue;
+      const rel = relative(WEB_APP_DIR, full).split(sep).join("/");
+      // A link FROM an admin or enterprise console does not pull its target
+      // into Native scope: that source surface is not in Native scope either.
+      // `/contact-sales` is the case — its only in-app referrer is the
+      // organization ADMIN layout.
+      if (excludedDirs.some((d) => rel.startsWith(d))) continue;
+      const text = readFileSync(full, "utf8");
+      if (text.includes(`href=${needle}`) || text.includes(`href: ${needle}`) || text.includes(`= ${needle};`)) {
+        hits.push(rel);
+      }
+    }
+  };
+  roots.forEach(walk);
+  return hits;
+}
+
+/**
  * Does this page (or a component under its own route folder) navigate to a
  * DIFFERENT route under its own path — i.e. act as the entry point to a product
  * surface? Scoped to the route's own folder so a shared header's links to
@@ -285,6 +327,21 @@ export function classify(route, enterpriseIds) {
 export async function buildManifest() {
   const { registry, enterpriseIds } = await loadRegistry();
   const routes = discoverWebRoutes();
+
+  /*
+   * PASS 1 — classify from the registry alone, to learn which route trees are
+   * admin/enterprise. The inbound-link rule below needs that: a link from a
+   * console that Native does not ship cannot make its target Native-required.
+   */
+  const excludedDirs = [];
+  for (const r of routes) {
+    const { route } = resolveGoverningRoute(r.routePath, registry);
+    const c = classify(route, enterpriseIds).classification;
+    if (c === "ADMIN_ONLY" || c === "ENTERPRISE_ONLY") {
+      const rel = r.sourceFile.slice("apps/web/app/".length);
+      excludedDirs.push(rel.slice(0, rel.lastIndexOf("/")));
+    }
+  }
   const byPath = new Map(routes.map((r) => [r.routePath, r]));
   const rows = routes.map((r) => {
     const abs = resolve(MOBILE_ROOT, "../..", r.sourceFile);
@@ -327,9 +384,15 @@ export async function buildManifest() {
         // drives the product API or consumes a link token is a product surface,
         // whatever chrome it wears; only pages with NEITHER are marketing.
         const why = isPublicProductFlow(abs, r.routePath);
+        const inboundFromApp = linkedFromAuthenticatedApp(r.routePath, excludedDirs);
         if (why) {
           classification = "NATIVE_REQUIRED";
           evidence = `public product surface (outside app/(app), so no registry gate): ${why}`;
+        } else if (inboundFromApp.length > 0) {
+          classification = "NATIVE_REQUIRED";
+          evidence =
+            `public page the AUTHENTICATED app routes users to (${inboundFromApp.length} call site` +
+            `${inboundFromApp.length === 1 ? "" : "s"}: ${inboundFromApp.slice(0, 3).join(", ")})`;
         } else if (isMarketingPage(abs)) {
           classification = "PUBLIC_INFORMATIONAL_ONLY";
           evidence =
