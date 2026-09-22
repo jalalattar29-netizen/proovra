@@ -29,6 +29,7 @@
  *     ENTERPRISE). This component never renders workspace terminology.
  */
 
+import type { JSX } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 

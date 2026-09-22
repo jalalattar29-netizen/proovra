@@ -29,6 +29,7 @@
  * coordination". It is NOT a chat product.
  */
 
+import type { JSX } from "react";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import {
   useCallback,

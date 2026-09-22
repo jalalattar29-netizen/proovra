@@ -38,6 +38,7 @@
  * GET /v1/automation/rules envelope, which is the single authority.
  */
 
+import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";

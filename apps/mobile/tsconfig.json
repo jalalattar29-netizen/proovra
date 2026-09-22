@@ -6,10 +6,24 @@
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
+    /*
+     * ONE @types/react PER PROGRAM — the mobile half of the rule stated in
+     * apps/web/tsconfig.json and .npmrc.
+     *
+     * This app is pinned to React 18 by Expo 52 / RN 0.76; apps/web is a Next
+     * 15 app on React 19. Packages that declare React types as an optional
+     * peer used to resolve them through pnpm's single shared fallback, so
+     * whichever major won it, the other app compiled against two copies of
+     * @types/react and every forwardRef component became "not a valid JSX
+     * element type". Pinning the specifiers makes every resolution in THIS
+     * program land on THIS app's 18.x copy, including inside node_modules.
+     */
     "paths": {
       "@proovra/ui": [
         "../../packages/ui/src/index.ts"
-      ]
+      ],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
     },
     "skipLibCheck": true,
     "noEmit": true

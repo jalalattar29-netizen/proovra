@@ -22,6 +22,7 @@
  *   - Read-only. No mutations. No new root nav item.
  */
 
+import type { JSX } from "react";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 

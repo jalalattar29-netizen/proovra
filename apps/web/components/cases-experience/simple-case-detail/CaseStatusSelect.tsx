@@ -28,6 +28,7 @@
  * and focus; the status dots use the SEMANTIC palette per status.
  */
 
+import type { JSX } from "react";
 import {
   useCallback,
   useEffect,

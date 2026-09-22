@@ -13,6 +13,7 @@
  * of the disclosure banner; the operator must copy them out themselves.
  */
 
+import type { JSX } from "react";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 import Link from "next/link";

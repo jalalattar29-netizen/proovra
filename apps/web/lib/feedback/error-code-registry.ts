@@ -53,7 +53,17 @@
  * codes that are not failures in the first place.
  */
 export type ErrorCodeDisposition =
-  | { disposition: "customer"; where: "global" | string }
+  /*
+   * A CUSTOMER entry may also carry a reason.
+   *
+   * `why` was required on generic and internal and forbidden on customer,
+   * which reads as "only a withheld message needs explaining". The opposite
+   * is sometimes true: LEGAL_DOCUMENT_NOT_FOUND is a customer-facing 404 and
+   * the note beside it explains why it is NOT anti-enumeration — the one
+   * thing a reader of this table would otherwise assume about a NOT_FOUND.
+   * Optional, because most customer entries have nothing to add.
+   */
+  | { disposition: "customer"; where: "global" | string; why?: string }
   | { disposition: "generic"; why: string }
   | { disposition: "internal"; why: string };
 

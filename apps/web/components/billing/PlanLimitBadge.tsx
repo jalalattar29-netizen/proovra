@@ -21,6 +21,7 @@
  *     model ENTERPRISE-tier "no cap" surfaces honestly.
  */
 
+import type { JSX } from "react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 

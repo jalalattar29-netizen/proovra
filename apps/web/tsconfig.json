@@ -15,8 +15,28 @@
     "incremental": true,
     "isolatedModules": true,
     "types": ["node"],
+    /*
+     * ONE @types/react PER PROGRAM.
+     *
+     * This repository holds two React majors on purpose — Next 15 / React 19
+     * here, Expo 52 / React 18 in apps/mobile — and packages that declare
+     * React types as an OPTIONAL peer (next's styled-jsx, react-icons,
+     * lucide-react, qrcode.react) resolved them through pnpm's single shared
+     * fallback. Whichever major won it, the other app compiled against two
+     * copies of @types/react: structurally identical, nominally different, so
+     * every forwardRef component became "not a valid JSX element type"
+     * (TS2786). That was 179 of this app's typecheck errors, and not one of
+     * them was about its code.
+     *
+     * Pinning the two specifiers here makes every resolution in THIS program
+     * land on THIS app's copy, including the ones inside node_modules.
+     */
     "paths": {
-      "@proovra/ui": ["../../packages/ui/src/index.ts"]
+      "@proovra/ui": ["../../packages/ui/src/index.ts"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"]
     },
     "plugins": [
       {

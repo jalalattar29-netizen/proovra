@@ -136,18 +136,18 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/components/automation/AutomationRuleToggle.tsx:70",
+      "site": "apps/web/components/automation/AutomationRuleToggle.tsx:71",
       "helper": "one toggle whose leg is the inverse of the rule's current state",
       "callSitesRead": [
-        "apps/web/components/automation/AutomationRuleToggle.tsx:65",
-        "apps/web/components/automation/AutomationRuleToggle.tsx:70"
+        "apps/web/components/automation/AutomationRuleToggle.tsx:66",
+        "apps/web/components/automation/AutomationRuleToggle.tsx:71"
       ],
       "routes": [
         "POST /v1/automation/rules/:id/enable",
         "POST /v1/automation/rules/:id/disable"
       ],
-      "evidence": "AutomationRuleToggle.tsx:65 `const leg = rule.enabled ? \"disable\" : \"enable\"` and :70 `apiFetch(`/v1/automation/rules/${encodeURIComponent(rule.id)}/${leg}`, { method: \"POST\" })`. The path is built from a ternary over two literals, so BOTH legs are reachable from this single control — a rule that is enabled shows Disable and vice versa. The analyzer resolved one branch; this records the other so the pair is not split between PRODUCT_CONNECTED and MISSING_UI when they are the same button. Pinned by apps/web/__tests__/phase13-automation-budgets-ui.test.ts.",
-      "reviewedAtUtc": "2026-08-17"
+      "evidence": "AutomationRuleToggle.tsx:66 `const leg = rule.enabled ? \"disable\" : \"enable\"` and :71 `apiFetch(`/v1/automation/rules/${encodeURIComponent(rule.id)}/${leg}`, { method: \"POST\" })`. The path is built from a ternary over two literals, so BOTH legs are reachable from this single control — a rule that is enabled shows Disable and vice versa. The analyzer resolved one branch; this records the other so the pair is not split between PRODUCT_CONNECTED and MISSING_UI when they are the same button. Pinned by apps/web/__tests__/phase13-automation-budgets-ui.test.ts. | Re-anchored +1 on 2026-09-22 (F-11): `import type { JSX } from \"react\"` was added to this file because React 19 removed the global JSX namespace, moving every line below it down by one. Verified BY READING the site: the call is unchanged.",
+      "reviewedAtUtc": "2026-09-22"
     },
     {
       "site": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:344",

@@ -19,6 +19,7 @@
  * >=500 and network.
  */
 
+import type { JSX } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";

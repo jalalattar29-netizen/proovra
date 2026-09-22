@@ -29,6 +29,7 @@
  * lifecycle routes had no product surface at all before this.
  */
 
+import type { JSX } from "react";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 

@@ -477,7 +477,26 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
   });
 
   it("computes all four surface gates from server projections", () => {
-    expect(EVI).toMatch(/const canSeeReviewerOps\s*=\s*enterpriseSurfaces;/);
+    /*
+     * F-02 (2026-09-22) — REVIEWER OPS MOVED TO ITS OWN AUTHORITY.
+     *
+     * This asserted `canSeeReviewerOps = enterpriseSurfaces`, which is the
+     * defect itself: the catalog includes reviewer operations for TEAM and
+     * above (PlanCapabilities.reviewerOperationsIncluded) and the server
+     * enforces exactly that field (workspaceIncludesReviewerOperations ->
+     * reviewer-workspace.routes.ts:430). A TEAM workspace paid for reviewer
+     * comments, legal notes and annotations and could not see one of them.
+     *
+     * The other three gates are unchanged — governance and intelligence ARE
+     * enterprise surfaces, and intake is its own entitlement. What this test
+     * is for is unchanged too: every gate comes from a SERVER projection and
+     * none is computed in the browser from a plan name. Only which projection
+     * reviewer ops reads has been corrected.
+     */
+    expect(EVI).toMatch(
+      /const canSeeReviewerOps\s*=\s*usePlanFeatureGate\("reviewerOperationsIncluded"\);/,
+    );
+    expect(EVI).not.toMatch(/const canSeeReviewerOps\s*=\s*enterpriseSurfaces;/);
     expect(EVI).toMatch(/const canSeeGovernance\s*=\s*enterpriseSurfaces;/);
     expect(EVI).toMatch(/const canSeeIntelligence\s*=\s*enterpriseSurfaces;/);
     expect(EVI).toMatch(/const canSeeIntakeLinks\s*=\s*usePlanFeatureGate\("intakeIncluded"\);/);
