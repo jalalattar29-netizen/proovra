@@ -247,26 +247,25 @@ export const NATIVE_DESTINATIONS = {
     ],
   },
   "/settings": {
-    // A responsive web PANE model split into native screens: the web renders
-    // Settings as one page with a pane switcher, which does not fit a phone.
-    // The order allows one web surface to map to several native ones; the
-    // guard checks every file named here.
     routeFile: "(tabs)/settings.tsx",
-    alsoRouteFiles: ["(stack)/settings/security.tsx"],
+    alsoRouteFiles: [
+      "(stack)/settings/security.tsx",
+      "(stack)/settings/notifications.tsx",
+      "(stack)/settings/privacy.tsx",
+      "(stack)/settings/reviewer-criteria.tsx",
+    ],
     status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: [
       "apps/web/app/(app)/settings/page.tsx",
       "apps/web/app/(app)/settings/_sections/*",
       "apps/web/lib/settings/settingsNavigation.ts",
-      "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
     ],
     gaps: [
-      "Security pane ported (password, sign-in methods, two-factor, sessions, activity)",
-      "TOTP enrolment start/verify not yet surfaced; step-up reported but not collected in-app",
-      "privacy pane (data export, account closure, cookie consent) not started",
-      "notification preferences and schedule not started",
-      "billing overview read-only",
-      "device acceptance outstanding for everything above",
+      "a responsive web PANE model split into native screens, because the web renders Settings as one page with a pane switcher and that does not fit a phone",
+      "ported: account, language, security (password, sign-in methods, two-factor, sessions, activity), notification preferences and quiet hours, PRIVACY (data export and account closure), reviewer criteria, organizations, workspace people, quotas, batch analysis, billing, legal and support",
+      "Privacy closes the largest hole: data export and account closure are rights a user has over their own account and neither existed on the device. All three safety facts come from the server and none is restated in the client - the blockers, the exact confirmationPhrase the route checks, and the cooling-off period. A phrase the client believed in and the route rejected would make closure impossible with no explanation the user could act on.",
+      "not ported: TOTP ENROLMENT start/verify (removal and status are present), and the cookie-consent control, which governs a web browser's storage and has no device analogue",
     ],
   },
   "/reports": {

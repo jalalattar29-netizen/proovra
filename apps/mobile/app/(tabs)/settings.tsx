@@ -159,6 +159,11 @@ export default function SettingsScreen() {
             <Switch value={telemetry} onValueChange={onToggleTelemetry} accessibilityLabel="Crash and reliability reports" />
           </View>
           <ProovraListRow
+            title="Privacy"
+            subtitle="Export your data, or close your account"
+            onPress={() => router.push("/(stack)/settings/privacy")}
+          />
+          <ProovraListRow
             title="Reviewer criteria"
             subtitle="Versioned criteria reviewers work against"
             onPress={() => router.push("/(stack)/settings/reviewer-criteria")}
