@@ -48,3 +48,77 @@ export function resolveInboxRoute(href: string | null | undefined): string | nul
   if (href.startsWith("/cases/")) return href.replace("/cases/", "/case/");
   return null;
 }
+
+/* ---------------------------------------------------------------- additions
+ * The canonical inbox is severity-ordered and carries per-item read / unread /
+ * dismiss / snooze state, persisted through
+ * `/v1/me/inbox/items/:itemKey/{read,unread,dismiss,snooze}`. Native offered
+ * only mark-read and mark-all-read, so an item could be acknowledged but never
+ * deferred or restored, and the list rendered in arrival order.
+ */
+
+/** The per-item actions the canonical inbox persists. */
+export type InboxItemAction = "read" | "unread" | "dismiss" | "snooze";
+
+export function inboxItemActionPath(itemKey: string, action: InboxItemAction): string {
+  return `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`;
+}
+
+/**
+ * Severity rank. The canonical page renders "severity-ordered actionable rows";
+ * a list in arrival order buries the thing that matters under routine noise.
+ */
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  risk: 1,
+  medium: 2,
+  warning: 2,
+  pending: 2,
+  low: 3,
+  info: 3,
+  neutral: 4,
+};
+
+export function inboxSeverityRank(item: InboxItem): number {
+  const key = String(item.tone ?? "").toLowerCase();
+  return SEVERITY_RANK[key] ?? 4;
+}
+
+/**
+ * Sort a page: unread before read, then by severity, then newest first.
+ *
+ * Read items sink rather than disappear — the canonical inbox keeps them
+ * visible so acknowledging something does not erase the record of it.
+ */
+export function sortInboxItems(items: readonly InboxItem[]): InboxItem[] {
+  return [...items].sort((a, b) => {
+    const readDiff = Number(!!a.isRead) - Number(!!b.isRead);
+    if (readDiff !== 0) return readDiff;
+    const sev = inboxSeverityRank(a) - inboxSeverityRank(b);
+    if (sev !== 0) return sev;
+    return Date.parse(b.occurredAt ?? "") - Date.parse(a.occurredAt ?? "");
+  });
+}
+
+/** A snoozed item is deferred, not gone; it returns when the time passes. */
+export function isSnoozed(item: { snoozedUntil?: string | null }, nowMs: number = Date.now()): boolean {
+  const until = item.snoozedUntil ? Date.parse(item.snoozedUntil) : NaN;
+  return Number.isFinite(until) && until > nowMs;
+}
+
+/** The canonical category filters, as the inbox groups its rows. */
+export const INBOX_FILTERS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "unread", label: "Unread" },
+  { value: "org_invite", label: "Invitations" },
+  { value: "submission", label: "Submissions" },
+  { value: "review", label: "Reviews" },
+];
+
+/** Apply the chip filter locally to an already-fetched page. */
+export function filterInboxItems(items: readonly InboxItem[], filter: string): InboxItem[] {
+  if (filter === "all") return [...items];
+  if (filter === "unread") return items.filter((i) => !i.isRead);
+  return items.filter((i) => String(i.category ?? "").toLowerCase().includes(filter));
+}

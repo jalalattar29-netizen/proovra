@@ -152,13 +152,19 @@ export const NATIVE_DESTINATIONS = {
     routeFile: "(tabs)/notifications.tsx",
     status: "SHELL",
     webSources: ["apps/web/app/(app)/notifications/page.tsx"],
-    gaps: ["no notification preferences, schedule, snooze, or delivery history"],
+    gaps: [
+      "severity ordering, category/unread filters and per-item read/unread/dismiss ported",
+      "snooze is modelled and testable but has no control on the row yet",
+      "notification preferences and schedule (/v1/me/notification-preferences, /v1/me/notification-schedule) not started",
+      "contact-channel verification (/v1/communications/verify/*) not started",
+      "delivery history is an operator surface and stays excluded",
+    ],
   },
   "/inbox": {
     routeFile: "(tabs)/notifications.tsx",
     status: "SHELL",
     webSources: ["apps/web/app/(app)/inbox/page.tsx"],
-    gaps: ["converged onto the notifications surface; severity ordering not ported"],
+    gaps: ["converged onto the notifications surface; severity ordering now ported"],
   },
   "/settings": {
     // A responsive web PANE model split into native screens: the web renders
