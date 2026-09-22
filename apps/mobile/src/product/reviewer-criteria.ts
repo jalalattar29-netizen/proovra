@@ -212,8 +212,269 @@ export function criteriaStatusLabel(status: string): string {
   return s.length === 0 ? "Unknown" : s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** The 409 the API raises when something tries to edit a published version. */
-export function isPublishedImmutable(err: unknown): boolean {
+
+// ---------------------------------------------------------------------------
+// Authoring a draft
+// ---------------------------------------------------------------------------
+//
+// PATCH /v1/reviewer-criteria/:setId/draft edits the latest DRAFT version in
+// place. It is the only write that changes what a criteria version SAYS, and
+// it carries the two rules that make versioned criteria trustworthy:
+//
+//   1. It refuses a published version outright — 409 `published_immutable`.
+//   2. It is optimistically concurrent. The client sends the `updatedAt` it
+//      loaded as `expectedUpdatedAt`; a mismatch is 409 `draft_conflict` with
+//      the server's current token, and NOTHING is written. Two admins editing
+//      the same draft do not silently overwrite each other.
+//
+// An earlier note here said authoring was "not ported: a draft half-written on
+// a phone is a draft nobody can publish". That was a statement about how long
+// the form is, not about whether the product supports it — and it left the one
+// surface where criteria are actually written off the device entirely.
+
+export function buildCriteriaSetPath(setId: string, teamId: string): string {
+  return (
+    `/v1/reviewer-criteria/${encodeURIComponent(setId)}` +
+    `?teamId=${encodeURIComponent(teamId)}`
+  );
+}
+
+export function buildCriteriaDraftPath(setId: string): string {
+  return `/v1/reviewer-criteria/${encodeURIComponent(setId)}/draft`;
+}
+
+export interface CriterionRow {
+  key: string;
+  title: string;
+  required: boolean;
+  reviewGuidance: string;
+}
+
+export function emptyCriterionRow(): CriterionRow {
+  return { key: "", title: "", required: false, reviewGuidance: "" };
+}
+
+export interface DraftState {
+  /** The concurrency token. Sent back as `expectedUpdatedAt`. */
+  updatedAtIso: string | null;
+  /** True when the latest version is published — this editor must not write. */
+  latestPublished: boolean;
+  version: number | null;
+  title: string;
+  rows: CriterionRow[];
+}
+
+export function parseDraftState(payload: unknown): DraftState | null {
+  const set = obj(obj(payload).set);
+  const latest = obj(rows(set.versions)[0]);
+  if (Object.keys(latest).length === 0) return null;
+
+  return {
+    updatedAtIso: str(set.updatedAt),
+    latestPublished: str(latest.publishedAt) !== null,
+    version: num(latest.version),
+    title: str(latest.title) ?? "",
+    rows: rows(latest.criteria).map((raw) => {
+      const c = obj(raw);
+      return {
+        key: str(c.key) ?? "",
+        title: str(c.title) ?? "",
+        required: c.required === true,
+        reviewGuidance: str(c.reviewGuidance) ?? "",
+      };
+    }),
+  };
+}
+
+/**
+ * The bounds are the route's own (`CriterionInput`), checked here so the editor
+ * can say which row is wrong instead of surfacing one flat 400 for a form with
+ * fifty fields in it.
+ */
+export const CRITERION_KEY_MAX = 60;
+export const CRITERION_TITLE_MAX = 200;
+export const CRITERION_GUIDANCE_MAX = 600;
+export const VERSION_TITLE_MAX = 160;
+export const CRITERIA_MIN = 1;
+export const CRITERIA_MAX = 50;
+
+export function validateDraft(title: string, list: CriterionRow[]): string | null {
+  if (title.trim().length === 0) return "Give this version a title.";
+  if (title.trim().length > VERSION_TITLE_MAX) {
+    return `The version title cannot be longer than ${VERSION_TITLE_MAX} characters.`;
+  }
+  if (list.length < CRITERIA_MIN) return "A version needs at least one criterion.";
+  if (list.length > CRITERIA_MAX) {
+    return `A version cannot have more than ${CRITERIA_MAX} criteria.`;
+  }
+
+  const seen = new Set<string>();
+  for (let i = 0; i < list.length; i += 1) {
+    const r = list[i];
+    const n = i + 1;
+    const key = r.key.trim();
+    if (key.length === 0) return `Criterion ${n} needs a key.`;
+    if (key.length > CRITERION_KEY_MAX) {
+      return `Criterion ${n}: the key cannot be longer than ${CRITERION_KEY_MAX} characters.`;
+    }
+    // The route stores criteria as rows under one version; two rows sharing a
+    // key make a reviewer's answers ambiguous after the fact, which is the one
+    // thing a criteria version exists to prevent.
+    if (seen.has(key)) return `Criterion ${n}: the key ${key} is used twice.`;
+    seen.add(key);
+
+    if (r.title.trim().length === 0) return `Criterion ${n} needs a title.`;
+    if (r.title.trim().length > CRITERION_TITLE_MAX) {
+      return `Criterion ${n}: the title cannot be longer than ${CRITERION_TITLE_MAX} characters.`;
+    }
+    if (r.reviewGuidance.trim().length > CRITERION_GUIDANCE_MAX) {
+      return `Criterion ${n}: guidance cannot be longer than ${CRITERION_GUIDANCE_MAX} characters.`;
+    }
+  }
+  return null;
+}
+
+export function buildDraftBody(
+  teamId: string,
+  title: string,
+  list: CriterionRow[],
+  expectedUpdatedAt: string | null,
+) {
+  return {
+    teamId,
+    title: title.trim(),
+    // Absent, not empty: the route takes `expectedUpdatedAt?`, and omitting it
+    // skips the concurrency check entirely. It is sent whenever it is known, so
+    // a save can only ever land on the state it was written against.
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    criteria: list.map((r, i) => ({
+      key: r.key.trim(),
+      title: r.title.trim(),
+      required: r.required,
+      // Order is the row position, not a number the author maintains.
+      order: i,
+      ...(r.reviewGuidance.trim().length > 0
+        ? { reviewGuidance: r.reviewGuidance.trim() }
+        : {}),
+    })),
+  };
+}
+
+export type DraftFailure =
+  | "CONFLICT"
+  | "PUBLISHED_IMMUTABLE"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "UNKNOWN";
+
+/**
+ * Both `draft_conflict` and `published_immutable` are 409, and they call for
+ * opposite responses: one means reload and reconcile, the other means this
+ * version can never be written again. Reading the code, not the status, is the
+ * difference between offering the right recovery and the wrong one.
+ */
+export function classifyDraftFailure(err: unknown): DraftFailure {
   const e = obj(err);
-  return num(e.statusCode) === 409 || str(e.code) === "published_immutable";
+  const code = str(e.code) ?? str(obj(obj(e.details).error).code);
+  if (code === "draft_conflict") return "CONFLICT";
+  if (code === "published_immutable") return "PUBLISHED_IMMUTABLE";
+  if (code === "permission_denied") return "FORBIDDEN";
+
+  const status = num(e.statusCode);
+  if (status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  // A 409 whose code did not arrive: the safe reading is the recoverable one,
+  // because reloading a version that turns out to be published is harmless
+  // while assuming immutability would strand an editable draft.
+  if (status === 409) return "CONFLICT";
+  return "UNKNOWN";
+}
+
+export function draftFailureMessage(failure: DraftFailure): string {
+  switch (failure) {
+    case "CONFLICT":
+      return "This draft was changed by someone else since you loaded it. Your changes were not saved.";
+    case "PUBLISHED_IMMUTABLE":
+      return "This version has been published, so it can no longer be edited. Duplicate it as a new draft to carry your changes forward.";
+    case "FORBIDDEN":
+      return "Only workspace owners and admins can edit criteria.";
+    case "NOT_FOUND":
+      return "This criteria set is no longer available.";
+    case "UNKNOWN":
+      return "The draft could not be saved.";
+  }
+}
+
+/**
+ * "Save as a new draft" is offered only when the conflicting change was a
+ * PUBLISH — then duplicating carries the editor content into v(N+1). If the
+ * other change was an ordinary edit there is nothing to duplicate, and the
+ * honest recovery is to reload and reconcile.
+ */
+export function canSaveAsNewDraft(serverState: DraftState | null): boolean {
+  return serverState !== null && serverState.latestPublished;
+}
+
+/** Rows whose text differs from the server, for the conflict comparison. */
+export function diffDraftRows(
+  mine: CriterionRow[],
+  theirs: CriterionRow[],
+): Array<{ key: string; mine: string | null; theirs: string | null }> {
+  const keys = new Set([...mine, ...theirs].map((r) => r.key.trim()).filter(Boolean));
+  const find = (list: CriterionRow[], k: string) =>
+    list.find((r) => r.key.trim() === k) ?? null;
+
+  return [...keys]
+    .map((key) => {
+      const a = find(mine, key);
+      const b = find(theirs, key);
+      const at = a ? a.title.trim() : null;
+      const bt = b ? b.title.trim() : null;
+      return at === bt ? null : { key, mine: at, theirs: bt };
+    })
+    .filter((d): d is { key: string; mine: string | null; theirs: string | null } => d !== null);
+}
+
+// ---------------------------------------------------------------------------
+// Creating a set
+// ---------------------------------------------------------------------------
+//
+// POST /v1/reviewer-criteria creates the SET and its v1 DRAFT in one call. The
+// set carries a name and an optional description; the version carries a title
+// and the criterion rows. They are different things and the route keeps them
+// apart, so this does too rather than collapsing them into one field.
+
+export const CRITERIA_CREATE_PATH = "/v1/reviewer-criteria";
+export const SET_NAME_MAX = 160;
+export const SET_DESCRIPTION_MAX = 600;
+
+export function validateNewSet(
+  name: string,
+  title: string,
+  list: CriterionRow[],
+): string | null {
+  if (name.trim().length === 0) return "Give this criteria set a name.";
+  if (name.trim().length > SET_NAME_MAX) {
+    return `The set name cannot be longer than ${SET_NAME_MAX} characters.`;
+  }
+  // The version rules are the same rules; there is one place that knows them.
+  return validateDraft(title, list);
+}
+
+export function buildCreateSetBody(
+  teamId: string,
+  name: string,
+  description: string,
+  title: string,
+  list: CriterionRow[],
+) {
+  const draft = buildDraftBody(teamId, title, list, null);
+  const d = description.trim();
+  return {
+    teamId,
+    name: name.trim(),
+    ...(d.length > 0 ? { description: d } : {}),
+    title: draft.title,
+    criteria: draft.criteria,
+  };
 }

@@ -71,11 +71,6 @@ test("publishing states that it cannot be undone, before it happens", () => {
   assert.equal(C.criteriaActionConsequence("duplicate"), null);
 });
 
-test("the immutability 409 is recognised for what it is", () => {
-  assert.equal(C.isPublishedImmutable({ statusCode: 409 }), true);
-  assert.equal(C.isPublishedImmutable({ code: "published_immutable" }), true);
-  assert.equal(C.isPublishedImmutable({ statusCode: 500 }), false);
-});
 
 /* ------------------------------------------------------------- projections */
 
@@ -135,4 +130,148 @@ test("status tones and labels never render a retired set as in force", () => {
   assert.equal(C.criteriaStatusTone("RETIRED"), "neutral");
   assert.equal(C.criteriaStatusLabel("PUBLISHED"), "Published");
   assert.equal(C.criteriaStatusLabel(""), "Unknown");
+});
+
+/* ------------------------------------------------- authoring a draft version */
+
+const row = (over = {}) => ({ key: "k", title: "t", required: false, reviewGuidance: "", ...over });
+
+test("the authoring paths are the canonical ones", () => {
+  assert.equal(C.CRITERIA_CREATE_PATH, "/v1/reviewer-criteria");
+  assert.equal(C.buildCriteriaDraftPath("s1"), "/v1/reviewer-criteria/s1/draft");
+  assert.equal(C.buildCriteriaSetPath("s1", "t1"), "/v1/reviewer-criteria/s1?teamId=t1");
+});
+
+test("the draft state carries the concurrency token and whether it is published", () => {
+  const d = C.parseDraftState({
+    set: {
+      updatedAt: "2026-09-20T10:00:00.000Z",
+      versions: [
+        {
+          version: 3,
+          title: "Baseline",
+          publishedAt: null,
+          criteria: [{ key: "a", title: "A", required: true, reviewGuidance: "look" }],
+        },
+      ],
+    },
+  });
+  assert.equal(d.updatedAtIso, "2026-09-20T10:00:00.000Z");
+  assert.equal(d.latestPublished, false);
+  assert.equal(d.version, 3);
+  assert.deepEqual(d.rows, [{ key: "a", title: "A", required: true, reviewGuidance: "look" }]);
+});
+
+test("a published latest version is reported as published", () => {
+  const d = C.parseDraftState({
+    set: { updatedAt: "x", versions: [{ version: 1, publishedAt: "2026-09-01T00:00:00.000Z", criteria: [] }] },
+  });
+  assert.equal(d.latestPublished, true);
+});
+
+test("a set with no versions has no draft state", () => {
+  assert.equal(C.parseDraftState({ set: { versions: [] } }), null);
+  assert.equal(C.parseDraftState({}), null);
+});
+
+test("the validator states which row is wrong, not just that something is", () => {
+  assert.match(C.validateDraft("", [row()]), /title/i);
+  assert.match(C.validateDraft("t", []), /at least one/i);
+  assert.match(C.validateDraft("t", [row({ key: "" })]), /Criterion 1 needs a key/);
+  assert.match(C.validateDraft("t", [row(), row({ key: "k2", title: "" })]), /Criterion 2 needs a title/);
+  assert.equal(C.validateDraft("t", [row()]), null);
+});
+
+test("two criteria cannot share a key", () => {
+  // Rows live under one version; a duplicate key makes a reviewer's recorded
+  // answers ambiguous after the fact, which is what a version exists to stop.
+  assert.match(C.validateDraft("t", [row({ key: "a" }), row({ key: "a" })]), /used twice/);
+});
+
+test("the route bounds are enforced before the request", () => {
+  assert.match(C.validateDraft("x".repeat(161), [row()]), /160/);
+  assert.match(C.validateDraft("t", [row({ key: "k".repeat(61) })]), /60/);
+  assert.match(C.validateDraft("t", [row({ title: "x".repeat(201) })]), /200/);
+  assert.match(C.validateDraft("t", [row({ reviewGuidance: "x".repeat(601) })]), /600/);
+  assert.match(C.validateDraft("t", Array.from({ length: 51 }, (_, i) => row({ key: `k${i}` }))), /50/);
+});
+
+test("order is the row position, and empty guidance is absent", () => {
+  const body = C.buildDraftBody("t1", " Base ", [row({ key: "a" }), row({ key: "b" })], null);
+  assert.equal(body.title, "Base");
+  assert.deepEqual(body.criteria.map((c) => c.order), [0, 1]);
+  assert.equal("reviewGuidance" in body.criteria[0], false);
+  assert.equal("expectedUpdatedAt" in body, false);
+});
+
+test("the concurrency token is sent whenever it is known", () => {
+  // Omitting it skips the check entirely, so a save could land on state it was
+  // never written against.
+  const body = C.buildDraftBody("t1", "T", [row()], "2026-09-20T10:00:00.000Z");
+  assert.equal(body.expectedUpdatedAt, "2026-09-20T10:00:00.000Z");
+});
+
+test("the two 409s are told apart, because they need opposite recoveries", () => {
+  assert.equal(C.classifyDraftFailure({ statusCode: 409, code: "draft_conflict" }), "CONFLICT");
+  assert.equal(
+    C.classifyDraftFailure({ statusCode: 409, code: "published_immutable" }),
+    "PUBLISHED_IMMUTABLE",
+  );
+  // The code can also arrive nested in the error details.
+  assert.equal(
+    C.classifyDraftFailure({ statusCode: 409, details: { error: { code: "published_immutable" } } }),
+    "PUBLISHED_IMMUTABLE",
+  );
+  assert.equal(C.classifyDraftFailure({ statusCode: 403 }), "FORBIDDEN");
+  assert.equal(C.classifyDraftFailure({ statusCode: 404 }), "NOT_FOUND");
+  assert.equal(C.classifyDraftFailure({ statusCode: 500 }), "UNKNOWN");
+});
+
+test("an unlabelled 409 is treated as the recoverable one", () => {
+  // Reloading a version that turns out to be published is harmless; assuming
+  // immutability would strand a draft that was still editable.
+  assert.equal(C.classifyDraftFailure({ statusCode: 409 }), "CONFLICT");
+});
+
+test("every failure says what was NOT saved, or what to do instead", () => {
+  assert.match(C.draftFailureMessage("CONFLICT"), /not saved/i);
+  assert.match(C.draftFailureMessage("PUBLISHED_IMMUTABLE"), /duplicate/i);
+  assert.match(C.draftFailureMessage("FORBIDDEN"), /owners and admins/i);
+});
+
+test("saving as a new draft is offered only after a publish", () => {
+  // After an ordinary edit there is nothing to duplicate.
+  assert.equal(C.canSaveAsNewDraft({ latestPublished: true, rows: [] }), true);
+  assert.equal(C.canSaveAsNewDraft({ latestPublished: false, rows: [] }), false);
+  assert.equal(C.canSaveAsNewDraft(null), false);
+});
+
+test("the comparison shows only rows whose text actually differs", () => {
+  const mine = [row({ key: "a", title: "Mine" }), row({ key: "b", title: "Same" })];
+  const theirs = [row({ key: "a", title: "Theirs" }), row({ key: "b", title: "Same" })];
+  assert.deepEqual(C.diffDraftRows(mine, theirs), [{ key: "a", mine: "Mine", theirs: "Theirs" }]);
+});
+
+test("a row removed on one side shows as removed, not as missing", () => {
+  const d = C.diffDraftRows([row({ key: "a", title: "Kept" })], []);
+  assert.deepEqual(d, [{ key: "a", mine: "Kept", theirs: null }]);
+});
+
+/* ------------------------------------------------------- creating a new set */
+
+test("the set name and the version title are kept apart", () => {
+  // The route takes both; collapsing them puts the wrong text on the version.
+  const body = C.buildCreateSetBody("t1", " Intake ", "  ", " Baseline ", [row()]);
+  assert.equal(body.name, "Intake");
+  assert.equal(body.title, "Baseline");
+  assert.equal("description" in body, false);
+  assert.equal(body.criteria.length, 1);
+});
+
+test("creating reuses the version rules rather than restating them", () => {
+  assert.match(C.validateNewSet("", "t", [row()]), /name/i);
+  assert.match(C.validateNewSet("n".repeat(161), "t", [row()]), /160/);
+  // The row failure is the draft validator speaking, word for word.
+  assert.equal(C.validateNewSet("n", "t", [row({ key: "" })]), C.validateDraft("t", [row({ key: "" })]));
+  assert.equal(C.validateNewSet("n", "t", [row()]), null);
 });

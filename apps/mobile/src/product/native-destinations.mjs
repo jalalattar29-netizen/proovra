@@ -513,13 +513,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/settings/reviewer-criteria": {
     routeFile: "(stack)/settings/reviewer-criteria.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/settings/reviewer-criteria/page.tsx"],
     gaps: [
       "ported: the catalogue with per-set status and latest version, and the publish / duplicate / retire transitions, each stating its consequence before it happens",
       "no edit affordance on a PUBLISHED set, deliberately: the API answers 409 published_immutable, and offering an action that cannot succeed implies the record could be rewritten - which is what versioned criteria exist to prevent",
-      "not ported: authoring the criterion rows of a draft (a multi-row editor; a draft half-written on a phone is a draft nobody can publish) and the per-version usage read",
+      "AUTHORING is now ported: creating a set with its v1 draft, and editing a draft version's criterion rows, including the optimistic-concurrency contract - the loaded updatedAt goes back as expectedUpdatedAt, and a 409 draft_conflict offers reload / compare / save-as-new-draft exactly as the web does. ONE row editor serves both forms, so one of them cannot drift off the route bounds.",
+      "draft_conflict and published_immutable are BOTH 409 and need opposite recoveries; classifyDraftFailure reads the code, not the status. An unlabelled 409 is treated as the recoverable one, because reloading a published version is harmless while assuming immutability would strand an editable draft.",
+      "per-version usage is ported and additive: a usage read that fails or reports usageAvailable=false leaves the catalogue intact rather than taking the sets with it",
       "gated on REVIEWER_OPS_VIEW, which a personal workspace does not hold at all - the 403 renders as 'this workspace has no reviewer workflow', never as an error",
     ],
   },
