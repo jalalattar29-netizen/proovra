@@ -119,11 +119,23 @@ export function listLegalDocuments(): LegalDocumentSummary[] {
  * always expressed it — `policyVersion` is a `VarChar(32)` holding exactly
  * that date string.
  *
- * Version and effective date are NOT separate concepts here. The corpus
- * publishes one date per document and nothing else, so collapsing them would
- * be inventing a distinction the repository does not make. If a document ever
- * gains a genuinely separate effective date, this is the one place to split
- * them.
+ * WHAT IS SEPARATE, AND WHAT IS NOT
+ * ===========================================================================
+ * The document's REVISION (its `Last Updated:` line) and the ACCEPTANCE
+ * REQUIREMENT are two different questions — "which revision is published?"
+ * and "which revision must a user have accepted?" — and they now have two
+ * names, because a surface that reads one while meaning the other cannot be
+ * caught while they happen to be equal.
+ *
+ * They ARE equal by default, and that default is the derivation above. The
+ * only way to separate them is `ACCEPTANCE_PINS`, which can hold a policy at
+ * an EARLIER published revision: the case the collapse cannot express, where
+ * correcting a typo should not ask every user in the product to re-accept.
+ *
+ * A pin LATER than the published document is refused at module load. That is
+ * the direction the old hand-maintained table failed in, and it is the only
+ * direction that can put a revision a user never saw into an acceptance
+ * record.
  */
 export const REQUIRED_LEGAL_POLICY_KEYS = ["terms", "privacy", "cookies"] as const;
 
@@ -138,17 +150,90 @@ export type RequiredLegalVersions = Record<RequiredLegalPolicyKey, string>;
  * build, so there is nothing to recompute and no way for a caller to observe a
  * different answer than its neighbour.
  */
-export const REQUIRED_LEGAL_VERSIONS: RequiredLegalVersions = Object.freeze(
+/**
+ * The PUBLISHED revision of each acceptance-gated policy.
+ *
+ * What the document itself says. Named separately from the requirement below
+ * so a caller states which one it means.
+ */
+export const LEGAL_DOCUMENT_REVISIONS: RequiredLegalVersions = Object.freeze(
   Object.fromEntries(
     REQUIRED_LEGAL_POLICY_KEYS.map((key) => [key, LEGAL_CORPUS[key].lastUpdated]),
   ) as RequiredLegalVersions,
 );
 
+/**
+ * Policies deliberately held at an EARLIER published revision.
+ *
+ * Empty, and expected to stay empty most of the time: the requirement equals
+ * the published revision unless somebody decides a change does not warrant
+ * asking every user to accept it again. That decision belongs to whoever
+ * publishes the change, which is why it is written here rather than inferred.
+ *
+ * A pin must name a date the corpus has actually published, and must not be
+ * later than the current one. `assertAcceptancePinsAreSane` refuses both at
+ * module load rather than at the moment a user is asked to accept something.
+ */
+export const ACCEPTANCE_PINS: Readonly<Partial<RequiredLegalVersions>> = Object.freeze({});
+
+function assertAcceptancePinsAreSane(): void {
+  for (const key of REQUIRED_LEGAL_POLICY_KEYS) {
+    const pinned = ACCEPTANCE_PINS[key];
+    if (pinned === undefined) continue;
+    const published = LEGAL_DOCUMENT_REVISIONS[key];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pinned)) {
+      throw new Error(`ACCEPTANCE_PINS.${key} is "${pinned}", which is not a revision date.`);
+    }
+    if (pinned > published) {
+      throw new Error(
+        `ACCEPTANCE_PINS.${key} is ${pinned}, later than the published ${published}. ` +
+          "An acceptance record would then name a revision the user was never shown.",
+      );
+    }
+  }
+}
+
+assertAcceptancePinsAreSane();
+
+/**
+ * The version of each acceptance-gated policy a user must have accepted.
+ *
+ * The published revision, unless that policy is deliberately pinned to an
+ * earlier one. Equal to `LEGAL_DOCUMENT_REVISIONS` while nothing is pinned.
+ */
+export const REQUIRED_LEGAL_VERSIONS: RequiredLegalVersions = Object.freeze(
+  Object.fromEntries(
+    REQUIRED_LEGAL_POLICY_KEYS.map((key) => [
+      key,
+      ACCEPTANCE_PINS[key] ?? LEGAL_DOCUMENT_REVISIONS[key],
+    ]),
+  ) as RequiredLegalVersions,
+);
+
+/** The revision the document publishes, whatever the requirement is. */
+export function legalDocumentRevision(key: RequiredLegalPolicyKey): string {
+  return LEGAL_DOCUMENT_REVISIONS[key];
+}
+
+/**
+ * True when a user is being asked to accept something older than what they
+ * are shown — which is legitimate, and which a surface displaying both dates
+ * should be able to say out loud rather than leaving the reader to notice.
+ */
+export function acceptanceIsPinnedBehind(key: RequiredLegalPolicyKey): boolean {
+  return REQUIRED_LEGAL_VERSIONS[key] !== LEGAL_DOCUMENT_REVISIONS[key];
+}
+
 export function getRequiredLegalVersions(): RequiredLegalVersions {
   return REQUIRED_LEGAL_VERSIONS;
 }
 
-/** The acceptance requirement for one slug, or null when it is not gated. */
+/**
+ * The ACCEPTANCE REQUIREMENT for one slug, or null when it is not gated.
+ *
+ * Not the published revision — `legalDocumentRevision` is that. The two are
+ * equal unless the policy is pinned.
+ */
 export function requiredAcceptanceFor(
   slug: string,
 ): { policyKey: RequiredLegalPolicyKey; requiredVersion: string } | null {

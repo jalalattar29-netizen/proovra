@@ -101,16 +101,49 @@ test("the acceptance version is computed, never a literal date", () => {
     join(REPO_ROOT, "packages", "shared", "src", "legal.ts"),
     "utf8",
   );
-  const block = src.match(
-    /export const REQUIRED_LEGAL_VERSIONS[\s\S]*?\n\);/,
-  );
-  assert.ok(block, "REQUIRED_LEGAL_VERSIONS declaration not found");
+  /*
+   * F-10 (2026-09-22) — the derivation gained one hop.
+   *
+   * The document's published REVISION and the ACCEPTANCE REQUIREMENT are now
+   * two named values, because a surface reading one while meaning the other
+   * cannot be caught while they happen to be equal. The requirement still
+   * derives from the corpus; it just does so through
+   * LEGAL_DOCUMENT_REVISIONS, with ACCEPTANCE_PINS able to hold a policy at an
+   * EARLIER published revision.
+   *
+   * What this test is for has not changed: a literal date written into any of
+   * them is the regression, and it is checked across all three now rather than
+   * one — the hand-maintained table could otherwise come back under a new name.
+   */
+  const blockOf = (name: string) => {
+    const m = src.match(new RegExp(`export const ${name}[\\s\\S]*?\\n\\);`));
+    assert.ok(m, `${name} declaration not found`);
+    return m[0];
+  };
 
-  // A hard-coded date here is the exact regression this whole change removes.
-  assert.doesNotMatch(
-    block[0],
-    /\d{4}-\d{2}-\d{2}/,
-    "a literal date was written back into the acceptance table",
-  );
-  assert.match(block[0], /LEGAL_CORPUS\[key\]\.lastUpdated/);
+  const required = blockOf("REQUIRED_LEGAL_VERSIONS");
+  const revisions = blockOf("LEGAL_DOCUMENT_REVISIONS");
+  const pins = src.match(/export const ACCEPTANCE_PINS[\s\S]*?\);/);
+  assert.ok(pins, "ACCEPTANCE_PINS declaration not found");
+
+  for (const [name, block] of [
+    ["REQUIRED_LEGAL_VERSIONS", required],
+    ["LEGAL_DOCUMENT_REVISIONS", revisions],
+    ["ACCEPTANCE_PINS", pins[0]],
+  ] as const) {
+    assert.doesNotMatch(
+      block,
+      /\d{4}-\d{2}-\d{2}/,
+      `a literal date was written back into ${name}`,
+    );
+  }
+
+  // The requirement reads the published revision, and the published revision
+  // reads the corpus. Neither invents a date.
+  assert.match(required, /LEGAL_DOCUMENT_REVISIONS\[key\]/);
+  assert.match(revisions, /LEGAL_CORPUS\[key\]\.lastUpdated/);
+  // A pin later than the published revision would put a date a user never saw
+  // into an acceptance record, so the module refuses it before anyone is asked.
+  assert.match(src, /pinned > published/);
+  assert.match(src, /^assertAcceptancePinsAreSane\(\);$/m);
 });
