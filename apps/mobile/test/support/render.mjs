@@ -51,9 +51,14 @@ export async function loadModule(entry, extraExports = []) {
   // providers in ONE module graph. Bundling them separately gave each graph its
   // own copy of locale-context, so the provider and the consumer held different
   // React contexts and every screen threw "LocaleContext missing".
-  const stdinContents = [entry, ...extraExports]
-    .map((e) => `export * from ${JSON.stringify(resolve(MOBILE_ROOT, e).split("\\").join("/"))};`)
-    .join("\n");
+  const spec = (e) => JSON.stringify(resolve(MOBILE_ROOT, e).split("\\").join("/"));
+  const stdinContents = [
+    // `export *` deliberately does NOT re-export `default`, so a screen loaded
+    // this way had an undefined default export and rendered as "Element type is
+    // invalid". Every expo-router screen IS a default export.
+    `export { default } from ${spec(entry)};`,
+    ...[entry, ...extraExports].map((e) => `export * from ${spec(e)};`),
+  ].join("\n");
   const result = await build({
     ...(extraExports.length
       ? {
@@ -97,11 +102,18 @@ export async function renderComponent(element) {
     get root() {
       return renderer.root;
     },
-    /** Every string rendered anywhere in the tree, flattened. */
+    /**
+     * One string per rendered Text node.
+     *
+     * The pieces of a node are JOINED, not returned separately: JSX splits a
+     * sentence across expressions (`{n} recovery code{n === 1 ? "" : "s"} left`)
+     * and the user reads one line, so a test that matched the fragments
+     * separately would pass while the assembled sentence was wrong.
+     */
     texts() {
       return renderer.root
         .findAll((n) => typeof n.type === "string" && n.type === "Text")
-        .flatMap((n) => flattenText(n.props.children))
+        .map((n) => flattenText(n.props.children).join(""))
         .filter(Boolean);
     },
     /** True when `needle` appears in any rendered string. */

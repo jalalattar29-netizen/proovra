@@ -153,12 +153,26 @@ export const NATIVE_DESTINATIONS = {
     gaps: ["converged onto the notifications surface; severity ordering not ported"],
   },
   "/settings": {
+    // A responsive web PANE model split into native screens: the web renders
+    // Settings as one page with a pane switcher, which does not fit a phone.
+    // The order allows one web surface to map to several native ones; the
+    // guard checks every file named here.
     routeFile: "(tabs)/settings.tsx",
-    status: "SHELL",
-    webSources: ["apps/web/app/(app)/settings/page.tsx", "apps/web/app/(app)/settings/settings.css"],
+    alsoRouteFiles: ["(stack)/settings/security.tsx"],
+    status: "PARTIAL",
+    webSources: [
+      "apps/web/app/(app)/settings/page.tsx",
+      "apps/web/app/(app)/settings/_sections/*",
+      "apps/web/lib/settings/settingsNavigation.ts",
+      "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+    ],
     gaps: [
-      "reads 1 of 26 canonical Settings endpoints",
-      "no password change, session/device management, MFA management, data export, account closure",
+      "Security pane ported (password, sign-in methods, two-factor, sessions, activity)",
+      "TOTP enrolment start/verify not yet surfaced; step-up reported but not collected in-app",
+      "privacy pane (data export, account closure, cookie consent) not started",
+      "notification preferences and schedule not started",
+      "billing overview read-only",
+      "device acceptance outstanding for everything above",
     ],
   },
   "/reports": {

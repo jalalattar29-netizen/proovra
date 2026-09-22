@@ -120,3 +120,15 @@ const AsyncStorage = {
 };
 export default AsyncStorage;
 export { AsyncStorage };
+
+/** The imperative router singleton (`import { router } from "expo-router"`). */
+export const router = {
+  push: (r) => calls.push.push(r),
+  replace: (r) => calls.replace.push(r),
+  back: () => {
+    calls.back += 1;
+  },
+  navigate: (r) => calls.push.push(r),
+  canGoBack: () => true,
+  setParams: () => {},
+};

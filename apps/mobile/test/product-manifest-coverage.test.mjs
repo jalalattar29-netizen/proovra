@@ -112,12 +112,19 @@ test("every NATIVE_REQUIRED route has a declared Native destination", () => {
   );
 });
 
-test("every declared Native destination points at a route file that exists", () => {
+test("every declared Native destination points at route files that exist", () => {
   for (const [webRoute, dest] of Object.entries(NATIVE_DESTINATIONS)) {
     if (dest.status === "NOT_STARTED") continue;
     assert.ok(dest.routeFile, `${webRoute} is ${dest.status} but declares no routeFile`);
-    const abs = resolve(MOBILE_ROOT, "app", dest.routeFile);
-    assert.ok(existsSync(abs), `${webRoute} → app/${dest.routeFile} does not exist on disk`);
+    // One responsive web surface may legitimately split into several native
+    // screens (Settings panes are the case that forced it), so every file the
+    // row names is checked, not just the first.
+    for (const rf of [dest.routeFile, ...(dest.alsoRouteFiles ?? [])]) {
+      assert.ok(
+        existsSync(resolve(MOBILE_ROOT, "app", rf)),
+        `${webRoute} → app/${rf} does not exist on disk`,
+      );
+    }
   }
 });
 

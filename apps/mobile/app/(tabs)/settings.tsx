@@ -170,13 +170,20 @@ export default function SettingsScreen() {
           <ProovraListRow title="Verify a record" subtitle="Check the authenticity of a PROOVRA verification link" onPress={() => router.push("/verify")} />
         </ProovraCard>
 
-        {/* Security (web-managed) */}
+        {/*
+         * Security — native, not a web handoff.
+         *
+         * This used to open proovra.com/security-center in a browser, which
+         * meant a user could not change their password, see where they were
+         * signed in, revoke a session or manage two-factor from the device
+         * they were holding — on the one device most likely to be lost.
+         */}
         <ProovraCard style={styles.card}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Security</ProovraText>
           <ProovraListRow
-            title="Manage security"
-            subtitle="Two-factor, sessions and password on the web app"
-            onPress={() => void Linking.openURL("https://www.proovra.com/security-center")}
+            title="Password, two-factor and sessions"
+            subtitle="Change your password, manage two-factor, review where you are signed in"
+            onPress={() => router.push("/(stack)/settings/security")}
           />
         </ProovraCard>
 
