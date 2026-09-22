@@ -198,9 +198,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/cases": {
     routeFile: "(tabs)/cases.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/cases/page.tsx"],
-    gaps: ["no case summary metrics, bulk actions, or matter queue"],
+    gaps: [
+      "list, search, status filter, create, and the four workspace counters from GET /v1/cases/summary - which are why this surface is more than a list: 'how many matters have evidence' and 'how many await review' are what somebody opens it to answer",
+      "an unavailable summary renders as itself, never as four zeroes. A workspace whose metrics could not be computed must not be told it has no matters with evidence.",
+      "the metrics load separately from the list, so a metrics failure never hides the matters themselves",
+      "bulk actions and the operations matter-queue are not ported: the queue is an operator surface, and bulk case actions have no phone-shaped selection model that is better than opening the matter",
+    ],
   },
   "/cases/[id]": {
     routeFile: "(stack)/case/[id].tsx",

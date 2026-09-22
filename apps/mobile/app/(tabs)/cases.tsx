@@ -13,6 +13,7 @@ import {
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
+  ProovraKpiGrid,
   ProovraInput,
   ProovraFormField,
   ProovraEmptyState,
@@ -20,6 +21,13 @@ import {
   ProovraLoadingState,
 } from "../../src/ui";
 import { caseStatusDisplay, CASE_STATUSES } from "../../src/product/domain-display";
+import { usePlatformContext } from "../../src/product/platform-context";
+import {
+  buildCasesSummaryPath,
+  casesSummaryKpis,
+  parseCasesSummary,
+  type CasesSummaryState,
+} from "../../src/product/case-workspace";
 
 type CaseItem = { id: string; name: string; status?: string; evidenceCount?: number };
 type LoadState = "loading" | "ready" | "error";
@@ -39,6 +47,9 @@ export default function CasesScreen() {
   const [newName, setNewName] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<SafeError | null>(null);
+  const [summary, setSummary] = useState<CasesSummaryState | null>(null);
+  const { context } = usePlatformContext();
+  const teamId = context?.activeTeamId ?? null;
 
   const load = useCallback(async () => {
     setState("loading");
@@ -79,6 +90,24 @@ export default function CasesScreen() {
     }
   }, [newName, router, load]);
 
+  // The workspace metrics load separately and never block the list: "how many
+  // matters have evidence" is why this surface is more than a list, but a
+  // metrics read that fails must not hide the matters themselves.
+  useEffect(() => {
+    if (!teamId) return;
+    let alive = true;
+    void apiFetch(buildCasesSummaryPath(teamId))
+      .then((d) => {
+        if (alive) setSummary(parseCasesSummary(d));
+      })
+      .catch(() => {
+        if (alive) setSummary({ phase: "unavailable" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [teamId]);
+
   const needle = query.trim().toLowerCase();
   const filtered = items.filter(
     (c) =>
@@ -92,6 +121,20 @@ export default function CasesScreen() {
         title={t("cases")}
         action={<ProovraButton label={creating ? "Cancel" : "+ New"} variant="ghost" fullWidth={false} onPress={() => setCreating((v) => !v)} />}
       >
+        {/*
+          The four workspace counters the web shows above its list.
+          "unavailable" is rendered as itself, never as four zeroes: a
+          workspace whose summary could not be computed must not be told it has
+          no matters with evidence.
+        */}
+        {summary?.phase === "ok" ? (
+          <ProovraKpiGrid items={casesSummaryKpis(summary.summary)} />
+        ) : summary?.phase === "unavailable" ? (
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            Workspace matter metrics are unavailable right now.
+          </ProovraText>
+        ) : null}
+
         {creating ? (
           <ProovraCard style={styles.createCard}>
             <ProovraFormField label="Case name" error={createError ? createError.message : null}>

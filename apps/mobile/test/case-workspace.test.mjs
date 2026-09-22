@@ -62,3 +62,76 @@ test("member names resolve from access[], else a short id", () => {
   assert.equal(mod.resolveMemberName(map, "u2"), "bob@example.com");
   assert.match(mod.resolveMemberName(map, "u9-unknown-long-id"), /^u9-unkno…$/);
 });
+
+/* ----------------------------------------------------------- cases summary */
+
+/**
+ * "unavailable" and "no cases" are different answers. A workspace whose
+ * summary could not be computed must not be told it has no matters with
+ * evidence — that is the four-zeroes failure this parse exists to prevent.
+ */
+test("an unavailable summary is not four zeroes", () => {
+  assert.equal(
+    mod.parseCasesSummary({ sections: { summary: { status: "unavailable", data: null } } }).phase,
+    "unavailable",
+  );
+  // A section that sends no data at all is equally unavailable.
+  assert.equal(mod.parseCasesSummary({ sections: { summary: {} } }).phase, "unavailable");
+  assert.equal(mod.parseCasesSummary({}).phase, "unavailable");
+});
+
+test("a real summary of zero is reported as zero", () => {
+  const s = mod.parseCasesSummary({
+    sections: {
+      summary: {
+        status: "ok",
+        data: {
+          totalCases: 0,
+          casesWithEvidence: 0,
+          casesWithActiveHolds: 0,
+          casesWithPendingReview: 0,
+        },
+      },
+    },
+  });
+  assert.equal(s.phase, "ok");
+  assert.equal(s.summary.totalCases, 0);
+});
+
+test("the counters are read under their canonical names", () => {
+  const s = mod.parseCasesSummary({
+    sections: {
+      summary: {
+        status: "ok",
+        data: {
+          totalCases: 12,
+          casesWithEvidence: 9,
+          casesWithActiveHolds: 2,
+          casesWithPendingReview: 4,
+        },
+      },
+    },
+  });
+  assert.deepEqual(s.summary, {
+    totalCases: 12,
+    casesWithEvidence: 9,
+    casesWithActiveHolds: 2,
+    casesWithPendingReview: 4,
+  });
+
+  const kpis = mod.casesSummaryKpis(s.summary);
+  assert.deepEqual(kpis.map((k) => k.key), ["total", "evidence", "review", "holds"]);
+  assert.equal(kpis[2].value, "4");
+});
+
+test("a single-occupant workspace is told apart from a shared one", () => {
+  // There is nobody to assign a matter to in a single-occupant workspace, so
+  // an assignment control there is an affordance with no possible target.
+  assert.equal(mod.isSharedWorkspace({ workspace: { scope: "SHARED" } }), true);
+  assert.equal(mod.isSharedWorkspace({ workspace: { scope: "SINGLE_OCCUPANT" } }), false);
+  assert.equal(mod.isSharedWorkspace({}), false);
+});
+
+test("the summary path is workspace-scoped", () => {
+  assert.equal(mod.buildCasesSummaryPath("t1"), "/v1/cases/summary?teamId=t1");
+});

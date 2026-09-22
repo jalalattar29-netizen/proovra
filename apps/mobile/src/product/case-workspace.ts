@@ -93,3 +93,87 @@ export function resolveMemberName(map: Record<string, string>, userId: string): 
   if (map[userId]) return map[userId];
   return userId ? `${userId.slice(0, 8)}…` : "Someone";
 }
+
+/* ------------------------------------------------------------- Cases summary */
+
+/**
+ * WORKSPACE-LEVEL CASE METRICS, from `GET /v1/cases/summary?teamId=`.
+ *
+ * The four counters the web's Cases index shows above its list. They are the
+ * reason a case list is more than a list: "how many matters have evidence"
+ * and "how many are waiting on review" are the questions somebody opens this
+ * surface to answer.
+ *
+ * SECTION STATUS IS NOT DECORATION. The envelope reports each section's own
+ * status, and `unavailable` with `data: null` is a different answer from four
+ * zeroes. A workspace whose summary could not be computed must not be told it
+ * has no cases with evidence.
+ */
+export const CASES_SUMMARY_PATH = "/v1/cases/summary";
+
+export function buildCasesSummaryPath(teamId: string): string {
+  return `${CASES_SUMMARY_PATH}?teamId=${encodeURIComponent(teamId)}`;
+}
+
+export interface CasesSummary {
+  totalCases: number;
+  casesWithEvidence: number;
+  casesWithActiveHolds: number;
+  casesWithPendingReview: number;
+}
+
+export type CasesSummaryState =
+  | { phase: "ok"; summary: CasesSummary }
+  | { phase: "unavailable" };
+
+function o2(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+
+function n2(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+export function parseCasesSummary(envelope: unknown): CasesSummaryState {
+  const section = o2(o2(o2(envelope)["sections"])["summary"]);
+  const data = section["data"];
+
+  // "unavailable" and "no cases" are different answers and must not render
+  // the same way.
+  if (String(section["status"] ?? "") === "unavailable" || data === null || data === undefined) {
+    return { phase: "unavailable" };
+  }
+
+  const d = o2(data);
+  return {
+    phase: "ok",
+    summary: {
+      totalCases: n2(d["totalCases"]) ?? 0,
+      casesWithEvidence: n2(d["casesWithEvidence"]) ?? 0,
+      casesWithActiveHolds: n2(d["casesWithActiveHolds"]) ?? 0,
+      casesWithPendingReview: n2(d["casesWithPendingReview"]) ?? 0,
+    },
+  };
+}
+
+/** The KPI rows, in the web's order, with their meaning spelled out. */
+export function casesSummaryKpis(
+  summary: CasesSummary,
+): ReadonlyArray<{ key: string; label: string; value: string }> {
+  return [
+    { key: "total", label: "Matters", value: String(summary.totalCases) },
+    { key: "evidence", label: "With evidence", value: String(summary.casesWithEvidence) },
+    { key: "review", label: "Awaiting review", value: String(summary.casesWithPendingReview) },
+    { key: "holds", label: "Under legal hold", value: String(summary.casesWithActiveHolds) },
+  ];
+}
+
+/**
+ * Whether this workspace has more than one occupant.
+ *
+ * A SINGLE_OCCUPANT workspace has no one to assign a matter to, so an
+ * assignment control there would be an affordance with no possible target.
+ */
+export function isSharedWorkspace(envelope: unknown): boolean {
+  return String(o2(o2(envelope)["workspace"])["scope"] ?? "") === "SHARED";
+}
