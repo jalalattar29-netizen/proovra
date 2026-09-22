@@ -207,9 +207,9 @@ async function getRealUsageStats(userId: string) {
     },
   });
 
-  const activeBatches = batchAnalysisService
-    .listJobs(userId)
-    .filter((job) => job.status === "pending" || job.status === "processing").length;
+  const activeBatches = (await batchAnalysisService.listJobs(userId)).filter(
+    (job) => job.status === "pending" || job.status === "processing",
+  ).length;
 
   return {
     dailyAnalyses: {
@@ -241,7 +241,7 @@ async function getRealQuotas(userId: string) {
     },
   });
 
-  const batchJobsUsed = batchAnalysisService.listJobs(userId).length;
+  const batchJobsUsed = (await batchAnalysisService.listJobs(userId)).length;
   // A-3 closure — quota counter sources from canonical `ApiCredential`
   // (Phase 17). Legacy in-memory key-store enumeration is retired.
   const apiKeysUsed = await prisma.apiCredential.count({
@@ -403,7 +403,9 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             ownerUserId: userId,
             deletedAt: null,
           },
-          select: { id: true },
+          // teamId comes back on the same rows that prove ownership, so the
+          // durable job gets its workspace without a second query.
+          select: { id: true, teamId: true },
         });
 
         if (evidence.length !== evidenceIds.length) {
@@ -422,7 +424,32 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           );
         }
 
-        const job = batchAnalysisService.createJob(userId, evidenceIds, name, description);
+        // ONE workspace per job. A batch spanning two has no honest team_id,
+        // and assigning one of them would hide the rest from their own
+        // workspace's reads.
+        const teamIds = [...new Set(evidence.map((e) => e.teamId).filter(Boolean))];
+        if (teamIds.length !== 1 || !teamIds[0]) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_create",
+            outcome: "blocked",
+            severity: "warning",
+            resourceType: "batch_job",
+            metadata: { reason: "evidence_spans_multiple_workspaces" },
+          });
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "A batch job analyses evidence from one workspace. These items span more than one.",
+          );
+        }
+
+        const job = await batchAnalysisService.createJob({
+          ownerUserId: userId,
+          teamId: teamIds[0],
+          evidenceIds,
+          name,
+          description,
+        });
 
         auditEnterpriseAction(req, {
           userId,
@@ -483,7 +510,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id);
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -553,7 +580,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       try {
-        const jobs = batchAnalysisService.listJobs(userId);
+        const jobs = await batchAnalysisService.listJobs(userId);
 
         auditEnterpriseAction(req, {
           userId,
@@ -602,7 +629,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id);
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -620,7 +647,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const processingPromise = batchAnalysisService.processBatch(id);
 
         processingPromise
-          .then(() => {
+          .then(async () => {
             // CR1 Phase E — legacy in-memory webhook trigger removed.
             // It was a dead try/catch that fetched the legacy webhook
             // service factory and immediately void'd the handle. Canonical
@@ -631,7 +658,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             try {
               const emailService = getEmailService();
               if (emailService.isConfigured()) {
-                const completedJob = batchAnalysisService.getJob(userId, id);
+                const completedJob = await batchAnalysisService.getJob(userId, id);
                 if (completedJob) {
                   const userEmail = req.user?.email || "";
                   if (userEmail) {
@@ -702,7 +729,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id);
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -730,7 +757,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.VALIDATION_ERROR, "Batch job is still processing");
         }
 
-        const aggregatedResults = batchAnalysisService.getAggregateResults(id);
+        const aggregatedResults = await batchAnalysisService.getAggregateResults(id);
 
         auditEnterpriseAction(req, {
           userId,
@@ -768,7 +795,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const outcome = batchAnalysisService.cancelJob(userId, id);
+        const outcome = await batchAnalysisService.cancelJob(userId, id);
 
         if (outcome === "NOT_FOUND") {
           auditEnterpriseAction(req, {
@@ -846,7 +873,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id);
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -861,7 +888,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        const csv = batchAnalysisService.exportAsCSV(id);
+        const csv = await batchAnalysisService.exportAsCSV(id);
 
         auditEnterpriseAction(req, {
           userId,

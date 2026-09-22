@@ -132,7 +132,7 @@ Four gap lines were wrong, and said so rather than being quietly edited:
 
 | Axis | Item |
 |---|---|
-| **ENVIRONMENT** | `ENVIRONMENT_BLOCKED_DATABASE_PROOF` — no Docker daemon, `TEST_DATABASE_URL` unset. The UC-5 migration is therefore **unrehearsed, and its deployment-plan row says so** rather than copying its siblings' rehearsal claim. |
+| **CLOSED 2026-09-22** | `ENVIRONMENT_BLOCKED_DATABASE_PROOF` is resolved. A disposable PostgreSQL 16 (pgvector) was brought up and every registered migration applied on a clean boot; `db:drift-check` and `db:raw-schema-verify` both OK; the UC-5 constraint verified from the live catalogue. The deployment-plan row now records the rehearsal because it was run. |
 | **ENVIRONMENT** | `apps/web` typecheck reports 179 errors, all from two `@types/react` in the pnpm store (18.2.46 and 18.3.31). None touches the 11 web files this branch changed. Pre-existing dependency resolution, not code. |
 | **BACKEND** | BD-1 `cancelJob` reports success without cancelling · BD-2 batch jobs are process memory · BD-3 `/v1/cases/summary` counters have no home on `matter-queue`. Recorded in `docs/backend-debt.md`, not worked around. |
 | **EXTERNAL** | UC-1 store listing · UC-5 signing identity · universal-link files carry `<APPLE_TEAM_ID>` and `<ANDROID_SIGNING_SHA256_FINGERPRINT>` placeholders, uninvented as §6 requires. |

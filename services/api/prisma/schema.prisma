@@ -5105,6 +5105,80 @@ enum EvidenceIntelligenceJobStatus {
   SKIPPED
 }
 
+/// BD-2 — batch analysis jobs, persisted.
+///
+/// The legacy batch service kept these in process memory, so a restart lost
+/// every job and two API instances disagreed about which existed. The shape
+/// follows EvidenceIntelligenceJob below: the workspace is ON the row, so
+/// isolation is a query predicate rather than a filter someone has to
+/// remember to apply.
+enum BatchAnalysisJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BatchAnalysisItemStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model BatchAnalysisJob {
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The owner. A job is visible to the person who created it.
+  ownerUserId String                 @map("owner_user_id") @db.Uuid
+  /// The workspace every item in the job belongs to. A batch may not span two.
+  teamId      String                 @map("team_id") @db.Uuid
+  name        String                 @db.VarChar(200)
+  description String?                @db.VarChar(1000)
+  status      BatchAnalysisJobStatus @default(PENDING)
+
+  /// Counters the surfaces read. Derived from the items and kept on the row so
+  /// a list does not have to aggregate every item of every job.
+  totalItems     Int @default(0) @map("total_items")
+  processedItems Int @default(0) @map("processed_items")
+  failedItems    Int @default(0) @map("failed_items")
+
+  /// Set when a worker claims the job. A claim that is present tells a second
+  /// instance the job is already being processed.
+  claimedAtUtc   DateTime? @map("claimed_at_utc") @db.Timestamptz(6)
+  startedAtUtc   DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items BatchAnalysisJobItem[]
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([teamId, status, createdAt(sort: Desc)])
+  @@map("batch_analysis_jobs")
+}
+
+model BatchAnalysisJobItem {
+  id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId      String                  @map("job_id") @db.Uuid
+  evidenceId String                  @map("evidence_id") @db.Uuid
+  position   Int
+  status     BatchAnalysisItemStatus @default(PENDING)
+
+  /// Operator-readable only. NEVER a provider response or evidence content —
+  /// the legacy batch service is metadata-only by design.
+  error          String?   @map("error") @db.VarChar(400)
+  resultJson     Json?     @map("result_json")
+  startedAtUtc   DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+
+  job BatchAnalysisJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, position])
+  @@index([jobId, status])
+  @@map("batch_analysis_job_items")
+}
+
 model EvidenceIntelligenceJob {
   id             String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId     String                        @map("evidence_id") @db.Uuid

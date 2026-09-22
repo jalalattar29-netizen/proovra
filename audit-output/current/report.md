@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 32f9e1f25c07d7ee6abcbf0357bd55fdf8eccd71c71d200e033fad8cb735fc32 |
+| engineHash    | 0c0db33ad2b9cd915f9219006986505010b2a95e5fd17885d9552d7360982f3e |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -126,7 +126,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
-| ProductBehaviorTestsRemoved                | 0     |
+| ProductBehaviorTestsRemoved                | 1     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
 | ProductBehaviorTestsInventoried            | 232   |
 
@@ -200,8 +200,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- PRODUCT BEHAVIOUR TEST DELETED: services/api/test/batch-analysis-cancellation.test.ts
 
 ### Product closure
 
-_(none)_
+- UNWIRED EXECUTABLE WRITERS: 10 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- CHECKPOINT: 5 violation(s) — SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1269, facts say 1279 | SCALAR_DISAGREES_WITH_FACTS: DEAD_UNREACHABLE: checkpoint says 0, facts say 10 | SCALAR_DISAGREES_WITH_FACTS: UnwiredExecutableWriters: checkpoint says 0, facts say 10 | SCALAR_DISAGREES_WITH_FACTS: DeadUnreachableWritersPending: checkpoint says 0, facts say 10 | SCALAR_DISAGREES_WITH_FACTS: MutationClosurePass: checkpoint says true, facts say false

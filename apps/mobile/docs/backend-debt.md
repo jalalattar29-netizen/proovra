@@ -49,16 +49,40 @@ Guarded by `services/api/test/batch-analysis-cancellation.test.ts` and
 
 ---
 
-## BD-2 — batch jobs are process memory
+## BD-2 — CLOSED (2026-09-22) — batch jobs were process memory
 
-**Endpoint.** The same service stores `this.jobs` in a plain object. A restart
-loses every job, and two API instances do not see each other's.
+**What it was.** The service stored `this.jobs` in a plain object on a module
+singleton. A restart lost every job, and two API instances did not see each
+other's, so a job could simply vanish. Both clients reported that honestly
+because neither could do anything else.
 
-**Consequence.** Identical on Web and Native: a job can vanish. Neither client
-can correct this, and neither pretends otherwise — a job that is gone reads as
-gone rather than as failed.
+**The fix.** `batch_analysis_jobs` / `batch_analysis_job_items`, modelled on
+`evidence_intelligence_jobs` — this repository's existing durable-job shape —
+rather than a second job system. No new queue, no new worker, no second
+processing model: the same in-process execution runs, and what changed is
+where its state lives.
 
-**A real fix** is persistence, which is a schema change.
+* **Multi-instance safety is a CLAIM, not a flag.** `processBatch` moves the
+  job from PENDING-and-unclaimed to PROCESSING-and-claimed in one conditional
+  UPDATE, so Postgres decides and the loser is told the job is already
+  processing. The old guard was a Map in one process and could not answer that
+  question at all.
+* **Workspace isolation is a column.** `team_id` is on the job row, so a read
+  is scoped by a predicate rather than by a filter each caller must remember.
+  A batch whose evidence spans two workspaces is refused at create: there is
+  no honest `team_id` for it.
+* **Cancellation survives.** A cancel that lands mid-run stops the loop at the
+  next item, and the final status update is conditional so a cancelled job is
+  never overwritten as COMPLETED.
+
+**Proof.** `services/api/test/batch-analysis-durability.integration.test.ts` —
+15 cases against a REAL PostgreSQL, including a second connection seeing the
+job, only one instance claiming it, and cross-workspace isolation. A durability
+claim proven against a mock would be proving the mock.
+
+Migration `20280670000000_bd2_durable_batch_analysis_jobs`, curated in the
+migration inventory (gate failures 0) and recorded in the deployment plan.
+Clean-boot rehearsed; NOT applied to production.
 
 ---
 
