@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
@@ -73,4 +73,82 @@ test("credential links stay OUT of the tenant-resource family", () => {
 test("tenant resources stay OUT of the credential family", () => {
   assert.equal(parseCredentialDeepLink("https://app.proovra.com/evidence/ev-1"), null);
   assert.equal(parseCredentialDeepLink("https://app.proovra.com/cases/c-1"), null);
+});
+
+/* --------------------------------------------------- MFA recovery verification */
+
+/**
+ * The recovery link is the one credential link that addresses a REQUEST as
+ * well as carrying a token, and its web path ends in a literal "verify"
+ * segment. Both halves must come from the query, or a link with no ?token=
+ * would post the word "verify" as the token and burn a single-use attempt.
+ */
+test("an MFA recovery link carries both its request id and its token", () => {
+  const parsed = parseCredentialDeepLink(
+    "https://www.proovra.com/auth/mfa-recovery/verify?id=req-1&token=abc123",
+  );
+  assert.ok(parsed, "the recovery link was not recognised");
+  assert.equal(parsed.family, "mfa-recovery");
+  assert.equal(parsed.token, "abc123");
+  assert.match(parsed.route, /^\/\(stack\)\/mfa-recovery-verify\?id=req-1&token=abc123$/);
+});
+
+test("a recovery link missing either half is ignored, never half-attempted", () => {
+  for (const url of [
+    "https://www.proovra.com/auth/mfa-recovery/verify?id=req-1",
+    "https://www.proovra.com/auth/mfa-recovery/verify?token=abc123",
+    "https://www.proovra.com/auth/mfa-recovery/verify",
+  ]) {
+    assert.equal(parseCredentialDeepLink(url), null, url);
+  }
+});
+
+test("the recovery screen exists and is reachable", () => {
+  assert.ok(
+    existsSync(resolve(HERE, "../app/(stack)/mfa-recovery-verify.tsx")),
+    "mfa-recovery-verify screen is missing",
+  );
+});
+
+/* ------------------------------------------------- organization invitations */
+
+/**
+ * The organization invite is a SEPARATE token namespace from the
+ * collaboration-group invite. Its web path is /org-invites/<token>/accept, so
+ * the token is a path segment with a trailing verb — joining the remainder
+ * would post "<token>/accept", a token that does not exist, and the user would
+ * be told their invitation was invalid.
+ */
+test("an organization invite link resolves to its own screen and endpoint family", () => {
+  const parsed = parseCredentialDeepLink(
+    "https://www.proovra.com/org-invites/tok-123/accept",
+  );
+  assert.ok(parsed, "the org invite link was not recognised");
+  assert.equal(parsed.family, "org-invite");
+  assert.equal(parsed.token, "tok-123");
+  assert.equal(parsed.route, "/(stack)/org-invite/tok-123");
+});
+
+test("organization and collaboration invites do not claim each other's links", () => {
+  const org = parseCredentialDeepLink("https://www.proovra.com/org-invites/tok-1/accept");
+  const collab = parseCredentialDeepLink("https://www.proovra.com/invite/tok-1");
+  assert.equal(org.family, "org-invite");
+  assert.equal(collab.family, "invite");
+  assert.notEqual(org.route, collab.route);
+});
+
+test("an organization invite with no token is ignored", () => {
+  for (const url of [
+    "https://www.proovra.com/org-invites/accept",
+    "https://www.proovra.com/org-invites/",
+  ]) {
+    assert.equal(parseCredentialDeepLink(url), null, url);
+  }
+});
+
+test("the organization invite screen exists", () => {
+  assert.ok(
+    existsSync(resolve(HERE, "../app/(stack)/org-invite/[token].tsx")),
+    "org-invite screen is missing",
+  );
 });

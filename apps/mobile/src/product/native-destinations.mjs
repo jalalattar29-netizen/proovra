@@ -89,10 +89,14 @@ export const NATIVE_DESTINATIONS = {
     gaps: [],
   },
   "/auth/mfa-recovery/verify": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/mfa-recovery-verify.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/auth/mfa-recovery/verify/page.tsx"],
-    gaps: ["MFA recovery verification has no Native destination"],
+    gaps: [
+      "reached by the emailed link through the credential deep-link family, which needs no session - the whole premise is that the user cannot get in",
+      "the boundary is stated on success, not in fine print: confirming the email does not sign the user in and does not reset their second factor",
+    ],
   },
   "/auth": {
     routeFile: "(stack)/auth.tsx",
@@ -126,13 +130,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/capture": {
     routeFile: "(stack)/capture.tsx",
-    status: "SHELL",
+    alsoRouteFiles: ["(stack)/screen-capture.tsx", "(stack)/continuous-capture.tsx"],
+    status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/capture/page.tsx", "apps/web/app/(app)/capture/_lib/*"],
     gaps: [
-      "one capture type per session; no mixed-media composer",
-      "no templates / intake stages / readiness / suggestions",
-      "uploads cannot complete on device (crypto)",
-      "Discard leaves a reserved Evidence record",
+      "LEDGER CORRECTION: three of the four gaps recorded here were closed by the capture convergence and the row was never updated. Mixed media is supported (the type lock is gone; deriveBatchEvidenceType yields DOCUMENT for a mixed session); uploads compute their digests through expo-crypto with no crypto.subtle; and Discard no longer leaves a reserved Evidence record, because staging now opens a DRAFT capture session that holds no Evidence at all.",
+      "still absent: capture templates, intake stages, readiness checks and suggestions",
+      "native acquisition sources (UC-2 / UC-3 / UC-5) are reached from here and are deliberately NOT on Home",
+      "device acceptance outstanding — docs/physical-acceptance.md section 2",
     ],
   },
   "/evidence": {
@@ -196,9 +202,13 @@ export const NATIVE_DESTINATIONS = {
   },
   "/inbox": {
     routeFile: "(tabs)/notifications.tsx",
-    status: "SHELL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/inbox/page.tsx"],
-    gaps: ["converged onto the notifications surface; severity ordering now ported"],
+    gaps: [
+      "ALIAS, not a second surface: next.config.mjs answers /inbox with a permanent 308 to /notifications, so the web never renders app/(app)/inbox/page.tsx at all. Native converges the same way, onto (tabs)/notifications.tsx over the same /v1/me/inbox envelope.",
+      "the shadowed web page is unreachable dead code and is a deletion candidate (tracked in the duplication pass), not a Native gap",
+    ],
   },
   "/settings": {
     // A responsive web PANE model split into native screens: the web renders
@@ -292,10 +302,15 @@ export const NATIVE_DESTINATIONS = {
     gaps: [],
   },
   "/org-invites/[token]/accept": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/org-invite/[token].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/org-invites/[token]/accept/page.tsx"],
-    gaps: ["organization invite acceptance has no Native destination"],
+    gaps: [
+      "a SEPARATE family from the collaboration invite: different token namespace and endpoint. Sending an org token to /v1/collaboration-team-invites answers 404 by design, which would tell the user their invitation was invalid when it was only sent to the wrong place.",
+      "a 401 preserves the intent through Sign In, which is what the web's ?next= does without a URL to carry",
+      "with workspace grants the member chooses where to go, matching the web's deliberate removal of the auto-redirect",
+    ],
   },
   "/organizations": {
     routeFile: null,

@@ -51,6 +51,15 @@ const CREDENTIAL_ROUTES: Record<string, (token: string) => string> = {
   "verify-email": (t) => `/(stack)/verify-email?token=${encodeURIComponent(t)}`,
   "reset-password": (t) => `/(stack)/reset-password?token=${encodeURIComponent(t)}`,
   invite: (t) => `/(stack)/invite/${encodeURIComponent(t)}`,
+  // A SEPARATE token namespace from the collaboration invite above. Sending an
+  // organization token to the collaboration endpoint answers 404 by design,
+  // which would tell the user their invitation was invalid when it was only
+  // sent to the wrong place.
+  "org-invite": (t) => `/(stack)/org-invite/${encodeURIComponent(t)}`,
+  // MFA recovery carries BOTH a request id and a token, so its route is built
+  // from the URL's own query rather than from a token alone; the entry exists
+  // so the family table stays the one place the shapes are declared.
+  "mfa-recovery": (t) => `/(stack)/mfa-recovery-verify?token=${encodeURIComponent(t)}`,
 };
 
 /** Web path aliases for the same three flows (the emails link to the web host). */
@@ -59,10 +68,14 @@ const CREDENTIAL_ALIASES: Record<string, string> = {
   "verify-email": "verify-email",
   "reset-password": "reset-password",
   invite: "invite",
+  // apps/web/app/(app)/org-invites/[token]/accept/page.tsx
+  "org-invites": "org-invite",
+  // apps/web/app/auth/mfa-recovery/verify/page.tsx
+  "auth/mfa-recovery": "mfa-recovery",
 };
 
 export type ParsedCredentialLink = {
-  family: "verify-email" | "reset-password" | "invite";
+  family: "verify-email" | "reset-password" | "invite" | "mfa-recovery" | "org-invite";
   token: string;
   route: string;
 };
@@ -102,6 +115,40 @@ export function parseCredentialDeepLink(url: string): ParsedCredentialLink | nul
   const pathToken = segments.slice(consumed).join("/");
   const token = (parsed.searchParams.get("token") ?? pathToken ?? "").trim();
   if (!token) return null;
+
+  // The organization invite's web path is /org-invites/<token>/accept, so the
+  // token is a PATH SEGMENT with a trailing verb after it. Joining the
+  // remaining segments would produce "<token>/accept" and post a token that
+  // does not exist.
+  if (family === "org-invite") {
+    const inviteToken = decodeURIComponent(segments[1] ?? "").trim();
+    if (!inviteToken || inviteToken === "accept") return null;
+    return {
+      family: "org-invite",
+      token: inviteToken,
+      route: CREDENTIAL_ROUTES["org-invite"](inviteToken),
+    };
+  }
+
+  // MFA recovery is the one credential link that addresses a REQUEST as well
+  // as carrying a token; both halves have to reach the screen or it can only
+  // report missing_params.
+  if (family === "mfa-recovery") {
+    const requestId = (parsed.searchParams.get("id") ?? "").trim();
+    // Both halves come from the QUERY. The web path is
+    // /auth/mfa-recovery/verify?id=&token=, so the trailing "verify" segment
+    // would otherwise be mistaken for a token when ?token= is absent — and
+    // posting "verify" as a recovery token would burn the attempt.
+    const queryToken = (parsed.searchParams.get("token") ?? "").trim();
+    if (!requestId || !queryToken) return null;
+    return {
+      family: "mfa-recovery",
+      token: queryToken,
+      route:
+        `/(stack)/mfa-recovery-verify?id=${encodeURIComponent(requestId)}` +
+        `&token=${encodeURIComponent(queryToken)}`,
+    };
+  }
 
   return {
     family: family as ParsedCredentialLink["family"],
