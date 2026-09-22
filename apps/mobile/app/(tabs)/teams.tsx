@@ -12,7 +12,15 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import {
+  COLLABORATION_ENTITLEMENT_PATH,
+  COLLABORATION_TEAMS_PATH,
+  COLLABORATION_TEAM_TYPES,
+  buildCreateTeamBody,
+  createDisabledReason,
+  isValidTeamName,
+  parseCollaborationEntitlement,
   parseCollaborationTeams,
+  type CollaborationEntitlement,
   parseCollaborationNextCursor,
   collaborationTeamSubtitle,
   collaborationRoleLabel,
@@ -26,6 +34,10 @@ import {
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
+  ProovraText,
+  ProovraInput,
+  ProovraFormField,
+  ProovraFilterChips,
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
@@ -40,6 +52,11 @@ export default function CollaborationScreen() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [entitlement, setEntitlement] = useState<CollaborationEntitlement | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("GENERAL");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async (nextCursor: string | null, existing: CollaborationTeamRow[]) => {
     if (nextCursor) setLoadingMore(true);
@@ -72,6 +89,41 @@ export default function CollaborationScreen() {
     void load(null, []);
   }, [load]);
 
+  // The server decides whether this workspace may create a group. The envelope
+  // says so: "Server-decided affordances. The browser renders these; it does
+  // not derive them." The web console's own comment records what happens when
+  // a client computes capacity itself — a user who "saw '1 of 2', got an
+  // enabled Create button, and met a 409".
+  const loadEntitlement = useCallback(async () => {
+    try {
+      setEntitlement(parseCollaborationEntitlement(await apiFetch(COLLABORATION_ENTITLEMENT_PATH)));
+    } catch {
+      setEntitlement(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadEntitlement();
+  }, [loadEntitlement]);
+
+  const create = useCallback(async () => {
+    if (!isValidTeamName(newName)) return;
+    setBusy(true);
+    try {
+      await apiFetch(COLLABORATION_TEAMS_PATH, {
+        method: "POST",
+        body: JSON.stringify(buildCreateTeamBody(newName, newType)),
+      });
+      setNewName("");
+      setCreating(false);
+      await Promise.all([load(null, []), loadEntitlement()]);
+    } catch (err) {
+      setError(toSafeUserError(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [newName, newType, load, loadEntitlement]);
+
   return (
     <ProovraShell>
       <ProovraSection title="Collaboration">
@@ -86,6 +138,60 @@ export default function CollaborationScreen() {
           subtitle="Members, roles and invitations"
           onPress={() => router.push("/(stack)/workspace-people")}
         />
+        {/*
+          Rendered only when the SERVER says this workspace may create one, and
+          the reason shown when it may not. The entitlement envelope's own
+          words: "Server-decided affordances. The browser renders these; it
+          does not derive them." The web console's comment records what
+          happens otherwise — a user who "saw '1 of 2', got an enabled Create
+          button, and met a 409".
+        */}
+        {entitlement && entitlement.canCreate ? (
+          creating ? (
+            <ProovraCard>
+              <ProovraFormField label="Group name">
+                <ProovraInput
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="What is this group for?"
+                  autoCapitalize="sentences"
+                  accessibilityLabel="Group name"
+                />
+              </ProovraFormField>
+              <ProovraFilterChips
+                label="Type"
+                value={newType}
+                onChange={setNewType}
+                options={COLLABORATION_TEAM_TYPES.map((v) => ({
+                  value: v,
+                  label: v.charAt(0) + v.slice(1).toLowerCase(),
+                }))}
+              />
+              <ProovraButton
+                label="Create group"
+                loading={busy}
+                disabled={!isValidTeamName(newName)}
+                onPress={() => void create()}
+              />
+              <ProovraButton
+                label="Cancel"
+                variant="ghost"
+                onPress={() => { setCreating(false); setNewName(""); }}
+              />
+            </ProovraCard>
+          ) : (
+            <ProovraButton
+              label="Create a group"
+              variant="secondary"
+              onPress={() => setCreating(true)}
+            />
+          )
+        ) : entitlement ? (
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {createDisabledReason(entitlement)}
+          </ProovraText>
+        ) : null}
+
         {phase === "loading" ? (
           <ProovraLoadingState label="Loading collaboration groups" />
         ) : phase === "unavailable" ? (
@@ -98,7 +204,7 @@ export default function CollaborationScreen() {
         ) : teams.length === 0 ? (
           <ProovraEmptyState
             title="No collaboration groups yet"
-            message="Groups you belong to in this workspace will appear here. Create and manage groups in the PROOVRA web app."
+            message="Groups you belong to in this workspace will appear here."
           />
         ) : (
           <>

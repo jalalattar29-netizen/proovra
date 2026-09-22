@@ -309,9 +309,15 @@ export const NATIVE_DESTINATIONS = {
   },
   "/collaboration-teams": {
     routeFile: "(tabs)/teams.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/collaboration-teams/page.tsx"],
-    gaps: ["read-only list"],
+    gaps: [
+      "the list, cursor paging, and group creation gated on the SERVER's canCreateCollaborationTeam",
+      "the client computes no capacity. The entitlement envelope's own words: 'Server-decided affordances. The browser renders these; it does not derive them. Each is the same predicate its gate enforces, so an enabled control and a 2xx cannot drift apart.' The web console's comment records the alternative - a user who 'saw 1 of 2, got an enabled Create button, and met a 409'.",
+      "when creation is refused the reason is shown, from the server's exceededDimensions and plan lock, rather than an enabled control that meets a 409",
+      "a 403 on the list is the workspace having no collaboration capability - rendered as an honest unavailable state, never as an error",
+    ],
   },
   "/collaboration-teams/[teamId]": {
     routeFile: "(stack)/collaboration-team/[id].tsx",
@@ -456,9 +462,15 @@ export const NATIVE_DESTINATIONS = {
   /* ------------------------------------------------- public / trust / legal */
   "/verify": {
     routeFile: "verify.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/verify/page.tsx", "apps/web/app/verify/_components/VerifyHero.tsx"],
-    gaps: ["paste-to-verify entry present; the explanatory sections are not ported"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/verify/page.tsx", "apps/web/app/verify/_components/*"],
+    gaps: [
+      "paste-to-verify, the record's integrity artifacts, and the custody list",
+      "the BOUNDARY section is ported, which was the gap that mattered: the screen had hashes, a custody list and a green badge with nothing to bound them, and a verification surface that shows a tick and says nothing about its limits makes exactly the overclaim the safe-language contract forbids - the reader supplies the missing sentence, and supplies the wrong one",
+      "both claim lists are quoted VERBATIM from @proovra/shared-evidence-presentation's claims-matrix, the canonical list the contract tests grep against. The heading carries the negation once rather than rewriting each line, because string surgery on canonical text is not good enough on a legal-boundary surface.",
+      "the marketing landing's use-case and materials sections are not ported and are not product: the native entry is the verify action itself",
+    ],
   },
   "/verify/[token]": {
     routeFile: "verify.tsx",

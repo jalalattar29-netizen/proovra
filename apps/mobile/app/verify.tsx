@@ -5,6 +5,11 @@ import { apiFetch } from "../src/api";
 import { toSafeUserError, type SafeError } from "../src/errors/safe-error";
 import { formatUserDateTime } from "../src/lib/date";
 import { extractVerificationId } from "../src/deep-link";
+import {
+  PROOVRA_ALLOWED_CLAIMS,
+  PROOVRA_FORBIDDEN_CLAIMS,
+} from "@proovra/shared-evidence-presentation";
+
 import { theme } from "../src/theme/theme";
 import {
   ProovraScreen,
@@ -127,6 +132,50 @@ export default function VerifyScreen() {
             ))}
           </ProovraCard>
         ) : null}
+
+        {/*
+          WHAT A VERIFICATION DOES AND DOES NOT ESTABLISH.
+
+          The web's verify landing carries this as VerifyBoundariesSection, and
+          the native screen had hashes, a custody list and a green badge with
+          nothing to bound them. A verification surface that shows a tick and
+          says nothing about its limits is making precisely the overclaim the
+          safe-language contract forbids — the reader supplies the missing
+          sentence themselves, and they supply the wrong one.
+
+          The claims come from @proovra/shared-evidence-presentation's
+          claims-matrix, which is the canonical list the contract tests grep
+          against. Nothing is written here.
+        */}
+        <ProovraCard style={styles.card}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+            What this establishes
+          </ProovraText>
+          {PROOVRA_ALLOWED_CLAIMS.map((claim, i) => (
+            <ProovraText key={`a${i}`} variant="label" color={theme.color.ink.secondary}>
+              {`• ${claim}`}
+            </ProovraText>
+          ))}
+        </ProovraCard>
+
+        <ProovraCard style={styles.card}>
+          <ProovraBadge tone="governance" label="Boundaries" />
+          {/*
+            The heading carries the negation ONCE and the claims are quoted
+            verbatim. Rewriting each line into a denial would mean editing
+            canonical text with string surgery on a legal-boundary surface —
+            the one place where a clever transformation that mostly works is
+            not good enough.
+          */}
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+            PROOVRA does not claim any of the following:
+          </ProovraText>
+          {PROOVRA_FORBIDDEN_CLAIMS.map((claim, i) => (
+            <ProovraText key={`f${i}`} variant="label" color={theme.color.ink.muted}>
+              {`• ${claim}`}
+            </ProovraText>
+          ))}
+        </ProovraCard>
 
         {d.publicUrl ? (
           <ProovraButton label="Open verification report" onPress={() => void Linking.openURL(d.publicUrl as string)} />

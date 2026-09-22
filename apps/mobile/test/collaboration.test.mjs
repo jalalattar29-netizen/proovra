@@ -80,3 +80,88 @@ test("parseCollaborationTeamDetail returns null for a missing team", () => {
   assert.equal(mod.parseCollaborationTeamDetail(null), null);
   assert.equal(mod.parseCollaborationTeamDetail({ team: { id: "x" } }), null); // no name
 });
+
+/* ------------------------------------------------- entitlement and creation */
+
+/**
+ * The client computes NO capacity. The entitlement envelope decides, and the
+ * web console's own comment records what happens otherwise: a user who "saw
+ * '1 of 2', got an enabled Create button, and met a 409".
+ */
+test("the create affordance comes from the server, never from the counts", () => {
+  // Counts that look like room to spare, but the server says no.
+  const e = mod.parseCollaborationEntitlement({
+    canCreateCollaborationTeam: false,
+    teams: { used: 1, limit: 2 },
+    exceededDimensions: [],
+  });
+  assert.equal(e.canCreate, false);
+  assert.ok(mod.createDisabledReason(e));
+
+  // And counts that look full, but the server says yes.
+  const ok = mod.parseCollaborationEntitlement({
+    canCreateCollaborationTeam: true,
+    teams: { used: 2, limit: 2 },
+  });
+  assert.equal(ok.canCreate, true);
+  assert.equal(mod.createDisabledReason(ok), null);
+});
+
+test("a refusal is explained from the dimension the server named", () => {
+  const overTeams = mod.parseCollaborationEntitlement({
+    canCreateCollaborationTeam: false,
+    teams: { used: 5, limit: 5 },
+    exceededDimensions: ["COLLABORATION_TEAMS"],
+  });
+  assert.match(mod.createDisabledReason(overTeams), /all 5 of its collaboration groups/);
+
+  const overSeats = mod.parseCollaborationEntitlement({
+    canCreateCollaborationTeam: false,
+    exceededDimensions: ["WORKSPACE_SEATS"],
+  });
+  assert.match(mod.createDisabledReason(overSeats), /seat allowance/);
+
+  const locked = mod.parseCollaborationEntitlement({
+    canCreateCollaborationTeam: false,
+    planLocked: true,
+  });
+  assert.match(mod.createDisabledReason(locked), /not included in this plan/);
+
+  // No stated reason still gets an honest sentence rather than silence.
+  const unknown = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: false });
+  assert.ok(mod.createDisabledReason(unknown).length > 0);
+});
+
+test("a plan with no published limit is not a limit of zero", () => {
+  const e = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: true });
+  assert.equal(e.teamsLimit, null);
+  assert.equal(e.teamsUsed, null);
+});
+
+test("the create body matches the route's schema and drops what it must", () => {
+  assert.deepEqual(mod.buildCreateTeamBody("  Roof claims  ", "LEGAL"), {
+    name: "Roof claims",
+    teamType: "LEGAL",
+  });
+  // An empty description is omitted, not sent as "".
+  assert.deepEqual(mod.buildCreateTeamBody("A", "GENERAL", "   "), {
+    name: "A",
+    teamType: "GENERAL",
+  });
+  assert.equal(mod.buildCreateTeamBody("A", "GENERAL", "why").description, "why");
+});
+
+test("the name bounds are the route's", () => {
+  assert.equal(mod.isValidTeamName(""), false);
+  assert.equal(mod.isValidTeamName("   "), false);
+  assert.equal(mod.isValidTeamName("a"), true);
+  assert.equal(mod.isValidTeamName("x".repeat(120)), true);
+  assert.equal(mod.isValidTeamName("x".repeat(121)), false);
+});
+
+test("the team types are the route's enum, exactly", () => {
+  assert.deepEqual(
+    [...mod.COLLABORATION_TEAM_TYPES],
+    ["GENERAL", "INVESTIGATION", "LEGAL", "REVIEW", "COMPLIANCE"],
+  );
+});
