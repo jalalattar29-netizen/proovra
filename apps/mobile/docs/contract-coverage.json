@@ -339,7 +339,7 @@
       "parser": "parseIntakeSubmissions",
       "builder": "buildIntakeSubmissionsPath",
       "method": "GET",
-      "site": "intake-links.tsx:96",
+      "site": "intake-links.tsx:93",
       "path": "/v1/workflow/intake-links/:p/submissions",
       "route": "GET /v1/workflow/intake-links/:id/submissions",
       "serverKeys": [
@@ -348,8 +348,7 @@
         "totals"
       ],
       "parserKeys": [
-        "sessions",
-        "submissions"
+        "sessions"
       ],
       "verdict": "OK",
       "why": "reads sessions"
@@ -358,7 +357,7 @@
       "parser": "parseRevealedContact",
       "builder": "buildIntakeRevealPath",
       "method": "POST",
-      "site": "intake-links.tsx:139",
+      "site": "intake-links.tsx:151",
       "path": "/v1/workflow/intake-links/:p/recipient-contact",
       "route": "POST /v1/workflow/intake-links/:id/recipient-contact",
       "serverKeys": [
@@ -1439,9 +1438,7 @@
         "items"
       ],
       "parserKeys": [
-        "items",
-        "legalNotes",
-        "notes"
+        "items"
       ],
       "verdict": "OK",
       "why": "reads items"
@@ -1457,7 +1454,6 @@
         "items"
       ],
       "parserKeys": [
-        "annotations",
         "items"
       ],
       "verdict": "OK",

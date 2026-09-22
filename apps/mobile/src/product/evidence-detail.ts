@@ -702,14 +702,14 @@ export interface LegalNote {
 /**
  * `GET /v1/evidence/:id/legal-notes` → `{ items: [...] }`.
  *
- * `items` is the contract and is read first. `notes` / `legalNotes` are
- * named compatibility shapes, kept because an older build may still be
- * deployed; a bare `?? payload` fallback is deliberately NOT one of them,
- * because it turns an unrecognised envelope into a silent empty list — which
- * is exactly how this parser shipped unable to display a single row.
+ * This read `notes`, then `legalNotes`, then fell through to the bare
+ * payload — so every record that HAD notes rendered as one that had none.
+ * Those keys are not kept as fallbacks: the route has sent `items` since the
+ * commit that introduced it, so they were never a shape the server used. They
+ * were the defect, and a fallback would preserve it where nothing can see it.
  */
 export function parseLegalNotes(payload: unknown): LegalNote[] {
-  return rows(listEnvelope(payload, ["items", "notes", "legalNotes"]))
+  return rows(listEnvelope(payload, ["items"]))
     .map((raw) => {
       const n = obj(raw);
       const id = str(n.id);
@@ -772,10 +772,11 @@ export interface EvidenceAnnotation {
 
 /**
  * `GET /v1/evidence/:id/annotations` → `{ items: [...] }`. See
- * `parseLegalNotes` for why the bare-payload fallback is not accepted.
+ * `parseLegalNotes` for why neither the bare payload nor the invented
+ * `annotations` key is accepted.
  */
 export function parseAnnotations(payload: unknown): EvidenceAnnotation[] {
-  return rows(listEnvelope(payload, ["items", "annotations"]))
+  return rows(listEnvelope(payload, ["items"]))
     .map((raw) => {
       const a = obj(raw);
       const id = str(a.id);

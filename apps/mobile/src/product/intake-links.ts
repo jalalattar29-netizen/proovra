@@ -132,9 +132,13 @@ function is(v: unknown): string | null {
  * to the bare payload and reported an empty list - so the drawer showed "no
  * submissions" for every link that had them. The per-session field names below
  * were right all along; only the envelope was guessed.
+ *
+ * `submissions` is NOT kept as a compatibility key. A compatibility key is a
+ * shape the server once sent; this one was invented by the client, so keeping
+ * it would only preserve the defect in a form no test could see.
  */
 export function parseIntakeSubmissions(payload: unknown): IntakeSubmission[] {
-  return listEnvelope(payload, ["sessions", "submissions"])
+  return listEnvelope(payload, ["sessions"])
     .map((entry) => {
       const s = io(entry);
       const id = is(s["id"]);

@@ -419,8 +419,11 @@ test("an envelope we do not recognise is not an empty list", () => {
     assert.throws(() => mod.parseLegalNotes(bad), /Unreadable list response/);
     assert.throws(() => mod.parseAnnotations(bad), /Unreadable list response/);
   }
-  assert.equal(mod.parseLegalNotes({ notes: [note] }).length, 1);
-  assert.equal(mod.parseLegalNotes({ legalNotes: [note] }).length, 1);
+  // The keys this parser used to read are refused like any other envelope
+  // the route does not send. They were invented here, not deprecated there.
+  assert.throws(() => mod.parseLegalNotes({ notes: [note] }), /Unreadable list response/);
+  assert.throws(() => mod.parseLegalNotes({ annotations: [note] }), /Unreadable list response/);
+  // A bare array is still accepted: some list routes answer that way.
   assert.equal(mod.parseLegalNotes([note]).length, 1);
 });
 

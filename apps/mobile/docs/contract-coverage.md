@@ -61,9 +61,9 @@ top level of it.
 | OK | `parseRequestEvents` | `GET /v1/evidence-requests/:id/events` | events | events, items, map |
 | OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId | evidenceId, keyframeBytesUrls, projection, status |
 | OK | `parseEvidenceLifecycle` | `GET /v1/evidence/:id` | evidence | evidence, lifecycle |
-| OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | items | annotations, items |
+| OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | items | items |
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
-| OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items, legalNotes, notes |
+| OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | bucket, evidenceId, generatedAtUtc, key, reviewerSnapshot, snapshots, storage, url, vers… | url |
 | OK | `parseSavedViews` | `GET /v1/evidence/saved-views` | items | items |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, request, session | link, request, session |
@@ -98,7 +98,7 @@ top level of it.
 | OK | `parseTrustArticleVersions` | `GET /v1/trust/articles/:id/versions` | versions | versions |
 | OK | `parseUsageStats` | `GET /v1/usage-stats` | data | costBreakdown, dailyAnalyses, data |
 | OK | `parseIntakeLinks` | `GET /v1/workflow/intake-links` | items, links | items |
-| OK | `parseIntakeSubmissions` | `GET /v1/workflow/intake-links/:id/submissions` | link, sessions, totals | sessions, submissions |
+| OK | `parseIntakeSubmissions` | `GET /v1/workflow/intake-links/:id/submissions` | link, sessions, totals | sessions |
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
 | OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, uploadUrl, url |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
