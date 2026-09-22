@@ -124,7 +124,6 @@ test("every declared Native destination points at route files that exist", () =>
     // credential family. Such a row declares no routeFile and is required
     // instead to name the dependency (asserted below).
     if (dest.status === "NOT_STARTED" || dest.status === "BLOCKED_BY_USER_DECISION") continue;
-    if (dest.status === "BLOCKED_BY_EXTERNAL" && !dest.routeFile) continue;
     assert.ok(dest.routeFile, `${webRoute} is ${dest.status} but declares no routeFile`);
     // One responsive web surface may legitimately split into several native
     // screens (Settings panes are the case that forced it), so every file the
@@ -162,12 +161,9 @@ test("a blocked row names exactly what blocks it", () => {
       );
     }
 
-    if (dest.status === "BLOCKED_BY_EXTERNAL") {
-      assert.ok(
-        typeof dest.blockedBy === "string" && dest.blockedBy.length > 12,
-        `${route} is blocked by something external but does not name the dependency`,
-      );
-    }
+    // An EXTERNAL dependency is no longer a code status. A row that waits on
+    // a deployment records it on its own axis and stays CODE_PARITY, which is
+    // asserted separately below.
   }
 });
 
@@ -178,7 +174,6 @@ test("the status vocabulary is closed", () => {
     "SHELL",
     "PARTIAL",
     "CODE_PARITY",
-    "BLOCKED_BY_EXTERNAL",
     "BLOCKED_BY_USER_DECISION",
   ]);
   for (const [route, dest] of Object.entries(NATIVE_DESTINATIONS)) {
@@ -197,5 +192,68 @@ test("physical acceptance is never claimed from the repository", () => {
       false,
       `${route} claims physical acceptance, which no automated run can establish`,
     );
+  }
+});
+
+test("an external dependency is recorded on its own axis, never as a code status", () => {
+  /*
+   * Six rows were once BLOCKED_BY_EXTERNAL because the production domain does
+   * not host its universal-link association files. That hid six complete
+   * product surfaces behind a file nobody had uploaded, and would have kept
+   * hiding them however much work was done.
+   *
+   * The dimensions are separate now. This asserts they stay separate: a row
+   * may declare externalLink, and declaring it must not change what `status`
+   * says about the code.
+   */
+  const ALLOWED = new Set(["READY", "DEPLOYMENT_PENDING", "CONFIG_PENDING"]);
+
+  for (const [route, dest] of Object.entries(NATIVE_DESTINATIONS)) {
+    if (!("externalLink" in dest)) continue;
+
+    assert.ok(
+      ALLOWED.has(dest.externalLink),
+      `${route} has unknown externalLink ${dest.externalLink}`,
+    );
+    assert.notEqual(
+      dest.status,
+      "NOT_STARTED",
+      `${route} waits on a deployment but its code is recorded as unstarted`,
+    );
+    // The row must say what the deployment step actually is.
+    assert.ok(
+      (dest.gaps ?? []).some((g) => /externalLink|association|well-known/i.test(g)),
+      `${route} declares externalLink but never says what is pending`,
+    );
+  }
+});
+
+test("the universal-link configuration names every claimed path", () => {
+  // A path the app claims but has no screen for teaches a user that "open in
+  // app" sometimes goes nowhere; a screen with no claimed path is a surface
+  // the link can never reach.
+  const appJson = JSON.parse(
+    readFileSync(resolve(MOBILE_ROOT, "app.json"), "utf8"),
+  );
+
+  const domains = appJson.expo?.ios?.associatedDomains ?? [];
+  assert.ok(
+    domains.some((d) => d.startsWith("applinks:")),
+    "no iOS associated domains are declared",
+  );
+
+  const filters = appJson.expo?.android?.intentFilters ?? [];
+  assert.ok(filters.length > 0, "no Android App Links intent filter is declared");
+  assert.equal(
+    filters[0].autoVerify,
+    true,
+    "the App Links filter does not autoVerify, so Android will not treat it as verified",
+  );
+
+  const prefixes = new Set(
+    filters.flatMap((f) => (f.data ?? []).map((d) => d.pathPrefix).filter(Boolean)),
+  );
+  for (const required of ["/intake", "/portal", "/legal", "/verify"]) {
+    assert.ok(prefixes.has(required), `${required} is not claimed by App Links`);
   }
 });

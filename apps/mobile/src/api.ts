@@ -109,3 +109,85 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
 
   return res.json();
 }
+// ---------------------------------------------------------------------------
+// Unauthenticated / alternate-credential requests
+// ---------------------------------------------------------------------------
+
+/**
+ * A request that must NOT carry the signed-in user's session.
+ *
+ * The external intake and reviewer-portal flows are for people who are not
+ * PROOVRA users. Their web pages say so in their own headers — "It does not
+ * call any authenticated endpoint. Every fetch passes `auth: false` so the
+ * user's session (if any) is not attached" — and the reason is not stylistic:
+ * a contributor's upload must be attributed to the intake token, not to
+ * whichever account happens to be signed in on the device that opened the
+ * link. Attaching the session would silently change who the platform records
+ * as the actor.
+ *
+ * `credential` lets a caller supply the flow's OWN bearer (the portal token)
+ * plus any extra headers that flow defines, without touching `authToken`.
+ */
+export async function publicFetch(
+  path: string,
+  init: RequestInit = {},
+  credential?: { bearer?: string | null; headers?: Record<string, string> },
+) {
+  const headers = new Headers(init.headers);
+
+  if (!headers.has("content-type") && init.body) {
+    headers.set("content-type", "application/json");
+  }
+  if (credential?.bearer) {
+    headers.set("authorization", `Bearer ${credential.bearer}`);
+  }
+  for (const [k, v] of Object.entries(credential?.headers ?? {})) {
+    headers.set(k, v);
+  }
+  // Deliberately absent: the app's own `authToken`. See the note above.
+
+  let res: Response;
+  try {
+    res = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
+    reportNetworkOnline();
+  } catch (e) {
+    reportNetworkOffline();
+    throw e;
+  }
+
+  if (!res.ok) {
+    let raw = "";
+    try {
+      raw = await res.text();
+    } catch {
+      raw = "";
+    }
+    let parsed: unknown = null;
+    try {
+      parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    } catch {
+      parsed = null;
+    }
+    const obj = asObject(parsed);
+    const errObj = obj ? asObject(obj["error"]) : null;
+
+    const err: MobileApiError = new Error(
+      (errObj && typeof errObj["message"] === "string" ? (errObj["message"] as string) : "") ||
+        (obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "") ||
+        `HTTP ${res.status}`,
+    );
+    err.statusCode = res.status;
+    err.code =
+      (errObj && typeof errObj["code"] === "string" ? (errObj["code"] as string) : undefined) ||
+      (obj && typeof obj["denial"] === "string" ? (obj["denial"] as string) : undefined) ||
+      "API_ERROR";
+    if (obj && typeof obj["denial"] === "string") {
+      err.details = { denial: obj["denial"] };
+    }
+    // A public flow never triggers the app's legal-acceptance gate: the caller
+    // has no account for that gate to be about.
+    throw err;
+  }
+
+  return res.json();
+}

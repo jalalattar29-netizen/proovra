@@ -43,11 +43,39 @@
  */
 
 /**
- * @typedef {"NOT_STARTED"|"SHELL"|"PARTIAL"|"CODE_PARITY"|"BLOCKED_BY_EXTERNAL"|"BLOCKED_BY_USER_DECISION"} DestinationStatus
+ * @typedef {"NOT_STARTED"|"SHELL"|"PARTIAL"|"CODE_PARITY"|"BLOCKED_BY_USER_DECISION"} DestinationStatus
  *
- * The two BLOCKED_* statuses are counted separately from NOT_STARTED so the
- * denominators stay honest: those rows are not waiting on effort inside this
- * repository. Each one must name what it is waiting for in `blockedBy`.
+ * `status` is the CODE dimension and nothing else.
+ *
+ * ===========================================================================
+ * WHY BLOCKED_BY_EXTERNAL IS GONE FROM THIS AXIS
+ * ===========================================================================
+ * Six rows were recorded as BLOCKED_BY_EXTERNAL because the production domain
+ * does not yet host its universal-link association files. That was a category
+ * error, and an expensive one: the missing file governs whether an https link
+ * REACHES the app. It says nothing about whether the screen, the token parser,
+ * the API integration, the loading, error and success states, the navigation
+ * or the tests exist.
+ *
+ * Treating a deployment fact as a code status hid six complete product
+ * surfaces behind a file nobody had uploaded, and would have kept hiding them
+ * however much work was done.
+ *
+ * So the dimensions are now separate, and one never blocks another:
+ *
+ *   status               CODE_PARITY / PARTIAL / SHELL / NOT_STARTED /
+ *                        BLOCKED_BY_USER_DECISION
+ *   externalLink         READY / DEPLOYMENT_PENDING / CONFIG_PENDING
+ *   physicallyAccepted   false until a human with a device says otherwise
+ *   environment          TESTED / BLOCKED
+ *
+ * A row may be CODE_PARITY with externalLink DEPLOYMENT_PENDING. That is the
+ * normal state of finished work waiting on a hosting step, and it is stated
+ * rather than disguised as unfinished.
+ *
+ * BLOCKED_BY_USER_DECISION survives because a product decision genuinely
+ * stops the code from being written: there is nothing to build until somebody
+ * says what it should do. It must name the recorded question in `blockedBy`.
  */
 
 export const NATIVE_DESTINATIONS = {
@@ -680,69 +708,82 @@ export const NATIVE_DESTINATIONS = {
 
   /* --------------------------------------------------- intake / portal flows */
   "/intake/[token]": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/intake/[token].tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/intake/[token]/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "The page states its own contract: it calls no authenticated endpoint and passes auth:false so the reader's session is never attached. Its reader is an external contributor with no PROOVRA account.",
+      "validate, identity, consent and the step list, driven entirely by the workflow template snapshot - there is no branch per industry here, exactly as there is none on the web",
+      "every call goes through publicFetch, never apiFetch: an upload must be attributed to the intake token, not to whichever account happens to be signed in on the device that opened the link",
+      "an anonymous link offers a pseudonym and no email box - offering one would invite a contributor to type an address that is then discarded",
+      "consent is an explicit recorded act: an intake that captured evidence without recording what the person agreed to is the gap that matters years later in front of somebody who was not there",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/intake/[token]/capture": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/intake/capture.tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/intake/[token]/capture/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "Uploads go straight to S3 via presigned PUT from the public API, deliberately outside the authenticated capture orchestration the app is built around.",
+      "file selection, on-device SHA-256 + MD5 through the same computeFileIntegrity the app uses everywhere, per-part declaration, presigned PUT via the canonical uploadWithPut, and submit",
+      "it opens NO capture draft and does not run the authenticated orchestration, which is the web's contract too: there is no Evidence record to hold because the workspace creates one when the session is submitted",
+      "the part bound (100) is the route's and is refused before submitting rather than returned as an opaque 400",
+      "no location is asked for: this link's template decides whether a position is wanted, and prompting for one the workspace never requested is a request for data it cannot justify holding",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/portal/index.tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/portal/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "The external reviewer portal entry. Its reader is a reviewer outside the workspace.",
+      "the bounded token-entry surface, for a reviewer whose email client stripped or rewrote the link but who still has the token in front of them",
+      "it exchanges nothing itself - it hands the token to /portal/[token], because two screens that both authenticate would be two places for the MFA and denial behaviour to drift apart",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/[token]": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/portal/[token].tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/portal/[token]/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "The reviewer dashboard authenticates with the route token as its own bearer - a session that is not a PROOVRA user session.",
+      "token exchange, the MFA code step, reviewer identity, scope and expiry, assigned reviews, the bounded limitations footer, and sign-out",
+      "denials are the product, not errors: expired, revoked, throttled, unavailable and not-found each say what happened and what to do, because 'something went wrong' sends a reviewer to email somebody to find out which of four things occurred",
+      "the credential is held in MEMORY only - a phone that is shared, lost or handed over must not carry access to somebody else's evidence past the moment it is used, and a relaunch simply re-authenticates from the link",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/[token]/work/[workflowId]": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/portal/work/[workflowId].tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/portal/[token]/work/[workflowId]/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "Reached only from inside the portal dashboard, which is itself token-only.",
+      "the review: comments, an optional note, and the decision, each confirmed before it is recorded",
+      "marking a review VIEWED is a real record the workspace relies on, so it is sent once on open - not on every render, and not for a row that merely scrolled past",
+      "the decision vocabulary is accept / reject / needs more information. None is a verdict about truth, authorship or admissibility - a reviewer portal is exactly where such a claim would look most authoritative, and the platform does not make it.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/accept/[grantId]": {
-    routeFile: null,
-    status: "BLOCKED_BY_EXTERNAL",
-    blockedBy: "the production web domain must host /.well-known/apple-app-site-association and /.well-known/assetlinks.json, and the app must declare associatedDomains (iOS) and App Links intent filters (Android) for it. docs/EXTERNAL_CONFIG.md records this as 'Universal / App Links (M7) - pending'; app.json declares only the proovra:// scheme and no domain at all.",
+    routeFile: "(stack)/portal/accept/[grantId].tsx",
+    status: "CODE_PARITY",
+    externalLink: "DEPLOYMENT_PENDING",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/portal/accept/[grantId]/page.tsx"],
     gaps: [
-      "TOKEN-ONLY ENTRY: this surface is reachable only by its link. The API mints that link from WEB_BASE_URL as an https URL (evidence-request.service.ts, workflow-intake-links.routes.ts, portal-invitation-email.service.ts) and no proovra:// form of it exists anywhere, so on a phone it opens the browser and will keep doing so until the association files are hosted.",
-      "Building the screen first would recreate the exact failure this conversion already fixed once: (stack)/verify-email, reset-password and invite/[token] were complete screens that NOTHING in the app could navigate to, while a superseded contract called them REACHABLE.",
-      "portal-invitation-email.service.ts mints this from WEB_BASE_URL as /portal/accept/<grantId>?token=...",
+      "acceptance, then straight into the portal with the same token so the reviewer does not have to go back and find a second email",
+      "both halves of the link are required: the grant id names the invitation and the token proves it, and posting an empty token would spend the one attempt a valid grant has and then report the reader's own good link as already handled",
+      "guarded against a double-invoke, because the acceptance is single-use",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Two values cannot come from a repository and are placeholders that fail loudly: the Apple Team ID and the Android signing SHA-256. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
 };

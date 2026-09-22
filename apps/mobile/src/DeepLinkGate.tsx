@@ -20,6 +20,7 @@ import {
   parseCanonicalMobileDeepLink,
   parseCredentialDeepLink,
   parsePublicDocumentDeepLink,
+  parseExternalFlowDeepLink,
   resolveMobileDeepLink,
 } from "./deep-link";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
@@ -71,6 +72,16 @@ export function DeepLinkGate() {
     const document = parsePublicDocumentDeepLink(url);
     if (document) {
       router.push(document.route as never);
+      return;
+    }
+
+    // EXTERNAL FLOWS — intake and the reviewer portal. The reader has no
+    // PROOVRA account, so these are handled here for the same reason legal
+    // links are: deferring them behind the auth gateway would drop a link
+    // belonging to somebody who will never sign in.
+    const external = parseExternalFlowDeepLink(url);
+    if (external) {
+      router.push(external.route as never);
       return;
     }
 

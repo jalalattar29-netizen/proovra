@@ -1,0 +1,53 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "<APPLE_TEAM_ID>.com.jalalattar29.proovra"
+        ],
+        "components": [
+          {
+            "/": "/intake/*",
+            "comment": "External contributor intake"
+          },
+          {
+            "/": "/portal",
+            "comment": "Reviewer portal token entry"
+          },
+          {
+            "/": "/portal/*",
+            "comment": "Reviewer portal and invitation acceptance"
+          },
+          {
+            "/": "/legal/*",
+            "comment": "Canonical legal documents"
+          },
+          {
+            "/": "/verify/*",
+            "comment": "Public verification"
+          },
+          {
+            "/": "/invite/*",
+            "comment": "Collaboration invitation"
+          },
+          {
+            "/": "/org-invites/*",
+            "comment": "Organization invitation"
+          },
+          {
+            "/": "/reset-password",
+            "comment": "Password reset"
+          },
+          {
+            "/": "/auth/verify-email",
+            "comment": "Email verification"
+          },
+          {
+            "/": "/auth/mfa-recovery/*",
+            "comment": "MFA recovery verification"
+          }
+        ]
+      }
+    ]
+  }
+}

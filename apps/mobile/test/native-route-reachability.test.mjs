@@ -97,6 +97,12 @@ for (const re of [
   // scan limited to call sites would call those screens unreachable. Any
   // literal that names a route group is a navigation target.
   /[`"'](\/\((?:stack|tabs)\)\/[^`"'\s]*)[`"']/g,
+  // ...and a route table need not use the group prefix. The external-flow and
+  // public-document families emit plain paths (`/intake/${token}`), which
+  // expo-router resolves identically — so a rule that only recognised the
+  // prefixed form called six complete screens unreachable. API paths are
+  // excluded: `/v1/...` is a request, not a destination.
+  /[`"'](\/(?!v1\/)[a-z][^`"'\s]*)[`"']/g,
 ]) {
   for (const m of allText.matchAll(re)) {
     if (m[1].startsWith("/")) navTargets.add(shape(m[1].split("?")[0]));

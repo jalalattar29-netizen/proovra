@@ -66,7 +66,11 @@
             ]
           }
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:www.proovra.com",
+        "applinks:proovra.com"
+      ]
     },
     "android": {
       "package": "com.jalalattar29.proovra",
@@ -74,7 +78,99 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
         "backgroundColor": "#0F172A"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/intake"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/legal"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/verify"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/org-invites"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/reset-password"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/auth"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/intake"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/legal"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/verify"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/org-invites"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/reset-password"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/auth"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "plugins": [
       "expo-asset",

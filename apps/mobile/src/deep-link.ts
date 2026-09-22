@@ -195,6 +195,93 @@ export type ParsedPublicDocumentLink = {
   route: string;
 };
 
+/**
+ * TOKEN-BEARING PUBLIC FLOWS — external intake and the reviewer portal.
+ *
+ * A FOURTH family. Like legal links they carry no tenant and need no session;
+ * unlike legal links they carry a CREDENTIAL, and unlike the credential family
+ * that credential belongs to somebody who has no PROOVRA account at all.
+ *
+ * They must not pass through `POST /v1/deep-link/resolve` (which requires a
+ * session and re-derives a workspace) and must not be deferred behind the auth
+ * gateway: the whole point is that the reader is not a user.
+ *
+ * Shapes, as the API mints them from WEB_BASE_URL:
+ *
+ *   /intake/<token>                     external contributor intake
+ *   /portal                             portal token entry
+ *   /portal/<token>                     reviewer dashboard
+ *   /portal/accept/<grantId>?token=…    invitation acceptance
+ *
+ * Until the production domain hosts its association files these arrive in a
+ * browser, not here. The parser and the screens exist anyway: a link that
+ * cannot yet reach the app is a DEPLOYMENT fact, and leaving the product
+ * surface unwritten because of it is how a complete feature gets recorded as
+ * missing.
+ */
+export type ParsedExternalFlowLink =
+  | { family: "intake"; token: string; route: string }
+  | { family: "portal-entry"; route: string }
+  | { family: "portal"; token: string; route: string }
+  | { family: "portal-accept"; grantId: string; token: string; route: string };
+
+export function parseExternalFlowDeepLink(url: string): ParsedExternalFlowLink | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "proovra:") return null;
+
+  const segments =
+    parsed.protocol === "proovra:"
+      ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
+      : parsed.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  const [head, second, third] = segments;
+
+  if (head === "intake") {
+    const token = decodeURIComponent(second ?? "").trim();
+    // /intake/<token>/capture also lands on the intake screen: the capture
+    // step needs a session the screen has not opened yet, so a link straight
+    // to it would arrive without one.
+    if (!token || token === "capture") return null;
+    return { family: "intake", token, route: `/intake/${encodeURIComponent(token)}` };
+  }
+
+  if (head === "portal") {
+    if (!second) return { family: "portal-entry", route: "/portal" };
+
+    if (second === "accept") {
+      const grantId = decodeURIComponent(third ?? "").trim();
+      const token = (parsed.searchParams.get("token") ?? "").trim();
+      // Both halves or nothing: posting an empty token would spend a valid
+      // grant's single acceptance attempt.
+      if (!grantId || !token) return null;
+      return {
+        family: "portal-accept",
+        grantId,
+        token,
+        route:
+          `/portal/accept/${encodeURIComponent(grantId)}` +
+          `?token=${encodeURIComponent(token)}`,
+      };
+    }
+
+    // /portal/sso/callback is a browser redirect target with no native
+    // analogue; it is not claimed here.
+    if (second === "sso") return null;
+
+    const token = decodeURIComponent(second).trim();
+    if (!token) return null;
+    return { family: "portal", token, route: `/portal/${encodeURIComponent(token)}` };
+  }
+
+  return null;
+}
+
 export function parsePublicDocumentDeepLink(
   url: string,
 ): ParsedPublicDocumentLink | null {
