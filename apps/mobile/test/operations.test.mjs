@@ -167,3 +167,93 @@ test("the projections address the canonical endpoints", () => {
   assert.equal(O.USAGE_STATS_PATH, "/v1/usage-stats");
   assert.equal(O.BATCH_ANALYSIS_PATH, "/v1/batch-analysis");
 });
+
+/* --------------------------------------------- batch analysis: the lifecycle */
+
+const j = (status) => ({
+  id: "b1",
+  name: "n",
+  status,
+  totalItems: 3,
+  processedItems: 0,
+  failedItems: 0,
+  progress: 0,
+  createdAtIso: null,
+  completedAtIso: null,
+});
+
+test("every lifecycle path is built from the job id", () => {
+  assert.equal(O.buildBatchJobPath("b 1"), "/v1/batch-analysis/b%201");
+  assert.equal(O.buildBatchProcessPath("b1"), "/v1/batch-analysis/b1/process");
+  assert.equal(O.buildBatchCancelPath("b1"), "/v1/batch-analysis/b1/cancel");
+  assert.equal(O.buildBatchResultsPath("b1"), "/v1/batch-analysis/b1/results");
+  assert.equal(O.buildBatchExportPath("b1"), "/v1/batch-analysis/b1/export");
+});
+
+test("the draft is checked before the request, not after", () => {
+  // Both are VALIDATION_ERROR at the route. A round trip to be told so is a
+  // round trip the phone did not need.
+  assert.match(O.validateBatchDraft("", ["e1"]), /name/i);
+  assert.match(O.validateBatchDraft("  ", ["e1"]), /name/i);
+  assert.match(O.validateBatchDraft("n", []), /record/i);
+  assert.equal(O.validateBatchDraft("n", ["e1"]), null);
+});
+
+test("an empty description is absent, not an empty string", () => {
+  // The route takes `description?`. Sending "" records a description the user
+  // did not write.
+  assert.deepEqual(O.buildBatchCreateBody(" n ", ["e1"], "   "), {
+    name: "n",
+    evidenceIds: ["e1"],
+  });
+  assert.equal(O.buildBatchCreateBody("n", ["e1"], " why ").description, "why");
+});
+
+test("the created id is read from the response envelope", () => {
+  assert.equal(O.readCreatedBatchId({ data: { id: "b9" } }), "b9");
+  assert.equal(O.readCreatedBatchId({ id: "b9" }), null);
+  assert.equal(O.readCreatedBatchId(null), null);
+});
+
+test("cancel is offered only where the service actually cancels", () => {
+  // `cancelJob` acts ONLY on PROCESSING; for `pending` it returns success
+  // having changed nothing, so offering it there would report a cancellation
+  // that did not happen. Recorded as BD-1, not worked around.
+  assert.equal(O.canCancelBatch(j("processing")), true);
+  assert.equal(O.canCancelBatch(j("pending")), false);
+  assert.equal(O.canCancelBatch(j("completed")), false);
+});
+
+test("results and export wait until the job has finished", () => {
+  // GET /results answers a 400 while the job is still running.
+  assert.equal(O.canReadBatchResults(j("processing")), false);
+  assert.equal(O.canReadBatchResults(j("pending")), false);
+  for (const s of ["completed", "failed", "cancelled"]) {
+    assert.equal(O.canReadBatchResults(j(s)), true);
+    assert.equal(O.canExportBatch(j(s)), true);
+  }
+});
+
+test("the aggregate drops empty counts and orders by frequency", () => {
+  const a = O.parseBatchAggregate({
+    data: {
+      successRate: 66.6,
+      averageConfidence: 0.81,
+      classifications: { document: 2, photo: 5, video: 0 },
+      mostCommonTags: [{ tag: "invoice", count: 4 }, { count: 9 }, null],
+    },
+  });
+  assert.equal(a.successRatePercent, 66.6);
+  assert.deepEqual(a.classifications.map((c) => c.label), ["photo", "document"]);
+  assert.deepEqual(a.topTags, [{ tag: "invoice", count: 4 }]);
+});
+
+test("an empty aggregate is null, not a job with zero of everything", () => {
+  assert.equal(O.parseBatchAggregate({}), null);
+  assert.equal(O.parseBatchAggregate(null), null);
+});
+
+test("the export filename cannot escape the cache directory", () => {
+  assert.equal(O.batchExportFilename("../../etc/passwd"), "batch-______etc_passwd.csv");
+  assert.equal(O.batchExportFilename("b1"), "batch-b1.csv");
+});

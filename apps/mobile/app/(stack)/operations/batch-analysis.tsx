@@ -1,26 +1,47 @@
 /**
  * BATCH ANALYSIS — the native port of
- * `apps/web/app/(app)/operations/batch-analysis`, over `GET /v1/batch-analysis`.
+ * `apps/web/app/(app)/operations/batch-analysis`, complete.
  *
- * Read-only, matching the web surface's primary job: see the jobs and their
- * progress. Creating and cancelling jobs stay on the web for now; that gap is
- * recorded in the ledger rather than stubbed with a button that does nothing.
+ * The whole job lifecycle is here: choose the records, create the job, start
+ * it, watch it, read the aggregate, export the CSV, and cancel a running one.
+ * An earlier version of this screen was a read-only list whose header said
+ * "creating and cancelling jobs stay on the web for now" — that was the gap
+ * being described rather than closed.
+ *
+ * WHAT NATIVE CHANGES, AND WHAT IT DOES NOT
+ * The web form takes evidence ids as newline-separated text in a textarea.
+ * That is a desktop affordance for one product intent — "which records go in
+ * this batch" — and typing an id on a phone is not a port of it. Native
+ * renders the same intent as a picker over the same `GET /v1/evidence`, which
+ * is rendering, not product change: the request body, the validation, the
+ * two-call create-then-process sequence and the statuses are identical.
+ *
+ * Cancel is offered exactly where it acts. See `canCancelBatch` and
+ * `docs/backend-debt.md` BD-1.
  *
  * Self-service and out of every nav surface, exactly as the web keeps it.
  */
-import { useCallback, useEffect, useState } from "react";
-import { View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Share, View } from "react-native";
 import { useRouter } from "expo-router";
+import * as FileSystem from "expo-file-system";
 
-import { apiFetch } from "../../../src/api";
+import { apiFetch, apiFetchText } from "../../../src/api";
 import { formatUserDateTime } from "../../../src/lib/date";
+import { toSafeUserError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
+import { buildLibraryQuery } from "../../../src/product/evidence-library";
 import {
   ProovraScreen,
   ProovraCard,
   ProovraText,
   ProovraButton,
   ProovraBadge,
+  ProovraInput,
+  ProovraFormField,
+  ProovraListRow,
+  ProovraSheet,
+  ProovraConfirmSheet,
   ProovraPageHeader,
   ProovraResultCount,
   ProovraLoadingState,
@@ -29,10 +50,23 @@ import {
 } from "../../../src/ui";
 import {
   BATCH_ANALYSIS_PATH,
+  batchExportFilename,
   batchStatusLabel,
   batchStatusTone,
+  buildBatchCancelPath,
+  buildBatchCreateBody,
+  buildBatchExportPath,
+  buildBatchProcessPath,
+  buildBatchResultsPath,
+  canCancelBatch,
+  canExportBatch,
+  canReadBatchResults,
+  parseBatchAggregate,
   parseBatchJobs,
+  readCreatedBatchId,
   sortBatchJobs,
+  validateBatchDraft,
+  type BatchAggregate,
   type BatchJob,
 } from "../../../src/product/operations";
 
@@ -41,13 +75,62 @@ type State =
   | { phase: "loaded"; jobs: BatchJob[] }
   | { phase: "failed" };
 
-function JobRow({ job }: { job: BatchJob }) {
+interface PickerRow {
+  id: string;
+  title: string;
+  subtitle: string | null;
+}
+
+function parsePickerRows(payload: unknown): PickerRow[] {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const list = Array.isArray(d.items) ? d.items : Array.isArray(d.data) ? d.data : [];
+  return list
+    .map((raw) => {
+      const e = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      const id = typeof e.id === "string" && e.id.length > 0 ? e.id : null;
+      if (!id) return null;
+      const title =
+        (typeof e.title === "string" && e.title) ||
+        (typeof e.fileName === "string" && e.fileName) ||
+        id;
+      const status = typeof e.status === "string" ? e.status : null;
+      const type = typeof e.type === "string" ? e.type : null;
+      const subtitle = [type, status].filter(Boolean).join(" · ");
+      return { id, title, subtitle: subtitle.length > 0 ? subtitle : null };
+    })
+    .filter((r): r is PickerRow => r !== null);
+}
+
+/* ------------------------------------------------------------------ the row */
+
+function JobRow({
+  job,
+  busy,
+  onCancel,
+  onExport,
+  onResults,
+  aggregate,
+}: {
+  job: BatchJob;
+  busy: boolean;
+  onCancel: () => void;
+  onExport: () => void;
+  onResults: () => void;
+  aggregate: BatchAggregate | null;
+}) {
   const tone = batchStatusTone(job.status);
   const palette = theme.color.status[tone];
 
   return (
     <View style={{ gap: theme.space.s2 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: theme.space.s2,
+        }}
+      >
         <View style={{ flex: 1 }}>
           <ProovraText variant="body" weight="semibold" numberOfLines={2}>
             {job.name}
@@ -74,7 +157,9 @@ function JobRow({ job }: { job: BatchJob }) {
             overflow: "hidden",
           }}
         >
-          <View style={{ width: `${job.progress}%`, height: "100%", backgroundColor: palette.solid }} />
+          <View
+            style={{ width: `${job.progress}%`, height: "100%", backgroundColor: palette.solid }}
+          />
         </View>
       )}
 
@@ -85,13 +170,85 @@ function JobRow({ job }: { job: BatchJob }) {
             ? `Started ${formatUserDateTime(job.createdAtIso)}`
             : ""}
       </ProovraText>
+
+      {aggregate ? (
+        <View style={{ gap: 2 }}>
+          {aggregate.successRatePercent !== null ? (
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {`${Math.round(aggregate.successRatePercent)}% of items analysed successfully`}
+            </ProovraText>
+          ) : null}
+          {aggregate.classifications.slice(0, 4).map((c) => (
+            <ProovraText key={c.label} variant="label" color={theme.color.ink.muted}>
+              {`${c.label} · ${c.count}`}
+            </ProovraText>
+          ))}
+          {aggregate.topTags.length > 0 ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {aggregate.topTags
+                .slice(0, 6)
+                .map((t) => t.tag)
+                .join(" · ")}
+            </ProovraText>
+          ) : null}
+        </View>
+      ) : null}
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+        {canReadBatchResults(job) && !aggregate ? (
+          <ProovraButton
+            label="Results"
+            variant="ghost"
+            fullWidth={false}
+            loading={busy}
+            onPress={onResults}
+          />
+        ) : null}
+        {canExportBatch(job) ? (
+          <ProovraButton
+            label="Export CSV"
+            variant="ghost"
+            fullWidth={false}
+            loading={busy}
+            onPress={onExport}
+          />
+        ) : null}
+        {/*
+          Only a PROCESSING job. The service acts on nothing else while still
+          answering success, so offering it elsewhere would report a
+          cancellation that did not happen — docs/backend-debt.md BD-1.
+        */}
+        {canCancelBatch(job) ? (
+          <ProovraButton
+            label="Cancel job"
+            variant="ghost"
+            fullWidth={false}
+            loading={busy}
+            onPress={onCancel}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
 
+/* --------------------------------------------------------------- the screen */
+
 export default function BatchAnalysisScreen() {
   const router = useRouter();
   const [state, setState] = useState<State>({ phase: "loading" });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [aggregates, setAggregates] = useState<Record<string, BatchAggregate>>({});
+
+  // The draft
+  const [composing, setComposing] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [candidates, setCandidates] = useState<PickerRow[] | null>(null);
+  const [cancelling, setCancelling] = useState<BatchJob | null>(null);
 
   const load = useCallback(async () => {
     setState({ phase: "loading" });
@@ -107,16 +264,155 @@ export default function BatchAnalysisScreen() {
     void load();
   }, [load]);
 
+  const loadCandidates = useCallback(async () => {
+    setCandidates(null);
+    try {
+      // The create route requires every id to be the caller's own, undeleted
+      // evidence. `active` is exactly that scope, so the picker cannot offer a
+      // record the server would then reject.
+      const data = await apiFetch(
+        buildLibraryQuery({ scope: "active", search, sort: "newest", limit: 50 }),
+      );
+      setCandidates(parsePickerRows(data));
+    } catch {
+      setCandidates([]);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    if (composing) void loadCandidates();
+  }, [composing, loadCandidates]);
+
+  const draftError = useMemo(() => validateBatchDraft(name, picked), [name, picked]);
+
+  const create = useCallback(async () => {
+    if (draftError) {
+      setMessage(draftError);
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const created = await apiFetch(BATCH_ANALYSIS_PATH, {
+        method: "POST",
+        body: JSON.stringify(buildBatchCreateBody(name, picked, description)),
+      });
+      const id = readCreatedBatchId(created);
+      if (!id) {
+        setMessage("The job was created but the server did not return its id.");
+        return;
+      }
+
+      // Creation does not start it — the create response says so itself. A job
+      // left at `pending` that the user believes is running is worse than
+      // either outcome, so the two calls are chained exactly as the web does.
+      await apiFetch(buildBatchProcessPath(id), { method: "POST" });
+
+      setComposing(false);
+      setName("");
+      setDescription("");
+      setPicked([]);
+      setMessage("Batch job created and processing started.");
+      await load();
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [draftError, name, description, picked, load]);
+
+  const cancel = useCallback(async () => {
+    const job = cancelling;
+    if (!job) return;
+    setCancelling(null);
+    setBusy(true);
+    setMessage(null);
+    try {
+      await apiFetch(buildBatchCancelPath(job.id), { method: "POST" });
+      await load();
+      setMessage("That job was cancelled.");
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [cancelling, load]);
+
+  const readResults = useCallback(async (job: BatchJob) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const data = await apiFetch(buildBatchResultsPath(job.id));
+      const aggregate = parseBatchAggregate(data);
+      if (!aggregate) {
+        setMessage("This job published no aggregate results.");
+        return;
+      }
+      setAggregates((prev) => ({ ...prev, [job.id]: aggregate }));
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const exportCsv = useCallback(async (job: BatchJob) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      // text/csv, not JSON. `apiFetchText` carries the same auth and the same
+      // error path; parsing this as JSON would turn a correct response into a
+      // failure the user could not explain.
+      const csv = await apiFetchText(buildBatchExportPath(job.id));
+      if (!FileSystem.cacheDirectory) {
+        setMessage("A writable temporary directory is not available on this device.");
+        return;
+      }
+      const filename = batchExportFilename(job.id);
+      const uri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(uri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await Share.share({ url: uri, title: filename, message: filename });
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const toggle = useCallback((id: string) => {
+    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
   return (
     <ProovraScreen testID="operations-batch-analysis">
       <ProovraPageHeader
         title="Batch analysis"
         eyebrow="Operations"
-        subtitle="Batch processing jobs and queue status."
+        subtitle="Create batch jobs, monitor progress, review outcomes, and export results."
+        primaryAction={
+          <ProovraButton
+            label="New batch job"
+            fullWidth={false}
+            onPress={() => setComposing(true)}
+          />
+        }
         secondaryActions={
-          <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+          <ProovraButton
+            label="Back"
+            variant="ghost"
+            fullWidth={false}
+            onPress={() => router.back()}
+          />
         }
       />
+
+      {message ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          {message}
+        </ProovraText>
+      ) : null}
 
       {state.phase === "loading" ? <ProovraLoadingState label="Loading jobs" /> : null}
 
@@ -129,6 +425,7 @@ export default function BatchAnalysisScreen() {
           presence="page"
           title="No batch jobs"
           purpose="Batch jobs you start appear here with their progress."
+          action={<ProovraButton label="New batch job" onPress={() => setComposing(true)} />}
         />
       ) : null}
 
@@ -138,12 +435,104 @@ export default function BatchAnalysisScreen() {
           <ProovraCard>
             <View style={{ gap: theme.space.s5 }}>
               {state.jobs.map((job) => (
-                <JobRow key={job.id} job={job} />
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  busy={busy}
+                  aggregate={aggregates[job.id] ?? null}
+                  onCancel={() => setCancelling(job)}
+                  onExport={() => void exportCsv(job)}
+                  onResults={() => void readResults(job)}
+                />
               ))}
             </View>
           </ProovraCard>
         </>
       ) : null}
+
+      {/* ------------------------------------------------------- the composer */}
+      <ProovraSheet visible={composing} title="New batch job" onClose={() => setComposing(false)}>
+        <ProovraFormField label="Name">
+          <ProovraInput
+            value={name}
+            onChangeText={setName}
+            placeholder="What this batch is for"
+            autoCapitalize="sentences"
+            accessibilityLabel="Batch name"
+          />
+        </ProovraFormField>
+
+        <ProovraFormField label="Description (optional)">
+          <ProovraInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Anything worth recording about this batch"
+            autoCapitalize="sentences"
+            multiline
+            accessibilityLabel="Batch description"
+          />
+        </ProovraFormField>
+
+        <ProovraFormField label="Records">
+          <ProovraInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search your evidence"
+            onSubmitEditing={() => void loadCandidates()}
+            accessibilityLabel="Search evidence"
+          />
+        </ProovraFormField>
+
+        <ProovraText variant="label" color={theme.color.ink.muted}>
+          {picked.length === 0
+            ? "Nothing chosen yet."
+            : `${picked.length} record${picked.length === 1 ? "" : "s"} chosen.`}
+        </ProovraText>
+
+        {candidates === null ? (
+          <ProovraLoadingState label="Loading your evidence" />
+        ) : candidates.length === 0 ? (
+          <ProovraEmpty presence="inline" title="No records match that." />
+        ) : (
+          candidates.map((row) => (
+            <ProovraListRow
+              key={row.id}
+              title={row.title}
+              subtitle={row.subtitle ?? undefined}
+              onPress={() => toggle(row.id)}
+              trailing={
+                picked.includes(row.id) ? (
+                  <ProovraBadge label="Chosen" tone="verified" />
+                ) : undefined
+              }
+            />
+          ))
+        )}
+
+        <ProovraButton
+          label="Create and start"
+          loading={busy}
+          disabled={draftError !== null}
+          onPress={() => void create()}
+        />
+        {draftError ? (
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {draftError}
+          </ProovraText>
+        ) : null}
+      </ProovraSheet>
+
+      <ProovraConfirmSheet
+        visible={cancelling !== null}
+        title="Cancel this batch job?"
+        consequence="In-progress items will stop. Already completed items keep their results."
+        confirmLabel="Cancel job"
+        cancelLabel="Keep running"
+        tone="danger"
+        busy={busy}
+        onConfirm={() => void cancel()}
+        onCancel={() => setCancelling(null)}
+      />
     </ProovraScreen>
   );
 }

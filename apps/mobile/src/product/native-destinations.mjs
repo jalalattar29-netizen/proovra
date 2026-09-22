@@ -490,12 +490,13 @@ export const NATIVE_DESTINATIONS = {
   },
   "/operations/batch-analysis": {
     routeFile: "(stack)/operations/batch-analysis.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/operations/batch-analysis/page.tsx"],
     gaps: [
       "Q3 RESOLVED from the registry itself: dashboard.batch_analysis states \"Gate stays PERSONAL_WORKSPACE - self-service view\". It shares the /operations URL prefix with the OPS console (a Phase R7.5 move from /dashboard) but its domain is PERSONAL_WORKSPACE, so the derivation is right and there is no registry omission to correct.",
-      "read-only: the list and per-job progress are ported; create, process, cancel and export are not, and are absent rather than stubbed",
+      "the whole lifecycle is ported: create (picker over GET /v1/evidence rather than a textarea of ids - the same intent rendered for a phone), the chained /process start, progress, the aggregate from /results, the text/csv /export through the share sheet, and cancel",
+      "BD-1 (docs/backend-debt.md): cancelJob acts only on PROCESSING and answers success for a pending job it did not touch. Native offers Cancel exactly where it acts; the web offers it on pending too and then reports a cancellation that did not happen. Not worked around client-side.",
       "UPSTREAM DEFECT, not ported over: BatchAnalysisService keeps jobs in a process-local object (private jobs = {}), so the list is neither durable nor shared across API instances. Native matches the web exactly rather than diverging, but the console can legitimately show nothing after a restart.",
       "the endpoint computes progress as (processed + failed) / totalItems with no zero guard; the native projection clamps it and reports null for a job with no items",
     ],

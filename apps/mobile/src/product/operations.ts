@@ -221,3 +221,129 @@ export function sortBatchJobs(jobs: BatchJob[]): BatchJob[] {
     return bt - at;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Batch analysis — the job lifecycle
+// ---------------------------------------------------------------------------
+//
+// The whole lifecycle, as the endpoints define it:
+//
+//   POST /v1/batch-analysis            create   {evidenceIds[], name, description?}
+//   POST /v1/batch-analysis/:id/process         start it
+//   GET  /v1/batch-analysis/:id                 one job
+//   GET  /v1/batch-analysis/:id/results         aggregate, ONCE it is finished
+//   POST /v1/batch-analysis/:id/cancel          stop a running one
+//   GET  /v1/batch-analysis/:id/export          text/csv
+//
+// Creation does not start the job — the create response says so itself:
+// "Batch job created. Call /batch-analysis/{id}/process to start." The web
+// page chains the two calls, and so does Native, because a job sitting at
+// `pending` that the user believes is running is a worse outcome than either.
+
+export function buildBatchJobPath(id: string): string {
+  return `${BATCH_ANALYSIS_PATH}/${encodeURIComponent(id)}`;
+}
+export function buildBatchProcessPath(id: string): string {
+  return `${buildBatchJobPath(id)}/process`;
+}
+export function buildBatchCancelPath(id: string): string {
+  return `${buildBatchJobPath(id)}/cancel`;
+}
+export function buildBatchResultsPath(id: string): string {
+  return `${buildBatchJobPath(id)}/results`;
+}
+export function buildBatchExportPath(id: string): string {
+  return `${buildBatchJobPath(id)}/export`;
+}
+
+/**
+ * What the create endpoint requires, checked before the request rather than
+ * after: an empty name and an empty selection are both VALIDATION_ERROR, and a
+ * round trip to be told so is a round trip the phone did not need.
+ */
+export function validateBatchDraft(name: string, evidenceIds: string[]): string | null {
+  if (name.trim().length === 0) return "Give this batch a name.";
+  if (evidenceIds.length === 0) return "Choose at least one evidence record.";
+  return null;
+}
+
+export function buildBatchCreateBody(
+  name: string,
+  evidenceIds: string[],
+  description?: string | null,
+) {
+  const d = (description ?? "").trim();
+  return {
+    name: name.trim(),
+    evidenceIds,
+    // Absent, not empty: the route takes `description?`, and sending "" would
+    // record a description the user did not write.
+    ...(d.length > 0 ? { description: d } : {}),
+  };
+}
+
+/** The id the create response carries, or null if the server shaped it otherwise. */
+export function readCreatedBatchId(payload: unknown): string | null {
+  return str(obj(obj(payload).data).id);
+}
+
+/**
+ * Whether cancelling this job would actually do anything.
+ *
+ * `cancelJob` only acts on a job in PROCESSING; for any other non-terminal
+ * status it returns `true` — success — while changing nothing. So a surface
+ * that offers Cancel on a `pending` job and then reports "cancelled" states
+ * something untrue. Native offers it exactly where it acts. The server's
+ * behaviour is recorded in `docs/backend-debt.md`; it is not worked around
+ * here, and Native does not re-implement cancellation client-side.
+ */
+export function canCancelBatch(job: BatchJob): boolean {
+  return job.status.toLowerCase() === "processing";
+}
+
+/** Results are published once, at the end. Asking earlier is a 400. */
+export function canReadBatchResults(job: BatchJob): boolean {
+  const s = job.status.toLowerCase();
+  return s === "completed" || s === "failed" || s === "cancelled";
+}
+
+/** Export reads the same items, so it is offered on the same terms. */
+export function canExportBatch(job: BatchJob): boolean {
+  return canReadBatchResults(job);
+}
+
+export interface BatchAggregate {
+  successRatePercent: number | null;
+  averageConfidence: number | null;
+  classifications: Array<{ label: string; count: number }>;
+  topTags: Array<{ tag: string; count: number }>;
+}
+
+export function parseBatchAggregate(payload: unknown): BatchAggregate | null {
+  const d = obj(obj(payload).data);
+  if (Object.keys(d).length === 0) return null;
+
+  const counted = (v: unknown): Array<{ label: string; count: number }> =>
+    Object.entries(obj(v))
+      .map(([label, n]) => ({ label, count: typeof n === "number" ? n : 0 }))
+      .filter((r) => r.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+  return {
+    successRatePercent: num(d.successRate),
+    averageConfidence: num(d.averageConfidence),
+    classifications: counted(d.classifications),
+    topTags: rows(d.mostCommonTags)
+      .map((raw) => {
+        const t = obj(raw);
+        const tag = str(t.tag);
+        return tag ? { tag, count: num(t.count) ?? 0 } : null;
+      })
+      .filter((t): t is { tag: string; count: number } => t !== null),
+  };
+}
+
+/** The filename the export route sets in its own Content-Disposition. */
+export function batchExportFilename(id: string): string {
+  return `batch-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.csv`;
+}

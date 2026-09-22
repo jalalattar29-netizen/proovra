@@ -27,7 +27,14 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}) {
+/**
+ * The one authenticated request. It returns the RESPONSE, not a body,
+ * because not every endpoint answers in JSON: the batch-analysis export
+ * answers `text/csv`, and a shared `res.json()` would have turned a correct
+ * response into a parse error. Every caller still goes through this single
+ * error path — status, request id, code and the 428 legal gate.
+ */
+async function apiRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const base = apiBaseUrl();
   const headers = new Headers(init.headers);
 
@@ -107,7 +114,23 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     throw err;
   }
 
+  return res;
+}
+
+/** A JSON endpoint. */
+export async function apiFetch(path: string, init: RequestInit = {}) {
+  const res = await apiRequest(path, init);
   return res.json();
+}
+
+/**
+ * An endpoint that answers in text — today, the batch-analysis CSV export.
+ * Kept separate rather than sniffing the content type, so a caller states
+ * which shape it expects and a server that changed shape fails loudly.
+ */
+export async function apiFetchText(path: string, init: RequestInit = {}): Promise<string> {
+  const res = await apiRequest(path, init);
+  return res.text();
 }
 // ---------------------------------------------------------------------------
 // Unauthenticated / alternate-credential requests
