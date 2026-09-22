@@ -16,14 +16,14 @@ node --test "test/**/*.test.mjs"            # mobile suite
 
 | Disposition | Count | Decided by |
 |---|---:|---|
-| NATIVE_REQUIRED | **61** | not excluded by any admin/enterprise gate |
+| NATIVE_REQUIRED | **63** | not excluded by any admin/enterprise gate |
 | ADMIN_ONLY | **36** | `routeRegistry` `domain: PLATFORM_ADMIN` (26) or `requiredActiveSpace: PLATFORM_ADMIN` (10) |
 | ENTERPRISE_ONLY | **93** | `ENTERPRISE_ONLY_ROUTE_IDS` (91), `domain: OPS` (2) |
-| PUBLIC_INFORMATIONAL_ONLY | **18** | renders the marketing site AND drives neither the product API nor a link token |
+| PUBLIC_INFORMATIONAL_ONLY | **16** | renders the marketing site, drives neither the product API nor a link token, and the authenticated app never routes a user there |
 | UNRESOLVED | **0** | — |
 | **Total** | **208** | filesystem walk of `apps/web/app` |
 
-`208 = 61 + 36 + 93 + 18`. A new Web route with no disposition fails the build
+`208 = 63 + 36 + 93 + 16`. A new Web route with no disposition fails the build
 (`test/product-manifest-coverage.test.mjs`).
 
 **Classification verification (§2).** Every disposition was re-inspected:
@@ -37,25 +37,46 @@ node --test "test/**/*.test.mjs"            # mobile suite
   `/auth/mfa-recovery/verify`, which IS native-required), and
   `/settings/notifications/deliveries` is an **operator** delivery log with
   resend. Both correctly excluded.
-- The marketing set found **one misclassification**: `/verify` drives the
-  paste-a-token flow that pushes into `/verify/[token]`, and was being read as
-  marketing because its routing lives in `_components/` while the page imports
-  the marketing chrome. Product evidence now beats chrome, and a page that
-  routes a user INTO a product surface counts as a product flow. NATIVE_REQUIRED
-  went 60 → 61.
-- The remaining 18 are genuinely informational (`/about`, `/faq`, `/for-*`,
-  `/pricing`… ) — public pages with no product behaviour behind them.
+- The informational set was wrong **three times**, each found by a different
+  kind of evidence:
+  - `/verify` drives the paste-a-token flow that pushes into
+    `/verify/[token]`. It was read as marketing because its routing lives in
+    `_components/` while the page imports the marketing chrome. **Product
+    evidence now beats chrome**, and a page that routes a user INTO a product
+    surface is a product flow.
+  - `/support` is an in-product destination: `app/(app)/error.tsx`,
+    `app/(app)/not-found.tsx`, billing and Search all route a signed-in user
+    there. A native app that drops it leaves its own error and not-found states
+    with nowhere to send anyone.
+  - `/trust` is linked from `settings/_sections/PrivacySection.tsx` and
+    `components/legal/LegalDocumentShell.tsx` — both native-required surfaces.
+- `/contact-sales` was checked and **stays** informational: its only in-app
+  referrer is the organization ADMIN layout, which Native does not ship. A link
+  from a console Native does not have cannot pull its target into scope, so the
+  inbound-link rule excludes admin/enterprise sources.
+- The remaining 16 are genuinely informational (`/about`, `/faq`, `/for-*`,
+  `/request-demo`, `/verify/demo`…) — public pages with no product behaviour,
+  no link token, and no inbound route from the authenticated app.
 
-## 2. Implementation status of the 61 NATIVE_REQUIRED surfaces
+## 2. Implementation status of the 63 NATIVE_REQUIRED surfaces
 
 | Status | Count |
 |---|---:|
-| PARITY (device-verified) | **0 / 61** |
-| PARTIAL (primary journey works, named gaps) | **24 / 61** |
-| SHELL (materially thinner than Web) | **3 / 61** |
-| NOT_STARTED | **34 / 61** |
+| PHYSICAL_ACCEPTED (device-verified) | **0 / 63** |
+| CODE_PARITY (complete, awaiting hardware) | **0 / 63** |
+| PARTIAL (primary journey works, named gaps) | **31 / 63** |
+| SHELL (materially thinner than Web) | **3 / 63** |
+| NOT_STARTED | **20 / 63** |
+| BLOCKED_BY_DECISION | **9 / 63** |
 
-`PARITY` may not be claimed from CI. It requires the physical acceptance in §6.
+**CODE_PARITY and PHYSICAL_ACCEPTED are tracked separately**, so progress stays
+truthful without every row being pinned at zero for want of hardware. No row is
+CODE_PARITY yet: each ported surface still carries named gaps, listed per row in
+`src/product/native-destinations.mjs`.
+
+BLOCKED_BY_DECISION is counted apart from NOT_STARTED because those rows are
+waiting on a decision, not on effort. A guard asserts each one cites a question
+that exists in `docs/open-questions.md`.
 
 ## 3. Done
 
@@ -82,6 +103,10 @@ node --test "test/**/*.test.mjs"            # mobile suite
 | **Settings › Security** | web handoff link — no password change, no sessions, no MFA on the device most likely to be lost | all five canonical sections native |
 | **Home** | 2 of 7 canonical sources; UC screen capture in the hero | canonical overview: summary band, 5 KPIs, severity-ranked queue, recent work, matters, storage. UC moved to Capture |
 | **Search** | query + paging only | + result families, typeahead, result count. 9 of 11 `/v1/search*` endpoints are `isPlatformAdmin` operator surfaces and stay excluded |
+| **Capture** | staged into UC-0, which reserved Evidence on the FIRST item — hence the orphan and the one-type lock | stages into the canonical `/v1/capture/sessions` DRAFT; Evidence created once, at finalize, with the type DERIVED from what was staged. Mixed media works |
+| **Reports** | excluded by the old contract's own fiat | canonical deliverables index: six counters, lifecycle filters, paging, per-row state |
+| **Notifications** | arrival order, mark-read only | severity ordering, category/unread filters, per-item read/unread/dismiss |
+| **Trust Center** | a Settings row opening proovra.com | five web routes on one native screen over `/v1/trust/articles`, each section failing independently |
 
 ### Defects found by the new guards and tests
 1. `verify-email`, `reset-password`, `invite/[token]` — complete screens **nothing
@@ -94,6 +119,10 @@ node --test "test/**/*.test.mjs"            # mobile suite
 4. The capture CTA rendered **"+ + Capture Evidence"** — the canonical string
    already contains the plus.
 5. `mobile-boot-contract.test.mjs` **required** UC-2 to be reachable from Home.
+6. `phase-11-architecture-guard.test.ts` banned `searchParams` in the deep-link
+   parser as a proxy for "no tenant inference"; it now asserts the rule itself.
+7. Two API tests had been throwing `ENOENT` rather than asserting ever since
+   Phase 12 deleted the mobile files they read.
 
 ## 4. Deletion ledger
 
@@ -174,3 +203,37 @@ Nothing here may be ticked from CI.
 - 14 API test files fail in `services/api`, all pre-existing and none referencing
   changed files. Two that did were repaired (they had been throwing `ENOENT`
   rather than asserting since Phase 12 deleted the mobile files they read).
+
+---
+
+## 8. Capture ownership map (after convergence)
+
+| Responsibility | Owner | Evidence |
+|---|---|---|
+| **CANONICAL_PRODUCT_LIFECYCLE** | `POST/PATCH/DELETE /v1/capture/sessions`, then `POST /v1/evidence` + parts + `/complete` | `capture.routes.ts` header: a DRAFT holds items and no Evidence; "Finalization is initiated by the existing Evidence routes" |
+| **NATIVE_ACQUISITION / PROVENANCE** | `/v1/capture/direct-sessions` — server nonce, per-part digest declaration, sealing. Invoked **only at finalize** | `POST /v1/evidence` hardcodes `acquisitionMode: "PROOVRA_WEB_UPLOAD"` ("the acquisition is this route's constant, never a body field"), so native submitting there would record false provenance |
+| **NATIVE_ACQUISITION_PRIMITIVE** | ReplayKit (`ProovraScreenCaptureModule.swift`, Broadcast Extension), MediaProjection (`ProovraScreenCaptureModule.kt`), camera, microphone, document picker | `src/product/protected-native-paths.mjs` |
+| **INTEGRITY_PRIMITIVE** | `src/upload-utils.ts` — `expo-crypto` SHA-256, platform MD5, chunked read | — |
+| **PLATFORM DURABILITY** | `src/capture/capture-session-store.ts` — on-device file URIs only. The DRAFT owns the session | the server cannot hold a local file URI; neither record can answer the other's question |
+| **DELETED DUPLICATE** | `ensureSessionEvidence` (reserve-on-stage) and the one-type lock it forced | — |
+
+**No third lifecycle was introduced.** `src/capture/capture-draft.ts` is the
+native *client* for a lifecycle that already existed. There is no staging-plan
+layer, no capture coordinator, and no backend change.
+
+## 9. UC1–UC5
+
+| UC | Repository-backed definition | Native primitive | Capture entry | Automated | Physical |
+|---|---|---|---|---|---|
+| UC-1 | Direct Web Capture via the MV3 extension; seals through `direct-sessions/:id/web-complete` | `apps/extension` (not native) | n/a — browser | extension e2e exists | not this scope |
+| UC-2 | Android screen capture, `DIRECT_SCREEN_CAPTURE_ANDROID`, `screen-complete` | `ProovraScreenCaptureModule.kt`, `ScreenCaptureService.kt` | Capture → Other capture sources | flow reducer tested | ☐ |
+| UC-3 | Android continuous, `…_CONTINUOUS`, `continuous-complete` | `ContinuousScreenCaptureService.kt` | Capture → Other capture sources | flow reducer tested | ☐ |
+| UC-4 | Derived intelligence (media-intelligence, derived assets) — server-side | none | none | — | zero native consumers; disposition unrecorded |
+| UC-5 | iOS ReplayKit, `DIRECT_SCREEN_CAPTURE_IOS` | `ProovraScreenCaptureModule.swift`, Broadcast Extension, App Group | Capture → Other capture sources | flow reducer tested | ☐ |
+
+**None is on Home.** `test/mobile-boot-contract.test.mjs` now asserts Home
+contains neither `/screen-capture` nor `/continuous-capture`, and that Capture
+does — under the Android gate for the Android-only ones.
+
+UC-4 has no native consumer and no recorded disposition; it is not claimed as
+done, and it is not a defect introduced here.
