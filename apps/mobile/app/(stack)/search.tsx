@@ -20,6 +20,13 @@ import {
   type SearchRow,
   type SearchDocumentType,
   NATIVE_SEARCH_FILTERS,
+  SEARCH_MODES,
+  SEARCH_RECENCY_WINDOWS,
+  availableSearchModes,
+  parseSearchRuntime,
+  recencyToIso,
+  searchFallbackNotice,
+  type SearchMode,
   filterToDocumentTypes,
   buildSuggestPath,
   parseSuggestions,
@@ -35,6 +42,7 @@ import {
   ProovraListRow,
   ProovraEmptyState,
   ProovraFilterChips,
+  ProovraText,
   ProovraResultCount,
   ProovraCursorPager,
   ProovraErrorState,
@@ -58,6 +66,14 @@ export default function SearchScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<SafeError | null>(null);
+  const [mode, setMode] = useState<SearchMode>("KEYWORD");
+  const [recency, setRecency] = useState("any");
+  // What the server reported about the search it actually ran.
+  const [runtime, setRuntime] = useState<{
+    modeUsed: SearchMode | null;
+    semanticAvailable: boolean;
+    fallbackReason: string | null;
+  } | null>(null);
   const reqSeq = useRef(0);
 
   // Debounce the query so we don't fire a request per keystroke.
@@ -72,7 +88,9 @@ export default function SearchScreen() {
         teamId,
         q: query,
         cursor: nextCursor,
+        mode,
         documentTypes: filterToDocumentTypes(filter),
+        updatedSinceUtc: recencyToIso(recency),
       });
       if (!path) {
         setPhase("idle");
@@ -91,6 +109,7 @@ export default function SearchScreen() {
         setRows(nextCursor ? [...existing, ...parsed.rows] : parsed.rows);
         setCursor(parsed.nextCursor);
         setTotal(parsed.total ?? null);
+        setRuntime(parseSearchRuntime(data));
         setPhase("ready");
       } catch (err) {
         if (seq !== reqSeq.current) return;
@@ -170,6 +189,41 @@ export default function SearchScreen() {
           options={NATIVE_SEARCH_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
           disabled={!workspaceReady}
         />
+
+        <ProovraFilterChips
+          label="Updated"
+          value={recency}
+          onChange={setRecency}
+          options={SEARCH_RECENCY_WINDOWS.map((w) => ({ value: w.value, label: w.label }))}
+          disabled={!workspaceReady}
+        />
+
+        {/*
+          The mode switch appears only when the SERVER says semantic search is
+          available. A control that asks for meaning-based search and silently
+          gets keyword is worse than no control at all: the user reads an empty
+          result as "nothing matches" rather than "that was not the search I
+          asked for".
+        */}
+        {runtime?.semanticAvailable ? (
+          <ProovraFilterChips
+            label="Match on"
+            value={mode}
+            onChange={(v: string) => setMode(v as SearchMode)}
+            options={availableSearchModes(true).map((m) => ({
+              value: m,
+              label: SEARCH_MODES.find((s) => s.value === m)?.label ?? m,
+            }))}
+            disabled={!workspaceReady}
+          />
+        ) : null}
+
+        {/* And when it did fall back, it is said, not hidden. */}
+        {runtime && searchFallbackNotice(mode, runtime) ? (
+          <ProovraText variant="label" color={theme.color.status.pending.fg}>
+            {searchFallbackNotice(mode, runtime)}
+          </ProovraText>
+        ) : null}
       </ProovraSection>
 
       {ctxLoading ? (

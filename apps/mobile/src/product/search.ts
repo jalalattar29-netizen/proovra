@@ -49,6 +49,21 @@ export interface SearchResponse {
   total?: number | null;
   rows: SearchRow[];
   nextCursor: string | null;
+  /**
+   * SEMANTIC RUNTIME — the mode the server ACTUALLY used, whether semantic is
+   * available at all, and why it fell back if it did.
+   *
+   * These matter because semantic search can be unavailable while the control
+   * offering it is not. A surface that asks for SEMANTIC, silently receives
+   * KEYWORD, and says nothing has told the user their query was answered a way
+   * it was not — and semantic and keyword answer differently enough that the
+   * difference changes what they conclude from an empty result.
+   *
+   * Older API builds omit them; absent means "semantic is not available here".
+   */
+  modeUsed?: string | null;
+  semanticAvailable?: boolean;
+  fallbackReason?: string | null;
 }
 
 const TYPE_DISPLAY: Partial<Record<SearchDocumentType, { label: string; tone: ProovraStatusTone }>> = {
@@ -81,6 +96,8 @@ export interface SearchQueryInput {
    * means every family — the same default the web applies when no chip is on.
    */
   documentTypes?: readonly SearchDocumentType[];
+  /** ISO instant; results older than this are excluded. */
+  updatedSinceUtc?: string | null;
 }
 
 /**
@@ -100,6 +117,7 @@ export function buildSearchPath(input: SearchQueryInput): string | null {
   // The web sends one repeated param per selected family; an empty selection
   // sends none, which the server reads as "all".
   for (const t of input.documentTypes ?? []) params.append("documentType", t);
+  if (input.updatedSinceUtc) params.set("updatedSinceUtc", input.updatedSinceUtc);
   return `/v1/search?${params.toString()}`;
 }
 
@@ -190,4 +208,87 @@ export function resolveSearchResultRoute(row: SearchRow): string | null {
 /** A stable de-dupe/react key for a row. */
 export function searchRowKey(row: SearchRow): string {
   return `${row.documentType}:${row.documentId}`;
+}
+
+// ---------------------------------------------------------------------------
+// Search modes, and telling the truth about which one answered
+// ---------------------------------------------------------------------------
+
+export type SearchMode = "KEYWORD" | "SEMANTIC" | "HYBRID";
+
+export const SEARCH_MODES: ReadonlyArray<{ value: SearchMode; label: string }> = [
+  { value: "KEYWORD", label: "Keyword" },
+  { value: "HYBRID", label: "Blended" },
+  { value: "SEMANTIC", label: "Meaning" },
+];
+
+/**
+ * Read the semantic-runtime envelope.
+ *
+ * Absent fields mean the API build does not report them, which is treated as
+ * "semantic is not available here" rather than as "it is" — the safe direction
+ * for a capability the client cannot otherwise observe.
+ */
+export function parseSearchRuntime(payload: unknown): {
+  modeUsed: SearchMode | null;
+  semanticAvailable: boolean;
+  fallbackReason: string | null;
+} {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const raw = typeof d.modeUsed === "string" ? d.modeUsed.toUpperCase() : null;
+  const modeUsed =
+    raw === "KEYWORD" || raw === "SEMANTIC" || raw === "HYBRID" ? (raw as SearchMode) : null;
+
+  return {
+    modeUsed,
+    semanticAvailable: d.semanticAvailable === true,
+    fallbackReason: typeof d.fallbackReason === "string" && d.fallbackReason.length > 0
+      ? d.fallbackReason
+      : null,
+  };
+}
+
+/**
+ * The modes a user may actually choose here.
+ *
+ * Keyword always. The other two only when the server says semantic is
+ * available — a control that asks for meaning-based search and silently gets
+ * keyword is worse than no control, because the user reads the empty result as
+ * "nothing matches" rather than "that was not the search I asked for".
+ */
+export function availableSearchModes(semanticAvailable: boolean): SearchMode[] {
+  return semanticAvailable ? ["KEYWORD", "HYBRID", "SEMANTIC"] : ["KEYWORD"];
+}
+
+/**
+ * What to tell the user when the server answered with a different mode than
+ * the one they picked, or null when it did not.
+ */
+export function searchFallbackNotice(
+  requested: SearchMode,
+  runtime: { modeUsed: SearchMode | null; fallbackReason: string | null },
+): string | null {
+  if (!runtime.modeUsed || runtime.modeUsed === requested) return null;
+  const used = SEARCH_MODES.find((m) => m.value === runtime.modeUsed)?.label ?? runtime.modeUsed;
+  return runtime.fallbackReason
+    ? `Answered with ${used.toLowerCase()} search instead: ${runtime.fallbackReason}`
+    : `Answered with ${used.toLowerCase()} search instead.`;
+}
+
+/** The "updated since" windows a phone user actually picks. */
+export const SEARCH_RECENCY_WINDOWS: ReadonlyArray<{
+  value: string;
+  label: string;
+  days: number | null;
+}> = [
+  { value: "any", label: "Any time", days: null },
+  { value: "7d", label: "Last 7 days", days: 7 },
+  { value: "30d", label: "Last 30 days", days: 30 },
+  { value: "90d", label: "Last 90 days", days: 90 },
+];
+
+export function recencyToIso(value: string, nowMs: number = Date.now()): string | null {
+  const window = SEARCH_RECENCY_WINDOWS.find((w) => w.value === value);
+  if (!window || window.days === null) return null;
+  return new Date(nowMs - window.days * 86_400_000).toISOString();
 }

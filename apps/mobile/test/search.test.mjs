@@ -120,3 +120,72 @@ test("suggestions parse from either envelope and drop anything unusable", () => 
   assert.deepEqual(mod.parseSuggestions(null), []);
   assert.equal(mod.parseSuggestions({ suggestions: Array(50).fill("x") }).length, 8, "bounded");
 });
+
+/* ---------------------------------------------- modes, recency, and honesty */
+
+/**
+ * Semantic search can be unavailable while a control offering it is not. A
+ * surface that asks for SEMANTIC, silently receives KEYWORD and says nothing
+ * has told the user their query was answered a way it was not — and the two
+ * answer differently enough that the user reads an empty result as "nothing
+ * matches" rather than "that was not the search I asked for".
+ */
+test("semantic modes are offered only when the server says they exist", () => {
+  assert.deepEqual(mod.availableSearchModes(false), ["KEYWORD"]);
+  assert.deepEqual(mod.availableSearchModes(true), ["KEYWORD", "HYBRID", "SEMANTIC"]);
+});
+
+test("an API build that reports nothing is treated as having no semantic search", () => {
+  // The safe direction for a capability the client cannot otherwise observe.
+  const r = mod.parseSearchRuntime({});
+  assert.equal(r.semanticAvailable, false);
+  assert.equal(r.modeUsed, null);
+  assert.equal(r.fallbackReason, null);
+});
+
+test("an unrecognised modeUsed is not believed", () => {
+  assert.equal(mod.parseSearchRuntime({ modeUsed: "MAGIC" }).modeUsed, null);
+  assert.equal(mod.parseSearchRuntime({ modeUsed: "semantic" }).modeUsed, "SEMANTIC");
+});
+
+test("a fallback is stated, with the server's reason when it gave one", () => {
+  const notice = mod.searchFallbackNotice("SEMANTIC", {
+    modeUsed: "KEYWORD",
+    fallbackReason: "embeddings are still being built",
+  });
+  assert.match(notice, /keyword search instead/i);
+  assert.match(notice, /embeddings are still being built/);
+
+  // No reason still says what happened.
+  assert.match(
+    mod.searchFallbackNotice("SEMANTIC", { modeUsed: "KEYWORD", fallbackReason: null }),
+    /keyword search instead/i,
+  );
+
+  // No fallback, nothing to say.
+  assert.equal(mod.searchFallbackNotice("KEYWORD", { modeUsed: "KEYWORD", fallbackReason: null }), null);
+  assert.equal(mod.searchFallbackNotice("KEYWORD", { modeUsed: null, fallbackReason: null }), null);
+});
+
+test("the recency window converts to an instant, and 'any time' to none", () => {
+  const now = Date.parse("2026-09-22T12:00:00.000Z");
+  assert.equal(mod.recencyToIso("any", now), null);
+  assert.equal(mod.recencyToIso("not-a-window", now), null);
+  assert.equal(mod.recencyToIso("7d", now), "2026-09-15T12:00:00.000Z");
+  assert.equal(mod.recencyToIso("30d", now), "2026-08-23T12:00:00.000Z");
+});
+
+test("the query carries mode and recency only when they mean something", () => {
+  const base = { teamId: "t1", q: "roof" };
+  const plain = mod.buildSearchPath(base);
+  assert.match(plain, /mode=KEYWORD/);
+  assert.doesNotMatch(plain, /updatedSinceUtc/);
+
+  const narrowed = mod.buildSearchPath({
+    ...base,
+    mode: "SEMANTIC",
+    updatedSinceUtc: "2026-09-15T12:00:00.000Z",
+  });
+  assert.match(narrowed, /mode=SEMANTIC/);
+  assert.match(narrowed, /updatedSinceUtc=2026-09-15T12%3A00%3A00.000Z/);
+});

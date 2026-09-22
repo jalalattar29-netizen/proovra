@@ -210,13 +210,14 @@ export const NATIVE_DESTINATIONS = {
   },
   "/search": {
     routeFile: "(stack)/search.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/search/page.tsx", "apps/web/app/(app)/search/search.css"],
     gaps: [
-      "query, result families, typeahead, cursor paging and result count ported",
-      "9 of the 11 /v1/search* endpoints are operator surfaces gated on isPlatformAdmin (saved views, audit, diagnostics, reconcile, semantic backfill) and are correctly excluded",
-      "no semantic/hybrid mode switch, no updatedSince filter, no relationship search",
-      "device acceptance outstanding",
+      "query, result families, typeahead, cursor paging, result count, the recency window, and the keyword/blended/meaning mode switch",
+      "the mode switch appears ONLY when the server reports semantic search is available, and when the server answers with a different mode than the one asked for, the surface says so. A control that asks for meaning-based search and silently gets keyword is worse than no control: the user reads an empty result as 'nothing matches' rather than 'that was not the search I asked for'.",
+      "an API build that reports no semantic envelope at all is treated as having no semantic search - the safe direction for a capability the client cannot otherwise observe",
+      "9 of the 11 search endpoints are gated on isPlatformAdmin and are out of scope; saved views and the reconcile/backfill controls are the operator surface",
     ],
   },
   "/notifications": {
