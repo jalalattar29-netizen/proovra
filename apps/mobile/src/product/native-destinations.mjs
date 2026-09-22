@@ -173,7 +173,7 @@ export const NATIVE_DESTINATIONS = {
   /* --------------------------------------------------------------- product */
   "/home": {
     routeFile: "(tabs)/index.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
     webSources: [
       "apps/web/app/(app)/home/page.tsx",
       "apps/web/components/home-experience/SelfServeHomeDashboard.tsx",
@@ -182,7 +182,13 @@ export const NATIVE_DESTINATIONS = {
     ],
     gaps: [
       "Overview tab ported: summary band, five canonical KPIs, severity-ranked priority queue, recent evidence, active matters, storage",
-      "the web Operations / Analytics / Activity tabs are not ported — records-by-type donut, activity chart and the workspace-health matrix",
+      "OPERATIONS / ANALYTICS / ACTIVITY are now ported: the workspace-health matrix, records-by-type, the evidence activity series and the activity feed",
+      "as SECTIONS rather than a segmented control. The web needs one because Overview would otherwise carry eleven modules on a desktop page; a phone scrolls, and hiding the health matrix behind a tap on the surface whose job is to say whether anything is wrong would be the wrong trade. The content is the web's.",
+      "records-by-type reads GET /v1/dashboard/records-by-type, the SERVER aggregate over every active row in scope. The web has a second path that classifies a sampled list client-side and marks it sampled; Native does not carry it, because a donut drawn from one page would be a picture of the page rather than of the workspace. A category outside the canonical seven is dropped - a client cannot fabricate a slice for a category the product has no vocabulary for.",
+      "the activity series is the one place a sample is unavoidable, so the sample is REPORTED. It reads its own wider evidence page and says so when the cursor shows there is more; a record outside the window is not clamped into the edge bucket, which would draw a spike that never happened.",
+      "two workspace-health labels are copied verbatim rather than paraphrased, because both were corrected upstream FOR honesty: 'Records with a report' is not 'records complete' (the metric counts status REPORTED, and complete reads as deliverable-complete), and delivery issues stay separate from review flags so a delivery failure never implies a content-integrity problem.",
+      "integrity issues come from domain state (trust.needingAttention), never from the caller's own inbox - the web records that the tile once counted whatever one person could see and fell when they archived it",
+      "an unknown case count renders as an em dash, and a plan with no published storage limit is not a plan that is 0% full",
       "no enterprise CommandCenter fork (native targets the self-serve surface)",
       "device acceptance outstanding",
     ],

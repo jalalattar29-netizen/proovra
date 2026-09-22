@@ -52,6 +52,15 @@ import {
   buildHomeStorage,
   type HomeSources,
 } from "../../src/product/home-dashboard";
+import { HomeOperationsSections } from "../../src/ui/home-operations-sections";
+import {
+  RECORDS_BY_TYPE_PATH,
+  buildActivityGroups,
+  buildActivitySeries,
+  buildWorkspaceHealth,
+  parseRecordsByType,
+  type TypeDistribution,
+} from "../../src/product/home-operations";
 
 type EvidenceItem = {
   id: string;
@@ -79,6 +88,19 @@ export default function HomeScreen() {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [sources, setSources] = useState<HomeSources>({});
+  const [distribution, setDistribution] = useState<TypeDistribution | null>(null);
+  /**
+   * A WIDER evidence page, for the activity series only.
+   *
+   * The five recent records drive the Recent list. A fourteen-day chart drawn
+   * from five rows would be a picture of the list, not of the fortnight — so
+   * the series reads its own page and reports `sampled` when even that does
+   * not cover the window.
+   */
+  const [seriesSource, setSeriesSource] = useState<{
+    createdAtIsoList: Array<string | null>;
+    hasMore: boolean;
+  } | null>(null);
 
   /**
    * The canonical Home reads, settled together.
@@ -94,7 +116,18 @@ export default function HomeScreen() {
     const scoped = (path: string) =>
       teamId ? `${path}${path.includes("?") ? "&" : "?"}teamId=${encodeURIComponent(teamId)}` : path;
 
-    const [evidence, commandCenter, trustSummary, billing, reports, intake, inbox, caseList] =
+    const [
+      evidence,
+      commandCenter,
+      trustSummary,
+      billing,
+      reports,
+      intake,
+      inbox,
+      caseList,
+      recordsByType,
+      seriesPage,
+    ] =
       await Promise.allSettled([
         apiFetch("/v1/evidence?scope=active&limit=5"),
         teamId ? apiFetch(scoped("/v1/dashboard/command-center")) : Promise.resolve(null),
@@ -104,6 +137,11 @@ export default function HomeScreen() {
         teamId ? apiFetch(scoped("/v1/workflow/intake-links")) : Promise.resolve(null),
         apiFetch("/v1/me/inbox?pageSize=50"),
         apiFetch("/v1/cases?limit=5"),
+        // The SERVER's aggregate over every active record in scope. The web
+        // has a second path that classifies a sampled list client-side; a
+        // donut drawn from one page would be a picture of the page.
+        teamId ? apiFetch(scoped(RECORDS_BY_TYPE_PATH)) : Promise.resolve(null),
+        apiFetch("/v1/evidence?scope=active&limit=200"),
       ]);
 
     const ok = <T,>(r: PromiseSettledResult<T>): T | undefined =>
@@ -117,6 +155,23 @@ export default function HomeScreen() {
       intakeLinks: ok(intake),
       inbox: ok(inbox),
     });
+
+    const byType = ok(recordsByType);
+    setDistribution(byType ? parseRecordsByType(byType) : null);
+
+    const page = ok(seriesPage) as
+      | { items?: Array<{ createdAt?: string | null }>; nextCursor?: string | null }
+      | undefined;
+    setSeriesSource(
+      page
+        ? {
+            createdAtIsoList: (page.items ?? []).map((i) => i.createdAt ?? null),
+            // The cursor is the server saying there is more, which is exactly
+            // what makes the series a sample.
+            hasMore: typeof page.nextCursor === "string" && page.nextCursor.length > 0,
+          }
+        : null,
+    );
 
     const caseRows = ok(caseList) as { items?: CaseItem[]; cases?: CaseItem[] } | undefined;
     setCases(caseRows?.items ?? caseRows?.cases ?? []);
@@ -139,6 +194,30 @@ export default function HomeScreen() {
   const summary = buildHomeSummary(sources, priorities);
   const kpis = buildHomeKpis(sources);
   const storage = buildHomeStorage(sources);
+
+  const health = buildWorkspaceHealth({
+    commandCenter: sources.commandCenter,
+    trustSummary: sources.trustSummary,
+    reports: sources.reports,
+    inbox: sources.inbox,
+    // The cases read can fail on its own; null then means unknown, and the
+    // row says "—" rather than claiming the workspace has no matters.
+    activeCases: state === "ready" ? cases.length : null,
+    storageLabel: storage ? `${storage.usedLabel} of ${storage.limitLabel}` : null,
+    // The projection carries a 0-1 fraction, or null when the plan states no
+    // limit. Null stays null: a plan with no published limit is not a plan
+    // that is 0% full.
+    storagePercent:
+      storage && storage.fraction !== null ? Math.round(storage.fraction * 100) : null,
+  });
+
+  const series = seriesSource ? buildActivitySeries(seriesSource) : null;
+
+  const activity = buildActivityGroups({
+    recentEvidence: { items },
+    reports: sources.reports,
+    intakeLinks: sources.intakeLinks,
+  });
 
   return (
     <ProovraShell>
@@ -270,6 +349,22 @@ export default function HomeScreen() {
             </ProovraText>
           </ProovraCard>
         </ProovraSection>
+      ) : null}
+
+      {/*
+        The web keeps these behind a segmented control because Overview would
+        otherwise carry eleven modules on one desktop page. A phone scrolls,
+        and hiding the health matrix behind a tap on the surface whose job is
+        to say whether anything is wrong would be the wrong trade. The content
+        is the web’s; the arrangement is the responsive adaptation.
+      */}
+      {state === "ready" ? (
+        <HomeOperationsSections
+          health={health}
+          distribution={distribution}
+          series={series}
+          activity={activity}
+        />
       ) : null}
     </ProovraShell>
   );
