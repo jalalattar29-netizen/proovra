@@ -104,3 +104,66 @@ export function trustSectionTone(state: TrustSectionState): ProovraStatusTone {
   if (state.phase === "empty") return "neutral";
   return "verified";
 }
+
+// ---------------------------------------------------------------------------
+// Version history
+// ---------------------------------------------------------------------------
+
+/**
+ * A trust article's published history.
+ *
+ * This is the part of a trust surface that makes it checkable rather than
+ * merely present: a reader asking "did this say the same thing last quarter?"
+ * has no way to answer it from the current text alone. The web offers it, so
+ * the device does.
+ */
+export function buildTrustArticleVersionsPath(articleId: string): string {
+  return `/v1/trust/articles/${encodeURIComponent(articleId)}/versions`;
+}
+
+export interface TrustArticleVersion {
+  id: string;
+  version: number;
+  title: string;
+  summary: string;
+  body: string;
+  createdAtIso: string | null;
+  publishedAtIso: string | null;
+}
+
+export function parseTrustArticleVersions(payload: unknown): TrustArticleVersion[] {
+  return rows(obj(payload).versions)
+    .map((raw) => {
+      const v = obj(raw);
+      const id = str(v.id);
+      const version = typeof v.version === "number" && Number.isFinite(v.version)
+        ? v.version
+        : null;
+      if (!id || version === null) return null;
+      return {
+        id,
+        version,
+        title: str(v.title) ?? `Version ${version}`,
+        summary: str(v.summary) ?? "",
+        body: str(v.body) ?? "",
+        createdAtIso: str(v.createdAtUtc) ?? str(v.createdAt),
+        publishedAtIso: str(v.publishedAtUtc) ?? str(v.publishedAt),
+      };
+    })
+    .filter((v): v is TrustArticleVersion => v !== null)
+    // Newest first: the question is usually "what changed", not "how did it
+    // start".
+    .sort((a, b) => b.version - a.version);
+}
+
+/**
+ * Whether a version was ever published.
+ *
+ * An unpublished draft in a version list is NOT a historical position the
+ * platform held, and labelling it as one would put words in the product's
+ * mouth. The list marks it instead of hiding it, because its existence is
+ * still part of the record.
+ */
+export function isPublishedVersion(version: TrustArticleVersion): boolean {
+  return version.publishedAtIso !== null;
+}

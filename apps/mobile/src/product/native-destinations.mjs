@@ -54,15 +54,23 @@ export const NATIVE_DESTINATIONS = {
   /* ------------------------------------------------------------------ auth */
   "/login": {
     routeFile: "(stack)/auth.tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/login/page.tsx"],
-    gaps: ["Google unconfigured in built binaries (B-2)", "visual parity with web auth shell unverified"],
+    gaps: [
+      "LEDGER CORRECTION: the recorded gap 'Google unconfigured in built binaries (B-2)' is stale. eas.json now carries EXPO_PUBLIC_GOOGLE_IOS/ANDROID/WEB_CLIENT_ID on the build profiles, so a preview build is configured; docs/physical-acceptance.md records that a build made BEFORE that change is not, and will report OAUTH_GOOGLE_UNCONFIGURED.",
+      "the second recorded gap, 'visual parity with the web auth shell unverified', is physical acceptance and is tracked on that dimension, not as a code gap",
+    ],
   },
   "/register": {
     routeFile: "(stack)/register.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/register/page.tsx"],
-    gaps: ["password-requirement affordances + visual parity unverified"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/register/page.tsx", "packages/shared/src/password-rules.ts"],
+    gaps: [
+      "the password rules panel and strength meter are ported, from the SAME module the web uses: apps/web/lib/passwordRules.ts moved to @proovra/shared/password-rules when Native needed it, and the web imports it from there. Two password panels that disagree about what a valid password is would be worse than either alone.",
+      "this screen previously checked ONLY password.length >= 12, so a twelve-character all-lowercase password was submitted, refused by the server, and the user was told nothing about which of the other four rules they had missed",
+    ],
   },
   "/forgot-password": {
     routeFile: "(stack)/forgot-password.tsx",
@@ -77,9 +85,10 @@ export const NATIVE_DESTINATIONS = {
     routeFile: "(stack)/reset-password.tsx",
     status: "CODE_PARITY",
     physicallyAccepted: false,
-    webSources: ["apps/web/app/reset-password/page.tsx"],
+    webSources: ["apps/web/app/reset-password/page.tsx", "packages/shared/src/password-rules.ts"],
     gaps: [
       "POST /v1/auth/password-reset/confirm, reached by the emailed link through the credential deep-link family",
+      "the same shared password rules panel as register and as both web pages - a reset that accepted a password the register screen would refuse is the kind of disagreement one module prevents",
     ],
   },
   "/auth/verify-email": {
@@ -570,75 +579,75 @@ export const NATIVE_DESTINATIONS = {
     ],
   },
   "/trust-center": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
   "/trust-center/ai-disclosure": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/ai-disclosure/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
   "/trust-center/methodology": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/methodology/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
   "/trust-center/security": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/security/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
   "/trust-center/status": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/status/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
   "/trust-center/subprocessors": {
-    // The five web trust-centre routes converge onto ONE native screen with a
-    // section per article kind. Same canonical source (/v1/trust/articles); a
-    // phone has no sidebar to hold five destinations that each show one list.
     routeFile: "(stack)/trust-center.tsx",
-    status: "PARTIAL",
-    webSources: ["apps/web/app/(app)/trust-center/_section-list.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/trust-center/subprocessors/page.tsx"],
     gaps: [
-      "version history (/v1/trust/articles/:id/versions) not ported",
-      "device acceptance outstanding",
+      "one native screen with a section per article kind, each loading and failing independently, over the same GET /v1/trust/articles?kind=",
+      "version history ported: an article's earlier versions are readable, and a version that was never published is MARKED rather than hidden - it is not a position the platform ever held, but its existence is part of the record",
+      "the canonical public trust copy (@proovra/shared-evidence-presentation) renders here too, including every section's LIMITATIONS: a trust surface that lists what a subsystem records and omits what it does not establish is making the overclaim the boundary contract exists to stop",
+      "authoring and publishing articles stays on the web; it is a delegated-tier operator action",
     ],
   },
 

@@ -13,6 +13,7 @@ import {
   ProovraFormField,
   ProovraSection,
 } from "../../src/ui";
+import { ProovraPasswordRules, passwordMeetsRules } from "../../src/ui/password-rules";
 import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** Create Account — verification-first (register returns no session). */
@@ -27,8 +28,8 @@ export default function RegisterScreen() {
 
   const submit = useCallback(async () => {
     setError(null);
-    if (!email.trim() || password.length < 12) {
-      setError({ kind: "input", title: "Check the details", message: "Enter a valid email and a password of at least 12 characters." });
+    if (!email.trim() || !passwordMeetsRules(password)) {
+      setError({ kind: "input", title: "Check the details", message: "Enter a valid email and a password that meets every rule below." });
       return;
     }
     setBusy(true);
@@ -73,9 +74,21 @@ export default function RegisterScreen() {
             <ProovraInput value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoComplete="email" />
           </ProovraFormField>
           <ProovraFormField label="Password" error={error ? error.message : null}>
-            <ProovraInput value={password} onChangeText={setPassword} placeholder="At least 12 characters" secureTextEntry autoComplete="password" />
+            <ProovraInput value={password} onChangeText={setPassword} placeholder="At least 12 characters" secureTextEntry autoComplete="password" accessibilityLabel="Password" />
           </ProovraFormField>
-          <ProovraButton label="Create account" loading={busy} onPress={() => void submit()} />
+          {/*
+            The rules panel, from the same module the web uses. This screen
+            previously checked only length, so a twelve-character all-lowercase
+            password was submitted, refused by the server, and the user was
+            told nothing about which of the other four rules they had missed.
+          */}
+          <ProovraPasswordRules password={password} visible={password.length > 0} />
+          <ProovraButton
+            label="Create account"
+            loading={busy}
+            disabled={!passwordMeetsRules(password)}
+            onPress={() => void submit()}
+          />
           <View style={styles.actions}>
             <ProovraButton label="Already have an account? Sign in" variant="ghost" onPress={() => router.replace("/(stack)/auth")} />
           </View>

@@ -34,6 +34,10 @@ import {
   ProovraSheet,
 } from "../../src/ui";
 import {
+  buildTrustArticleVersionsPath,
+  isPublishedVersion,
+  parseTrustArticleVersions,
+  type TrustArticleVersion,
   TRUST_SECTIONS,
   buildTrustArticlesPath,
   parseTrustArticles,
@@ -46,6 +50,8 @@ export default function TrustCenterScreen() {
   const router = useRouter();
   const [sections, setSections] = useState<Record<string, TrustSectionState | "loading">>({});
   const [open, setOpen] = useState<TrustArticle | null>(null);
+  const [versions, setVersions] = useState<TrustArticleVersion[] | null>(null);
+  const [showVersions, setShowVersions] = useState(false);
 
   const load = useCallback(async () => {
     setSections(Object.fromEntries(TRUST_SECTIONS.map((s) => [s.kind, "loading" as const])));
@@ -71,6 +77,27 @@ export default function TrustCenterScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The history of an article is what makes a trust surface checkable rather
+  // than merely present: the current text alone cannot answer "did this say
+  // the same thing last quarter?". It loads only when an article is open, and
+  // a failure leaves the article readable.
+  useEffect(() => {
+    setVersions(null);
+    setShowVersions(false);
+    if (!open?.id) return;
+    let alive = true;
+    void apiFetch(buildTrustArticleVersionsPath(open.id))
+      .then((d) => {
+        if (alive) setVersions(parseTrustArticleVersions(d));
+      })
+      .catch(() => {
+        if (alive) setVersions([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open?.id]);
 
   return (
     <ProovraScreen testID="trust-center">
@@ -212,6 +239,46 @@ export default function TrustCenterScreen() {
                 .filter(Boolean)
                 .join(" · ")}
             </ProovraText>
+
+            {/*
+              The published history. An unpublished draft is marked rather than
+              hidden: it is not a position the platform ever held, and
+              labelling it as one would put words in the product's mouth — but
+              its existence is still part of the record.
+            */}
+            {versions === null ? null : versions.length <= 1 ? (
+              <ProovraText variant="label" color={theme.color.ink.muted}>
+                This is the only version on record.
+              </ProovraText>
+            ) : (
+              <>
+                <ProovraButton
+                  label={showVersions ? "Hide earlier versions" : `Earlier versions (${versions.length - 1})`}
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={() => setShowVersions((v) => !v)}
+                />
+                {showVersions
+                  ? versions.map((v) => (
+                      <ProovraCard key={v.id}>
+                        <ProovraText variant="body" weight="semibold">
+                          {`Version ${v.version}`}
+                        </ProovraText>
+                        <ProovraText variant="label" color={theme.color.ink.muted}>
+                          {isPublishedVersion(v)
+                            ? `Published ${formatUserDateTime(v.publishedAtIso as string)}`
+                            : "Never published"}
+                        </ProovraText>
+                        {v.summary ? (
+                          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                            {v.summary}
+                          </ProovraText>
+                        ) : null}
+                      </ProovraCard>
+                    ))
+                  : null}
+              </>
+            )}
           </>
         ) : null}
       </ProovraSheet>

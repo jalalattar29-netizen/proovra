@@ -16,6 +16,11 @@
       "import": "./dist/custody-hash.js",
       "default": "./dist/custody-hash.js"
     },
+    "./password-rules": {
+      "types": "./dist/password-rules.d.ts",
+      "import": "./dist/password-rules.js",
+      "default": "./dist/password-rules.js"
+    },
     "./legal": {
       "types": "./dist/legal.d.ts",
       "import": "./dist/legal.js",

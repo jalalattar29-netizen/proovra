@@ -5,6 +5,7 @@ import { confirmPasswordReset } from "../../src/auth/auth-api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField, ProovraSection } from "../../src/ui";
+import { ProovraPasswordRules, passwordMeetsRules } from "../../src/ui/password-rules";
 import { AuthBrandHeader } from "../../src/ui/brand";
 
 /** Reset password — reached via the emailed deep link (carries ?token=). */
@@ -23,8 +24,8 @@ export default function ResetPasswordScreen() {
       setError({ kind: "input", title: "Link invalid", message: "This reset link is missing or expired. Request a new one." });
       return;
     }
-    if (password.length < 12) {
-      setError({ kind: "input", title: "Check the details", message: "Password must be at least 12 characters." });
+    if (!passwordMeetsRules(password)) {
+      setError({ kind: "input", title: "Check the details", message: "Your new password must meet every rule below." });
       return;
     }
     setBusy(true);
@@ -55,9 +56,15 @@ export default function ResetPasswordScreen() {
           ) : (
             <>
               <ProovraFormField label="New password" error={error ? error.message : null}>
-                <ProovraInput value={password} onChangeText={setPassword} placeholder="At least 12 characters" secureTextEntry />
+                <ProovraInput value={password} onChangeText={setPassword} placeholder="At least 12 characters" secureTextEntry accessibilityLabel="New password" />
               </ProovraFormField>
-              <ProovraButton label="Update password" loading={busy} onPress={() => void submit()} />
+              <ProovraPasswordRules password={password} visible={password.length > 0} />
+              <ProovraButton
+                label="Update password"
+                loading={busy}
+                disabled={!passwordMeetsRules(password)}
+                onPress={() => void submit()}
+              />
             </>
           )}
         </ProovraCard>
