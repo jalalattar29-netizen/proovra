@@ -297,6 +297,7 @@ export function ProovraInput({
   editable = true,
   onSubmitEditing,
   accessibilityLabel,
+  multiline,
   testID,
 }: {
   value: string;
@@ -317,6 +318,11 @@ export function ProovraInput({
    * the user types.
    */
   accessibilityLabel?: string;
+  /**
+   * A field that holds more than a line — a discussion reply, a note. It grows
+   * to a readable height and keeps Return as a newline rather than a submit.
+   */
+  multiline?: boolean;
   testID?: string;
 }) {
   const { isRTL } = useLocale();
@@ -336,8 +342,11 @@ export function ProovraInput({
       autoComplete={autoComplete}
       editable={editable}
       onSubmitEditing={onSubmitEditing}
+      multiline={multiline}
+      textAlignVertical={multiline ? "top" : undefined}
       accessibilityLabel={accessibilityLabel ?? placeholder}
       style={[
+        multiline ? { minHeight: 96, paddingTop: 12 } : null,
         styles.input,
         { textAlign: isRTL ? "right" : "left", borderColor: focused ? theme.color.accent.a500 : theme.color.border.strong },
         !editable && styles.inputDisabled,

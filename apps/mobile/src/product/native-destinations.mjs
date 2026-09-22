@@ -280,14 +280,23 @@ export const NATIVE_DESTINATIONS = {
   "/collaboration-teams/[teamId]": {
     routeFile: "(stack)/collaboration-team/[id].tsx",
     status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx"],
-    gaps: ["no membership or role mutation"],
+    gaps: [
+      "ported: overview, members, pending invitations and Discussion (threads, messages, resolve/reopen)",
+      "not ported: the Work tab (the group's operational assignments) and the Settings tab, which also carries the administrative activity history",
+      "a 404 from any collaboration route is an AUTHORIZATION answer - the routes answer 404 rather than 403 so a denial never confirms a group exists - and Discussion renders it as 'open to reviewers', never as 'there is nothing here'",
+    ],
   },
   "/collaboration-teams/[teamId]/collaboration": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/collaboration-team/[id].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx"],
-    gaps: ["collaboration hub (threads/discussion) has no Native destination"],
+    gaps: [
+      "RETIRED DESTINATION, and the web page says so: it was a second page for one group holding five panels, three of which did nothing at all (guests wrote a row and sent no invitation, access review enforced no decision, the Daily digest had no consumer in the worker) and two of which duplicated existing surfaces. It survives as a redirect to ?tab=discussion because the links are in people's history.",
+      "Native converges the same way: the conversation lives beside the group's members on (stack)/collaboration-team/[id].tsx, not behind a second screen.",
+    ],
   },
   "/collaboration-teams/invites/[token]/accept": {
     routeFile: "(stack)/invite/[token].tsx",
@@ -384,12 +393,6 @@ export const NATIVE_DESTINATIONS = {
     status: "NOT_STARTED",
     webSources: ["apps/web/app/(app)/settings/reviewer-criteria/page.tsx"],
     gaps: [],
-  },
-  "/settings/security/saml": {
-    routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/(app)/settings/security/saml/page.tsx"],
-    gaps: ["inherits account.settings; SSO config is plausibly enterprise — needs product review"],
   },
 
   /* ------------------------------------------------- public / trust / legal */

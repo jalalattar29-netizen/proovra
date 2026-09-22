@@ -171,6 +171,22 @@ export const REGISTRY_GAP_RESOLUTIONS = [
     marker: "/v1/me/inbox",
     note: "caller-scoped operational attention stream over the same /v1/me/inbox envelope as notifications",
   },
+  {
+    // The page inherits account.settings purely because it sits under
+    // /settings/, and that gate is ACCOUNT / requiredActiveSpace NONE, which
+    // put an enterprise SAML console in the Native scope for every free
+    // personal account. Its own header says what it actually is: a
+    // "documented procurement deep-link path that server-redirects to the
+    // canonical SAML console at /security-center/sso" — and the registry
+    // lists security_center.sso in ENTERPRISE_ONLY_ROUTE_IDS. The gate
+    // belongs to the destination, as it does for every other redirect shim;
+    // this one is not recognised by redirectTarget() only because the file
+    // renders explanatory JSX alongside the redirect.
+    routePath: "/settings/security/saml",
+    inheritsRouteId: "security_center.sso",
+    marker: "server-redirects to the canonical SAML console",
+    note: "procurement compatibility deep-link; the canonical console is /security-center/sso, which is ENTERPRISE_ONLY",
+  },
 ];
 
 /* ------------------------------------------------------------ classification */
@@ -347,6 +363,42 @@ export async function buildManifest() {
     const abs = resolve(MOBILE_ROOT, "../..", r.sourceFile);
     const { route, via } = resolveGoverningRoute(r.routePath, registry);
     let { classification, evidence } = classify(route, enterpriseIds);
+
+    /*
+     * A CITED GAP MAY OVERRIDE AN INHERITED GATE, NEVER THE PAGE'S OWN.
+     *
+     * A page with no registry entry of its own takes the nearest ancestor's,
+     * which is right for a tree and wrong for a compatibility path that lives
+     * under one prefix and belongs to another: /settings/security/saml takes
+     * account.settings (ACCOUNT, NONE) purely because it sits under /settings,
+     * while its own header says it server-redirects to an ENTERPRISE_ONLY
+     * console. An enterprise SAML admin surface was therefore in scope for
+     * every free personal account.
+     *
+     * The override applies ONLY when the gate was inherited (via ancestor),
+     * and only while the citation is still present in the page — a rewrite
+     * invalidates the row rather than silently preserving a stale decision.
+     * A page with its OWN entry is never overridden: that entry is the
+     * registry speaking directly, and this file does not get to argue with it.
+     */
+    const gapOverride =
+      via && via.startsWith("ancestor:")
+        ? REGISTRY_GAP_RESOLUTIONS.find((g) => g.routePath === r.routePath)
+        : undefined;
+    if (gapOverride) {
+      const pageSrc = existsSync(abs) ? readFileSync(abs, "utf8") : "";
+      if (!pageSrc.includes(gapOverride.marker)) {
+        classification = "UNRESOLVED";
+        evidence = `registry-gap citation stale: "${gapOverride.marker}" no longer appears in ${r.sourceFile}`;
+      } else {
+        const inherited = registry.find((x) => x.id === gapOverride.inheritsRouteId) ?? null;
+        const c = classify(inherited, enterpriseIds);
+        classification = c.classification;
+        evidence =
+          `registry gap (overrides inherited ${via}) → ${gapOverride.inheritsRouteId} ` +
+          `(${gapOverride.note}); ${c.evidence}`;
+      }
+    }
 
     if (classification === "UNRESOLVED") {
       // 1. Redirect shim — inherit the destination's disposition.

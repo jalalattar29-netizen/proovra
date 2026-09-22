@@ -28,6 +28,7 @@ import {
   ProovraErrorState,
   ProovraLoadingState,
 } from "../../../src/ui";
+import { DiscussionSection } from "../../../src/ui/discussion-section";
 
 type Phase = "loading" | "ready" | "error" | "notfound" | "unavailable";
 
@@ -121,8 +122,26 @@ export default function CollaborationTeamDetailScreen() {
         </ProovraSection>
       ) : null}
 
+      {/*
+        The conversation, beside the group's members. This is where the retired
+        /collaboration-teams/:teamId/collaboration route now lands.
+      */}
+      <DiscussionSection teamId={String(id)} />
+
+      {/*
+        This said "Manage members, roles and invitations in the PROOVRA web
+        app" — a web handoff in copy on a manifest-required surface. Workspace
+        membership IS native now, so it points there instead of off the device.
+        Collaboration-group roles remain a web surface; that is stated, not
+        implied by an absence.
+      */}
+      <ProovraButton
+        label="People in this workspace"
+        variant="secondary"
+        onPress={() => router.push("/(stack)/workspace-people")}
+      />
       <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
-        Manage members, roles and invitations in the PROOVRA web app.
+        Roles inside this collaboration group are managed in the PROOVRA web app.
       </ProovraText>
     </ProovraScreen>
   );
