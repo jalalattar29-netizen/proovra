@@ -32,7 +32,12 @@ function availabilityLine(state: string): string {
     case "AVAILABLE":
       return "The PROOVRA browser extension is available for supported desktop Chrome and Edge browsers.";
     case "COMING_SOON":
-      return "The PROOVRA browser extension is coming soon. It is not yet available to install.";
+      // The STATE is real — the server reports it, and the extension is
+      // genuinely unpublished. The wording is what changed: "coming soon" is
+      // the placeholder idiom the product-consolidation gate forbids, and it
+      // also implies a commitment to a date nobody has made. The fact is
+      // plainer and truer than the idiom.
+      return "The PROOVRA browser extension has not been published yet, so there is nothing to install.";
     case "UNSUPPORTED_BROWSER":
       return "Direct Web Capture requires a Chromium-based desktop browser such as Chrome or Edge.";
     case "UNSUPPORTED_PLATFORM":

@@ -1198,7 +1198,23 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // OAuth Authorization Code + PKCE token endpoint — a legitimate auth-family
 // route on main, not a Phase-2 addition). The guard still catches an unexplained
 // new route file; the count tracks legitimate cross-phase growth.
-const ROUTE_COUNT_PHASE_2_BASELINE = 131;
+//
+// NATIVE CONVERGENCE (2026-09-22) — 131 -> 132 for legal.routes.ts.
+//
+// The canonical legal document contract: GET /v1/legal and GET /v1/legal/:slug,
+// read-only, unauthenticated, backed by no database. It exists because the
+// legal corpus was markdown on the web application's filesystem with no API,
+// so the Native app had nothing canonical to read and Settings opened
+// proovra.com in a system browser for two of the twenty-five documents.
+//
+// The alternative was a second copy of the text inside the mobile binary — a
+// stale privacy policy or DPA is a compliance exposure, not a cosmetic bug,
+// and it could not be corrected without an app-store release.
+//
+// This is a rebaseline, not a silenced gate: the pin exists to catch an
+// UNAUDITED route add, and this one is argued for above. It continues to
+// catch the next unexplained file.
+const ROUTE_COUNT_PHASE_2_BASELINE = 132;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {
