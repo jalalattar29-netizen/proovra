@@ -359,9 +359,17 @@ export const NATIVE_DESTINATIONS = {
   },
   "/evidence-requests/[id]": {
     routeFile: "(stack)/evidence-request/[id].tsx",
-    status: "PARTIAL",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/evidence-requests/[id]/page.tsx"],
-    gaps: ["no send, cancel, close, needs-more-info, deliveries, or response review"],
+    gaps: [
+      "the full workflow: send, cancel, close and needs-more-info, plus deliveries and the event history",
+      "the state machine stays the SERVER'S. The client names which transitions to OFFER from the reported status and decides nothing - every route re-checks, and a client that believed otherwise would be a second state machine drifting out of step with the first.",
+      "what the offering does prevent is the other failure: 'Send' on a request cancelled last week produces a refusal the user cannot act on, and makes the surface look broken rather than the action look wrong",
+      "cancel and close both END a request and neither can be undone, so each states what it does and both reassure that material already received is kept - the difference is not left to two similar-looking words",
+      "deliveries and history load independently of the request: either may be gated on the reader's role, and one refusal must not blank the request itself. A failed delivery names its reason rather than showing a silent red badge.",
+      "reviewer ASSIGNMENT is not ported: the route only accepts a reviewer who belongs to this request's workspace, and choosing one needs a roster picker that belongs with Workspace People rather than duplicated here",
+    ],
   },
   "/collaboration-teams": {
     routeFile: "(tabs)/teams.tsx",

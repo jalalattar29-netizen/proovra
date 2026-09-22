@@ -5,16 +5,31 @@
  * Honest states for invalid / expired / unauthorized (404/403).
  */
 import { useCallback, useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { Alert, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch } from "../../../src/api";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { formatUserDateTime } from "../../../src/lib/date";
 import {
+  availableRequestTransitions,
+  buildRequestDeliveriesPath,
+  buildRequestEventsPath,
+  buildRequestTransitionPath,
+  buildTransitionBody,
+  deliveryTone,
   parseEvidenceRequestDetail,
+  parseRequestDeliveries,
+  parseRequestEvents,
   requestStatusDisplay,
+  requestTransitionConsequence,
+  requestTransitionIsDestructive,
+  requestTransitionLabel,
   type EvidenceRequestDetail,
+  type RequestDelivery,
+  type RequestEvent,
+  type RequestTransition,
 } from "../../../src/product/evidence-requests";
+import { humanizeEnum } from "../../../src/product/domain-display";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -24,6 +39,10 @@ import {
   ProovraButton,
   ProovraBadge,
   ProovraListRow,
+  ProovraEmpty,
+  ProovraSheet,
+  ProovraInput,
+  ProovraFormField,
   ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
@@ -38,6 +57,11 @@ export default function EvidenceRequestDetailScreen() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [request, setRequest] = useState<EvidenceRequestDetail | null>(null);
+  const [deliveries, setDeliveries] = useState<RequestDelivery[] | null>(null);
+  const [events, setEvents] = useState<RequestEvent[] | null>(null);
+  const [pending, setPending] = useState<RequestTransition | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -52,6 +76,15 @@ export default function EvidenceRequestDetailScreen() {
       }
       setRequest(detail);
       setPhase("ready");
+
+      // Deliveries and history load independently: either may be gated on the
+      // reader's role, and one refusal must not blank the request itself.
+      void apiFetch(buildRequestDeliveriesPath(String(id)))
+        .then((d) => setDeliveries(parseRequestDeliveries(d)))
+        .catch(() => setDeliveries([]));
+      void apiFetch(buildRequestEventsPath(String(id)))
+        .then((d) => setEvents(parseRequestEvents(d)))
+        .catch(() => setEvents([]));
     } catch (err) {
       const safe = toSafeUserError(err);
       if (safe.kind === "notFound") setPhase("notfound");
@@ -62,6 +95,25 @@ export default function EvidenceRequestDetailScreen() {
       }
     }
   }, [id]);
+
+  const runTransition = useCallback(async () => {
+    if (!id || !pending) return;
+    const transition = pending;
+    setBusy(true);
+    try {
+      await apiFetch(buildRequestTransitionPath(String(id), transition), {
+        method: "POST",
+        body: JSON.stringify(buildTransitionBody(note)),
+      });
+      setPending(null);
+      setNote("");
+      await load();
+    } catch (err) {
+      Alert.alert("Could not complete that", toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [id, pending, note, load]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -114,6 +166,115 @@ export default function EvidenceRequestDetailScreen() {
       {openForFulfilment ? (
         <ProovraButton label="Capture evidence to fulfil" onPress={() => router.push("/capture")} />
       ) : null}
+
+      {/*
+        The transitions this request's CURRENT status permits. The state
+        machine is the server's and every route re-checks; what this prevents
+        is the other failure — offering "Send" on a request cancelled last
+        week, which produces a refusal the user cannot act on and makes the
+        surface look broken rather than the action look wrong.
+      */}
+      {request && availableRequestTransitions(request.status ?? "").length > 0 ? (
+        <ProovraSection title="Actions">
+          <ProovraCard>
+            {availableRequestTransitions(request.status ?? "").map((t) => (
+              <ProovraButton
+                key={t}
+                label={requestTransitionLabel(t)}
+                variant={requestTransitionIsDestructive(t) ? "ghost" : "secondary"}
+                loading={busy}
+                onPress={() => setPending(t)}
+              />
+            ))}
+          </ProovraCard>
+        </ProovraSection>
+      ) : null}
+
+      <ProovraSection title="Deliveries">
+        {deliveries === null ? (
+          <ProovraLoadingState label="Loading deliveries" />
+        ) : deliveries.length === 0 ? (
+          <ProovraEmpty presence="inline" title="This request has not been sent yet." />
+        ) : (
+          <ProovraCard>
+            {deliveries.map((d) => (
+              <View key={d.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
+                  <ProovraText variant="bodySm">{d.recipientLabel ?? d.channel ?? "Recipient"}</ProovraText>
+                  <ProovraBadge label={d.status} tone={deliveryTone(d.status)} />
+                </View>
+                {/* A failure that says nothing is worse than one that names itself. */}
+                {d.failureReason ? (
+                  <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                    {d.failureReason}
+                  </ProovraText>
+                ) : d.sentAtIso ? (
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    {formatUserDateTime(d.sentAtIso)}
+                  </ProovraText>
+                ) : null}
+              </View>
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+
+      <ProovraSection title="History">
+        {events === null ? (
+          <ProovraLoadingState label="Loading history" />
+        ) : events.length === 0 ? (
+          <ProovraEmpty presence="inline" title="Nothing has happened on this request yet." />
+        ) : (
+          <ProovraCard>
+            {events.map((e) => (
+              <View key={e.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
+                <ProovraText variant="bodySm">{humanizeEnum(e.type)}</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {[e.actorLabel, e.occurredAtIso ? formatUserDateTime(e.occurredAtIso) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </ProovraText>
+                {e.note ? (
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {e.note}
+                  </ProovraText>
+                ) : null}
+              </View>
+            ))}
+          </ProovraCard>
+        )}
+      </ProovraSection>
+
+      <ProovraSheet
+        visible={pending !== null}
+        title={pending ? requestTransitionLabel(pending) : ""}
+        onClose={() => { setPending(null); setNote(""); }}
+      >
+        {/*
+          Cancel and close both END a request and neither can be undone, so the
+          difference is stated rather than left to be inferred from two similar
+          words.
+        */}
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {pending ? requestTransitionConsequence(pending) : ""}
+        </ProovraText>
+        <ProovraFormField label="Note (optional)">
+          <ProovraInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Recorded on the request"
+            multiline
+            autoCapitalize="sentences"
+            accessibilityLabel="Note"
+          />
+        </ProovraFormField>
+        <ProovraButton
+          label={pending ? requestTransitionLabel(pending) : "Confirm"}
+          variant={pending && requestTransitionIsDestructive(pending) ? "danger" : "primary"}
+          loading={busy}
+          onPress={() => void runTransition()}
+        />
+      </ProovraSheet>
     </ProovraScreen>
   );
 }
