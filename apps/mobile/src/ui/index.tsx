@@ -28,6 +28,7 @@ import { useResponsive, FORM_MAX_WIDTH } from "../theme/responsive";
 import type { ProovraStatusTone } from "@proovra/ui";
 
 export * from "./shell";
+export * from "./patterns";
 
 const MIN_TOUCH = 44; // WCAG / platform minimum touch target
 
@@ -276,6 +277,7 @@ export function ProovraInput({
   autoComplete,
   editable = true,
   onSubmitEditing,
+  accessibilityLabel,
   testID,
 }: {
   value: string;
@@ -287,6 +289,15 @@ export function ProovraInput({
   autoComplete?: "email" | "password" | "off";
   editable?: boolean;
   onSubmitEditing?: () => void;
+  /**
+   * The field's accessible name.
+   *
+   * This used to fall back to `placeholder` alone, so a field whose label sits
+   * OUTSIDE the input — which is every ProovraFormField — had no accessible
+   * name at all. A placeholder is also not a label: it disappears as soon as
+   * the user types.
+   */
+  accessibilityLabel?: string;
   testID?: string;
 }) {
   const { isRTL } = useLocale();
@@ -306,7 +317,7 @@ export function ProovraInput({
       autoComplete={autoComplete}
       editable={editable}
       onSubmitEditing={onSubmitEditing}
-      accessibilityLabel={placeholder}
+      accessibilityLabel={accessibilityLabel ?? placeholder}
       style={[
         styles.input,
         { textAlign: isRTL ? "right" : "left", borderColor: focused ? theme.color.accent.a500 : theme.color.border.strong },
@@ -325,12 +336,30 @@ export function ProovraFormField({
   error?: string | null;
   children: React.ReactNode;
 }) {
+  /**
+   * Name the control from the field label, and append the error when there is
+   * one, so a screen reader announces "Email, Enter a valid email address."
+   * rather than an unnamed text box beside an unattached sentence.
+   *
+   * React Native has no `htmlFor` / `aria-describedby`, so the association has
+   * to be made by passing the name down — which is why ProovraInput now takes
+   * an explicit `accessibilityLabel` instead of borrowing the placeholder. A
+   * placeholder was never a label: it disappears as soon as the user types.
+   */
+  const named = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<{ accessibilityLabel?: string }>, {
+        accessibilityLabel:
+          (children.props as { accessibilityLabel?: string }).accessibilityLabel ??
+          (error ? `${label}, ${error}` : label),
+      })
+    : children;
+
   return (
     <View style={styles.field}>
       <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
         {label}
       </ProovraText>
-      {children}
+      {named}
       {error ? (
         <ProovraText variant="label" color={theme.color.status.risk.fg}>
           {error}
