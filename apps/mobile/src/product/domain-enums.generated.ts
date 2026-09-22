@@ -1,7 +1,8 @@
 /**
  * GENERATED FILE — DO NOT EDIT BY HAND.
  *
- * Source:    services/api/prisma/schema.prisma
+ * Sources:   services/api/prisma/schema.prisma
+ *            packages/shared/src/collaboration-team.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -62,3 +63,50 @@ export const CASE_STATUSES = [
   "ARCHIVED",
 ] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
+
+/** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_STATUSES`. */
+export const COLLABORATION_TEAM_ASSIGNMENT_STATUSES = [
+  "OPEN",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "REASSIGNED",
+  "CANCELLED",
+] as const;
+export type CollaborationTeamAssignmentStatus = (typeof COLLABORATION_TEAM_ASSIGNMENT_STATUSES)[number];
+
+/** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES`. */
+export const COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES = [
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+] as const;
+export type CollaborationTeamAssignmentPriority = (typeof COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES)[number];
+
+/** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_TARGETS`. */
+export const COLLABORATION_TEAM_ASSIGNMENT_TARGETS = [
+  "CASE",
+  "EVIDENCE",
+  "REVIEW",
+] as const;
+export type CollaborationTeamAssignmentTarget = (typeof COLLABORATION_TEAM_ASSIGNMENT_TARGETS)[number];
+
+/** `@proovra/shared` `COLLABORATION_TEAM_ROLES`. */
+export const COLLABORATION_TEAM_ROLES = [
+  "LEAD",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "EXTERNAL",
+] as const;
+export type CollaborationTeamRole = (typeof COLLABORATION_TEAM_ROLES)[number];
+
+/** `@proovra/shared` `COLLABORATION_TEAM_TYPES`. */
+export const COLLABORATION_TEAM_TYPES = [
+  "GENERAL",
+  "INVESTIGATION",
+  "LEGAL",
+  "REVIEW",
+  "COMPLIANCE",
+] as const;
+export type CollaborationTeamType = (typeof COLLABORATION_TEAM_TYPES)[number];

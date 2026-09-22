@@ -12,6 +12,12 @@
  * derive them from. What matters is that a value cannot exist canonically and
  * be absent natively — `test/domain-enums-generated.test.mjs` fails on that.
  *
+ * A canonical value does not always live in schema.prisma. The Collaboration
+ * Team assignment vocabulary is authored in `packages/shared` as a frozen
+ * tuple, and it is the same kind of fact: a value that exists canonically must
+ * not be absent natively. Those are derived here too, from the shared source,
+ * rather than retyped into a native module where nothing could catch a drift.
+ *
  *   node apps/mobile/tools/generate-domain-enums.mjs [--check]
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -21,6 +27,10 @@ import { dirname, resolve } from "node:path";
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SCHEMA = resolve(HERE, "../../../services/api/prisma/schema.prisma");
 export const OUT_TS = resolve(HERE, "../src/product/domain-enums.generated.ts");
+export const SHARED_COLLABORATION = resolve(
+  HERE,
+  "../../../packages/shared/src/collaboration-team.ts",
+);
 
 /** The enums Native renders. Adding one here makes it available natively. */
 export const DERIVED_ENUMS = [
@@ -30,6 +40,31 @@ export const DERIVED_ENUMS = [
   ["EvidenceLifecycleState", "EVIDENCE_LIFECYCLE_STATES"],
   ["CaseStatus", "CASE_STATUSES"],
 ];
+
+/**
+ * The `as const` tuples derived from `packages/shared`.
+ *
+ * [exported const name, native type name]. The native name is the shared
+ * type's own, so a reader moving between the two apps sees one vocabulary.
+ */
+export const DERIVED_SHARED_TUPLES = [
+  ["COLLABORATION_TEAM_ASSIGNMENT_STATUSES", "CollaborationTeamAssignmentStatus"],
+  ["COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES", "CollaborationTeamAssignmentPriority"],
+  ["COLLABORATION_TEAM_ASSIGNMENT_TARGETS", "CollaborationTeamAssignmentTarget"],
+  ["COLLABORATION_TEAM_ROLES", "CollaborationTeamRole"],
+  ["COLLABORATION_TEAM_TYPES", "CollaborationTeamType"],
+];
+
+/** Read one `export const NAME = ["A", "B"] as const;` tuple's members. */
+export function readSharedTuple(source, name) {
+  const re = new RegExp(
+    `export const ${name} = \\[([\\s\\S]*?)\\] as const;`,
+    "m",
+  );
+  const m = re.exec(source);
+  if (!m) throw new Error(`collaboration-team.ts: ${name} not found`);
+  return [...m[1].matchAll(/"([A-Z][A-Z0-9_]*)"/g)].map((x) => x[1]);
+}
 
 /** Read one `enum Name { A B }` block's members, comments stripped. */
 export function readEnum(schema, name) {
@@ -45,6 +80,7 @@ export function readEnum(schema, name) {
 
 export function generate() {
   const schema = readFileSync(SCHEMA, "utf8");
+  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
   const blocks = DERIVED_ENUMS.map(([prismaName, constName]) => {
     const values = readEnum(schema, prismaName);
     if (values.length === 0) throw new Error(`schema.prisma: enum ${prismaName} is empty`);
@@ -59,11 +95,25 @@ export type ${type} = (typeof ${constName})[number];
 `;
   });
 
+  for (const [constName, typeName] of DERIVED_SHARED_TUPLES) {
+    const values = readSharedTuple(shared, constName);
+    if (values.length === 0) {
+      throw new Error(`collaboration-team.ts: ${constName} is empty`);
+    }
+    blocks.push(`/** \`@proovra/shared\` \`${constName}\`. */
+export const ${constName} = [
+${values.map((v) => `  "${v}",`).join("\n")}
+] as const;
+export type ${typeName} = (typeof ${constName})[number];
+`);
+  }
+
   return {
     source: `/**
  * GENERATED FILE — DO NOT EDIT BY HAND.
  *
- * Source:    services/api/prisma/schema.prisma
+ * Sources:   services/api/prisma/schema.prisma
+ *            packages/shared/src/collaboration-team.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -73,9 +123,10 @@ export type ${type} = (typeof ${constName})[number];
  */
 
 ${blocks.join("\n")}`,
-    counts: Object.fromEntries(
-      DERIVED_ENUMS.map(([p, c]) => [c, readEnum(schema, p).length]),
-    ),
+    counts: Object.fromEntries([
+      ...DERIVED_ENUMS.map(([p, c]) => [c, readEnum(schema, p).length]),
+      ...DERIVED_SHARED_TUPLES.map(([c]) => [c, readSharedTuple(shared, c).length]),
+    ]),
   };
 }
 

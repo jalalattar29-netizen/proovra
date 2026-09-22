@@ -26,6 +26,9 @@ import {
   DERIVED_ENUMS,
   OUT_TS,
   SCHEMA,
+  DERIVED_SHARED_TUPLES,
+  readSharedTuple,
+  SHARED_COLLABORATION,
 } from "../tools/generate-domain-enums.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -166,4 +169,46 @@ test("integrity honesty — failure is risk, unverified is never 'verified'", as
   assert.equal(d.evidenceStatusDisplay("FAILED_HASH_MISMATCH").tone, "risk");
   assert.notEqual(d.verificationStatusDisplay("REVIEW_REQUIRED").tone, "verified");
   assert.notEqual(d.verificationStatusDisplay("MATERIALS_AVAILABLE").tone, "verified");
+});
+
+/* ------------------------------ values that live in packages/shared, not Prisma */
+
+test("the collaboration assignment vocabulary is read from the shared source", () => {
+  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
+  for (const [constName] of DERIVED_SHARED_TUPLES) {
+    const values = readSharedTuple(shared, constName);
+    assert.ok(values.length > 0, `${constName} is empty`);
+    // Every value the shared tuple declares must reach the native module, or a
+    // new canonical status would render natively as an unmapped string.
+    for (const v of values) {
+      assert.match(readFileSync(OUT_TS, "utf8"), new RegExp(`"${v}"`));
+    }
+  }
+});
+
+test("a tuple that is not there fails loudly rather than silently emitting nothing", () => {
+  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
+  assert.throws(() => readSharedTuple(shared, "NO_SUCH_TUPLE"), /not found/);
+});
+
+test("the three assignment tuples carry exactly the canonical values", () => {
+  const shared = readFileSync(SHARED_COLLABORATION, "utf8");
+  assert.deepEqual(readSharedTuple(shared, "COLLABORATION_TEAM_ASSIGNMENT_TARGETS"), [
+    "CASE",
+    "EVIDENCE",
+    "REVIEW",
+  ]);
+  assert.deepEqual(readSharedTuple(shared, "COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES"), [
+    "LOW",
+    "NORMAL",
+    "HIGH",
+    "URGENT",
+  ]);
+  assert.deepEqual(readSharedTuple(shared, "COLLABORATION_TEAM_ASSIGNMENT_STATUSES"), [
+    "OPEN",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "REASSIGNED",
+    "CANCELLED",
+  ]);
 });

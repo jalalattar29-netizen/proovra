@@ -1,8 +1,18 @@
 /**
- * COLLABORATION TEAM DETAIL (Native Convergence §7/D). Members, roles and pending
- * invites of one collaboration group, from GET /v1/collaboration-teams/:id (the
- * server binds it to the active workspace). Read surface — governance/admin stays
- * on web. A 403 means no collaboration capability → honest unavailable state.
+ * COLLABORATION TEAM DETAIL — the whole group surface.
+ *
+ * Overview, members, pending invitations, Discussion, WORK and SETTINGS, from
+ * GET /v1/collaboration-teams/:id (the server binds it to the active
+ * workspace). A 403 means no collaboration capability, which is an honest
+ * unavailable state rather than a failure.
+ *
+ * Work and Settings used to be absent, and the screen said "Roles inside this
+ * collaboration group are managed in the PROOVRA web app" — a web handoff in
+ * copy on a manifest-required surface. Both are here now, each gated the way
+ * the routes gate them.
+ *
+ * A 404 from any collaboration route is an AUTHORIZATION answer: the routes
+ * answer 404 rather than 403 so a denial never confirms a group exists.
  */
 import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
@@ -29,6 +39,8 @@ import {
   ProovraLoadingState,
 } from "../../../src/ui";
 import { DiscussionSection } from "../../../src/ui/discussion-section";
+import { CollaborationWorkSection } from "../../../src/ui/collaboration-work";
+import { CollaborationSettingsSection } from "../../../src/ui/collaboration-settings";
 
 type Phase = "loading" | "ready" | "error" | "notfound" | "unavailable";
 
@@ -128,21 +140,25 @@ export default function CollaborationTeamDetailScreen() {
       */}
       <DiscussionSection teamId={String(id)} />
 
+      {/* The group's operational assignments — every filter server-side. */}
+      <CollaborationWorkSection teamId={String(id)} members={t.members} />
+
       {/*
-        This said "Manage members, roles and invitations in the PROOVRA web
-        app" — a web handoff in copy on a manifest-required surface. Workspace
-        membership IS native now, so it points there instead of off the device.
-        Collaboration-group roles remain a web surface; that is stated, not
-        implied by an absence.
+        Settings, roles and the administrative history. Group roles were
+        previously described as "managed in the PROOVRA web app"; they are
+        managed here, gated on LEAD exactly as the web tab gates them.
       */}
+      <CollaborationSettingsSection
+        team={t}
+        onChanged={() => void load()}
+        onDeleted={() => router.back()}
+      />
+
       <ProovraButton
         label="People in this workspace"
         variant="secondary"
         onPress={() => router.push("/(stack)/workspace-people")}
       />
-      <ProovraText variant="label" color={theme.color.ink.muted} style={styles.note}>
-        Roles inside this collaboration group are managed in the PROOVRA web app.
-      </ProovraText>
     </ProovraScreen>
   );
 }
