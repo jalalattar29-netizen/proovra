@@ -11,7 +11,19 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// The shared envelope reader is substituted FOR REAL, never stubbed: whether
+// an unreadable response refuses instead of reporting an empty list is exactly
+// what these tests are for.
+const ENVELOPE_URL =
+  "data:text/javascript," +
+  encodeURIComponent(
+    ts.transpileModule(readFileSync(resolve(HERE, "../src/product/envelope.ts"), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    }).outputText,
+  );
+
 const src = readFileSync(resolve(HERE, "../src/product/intake-links.ts"), "utf8")
+  .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
   .replace(/^import type .*$/m, "")
   .replace(/^import \{ humanizeEnum \}.*$/m, "function humanizeEnum(v){return v.charAt(0)+v.slice(1).toLowerCase().replace(/_/g,' ');}");
 const js = ts.transpileModule(src, {
@@ -73,7 +85,18 @@ test("the action paths are the canonical ones", () => {
 
 test("submissions carry only the MASKED contact previews", () => {
   const [s] = mod.parseIntakeSubmissions({
-    submissions: [
+    // The route answers { link, sessions, totals }. It has never sent a
+    // "submissions" key, which is what the parser used to read.
+    link: {
+      id: "l1",
+      teamId: "t1",
+      intakeMode: "EXTERNAL_IDENTIFIED",
+      recipientLabel: "Sam",
+      workflowTemplateSlug: "incident",
+      workflowTemplateName: "Incident intake",
+    },
+    totals: { sessions: 1, submitted: 1, inProgress: 0, evidenceProduced: 1 },
+    sessions: [
       {
         id: "s1",
         status: "SUBMITTED",
@@ -92,14 +115,26 @@ test("submissions carry only the MASKED contact previews", () => {
 
 test("an anonymous submission falls back to its pseudonym", () => {
   const [s] = mod.parseIntakeSubmissions({
-    submissions: [{ id: "s1", pseudonym: "Contributor 4", submitterDisplayName: null }],
+    sessions: [{ id: "s1", pseudonym: "Contributor 4", submitterDisplayName: null }],
   });
   assert.equal(s.submitterName, null);
   assert.equal(s.pseudonym, "Contributor 4");
 });
 
+test("an envelope we cannot read refuses instead of reporting no submissions", () => {
+  // THE DEFECT. The parser read "submissions" - a key the route has never
+  // sent - then fell through to the bare payload and returned []. Every link
+  // with submissions on it showed "No submissions yet", which is a false
+  // statement about a real intake and indistinguishable from an empty one.
+  assert.equal(mod.parseIntakeSubmissions({ sessions: [{ id: "s1" }] }).length, 1);
+  assert.deepEqual(mod.parseIntakeSubmissions({ sessions: [] }), []);
+  for (const bad of [null, undefined, 7, { link: {}, totals: {} }, { sessions: {} }]) {
+    assert.throws(() => mod.parseIntakeSubmissions(bad), /Unreadable list response/);
+  }
+});
+
 test("a submission with no id is dropped", () => {
-  assert.equal(mod.parseIntakeSubmissions({ submissions: [{ id: "s1" }, {}, null] }).length, 1);
+  assert.equal(mod.parseIntakeSubmissions({ sessions: [{ id: "s1" }, {}, null] }).length, 1);
 });
 
 test("resending is offered only when the raw token is in hand", () => {

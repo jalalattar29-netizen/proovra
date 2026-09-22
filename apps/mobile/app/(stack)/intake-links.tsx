@@ -53,7 +53,10 @@ export default function IntakeLinksScreen() {
   const [error, setError] = useState<SafeError | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  // null is LOADING. A failure carries its reason, because "no submissions"
+  // and "we could not read them" are different answers about a real intake.
   const [submissions, setSubmissions] = useState<IntakeSubmission[] | null>(null);
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<IntakeLinkItem | null>(null);
   const [revealReason, setRevealReason] = useState("");
   const [revealed, setRevealed] = useState<RevealedContact | null>(null);
@@ -82,18 +85,35 @@ export default function IntakeLinksScreen() {
   }, [teamId, ctxLoading]);
 
 
-  /** Submissions for one link, loaded when it is opened. */
-  const openSubmissions = useCallback(async (item: IntakeLinkItem) => {
-    const next = openId === item.id ? null : item.id;
-    setOpenId(next);
+  /** Submissions for one link. The retry in the panel uses this too. */
+  const loadSubmissions = useCallback(async (linkId: string) => {
     setSubmissions(null);
-    if (!next) return;
+    setSubmissionsError(null);
     try {
-      setSubmissions(parseIntakeSubmissions(await apiFetch(buildIntakeSubmissionsPath(item.id))));
-    } catch {
+      setSubmissions(parseIntakeSubmissions(await apiFetch(buildIntakeSubmissionsPath(linkId))));
+    } catch (err) {
+      // Covers a refusal, a transport failure, and a response this build
+      // cannot read - parseIntakeSubmissions throws on an envelope that is not
+      // the contract rather than reporting an intake with no submissions.
+      setSubmissionsError(toSafeUserError(err).message);
       setSubmissions([]);
     }
-  }, [openId]);
+  }, []);
+
+  /** Opening a link loads its submissions; tapping it again closes it. */
+  const openSubmissions = useCallback(
+    async (item: IntakeLinkItem) => {
+      const next = openId === item.id ? null : item.id;
+      setOpenId(next);
+      if (!next) {
+        setSubmissions(null);
+        setSubmissionsError(null);
+        return;
+      }
+      await loadSubmissions(next);
+    },
+    [openId, loadSubmissions],
+  );
 
   const toggleArchive = useCallback(
     async (item: IntakeLinkItem, archived: boolean) => {
@@ -216,6 +236,11 @@ export default function IntakeLinksScreen() {
             </ProovraText>
             {submissions === null ? (
               <ProovraLoadingState label="Loading submissions" />
+            ) : submissionsError ? (
+              <ProovraErrorState
+                message={submissionsError}
+                onRetry={() => void loadSubmissions(openId)}
+              />
             ) : submissions.length === 0 ? (
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 Nobody has used this link yet.

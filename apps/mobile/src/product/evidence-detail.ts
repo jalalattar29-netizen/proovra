@@ -405,6 +405,7 @@ export function commentVisibilityLabel(visibility: EvidenceCommentVisibility): s
 // module runs it.
 
 import { humanizeEnum } from "./domain-display";
+import { listEnvelope } from "./envelope";
 import { GENERATION_REQUEST_OUTCOMES } from "./domain-enums.generated";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -679,30 +680,6 @@ export function buildLegalNotesPath(evidenceId: string): string {
 }
 export function buildLegalNotePath(evidenceId: string, noteId: string): string {
   return `${buildLegalNotesPath(evidenceId)}/${encodeURIComponent(noteId)}`;
-}
-
-/**
- * The array inside a list envelope, by the keys the server actually uses.
- *
- * A TOP-LEVEL array is accepted — some list routes answer bare — and so is
- * any of the named keys. Anything else THROWS, because an envelope we cannot
- * read is not an empty list: it is a contract we no longer match, and the two
- * must never look the same on screen. Returning `[]` here is precisely how
- * this pair shipped unable to display a single row while every test passed —
- * the screen said "no legal notes on this record" about a record that had
- * them, which in an evidence product is a false statement about the file.
- *
- * The caller's existing `catch` turns this into the failed state, so a shape
- * change surfaces as a failure the user can report rather than as absence.
- */
-function listEnvelope(payload: unknown, keys: readonly string[]): unknown[] {
-  if (Array.isArray(payload)) return payload;
-  const d = obj(payload);
-  for (const key of keys) {
-    const value = d[key];
-    if (Array.isArray(value)) return value;
-  }
-  throw new Error(`Unreadable list response: expected an array under ${keys.join(" or ")}.`);
 }
 
 export const INTERNAL_MATERIALS_BOUNDARY =

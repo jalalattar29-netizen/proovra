@@ -34,7 +34,11 @@ const DISPLAY_URL =
       .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`),
   );
 
+const ENVELOPE_URL =
+  "data:text/javascript," + encodeURIComponent(compile("../src/product/envelope.ts"));
+
 const src = readFileSync(resolve(HERE, "../src/product/evidence-detail.ts"), "utf8")
+  .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
   .replace(/from ["']\.\/domain-display["']/g, `from "${DISPLAY_URL}"`)
   .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`);
 const js = ts.transpileModule(src, {

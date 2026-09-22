@@ -12,6 +12,8 @@
  * These pure parsers read the enriched list projection defensively (item.link.*
  * with a flat fallback) and map status → tone; the RN screen is a thin shell.
  */
+
+import { listEnvelope } from "./envelope";
 import type { ProovraStatusTone } from "@proovra/ui";
 import { humanizeEnum } from "./domain-display";
 
@@ -120,10 +122,19 @@ function is(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
+/**
+ * `GET /v1/workflow/intake-links/:id/submissions` sends
+ * `{ link, sessions, totals }` - `loadIntakeLinkSubmissions` in
+ * services/api/src/services/intake-link-lifecycle.service.ts:705, and the web
+ * drawer reads `payload.sessions` (SubmissionsDrawer.tsx:92).
+ *
+ * This read `submissions`, a key the route has never sent, then fell through
+ * to the bare payload and reported an empty list - so the drawer showed "no
+ * submissions" for every link that had them. The per-session field names below
+ * were right all along; only the envelope was guessed.
+ */
 export function parseIntakeSubmissions(payload: unknown): IntakeSubmission[] {
-  const raw = io(payload)["submissions"] ?? payload;
-  const list = Array.isArray(raw) ? raw : [];
-  return list
+  return listEnvelope(payload, ["sessions", "submissions"])
     .map((entry) => {
       const s = io(entry);
       const id = is(s["id"]);
