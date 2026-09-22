@@ -91,6 +91,7 @@ import {
 } from "../../../src/product/evidence-detail";
 import { isDerivedReviewEligible } from "../../../src/product/derived-review";
 import { DerivedReviewTab } from "../../../src/ui/derived-review-tab";
+import { ReviewerWorkflowPanel } from "../../../src/ui/reviewer-workflow-panel";
 import { usePlatformContext } from "../../../src/product/platform-context";
 import {
   buildLibraryQuery,
@@ -134,6 +135,7 @@ type Tab =
   | "technical"
   | "links"
   | "materials"
+  | "review"
   | "discussion"
   | "artifacts"
   | "duplicates"
@@ -633,6 +635,12 @@ export default function EvidenceDetailScreen() {
     ...(materials.length > 0
       ? ([{ key: "materials", label: "Files" }] as Array<{ key: Tab; label: string }>)
       : []),
+    // The state of the review, which is the only part of a record that
+    // changes while it is being reviewed. Reviewer operations, so it follows
+    // the same entitlement the Internal tab does.
+    ...(reviewerOperations
+      ? ([{ key: "review", label: "Review" }] as Array<{ key: Tab; label: string }>)
+      : []),
     { key: "discussion", label: "Discussion" },
     { key: "artifacts", label: "Artifacts" },
     { key: "duplicates", label: "Duplicates" },
@@ -1087,6 +1095,10 @@ export default function EvidenceDetailScreen() {
             </ProovraText>
           ) : null}
         </ProovraSection>
+      ) : null}
+
+      {tab === "review" && reviewerOperations ? (
+        <ReviewerWorkflowPanel evidenceId={String(id)} />
       ) : null}
 
       {tab === "internal" && reviewerOperations ? (

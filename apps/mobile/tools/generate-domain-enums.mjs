@@ -35,6 +35,30 @@ export const SHARED_OUTPUT_LIFECYCLE = resolve(
   HERE,
   "../../../packages/shared/src/evidence-output-lifecycle.ts",
 );
+/**
+ * The ONE definition of "this review status is a verdict".
+ *
+ * Not a Prisma enum and not a shared tuple — a Set in an API module kept
+ * dependency-free on purpose. Same kind of fact all the same: a value that
+ * exists canonically must not be absent natively.
+ */
+export const REVIEW_STATUS_VOCABULARY = resolve(
+  HERE,
+  "../../../services/api/src/services/evidence-review/review-status-vocabulary.ts",
+);
+
+/** [exported Set name, source file]. */
+export const DERIVED_SETS = [
+  ["DECISION_DERIVED_WORKFLOW_STATUSES", REVIEW_STATUS_VOCABULARY],
+];
+
+/** Read one `export const NAME: ReadonlySet<string> = new Set([...])`. */
+export function readSet(source, name) {
+  const re = new RegExp(`export const ${name}[^=]*= new Set\\(\\[([\\s\\S]*?)\\]\\)`, "m");
+  const m = re.exec(source);
+  if (!m) throw new Error(`review-status-vocabulary.ts: ${name} not found`);
+  return [...m[1].matchAll(/"([A-Z][A-Z0-9_]*)"/g)].map((x) => x[1]);
+}
 
 /** The enums Native renders. Adding one here makes it available natively. */
 export const DERIVED_ENUMS = [
@@ -47,6 +71,8 @@ export const DERIVED_ENUMS = [
   ["EvidenceAnnotationType", "EVIDENCE_ANNOTATION_TYPES"],
   ["EvidenceAnnotationCoordinateSpace", "EVIDENCE_ANNOTATION_COORDINATE_SPACES"],
   ["EvidenceRelationshipType", "EVIDENCE_RELATIONSHIP_TYPES"],
+  ["EvidenceReviewWorkflowStatus", "EVIDENCE_REVIEW_WORKFLOW_STATUSES"],
+  ["EvidenceReviewWorkflowPriority", "EVIDENCE_REVIEW_WORKFLOW_PRIORITIES"],
 ];
 
 /**
@@ -123,6 +149,21 @@ export type ${typeName} = (typeof ${constName})[number];
 `);
   }
 
+  for (const [constName, file] of DERIVED_SETS) {
+    const values = readSet(sharedSource(file), constName);
+    if (values.length === 0) throw new Error(`${constName} is empty in its source`);
+    blocks.push(`/**
+ * \`review-status-vocabulary.ts\` \`${constName}\`.
+ *
+ * Statuses only the decision authority may produce. A surface that OFFERED
+ * one would be offering to forge a verdict.
+ */
+export const ${constName} = [
+${values.map((v) => `  "${v}",`).join("\n")}
+] as const;
+`);
+  }
+
   return {
     source: `/**
  * GENERATED FILE — DO NOT EDIT BY HAND.
@@ -130,6 +171,7 @@ export type ${typeName} = (typeof ${constName})[number];
  * Sources:   services/api/prisma/schema.prisma
  *            packages/shared/src/collaboration-team.ts
  *            packages/shared/src/evidence-output-lifecycle.ts
+ *            services/api/src/services/evidence-review/review-status-vocabulary.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -145,6 +187,7 @@ ${blocks.join("\n")}`,
         c,
         readSharedTuple(sharedSource(file), c).length,
       ]),
+      ...DERIVED_SETS.map(([c, file]) => [c, readSet(sharedSource(file), c).length]),
     ]),
   };
 }

@@ -4,6 +4,7 @@
  * Sources:   services/api/prisma/schema.prisma
  *            packages/shared/src/collaboration-team.ts
  *            packages/shared/src/evidence-output-lifecycle.ts
+ *            services/api/src/services/evidence-review/review-status-vocabulary.ts
  * Generator: apps/mobile/tools/generate-domain-enums.mjs
  * Guard:     apps/mobile/test/domain-enums-generated.test.mjs
  *
@@ -107,6 +108,32 @@ export const EVIDENCE_RELATIONSHIP_TYPES = [
 ] as const;
 export type EvidenceRelationshipType = (typeof EVIDENCE_RELATIONSHIP_TYPES)[number];
 
+/** Prisma enum `EvidenceReviewWorkflowStatus`. */
+export const EVIDENCE_REVIEW_WORKFLOW_STATUSES = [
+  "NOT_STARTED",
+  "IN_REVIEW",
+  "NEEDS_INFO",
+  "READY_FOR_EXTERNAL_REVIEW",
+  "APPROVED_INTERNAL",
+  "ESCALATED",
+  "CLOSED",
+  "QUEUED",
+  "ASSIGNED",
+  "RESPONSE_RECEIVED",
+  "REJECTED_INSUFFICIENT",
+  "REOPENED",
+] as const;
+export type EvidenceReviewWorkflowStatus = (typeof EVIDENCE_REVIEW_WORKFLOW_STATUSES)[number];
+
+/** Prisma enum `EvidenceReviewWorkflowPriority`. */
+export const EVIDENCE_REVIEW_WORKFLOW_PRIORITIES = [
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+] as const;
+export type EvidenceReviewWorkflowPriority = (typeof EVIDENCE_REVIEW_WORKFLOW_PRIORITIES)[number];
+
 /** `@proovra/shared` `COLLABORATION_TEAM_ASSIGNMENT_STATUSES`. */
 export const COLLABORATION_TEAM_ASSIGNMENT_STATUSES = [
   "OPEN",
@@ -169,3 +196,15 @@ export const GENERATION_REQUEST_OUTCOMES = [
   "REQUESTER_REQUIRED",
 ] as const;
 export type GenerationRequestOutcome = (typeof GENERATION_REQUEST_OUTCOMES)[number];
+
+/**
+ * `review-status-vocabulary.ts` `DECISION_DERIVED_WORKFLOW_STATUSES`.
+ *
+ * Statuses only the decision authority may produce. A surface that OFFERED
+ * one would be offering to forge a verdict.
+ */
+export const DECISION_DERIVED_WORKFLOW_STATUSES = [
+  "APPROVED_INTERNAL",
+  "REJECTED_INSUFFICIENT",
+  "NEEDS_INFO",
+] as const;

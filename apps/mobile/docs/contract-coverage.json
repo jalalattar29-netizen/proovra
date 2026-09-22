@@ -167,7 +167,7 @@
       "parser": "parseEvidenceLifecycle",
       "builder": "(literal) /v1/evidence/:p",
       "method": "GET",
-      "site": "[id].tsx:226",
+      "site": "[id].tsx:228",
       "path": "/v1/evidence/:p",
       "route": "GET /v1/evidence/:id",
       "serverKeys": [
@@ -184,7 +184,7 @@
       "parser": "parseDuplicateReport",
       "builder": "buildDuplicatesPath",
       "method": "GET",
-      "site": "[id].tsx:314",
+      "site": "[id].tsx:316",
       "path": "/v1/evidence/:p/duplicates",
       "route": "GET /v1/evidence/:id/duplicates",
       "serverKeys": [
@@ -208,7 +208,7 @@
       "parser": "parseEvidencePickerRows",
       "builder": "buildLibraryQuery",
       "method": "GET",
-      "site": "[id].tsx:460",
+      "site": "[id].tsx:462",
       "path": "/v1/evidence",
       "route": "GET /v1/evidence",
       "serverKeys": [
@@ -227,7 +227,7 @@
       "parser": "parseOriginalLink",
       "builder": "buildEvidenceOriginalPath",
       "method": "GET",
-      "site": "[id].tsx:534",
+      "site": "[id].tsx:536",
       "path": "/v1/evidence/:p/original",
       "route": "GET /v1/evidence/:id/original",
       "serverKeys": [
@@ -1515,6 +1515,40 @@
       "why": "reads request"
     },
     {
+      "parser": "parseReviewerWorkflow",
+      "builder": "buildReviewerWorkflowPath",
+      "method": "GET",
+      "site": "reviewer-workflow-panel.tsx:82",
+      "path": "/v1/evidence/:p/reviewer-workflow",
+      "route": "GET /v1/evidence/:id/reviewer-workflow",
+      "serverKeys": [
+        "available",
+        "workflow"
+      ],
+      "parserKeys": [
+        "available",
+        "workflow"
+      ],
+      "verdict": "OK",
+      "why": "reads available, workflow"
+    },
+    {
+      "parser": "parseReviewerWorkflowEvents",
+      "builder": "buildReviewerWorkflowEventsPath",
+      "method": "GET",
+      "site": "reviewer-workflow-panel.tsx:85",
+      "path": "/v1/evidence/:p/reviewer-workflow/events",
+      "route": "GET /v1/evidence/:id/reviewer-workflow/events",
+      "serverKeys": [
+        "items"
+      ],
+      "parserKeys": [
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
       "parser": "parseTotpEnrollment",
       "builder": "(literal) /v1/identity/mfa/enroll/start",
       "method": "POST",
@@ -1556,7 +1590,7 @@
   ],
   "unbound": [],
   "counts": {
-    "OK": 76,
+    "OK": 78,
     "MISMATCH": 0,
     "UNRESOLVED": 0,
     "N/A": 0
