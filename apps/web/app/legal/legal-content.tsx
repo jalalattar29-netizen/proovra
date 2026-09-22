@@ -1,77 +1,24 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { getLegalDocument, LEGAL_SLUGS, titleFromSlug } from "@proovra/shared/legal";
 import type { ReactNode } from "react";
 
-const LEGAL_LOCALE = "en";
+/**
+ * LEGAL IDENTITY AND TEXT COME FROM `@proovra/shared/legal`.
+ *
+ * The slug allow-list, the titles and the document bodies used to live here,
+ * which made this file the authority and left `services/api` — and therefore
+ * Native — with nothing to read. They now live in one shared module generated
+ * from `apps/web/content/legal/en/*.md`, which remains the single authored
+ * corpus. See `apps/web/scripts/generate-legal-corpus.mjs` for why the text is
+ * generated into a module rather than read from disk at request time.
+ *
+ * These names are re-exported unchanged so every existing call site, and the
+ * tests that assert this file governs the slug universe, keep working.
+ */
+export { titleFromSlug };
 
-export const ALLOWED_LEGAL_SLUGS = new Set([
-  "privacy",
-  "terms",
-  "cookies",
-  "security",
-  "dpa",
-  "law-enforcement",
-  "aup",
-  "dmca",
-  "support",
-  "transparency",
-  "impressum",
-  "evidence-handling",
-  "verification-methodology",
-  "subprocessors",
-  "data-retention",
-  "incident-response",
-  "abuse-reporting",
-  "toms",
-  "legal-changelog",
-  // Legal Center hardening — five new policy surfaces. Each is a
-  // standalone legal document with explicit scope, boundary language,
-  // and links to the Trust Center.
-  "ai-use-policy",
-  "verification-disclaimer",
-  "privacy-requests",
-  "refund-policy",
-  "accessibility",
-  // Capture-channel disclosure. A "how it works" page for the browser
-  // extension's Direct Web Capture (UC-1) — NOT the extension install
-  // target. Explains what the channel records, its integrity model, and
-  // the trust boundary, reusing the canonical acquisition boundary voice.
-  "direct-web-capture",
-]);
-
-export function titleFromSlug(slug: string) {
-  if (!slug) return "Legal";
-
-  const map: Record<string, string> = {
-    privacy: "Privacy Policy",
-    terms: "Terms of Service",
-    cookies: "Cookie Policy",
-    security: "Security & Responsible Disclosure",
-    dpa: "Data Processing Agreement (DPA)",
-    "law-enforcement": "Law Enforcement Request Policy",
-    aup: "Acceptable Use Policy",
-    dmca: "Copyright & DMCA Policy",
-    support: "Support Policy",
-    transparency: "Transparency Policy",
-    impressum: "Impressum",
-    "evidence-handling": "Evidence Handling Policy",
-    "verification-methodology": "Evidence Verification Methodology",
-    subprocessors: "Subprocessors",
-    "data-retention": "Data Retention Policy",
-    "incident-response": "Incident Response Policy",
-    "abuse-reporting": "Abuse & Unlawful Content Reporting",
-    toms: "Technical & Organizational Measures",
-    "legal-changelog": "Legal Changelog",
-    "ai-use-policy": "AI Use Policy",
-    "verification-disclaimer": "Verification Disclaimer",
-    "privacy-requests": "Privacy Requests",
-    "refund-policy": "Consumer Cancellation and Refund Policy",
-    accessibility: "Accessibility Statement",
-    "direct-web-capture": "How Direct Web Capture Works",
-  };
-
-  return map[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
-}
+export const ALLOWED_LEGAL_SLUGS: ReadonlySet<string> = new Set<string>(
+  LEGAL_SLUGS,
+);
 
 /**
  * THE one canonical authenticated-link mapper (routing-correction
@@ -117,15 +64,19 @@ export function isAuthenticatedPublicExit(href: string): boolean {
   return /^\/trust(?:[/?#]|$)/.test(href);
 }
 
+/**
+ * The canonical markdown for `slug`.
+ *
+ * Still `async` because both readers `await` it, and because that is what a
+ * content lookup should look like from a page's point of view — but it no
+ * longer touches the filesystem. It throws for an unknown slug exactly as the
+ * previous `readFile` did (both callers gate on `ALLOWED_LEGAL_SLUGS` first and
+ * catch).
+ */
 export async function loadLegalMarkdown(slug: string) {
-  const filePath = path.join(
-    process.cwd(),
-    "content",
-    "legal",
-    LEGAL_LOCALE,
-    `${slug}.md`,
-  );
-  return readFile(filePath, "utf8");
+  const doc = getLegalDocument(slug);
+  if (!doc) throw new Error(`Unknown legal document: ${slug}`);
+  return doc.content;
 }
 
 

@@ -16,6 +16,11 @@
       "import": "./dist/custody-hash.js",
       "default": "./dist/custody-hash.js"
     },
+    "./legal": {
+      "types": "./dist/legal.d.ts",
+      "import": "./dist/legal.js",
+      "default": "./dist/legal.js"
+    },
     "./i18n": {
       "types": "./dist/i18n.d.ts",
       "import": "./dist/i18n.js",

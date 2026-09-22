@@ -31,6 +31,7 @@ import { citizenCaptureRoutes } from "./routes/citizen-capture.routes.js";
 // import + registration below closes the gap that left the routes
 // unwired in production builds.
 import { captureTrustRoutes } from "./routes/capture-trust.routes.js";
+import { legalRoutes } from "./routes/legal.routes.js";
 // Phase 2A — Reviewer Workspace routes (coding schemas, disagreements,
 // QC samples, reviewer metrics). Canonical module; same wire-up gap.
 import { reviewerWorkspaceRoutes } from "./routes/reviewer-workspace.routes.js";
@@ -1293,6 +1294,7 @@ allowedHeaders: [
   // Phase 4A — Trust Center + Organization Governance. Registered after
   // the core workspace routes so governance depends on team context.
   await app.register(trustAndGovernanceRoutes);
+  await app.register(legalRoutes);
   await app.register(searchRoutes);
   await app.register(internalReindexRoutes);
   await app.register(reviewerOpsRoutes);

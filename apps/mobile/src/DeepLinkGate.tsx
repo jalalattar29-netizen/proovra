@@ -19,6 +19,7 @@ import { isCaptureActive } from "./capture/active-capture";
 import {
   parseCanonicalMobileDeepLink,
   parseCredentialDeepLink,
+  parsePublicDocumentDeepLink,
   resolveMobileDeepLink,
 } from "./deep-link";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
@@ -59,6 +60,17 @@ export function DeepLinkGate() {
     const credential = parseCredentialDeepLink(url);
     if (credential) {
       router.push(credential.route as never);
+      return;
+    }
+
+    // PUBLIC DOCUMENTS — legal text addresses no tenant and needs no session.
+    // Checked alongside credential links, and before the session branch, for
+    // the same reason: a user asked to accept terms before signing in must be
+    // able to read them, and deferring the link behind the auth gateway would
+    // silently drop it.
+    const document = parsePublicDocumentDeepLink(url);
+    if (document) {
+      router.push(document.route as never);
       return;
     }
 

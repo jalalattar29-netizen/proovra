@@ -111,6 +111,77 @@ export function parseCredentialDeepLink(url: string): ParsedCredentialLink | nul
 }
 
 /**
+ * PUBLIC DOCUMENT LINKS — a THIRD family, and the simplest of the three.
+ *
+ * A legal document link addresses no tenant resource and carries no credential.
+ * It must not pass through `POST /v1/deep-link/resolve` (which requires a
+ * session and re-derives a workspace) and it must not be deferred behind the
+ * auth gateway: a user who taps "Privacy Policy" in an email, or is asked to
+ * accept terms before signing in, has to be able to read the document.
+ *
+ * The shapes are the canonical web paths, which is what the emails and the
+ * documents' own cross-references contain:
+ *
+ *   https://<host>/legal/<slug>            proovra://legal/<slug>
+ *   https://<host>/settings/legal/<slug>   (the authenticated web reader)
+ *   https://<host>/privacy | /terms | /subprocessors | /data-retention
+ *                          | /abuse-reporting     (web 308s these to /legal/…)
+ *   https://<host>/security-overview       (the web's legacy security alias)
+ *
+ * The slug is NOT validated here. `GET /v1/legal/:slug` owns the allow-list,
+ * and a second copy of it in the client is the duplicate-truth failure the
+ * canonical delivery exists to remove; an unknown slug lands on the reader's
+ * "no such document" state.
+ */
+const PUBLIC_DOCUMENT_ALIASES: Record<string, string> = {
+  privacy: "privacy",
+  terms: "terms",
+  subprocessors: "subprocessors",
+  "data-retention": "data-retention",
+  "abuse-reporting": "abuse-reporting",
+  "security-overview": "security",
+};
+
+export type ParsedPublicDocumentLink = {
+  family: "legal";
+  slug: string;
+  route: string;
+};
+
+export function parsePublicDocumentDeepLink(
+  url: string,
+): ParsedPublicDocumentLink | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "proovra:") return null;
+
+  const segments =
+    parsed.protocol === "proovra:"
+      ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
+      : parsed.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  // /settings/legal/<slug> — the authenticated web reader's path.
+  const path =
+    segments[0] === "settings" && segments[1] === "legal" ? segments.slice(1) : segments;
+
+  let slug: string | null = null;
+  if (path[0] === "legal" && path.length === 2) {
+    slug = decodeURIComponent(path[1] ?? "").trim();
+  } else if (path.length === 1) {
+    slug = PUBLIC_DOCUMENT_ALIASES[path[0] ?? ""] ?? null;
+  }
+
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) return null;
+
+  return { family: "legal", slug, route: `/legal/${encodeURIComponent(slug)}` };
+}
+
+/**
  * Parse ONLY the canonical supported shapes:
  *   https://<host>/evidence/<id>     https://<host>/cases/<id>
  *   proovra://evidence/<id>          proovra://cases/<id>

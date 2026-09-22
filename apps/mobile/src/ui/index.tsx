@@ -107,6 +107,8 @@ export function ProovraText({
   style,
   numberOfLines,
   accessibilityRole,
+  accessibilityLabel,
+  onPress,
 }: {
   children: React.ReactNode;
   variant?: TextVariant;
@@ -116,7 +118,15 @@ export function ProovraText({
   mono?: boolean;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
-  accessibilityRole?: "header" | "text";
+  accessibilityRole?: "header" | "text" | "link";
+  accessibilityLabel?: string;
+  /**
+   * A tap target on the text itself. Present for INLINE links — a link inside
+   * a paragraph cannot be a Pressable without breaking the text flow, and
+   * legal documents are full of them. Block-level actions still belong to
+   * ProovraButton / ProovraListRow.
+   */
+  onPress?: () => void;
 }) {
   const { fontFamily, fontFamilyBold, isRTL } = useLocale();
   const size = theme.type.size[variant === "bodySm" ? "bodySm" : variant];
@@ -126,7 +136,16 @@ export function ProovraText({
   return (
     <Text
       numberOfLines={numberOfLines}
-      accessibilityRole={accessibilityRole ?? (variant === "display" || variant === "h1" || variant === "h2" ? "header" : undefined)}
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={
+        accessibilityRole ??
+        (onPress
+          ? "link"
+          : variant === "display" || variant === "h1" || variant === "h2"
+            ? "header"
+            : undefined)
+      }
       style={[
         {
           fontSize: size,

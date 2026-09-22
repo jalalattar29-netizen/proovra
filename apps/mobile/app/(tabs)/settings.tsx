@@ -164,8 +164,21 @@ export default function SettingsScreen() {
             onPress={() => router.push("/legal-acceptance")}
             trailing={<ProovraText variant="label" color={legalOk === false ? theme.color.status.risk.fg : theme.color.ink.muted}>{legalOk === false ? "Review" : ""}</ProovraText>}
           />
-          <ProovraListRow title="Terms of Service" onPress={() => void Linking.openURL("https://www.proovra.com/terms")} />
-          <ProovraListRow title="Privacy Policy" onPress={() => void Linking.openURL("https://www.proovra.com/privacy")} />
+          {/*
+            These two opened www.proovra.com in the system browser, which meant
+            the app could not show the terms a user is asked to accept if the
+            handoff failed or the device was offline, and could not state which
+            version it had shown. They now read the canonical corpus over
+            `GET /v1/legal/:slug` — the same text the web renders — and the
+            whole corpus is reachable, not just these two documents.
+          */}
+          <ProovraListRow title="Terms of Service" onPress={() => router.push("/legal/terms")} />
+          <ProovraListRow title="Privacy Policy" onPress={() => router.push("/legal/privacy")} />
+          <ProovraListRow
+            title="All legal documents"
+            subtitle="Policies, agreements and disclosures"
+            onPress={() => router.push("/legal")}
+          />
           <ProovraListRow title="Verify a record" subtitle="Check the authenticity of a PROOVRA verification link" onPress={() => router.push("/verify")} />
           <ProovraListRow
             title="Trust Center"

@@ -9,25 +9,45 @@
  * route the manifest classified as admin/enterprise/marketing.
  *
  * `status` is deliberately blunt and is claimed only against evidence:
- *   NOT_STARTED  no Native destination exists yet
- *   SHELL        a screen exists but is materially thinner than the Web surface
- *                (fewer data sources, fewer actions, or missing states)
- *   PARTIAL      the primary journey works; named gaps remain in `gaps`
- *   PARITY       visual + functional + content + state parity, device-verified
+ *   NOT_STARTED               no Native destination exists yet
+ *   SHELL                     a screen exists but is materially thinner than
+ *                             the Web surface (fewer data sources, fewer
+ *                             actions, or missing states)
+ *   PARTIAL                   the primary journey works; named gaps remain
+ *   CODE_PARITY               functional + content + state parity in code, with
+ *                             no known gap a repository can close
+ *   BLOCKED_BY_EXTERNAL       everything repository-executable is done; the
+ *                             remainder needs something outside it. `blockedBy`
+ *                             names the EXACT dependency
+ *   BLOCKED_BY_USER_DECISION  a product/legal choice, not an implementation
+ *                             one. `blockedBy` cites the evidence
  *
- * `PARITY` may not be set from CI alone — it requires the physical-device
- * acceptance recorded in `docs/native-conversion-ledger.md`.
+ * ===========================================================================
+ * CODE_PARITY IS NOT PHYSICAL ACCEPTANCE. THEY ARE SEPARATE DIMENSIONS.
+ * ===========================================================================
+ * `status` was previously topped out by a `PARITY` that also meant
+ * "device-verified", which made every surface un-completable from a repository
+ * and held the completed column at zero no matter how much was actually
+ * finished. That is not honesty, it is a broken instrument: it reported the
+ * same number for "nothing works" and "everything works, untested on hardware".
+ *
+ * So the two are tracked independently. `status` is what the code does, and is
+ * decidable here. `physicallyAccepted` is whether a human with a real device
+ * ticked the surface off in `docs/physical-acceptance.md`, and may NEVER be set
+ * from CI. A surface can be CODE_PARITY and physicallyAccepted: false — that is
+ * the normal state of finished work awaiting hardware, and it is stated rather
+ * than hidden.
  *
  * `webSources` names the canonical Web implementation being ported, so a later
  * reviewer can diff the two without rediscovering the mapping.
  */
 
 /**
- * @typedef {"NOT_STARTED"|"BLOCKED_BY_DECISION"|"SHELL"|"PARTIAL"|"PARITY"} DestinationStatus
+ * @typedef {"NOT_STARTED"|"SHELL"|"PARTIAL"|"CODE_PARITY"|"BLOCKED_BY_EXTERNAL"|"BLOCKED_BY_USER_DECISION"} DestinationStatus
  *
- * BLOCKED_BY_DECISION is counted separately from NOT_STARTED so the
- * denominators stay honest: those rows are not waiting on effort, they are
- * waiting on a product decision recorded in docs/open-questions.md.
+ * The two BLOCKED_* statuses are counted separately from NOT_STARTED so the
+ * denominators stay honest: those rows are not waiting on effort inside this
+ * repository. Each one must name what it is waiting for in `blockedBy`.
  */
 
 export const NATIVE_DESTINATIONS = {
@@ -344,85 +364,98 @@ export const NATIVE_DESTINATIONS = {
     gaps: ["public share link has no Native destination"],
   },
   "/legal/[slug]": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    alsoRouteFiles: ["(stack)/legal/index.tsx"],
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/legal/[slug]/page.tsx",
+      "apps/web/app/legal/legal-content.tsx",
+      "apps/web/content/legal/en/*.md",
+    ],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "Q1 RESOLVED: the corpus is served by GET /v1/legal/:slug from @proovra/shared/legal, generated from the one authored corpus. Nothing is bundled and no browser is opened.",
+      "the web reader's enhance pass (provider panels, contact rows, chip rows) is a desktop reading affordance and is deliberately not reproduced",
     ],
   },
   "/settings/legal/[slug]": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/(app)/settings/legal/[slug]/page.tsx",
+      "apps/web/app/legal/legal-content.tsx",
+    ],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web has two readers for one corpus because it has two shells (public and App Shell); native has one stack, so a cross-reference simply pushes the next document",
     ],
   },
   "/privacy": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/privacy/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web route is nothing but redirect(\"/legal/privacy\"); native resolves it to the same reader via parsePublicDocumentDeepLink rather than giving it a screen",
     ],
   },
   "/terms": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/terms/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web route is nothing but redirect(\"/legal/terms\"); native resolves it to the same reader via parsePublicDocumentDeepLink rather than giving it a screen",
     ],
   },
   "/subprocessors": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/subprocessors/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web route is nothing but redirect(\"/legal/subprocessors\"); native resolves it to the same reader via parsePublicDocumentDeepLink rather than giving it a screen",
     ],
   },
   "/data-retention": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/data-retention/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web route is nothing but redirect(\"/legal/data-retention\"); native resolves it to the same reader via parsePublicDocumentDeepLink rather than giving it a screen",
     ],
   },
   "/abuse-reporting": {
-    routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    routeFile: "(stack)/legal/[slug].tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/abuse-reporting/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "the web route is nothing but redirect(\"/legal/abuse-reporting\"); native resolves it to the same reader via parsePublicDocumentDeepLink rather than giving it a screen",
     ],
   },
 
   "/support": {
     routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    status: "NOT_STARTED",
+    webSources: ["apps/web/app/support/page.tsx"],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "LEDGER CORRECTION: this row was recorded as blocked by Q1 (legal delivery). It is not. apps/web/app/support/page.tsx is a Support Operations Center page built from marketing components and contact routes, and reads no legal document. The legal corpus does contain a `support` slug (Support Policy), which is a different thing and is now reachable through the legal reader.",
+      "signed-in users are routed here by app/(app)/error.tsx, not-found.tsx, billing and Search, so it is a real destination with no Native equivalent",
     ],
   },
   "/trust": {
     routeFile: null,
-    status: "BLOCKED_BY_DECISION",
-    blockedBy: "Q1",
-    webSources: ["apps/web/app/legal/legal-content.tsx", "apps/web/content/legal/en/*.md"],
+    status: "NOT_STARTED",
+    webSources: [
+      "apps/web/app/trust/page.tsx",
+      "apps/web/lib/trust/trust-center-copy.ts",
+    ],
     gaps: [
-      "docs/open-questions.md Q1 - legal content is markdown on the web filesystem with no /v1 endpoint, so Native has nothing canonical to read. Bundling a copy would create exactly the duplicate-truth failure this work removed.",
+      "LEDGER CORRECTION: this row was recorded as blocked by Q1 (legal delivery). It is not. The public Trust Center renders TRUST_CENTER_SECTIONS / TRUST_CENTER_PAGE_INTRO constants under a safe-language contract, and reads no legal document.",
+      "distinct from the in-app /trust-center/* articles, which ARE ported ((stack)/trust-center.tsx) and come from GET /v1/trust/articles",
+      "the public page's copy has no API; porting it needs the constants to become canonical data or the page to be accepted as web-only",
     ],
   },
   "/trust-center": {
