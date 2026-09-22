@@ -159,6 +159,16 @@ export default function SettingsScreen() {
             <Switch value={telemetry} onValueChange={onToggleTelemetry} accessibilityLabel="Crash and reliability reports" />
           </View>
           <ProovraListRow
+            title="Reviewer criteria"
+            subtitle="Versioned criteria reviewers work against"
+            onPress={() => router.push("/(stack)/settings/reviewer-criteria")}
+          />
+          <ProovraListRow
+            title="Organizations"
+            subtitle="The organizations you belong to"
+            onPress={() => router.push("/(stack)/organizations")}
+          />
+          <ProovraListRow
             title="People in this workspace"
             subtitle="Members, roles and invitations"
             onPress={() => router.push("/(stack)/workspace-people")}

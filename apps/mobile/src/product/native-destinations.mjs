@@ -322,16 +322,25 @@ export const NATIVE_DESTINATIONS = {
     ],
   },
   "/organizations": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/organizations/index.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/organizations/page.tsx"],
-    gaps: ["membership-gated org list (explicitly NOT enterprise-gated) has no Native destination"],
+    gaps: [
+      "membership-gated, not enterprise-gated: every authenticated user gets it, over the same GET /v1/me/orgs the web reads",
+      "the CUSTOMER-kind and ACTIVE-membership filters are the SERVER'S and are not re-applied client-side - a client filter over a server-filtered list is a second authority that will disagree the moment either changes",
+    ],
   },
   "/organizations/[id]": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/organizations/[id].tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/organizations/[id]/page.tsx"],
-    gaps: ["member-safe org detail has no Native destination"],
+    gaps: [
+      "ported: governance detail, members and workspaces, each loading independently so one role-gated refusal never blanks the page",
+      "NOT ported, deliberately: ownership transfer, leaving the organization, and closure. Each is a one-way door the web builds real confirmation around, and a phone-sized version of a one-way door is not a smaller feature but a worse one. The screen says where they are rather than implying they do not exist.",
+      "not ported: the org audit-event feed and invitation management",
+    ],
   },
   "/people": {
     routeFile: "(stack)/workspace-people.tsx",
@@ -389,10 +398,16 @@ export const NATIVE_DESTINATIONS = {
     ],
   },
   "/settings/reviewer-criteria": {
-    routeFile: null,
-    status: "NOT_STARTED",
+    routeFile: "(stack)/settings/reviewer-criteria.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
     webSources: ["apps/web/app/(app)/settings/reviewer-criteria/page.tsx"],
-    gaps: [],
+    gaps: [
+      "ported: the catalogue with per-set status and latest version, and the publish / duplicate / retire transitions, each stating its consequence before it happens",
+      "no edit affordance on a PUBLISHED set, deliberately: the API answers 409 published_immutable, and offering an action that cannot succeed implies the record could be rewritten - which is what versioned criteria exist to prevent",
+      "not ported: authoring the criterion rows of a draft (a multi-row editor; a draft half-written on a phone is a draft nobody can publish) and the per-version usage read",
+      "gated on REVIEWER_OPS_VIEW, which a personal workspace does not hold at all - the 403 renders as 'this workspace has no reviewer workflow', never as an error",
+    ],
   },
 
   /* ------------------------------------------------- public / trust / legal */
