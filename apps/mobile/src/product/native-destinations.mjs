@@ -184,10 +184,18 @@ export const NATIVE_DESTINATIONS = {
     ],
   },
   "/reports": {
-    routeFile: null,
-    status: "NOT_STARTED",
-    webSources: ["apps/web/app/(app)/reports/page.tsx"],
-    gaps: ["canonical primary-nav destination with no Native surface"],
+    routeFile: "(stack)/reports.tsx",
+    status: "PARTIAL",
+    webSources: [
+      "apps/web/app/(app)/reports/page.tsx",
+      "apps/web/components/reports-experience/ReportsIndex.tsx",
+    ],
+    gaps: [
+      "deliverables index ported: six canonical counters, lifecycle filters, cursor paging, result count, per-row state",
+      "read-only, as the web index is — generation and download are gated on Evidence detail",
+      "no saved views (operator surface), no per-row download yet",
+      "device acceptance outstanding",
+    ],
   },
   "/billing": {
     routeFile: "(stack)/billing.tsx",
