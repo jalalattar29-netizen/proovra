@@ -162,3 +162,35 @@ a missing component family.
 | Apple 401 on `aud` | pre-flight 0.1 — the API runtime lacks the native audience |
 | a tapped email link does nothing | the credential deep-link family regressed |
 | out-of-memory on a large video | the known incremental-digest limit |
+
+---
+
+## UC-6 build for this script (2026-09-23)
+
+An internal-distribution Android build was produced from `uc6-public-launch`
+on EAS using the existing keystore (`Build Credentials hQGv5KPYxF`) — no new
+signing material was created:
+
+    build id  3472ff2d-d28c-4fc2-a205-3402d886e62e
+    profile   preview (internal distribution)
+    logs      expo.dev/accounts/jalalattar29/projects/proovra/builds/3472ff2d-d28c-4fc2-a205-3402d886e62e
+
+iOS credentials also exist on the account (earlier builds FINISHED), so an
+equivalent `eas build --profile preview --platform ios` is producible without
+creating anything new.
+
+**No row in this script was ticked by the UC-6 phase.** No device was
+available to it, and a build is not an acceptance: the whole point of this
+file is that layout, gestures, fonts, safe areas, Hermes and whether bytes
+reached storage are things only hardware can answer.
+
+Two UC-6 changes are worth exercising deliberately when this script is next
+run on a device:
+
+* **Mixed origin.** Stage a screen recording, then try to add a photo to the
+  same session. The app must explain why they need separate records, offer to
+  finish the current capture, and keep everything staged either way. Before
+  UC-6 it silently sealed both into one record under the screen's origin.
+* **Failure copy.** Force a refusal the product has words for — a locked
+  record, a plan limit — and confirm the phone states the reason rather than
+  "Something went wrong. Please try again."
