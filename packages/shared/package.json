@@ -26,6 +26,11 @@
       "import": "./dist/legal.js",
       "default": "./dist/legal.js"
     },
+    "./user-facing-errors": {
+      "types": "./dist/user-facing-errors.d.ts",
+      "import": "./dist/user-facing-errors.js",
+      "default": "./dist/user-facing-errors.js"
+    },
     "./legal-revisions": {
       "types": "./dist/legal/revisions.generated.d.ts",
       "import": "./dist/legal/revisions.generated.js",

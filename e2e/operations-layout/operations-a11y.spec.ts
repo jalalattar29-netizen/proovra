@@ -13,7 +13,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { openOperations, setDirection } from "./_fixtures";
+import { openOperations, setDirection, showAllConditions } from "./_fixtures";
 
 const visible = (page: Page, selector: string) =>
   page.locator(`${selector}:visible`);
@@ -36,6 +36,15 @@ test("exactly one h1, and the landmark structure is not duplicated", async ({
 
 test("severity and status are TEXT, never colour alone", async ({ page }) => {
   await openOperations(page, "team-admin");
+
+  // THE GROUPED SURFACE IS WHAT AN OPERATOR LANDS ON, so it is checked first.
+  // It carries its own severity attribute, and this property — never colour
+  // alone — has to hold there as much as on the flat list.
+  const groupSeverities = await visible(page, "[data-ops-group-severity]").allTextContents();
+  expect(groupSeverities.length).toBeGreaterThan(0);
+  for (const s of groupSeverities) expect(s.trim().length).toBeGreaterThan(0);
+
+  await showAllConditions(page);
   const severities = await visible(page, "[data-ops-severity]").allTextContents();
   expect(severities.length).toBeGreaterThan(0);
   for (const s of severities) expect(s.trim().length).toBeGreaterThan(0);
@@ -89,6 +98,7 @@ test("the row menu opens from the keyboard, roves, and returns focus", async ({
   page,
 }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   const trigger = visible(page, "[data-ops-row-menu-trigger]").first();
   await trigger.focus();
   await page.keyboard.press("ArrowDown");
@@ -130,6 +140,7 @@ test("the row menu PANEL is a real surface, not bare text over the table", async
   // Every source and jsdom test passed, because a class that styles nothing
   // looks exactly like a class that styles something.
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
   const paint = await page
     .locator("[data-ops-row-menu-panel]")
@@ -154,6 +165,7 @@ test("the row menu stays inside the viewport at the right edge", async ({
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").last().click();
   // Wait for the panel before measuring it: querySelector on a portal that has
   // not mounted returns null, and a null measured as "outside" is a test
@@ -201,6 +213,7 @@ test("every interactive control meets the minimum target size", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   const small = await page.evaluate(() => {
     const out: string[] = [];
     // Scoped to the ROUTE. The shell's top bar carries an
@@ -263,6 +276,7 @@ test("the inspector is a labelled modal, and returns focus on close", async ({
   page,
 }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   const opener = visible(page, "[data-ops-open]").first();
   await opener.focus();
   await opener.click();
@@ -289,6 +303,7 @@ test("the inspector is a labelled modal, and returns focus on close", async ({
 
 test("the inspector's history is a real list, in order", async ({ page }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await visible(page, "[data-ops-open]").first().click();
   const timeline = page.locator("[data-ops-timeline]");
   await expect(timeline).toBeVisible();
@@ -302,6 +317,7 @@ test("the inspector's history is a real list, in order", async ({ page }) => {
 
 test("a failed mutation is ANNOUNCED, not merely drawn", async ({ page }) => {
   await openOperations(page, "team-admin", { scenario: "mutation-error" });
+  await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
   await page.locator('[data-ops-row-action="acknowledge"]').click();
   const err = page.locator("[data-ops-mutation-error]");
@@ -311,6 +327,7 @@ test("a failed mutation is ANNOUNCED, not merely drawn", async ({ page }) => {
 
 test("a pending mutation cannot be fired twice", async ({ page }) => {
   await openOperations(page, "team-admin", { scenario: "mutation-pending" });
+  await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
   await page.locator('[data-ops-row-action="acknowledge"]').click();
   // The menu closed on the first press; re-opening shows the action disabled
@@ -340,6 +357,7 @@ test("RTL mirrors the reading order rather than only the boxes", async ({
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await setDirection(page, "rtl");
 
   // The first table column in the DOM must be the RIGHTMOST on screen.
@@ -379,6 +397,7 @@ test("the row menu flips UP rather than off the bottom of the viewport", async (
   // downward from there puts its two most destructive items below it.
   await page.setViewportSize({ width: 1440, height: 900 });
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   const trigger = visible(page, "[data-ops-row-menu-trigger]").last();
   await trigger.click();
   const panel = page.locator("[data-ops-row-menu-panel]");
@@ -411,6 +430,7 @@ test("the remediation action is reachable and named by what it starts", async ({
   page,
 }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await page.locator("[data-ops-open]").first().click();
 
   const action = page.locator("[data-ops-remediate]").first();
@@ -429,6 +449,7 @@ test("the answer to a remediation request is ANNOUNCED, not merely drawn", async
   page,
 }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await page.locator("[data-ops-open]").first().click();
 
   // The confirmation is the canonical modal, so it is focus-managed and
@@ -449,6 +470,7 @@ test("the SLA verdict carries its explanation as text, not as colour alone", asy
   page,
 }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await page.locator("[data-ops-open]").first().click();
   const fact = page.locator("[data-ops-sla-fact]");
   await expect(fact).toBeVisible();
@@ -489,6 +511,7 @@ test("the saved-view name field is labelled, and Escape abandons it", async ({
 
 test("the bulk sweep's per-target answer is announced", async ({ page }) => {
   await openOperations(page, "team-admin");
+  await showAllConditions(page);
   await page.locator("[data-ops-row-mark]").first().click();
   const bar = page.locator("[data-ops-bulk-toolbar]");
   await expect(bar).toBeVisible();

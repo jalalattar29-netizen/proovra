@@ -37,7 +37,21 @@ const read = (rel: string) => readFileSync(resolve(REPO_ROOT, rel), "utf8");
 
 const ROUTES_DIR = resolve(REPO_ROOT, "services/api/src/routes");
 const REGISTRY_SRC = read("apps/web/lib/feedback/error-code-registry.ts");
-const SAFE_ERROR_SRC = read("apps/web/lib/feedback/toSafeUserError.ts");
+/**
+ * THE GLOBAL COPY, WHEREVER IT LIVES.
+ *
+ * The dictionary moved to `@proovra/shared` so the native app answers a
+ * refusal with the same sentence the web does — before the move, a plan
+ * limit, a legal hold and a real permission problem all read "You don't have
+ * access to this." on a phone. This guard reads the SOURCE rather than
+ * importing it, on purpose, so both files are named here: the shared table is
+ * where the entries are, and the web resolver is still read because a code
+ * may be answered by a status bucket it defines.
+ */
+const SAFE_ERROR_SRC = [
+  read("packages/shared/src/user-facing-errors.ts"),
+  read("apps/web/lib/feedback/toSafeUserError.ts"),
+].join("\n");
 
 /**
  * Every bounded code the API's route layer emits.

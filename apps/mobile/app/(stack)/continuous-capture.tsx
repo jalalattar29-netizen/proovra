@@ -19,6 +19,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 import { theme } from "../../src/theme/theme";
+import { toSafeUserError } from "../../src/errors/safe-error";
 import {
   ProovraScreen,
   ProovraCard,
@@ -131,7 +132,7 @@ export default function ContinuousCaptureScreen() {
           // A single lost segment must not silently pass as continuous. Surface it;
           // the manifest's contiguous-sequence check refuses a gap at finalize.
           toast.addToast(
-            err instanceof Error ? err.message : "A screen segment could not be uploaded.",
+            toSafeUserError(err, { message: "A screen segment could not be uploaded." }).message,
             "error",
           );
         })
@@ -229,7 +230,7 @@ export default function ContinuousCaptureScreen() {
       sessionRef.current = null;
       dispatch({
         type: "FAIL",
-        message: err instanceof Error ? err.message : "Screen capture consent was not granted.",
+        message: toSafeUserError(err, { message: "Screen capture consent was not granted." }).message,
         recoverable: true,
       });
     } finally {
@@ -253,7 +254,7 @@ export default function ContinuousCaptureScreen() {
         stopReason: result.terminationReason,
       });
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not stop capture." });
+      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stop capture." }).message });
     } finally {
       setBusy(false);
     }
@@ -339,7 +340,7 @@ export default function ContinuousCaptureScreen() {
       // The reservation is already released by sealDirectCapture; this session
       // can no longer be sealed, so the screen must not offer to retry it.
       sessionRef.current = null;
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not finalize the evidence." });
+      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not finalize the evidence." }).message });
     }
   }, [drainUploads, toast]);
 

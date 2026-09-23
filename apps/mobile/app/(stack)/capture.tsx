@@ -10,6 +10,7 @@ import {
   View
 } from "react-native";
 import { theme } from "../../src/theme/theme";
+import { toSafeUserError } from "../../src/errors/safe-error";
 import {
   ProovraScreen,
   ProovraCard,
@@ -676,7 +677,7 @@ hasActiveDraft: isSessionActive || isRecording,
           "success"
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to add item";
+        const msg = toSafeUserError(err, { message: "Failed to add item" }).message;
         setError(msg);
         addToast(msg, "error");
         setSessionCreatingEvidence(false);
@@ -763,7 +764,7 @@ hasActiveDraft: isSessionActive || isRecording,
       }
     } catch (err) {
       // Keep the session: the operator can retry the discard or finish it.
-      const msg = err instanceof Error ? err.message : "Could not discard the session";
+      const msg = toSafeUserError(err, { message: "Could not discard the session" }).message;
       setError(msg);
       addToast(msg, "error");
       setDiscarding(false);
@@ -855,7 +856,7 @@ hasActiveDraft: isSessionActive || isRecording,
       setCameraOpen(true);
       addToast(`${activeType.toLowerCase()} camera ready`, "info");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to open picker/camera";
+      const msg = toSafeUserError(err, { message: "Failed to open picker/camera" }).message;
       setError(msg);
       addToast(msg, "error");
     }
@@ -891,7 +892,7 @@ hasActiveDraft: isSessionActive || isRecording,
 
       setInfo(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to capture photo";
+      const msg = toSafeUserError(err, { message: "Failed to capture photo" }).message;
       setError(msg);
       addToast(msg, "error");
     } finally {
@@ -935,7 +936,7 @@ hasActiveDraft: isSessionActive || isRecording,
         });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to record video";
+      const msg = toSafeUserError(err, { message: "Failed to record video" }).message;
       setError(msg);
       addToast(msg, "error");
     } finally {
@@ -990,7 +991,7 @@ hasActiveDraft: isSessionActive || isRecording,
         allowsRecording: false,
         playsInSilentMode: true,
       }).catch(() => undefined);
-      const msg = err instanceof Error ? err.message : "Failed to start audio recording";
+      const msg = toSafeUserError(err, { message: "Failed to start audio recording" }).message;
       setError(msg);
       addToast(msg, "error");
     }
@@ -1050,7 +1051,7 @@ if (!isRecording || busy) return;
 
       setInfo(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to record audio";
+      const msg = toSafeUserError(err, { message: "Failed to record audio" }).message;
       setError(msg);
       addToast(msg, "error");
     } finally {
@@ -1233,7 +1234,7 @@ setSessionState(
       await refreshRecent();
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to finish session";
+      const msg = toSafeUserError(err, { message: "Failed to finish session" }).message;
       setError(msg);
       addToast(msg, "error");
     } finally {

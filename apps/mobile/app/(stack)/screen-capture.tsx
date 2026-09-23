@@ -36,6 +36,7 @@ import {
   type ScreenCaptureResult,
 } from "../../modules/proovra-screen-capture";
 import { theme } from "../../src/theme/theme";
+import { toSafeUserError } from "../../src/errors/safe-error";
 import {
   ProovraScreen,
   ProovraCard,
@@ -88,7 +89,7 @@ export default function ScreenCaptureScreen() {
       await startScreenCapture({ maxFrames: 20 });
       dispatch({ type: "STARTED" });
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Screen capture consent was not granted.", recoverable: true });
+      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Screen capture consent was not granted." }).message, recoverable: true });
     } finally {
       setBusy(false);
     }
@@ -99,7 +100,7 @@ export default function ScreenCaptureScreen() {
     try {
       await captureScreenFrame();
     } catch (err) {
-      toast.addToast(err instanceof Error ? err.message : "Could not capture a frame.", "error");
+      toast.addToast(toSafeUserError(err, { message: "Could not capture a frame." }).message, "error");
     } finally {
       setBusy(false);
     }
@@ -111,7 +112,7 @@ export default function ScreenCaptureScreen() {
       const result = await stopScreenCapture();
       dispatch({ type: "STOPPED", frameCount: result.frames.length, stopReason: result.stopReason });
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not stop capture." });
+      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stop capture." }).message });
     } finally {
       setBusy(false);
     }
@@ -172,7 +173,7 @@ export default function ScreenCaptureScreen() {
       toast.addToast("Screen capture staged — review and finish in Capture", "success");
       router.replace("/capture");
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "Could not stage the capture." });
+      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
   }, [toast]);
 

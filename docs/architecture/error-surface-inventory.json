@@ -1,0 +1,5690 @@
+{
+  "counts": {
+    "produced": 441,
+    "web": 140,
+    "native": 83,
+    "shared": 77,
+    "neither": 298,
+    "webOnly": 60,
+    "nativeOnly": 3
+  },
+  "rows": [
+    {
+      "code": "ACCESS_ACTIVITY_CHANGED",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ACCESS_REVIEW_DECIDED",
+      "producedIn": [
+        "services/api/src/services/governance/access-review-escalation.service.ts",
+        "services/api/src/services/trust/trust-and-governance-audit.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ACCESS_REVIEW_GRANT_REVOKED",
+      "producedIn": [
+        "services/api/src/services/trust/trust-and-governance-audit.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ACTIVE_CASE_HOLD",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ACTIVE_LEGAL_HOLD",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ACTOR_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "AI_CHAT_RATE_LIMITED",
+      "producedIn": [
+        "services/api/src/routes/ai.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "AI_CHAT_TIMEOUT",
+      "producedIn": [
+        "services/api/src/routes/ai.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "AI_DUPLICATE_REQUEST",
+      "producedIn": [
+        "services/api/src/services/ai/ai-rate-limit.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "AI_MONTHLY_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "AI_NOT_INCLUDED",
+      "producedIn": [
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "AI_RATE_LIMITED",
+      "producedIn": [
+        "services/api/src/services/ai/ai-rate-limit.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "AI_WORKSPACE_POLICY_DENIED",
+      "producedIn": [
+        "services/api/src/routes/ai.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/routes/search.routes.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/ai/ProovraChatWidget.tsx",
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "ALGORITHM_UNSUPPORTED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ALREADY_REVOKED",
+      "producedIn": [
+        "services/api/src/services/governance/department-membership.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/review/external/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ANNOTATION_ALREADY_RESOLVED",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ANNOTATION_NESTING_INVALID",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ANNOTATION_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "API_KEYS_LEGACY_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/enterprise.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_BLOCKED_BY_LEGAL_HOLD",
+      "producedIn": [
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_RESTORE_REQUESTED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/archive-tier.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_TRANSITION_COMPLETED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/archive-tier.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_TRANSITION_FAILED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/archive-tier.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_TRANSITION_REQUESTED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/archive-tier.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARCHIVE_TRANSITION_STARTED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/archive-tier.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARTIFACT_NOT_REDACTABLE",
+      "producedIn": [
+        "services/api/src/services/redaction/evidence-bytes.service.ts",
+        "services/api/src/services/redaction/redaction-derivative.service.ts",
+        "services/api/src/services/redaction/redaction-project.service.ts"
+      ],
+      "producedCount": 3,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARTIFACT_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ARTIFACT_VERSION_CHANGED",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ATTESTATION_FAILED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BILLING_CONTRACT_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BILLING_SUBSCRIPTION_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/identity/account-closure-subscription-policy.ts",
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BILLING_SUBSCRIPTION_READ_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BUDGET_BLOCKED",
+      "producedIn": [
+        "services/api/src/services/intelligence/provider-budget.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BUDGET_CREATED",
+      "producedIn": [
+        "services/api/src/services/intelligence/provider-budget.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BUDGET_HARD_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/services/intelligence/provider-budget.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BUDGET_SOFT_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/services/intelligence/provider-budget.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BULK_INVITATION_ROW_FAILED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-bulk-invitations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "BULK_SET_TOO_LARGE",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CANCELLATION_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_DEVICE_REGISTERED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_DEVICE_REVOKED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_SESSION_BOUND",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_SESSION_ENDED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_SESSION_INTERRUPTED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CAPTURE_SESSION_NOT_EDITABLE",
+      "producedIn": [
+        "services/api/src/routes/capture.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CAPTURE_SESSION_STARTED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CASE_ACCESS_TARGET_NOT_MEMBER",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CASE_DELETE_DENIED",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CASE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CASE_RENAME_DENIED",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CASE_WORKSPACE_READ_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/case-workspace.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CASES_MANAGE_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CERTIFICATION_ALREADY_ATTESTED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-certification.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CERTIFICATION_STATEMENT_CHANGED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-certification.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CERTIFICATION_STATEMENT_MISSING",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-certification.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CHAIN_TRANSFER_CUSTODY_EXTENDED",
+      "producedIn": [
+        "services/api/src/services/exchange/chain-transfer.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CHECKOUT_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "CITIZEN_CAPTURE_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/citizen-capture.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CODING_SCHEMA_PUBLISH_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-workspace.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration-completion.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_TEAM_GUESTS_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration-completion.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_TEAM_INVITE_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration-teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_TEAM_NOTIFICATIONS_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration-completion.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_TEAM_PREFERENCES_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration-completion.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/collaboration.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COMMENT_BODY_INVALID",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-comments.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COMMENT_POSTED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-comments.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COMMERCIAL_LIFECYCLE_RESTRICTED",
+      "producedIn": [
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "COMMERCIAL_SUBJECT_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/billing/commercial-context.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONFIGURATION_ERROR",
+      "producedIn": [
+        "services/api/src/middleware/cron-secret.ts",
+        "services/api/src/middleware/internal-service-auth.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONSENT_INVALID",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONSENT_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONTINUOUS_MANIFEST_DIGEST_UNDECLARED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONTINUOUS_MANIFEST_INVALID",
+      "producedIn": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CONTINUOUS_MANIFEST_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CORE_INTEGRITY_SIGNALS_CHANGED",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CORRECTION_ACCEPTED",
+      "producedIn": [
+        "services/api/src/services/intelligence/executive-metrics.service.ts",
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CORRECTION_CREATED",
+      "producedIn": [
+        "services/api/src/services/intelligence/executive-metrics.service.ts",
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CORRECTION_REVERTED",
+      "producedIn": [
+        "services/api/src/services/intelligence/executive-metrics.service.ts",
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CORRECTION_SUPERSEDED",
+      "producedIn": [
+        "services/api/src/services/intelligence/executive-metrics.service.ts",
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_ORG_REVIEW_ACCEPTED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_ORG_REVIEW_CREATED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_ORG_REVIEW_DECLINED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_ORG_REVIEW_REVOKED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_TEAM_ATTACH_BLOCKED",
+      "producedIn": [
+        "services/api/src/services/cases/case-permission.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "CROSS_TENANT",
+      "producedIn": [
+        "services/api/src/routes/reviewer-criteria.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DAILY_COST_LIMIT",
+      "producedIn": [
+        "services/api/src/services/ai/ai-usage-ledger.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DAILY_OP_LIMIT",
+      "producedIn": [
+        "services/api/src/services/ai/ai-usage-ledger.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DATABASE_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/server.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DECISION_BULK_APPLIED",
+      "producedIn": [
+        "services/api/src/services/redaction/video/video-track.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DECISION_SUBMITTED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-decisions.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEFAULT_ROLE_DOWNGRADED",
+      "producedIn": [
+        "services/api/src/services/security/saml-mapping.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DELEGATED_ADMIN_GRANTED",
+      "producedIn": [
+        "services/api/src/services/governance/delegated-admin.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DELEGATED_ADMIN_REQUIRED",
+      "producedIn": [
+        "services/api/src/middleware/require-delegated-tier.ts",
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence-lifecycle/chain-transfers/page.tsx",
+        "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+        "apps/web/app/(app)/evidence-lifecycle/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DELEGATED_ADMIN_REVOKED",
+      "producedIn": [
+        "services/api/src/services/governance/delegated-admin.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_ARCHIVED",
+      "producedIn": [
+        "services/api/src/services/governance/department.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_CREATED",
+      "producedIn": [
+        "services/api/src/services/governance/department.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_FORBIDDEN",
+      "producedIn": [
+        "services/api/src/services/governance/department-scope.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_MEMBERSHIP_GRANTED",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_MEMBERSHIP_REVOKED",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEPARTMENT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/governance/department-membership.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DERIVATIVE_DOWNLOADED",
+      "producedIn": [
+        "services/api/src/routes/redaction.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DERIVATIVE_NOT_READY",
+      "producedIn": [
+        "services/api/src/routes/redaction.routes.ts",
+        "services/api/src/services/redaction/redaction-derivative.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DERIVATIVE_QUARANTINED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-derivative.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DERIVATIVE_REQUESTED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-derivative.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_BLOCKED_BY_LEGAL_HOLD",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_PARTIAL_FAILURE",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_REQUEST_NOT_APPROVED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_REQUEST_NOT_EXECUTED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_REQUEST_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_REVIEW_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DESTRUCTION_REVIEW_PENDING",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/command-center/types.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DETECTION_GENERATED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-detection.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DETECTION_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-decision.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DETECTION_RUN_COMPLETED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-detection.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DETECTION_RUN_FAILED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-detection.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DETECTION_RUN_STARTED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-detection.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_ALREADY_REVOKED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_NOT_BOUND",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_NOT_REGISTERED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_PUBKEY_TAKEN",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DEVICE_REVOKED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DUPLICATE_EVIDENCE",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "DUPLICATE_REQUEST",
+      "producedIn": [
+        "services/api/src/services/ai/ai-usage-ledger.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EMAIL_ALREADY_EXISTS",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/register/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EMAIL_MAPPING_REMOVED",
+      "producedIn": [
+        "services/api/src/services/security/saml-mapping.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EMAIL_NOT_VERIFIED",
+      "producedIn": [
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/login/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/app/(stack)/auth.tsx"
+      ],
+      "shared": true
+    },
+    {
+      "code": "EMAIL_SERVICE_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ENTITLEMENT_GRANTED",
+      "producedIn": [
+        "services/api/src/services/packaging/entitlement.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ENTITLEMENT_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/routes/external-review.routes.ts",
+        "services/api/src/routes/governance.routes.ts",
+        "services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "producedCount": 8,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence-lifecycle/chain-transfers/page.tsx",
+        "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+        "apps/web/app/(app)/evidence-lifecycle/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/trust-center.ts",
+        "apps/mobile/test/trust-center.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "ESCALATION_OPEN",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_ACQUISITION_MODE_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/evidence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_ALREADY_SIGNED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_BYTES_MISMATCH",
+      "producedIn": [
+        "services/api/src/routes/intelligence-platform.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_BYTES_UNVERIFIED",
+      "producedIn": [
+        "services/api/src/routes/intelligence-platform.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_INTEGRITY_FAILED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "EVIDENCE_LOCKED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/lib/evidence-delete-eligibility.ts",
+        "apps/web/app/(app)/evidence/lib/evidence-library-types.ts"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/evidence-detail.ts",
+        "apps/mobile/test/evidence-detail.test.mjs",
+        "apps/mobile/test/safe-error.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "EVIDENCE_NOT_FINALIZED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "EVIDENCE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts",
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 5,
+      "web": false,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/domain-enums.generated.ts"
+      ],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_NOT_LOCKED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "EVIDENCE_NOT_OPEN",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EVIDENCE_RELATIONSHIP_SELF_LINK",
+      "producedIn": [
+        "services/api/src/services/evidence-review/relationship-summary.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "EXCHANGE_PACKAGE_MANUAL_READY_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXCHANGE_PACKAGE_NOT_DRAFT",
+      "producedIn": [
+        "services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/exchange/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXPORT_SNAPSHOT_CURSOR_INVALID",
+      "producedIn": [
+        "services/api/src/routes/governance-operations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "EXPORT_SNAPSHOT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/governance-operations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_GRANT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_GRANT_REVOKED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_ID_OVERRIDE_RISKY",
+      "producedIn": [
+        "services/api/src/services/security/saml-mapping.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_SERVICE_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_SSO_FAILED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-sso.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_SSO_IDENTITY_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-sso.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_SSO_STARTED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-sso.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "EXTERNAL_SSO_SUCCEEDED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-sso.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "FEATURE_DISABLED",
+      "producedIn": [
+        "services/api/src/routes/evidence-requests.routes.ts",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/routes/workflow-intake-links.routes.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+        "apps/web/app/(app)/intake-links/page.tsx",
+        "apps/web/components/access/AccessGate.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "FIELD_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "FILE_TOO_LARGE",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "FILE_VALIDATION_BLOCKED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "FINALIZE_BLOCKED_BY_UPLOAD_SESSION",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "FORENSIC_CUSTODY_CHANGED",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GOVERNANCE_BLOCKED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "GOVERNANCE_CHECK_FAILED",
+      "producedIn": [
+        "services/api/src/routes/integrations-api.routes.ts",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GRANT_ACCEPTED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-invitation.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GRANT_ISSUED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-invitation.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GRANT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GRANT_RESENT",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GRANT_REVOKED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-invitation.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/test/external-flows.test.mjs"
+      ],
+      "shared": false
+    },
+    {
+      "code": "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN",
+      "producedIn": [
+        "services/api/src/services/security/saml-mapping.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "GROUP_ROLE_OVERLAPS_SCIM",
+      "producedIn": [
+        "services/api/src/services/security/saml-mapping.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "HEALTH_SNAPSHOT_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/routes/admin-platform-telemetry.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "HIGH_RISK_ACTION_BLOCKED",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/services/identity-security/step-up-middleware.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "HIGH_SECURITY_PREREQUISITES_UNMET",
+      "producedIn": [
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "ILLEGAL_MEMBERSHIP_TRANSITION",
+      "producedIn": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/organizations/OrgMemberLifecycleControls.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "IMMUTABLE_STORAGE_DRIFT",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INCIDENT_OPEN_CRITICAL",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INCIDENT_OPEN_HIGH",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INGEST_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/capture-trust.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INSUFFICIENT_CREDITS",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INSUFFICIENT_PERMISSIONS",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INSUFFICIENT_SCOPE",
+      "producedIn": [
+        "services/api/src/middleware/integrations-auth.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTAKE_LINK_BLOCKED_BY_POLICY",
+      "producedIn": [
+        "services/api/src/routes/integrations-api.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTAKE_MODE_MISMATCH",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTAKE_NOT_ACCEPTING_EVIDENCE",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTEGRATIONS_DISABLED",
+      "producedIn": [
+        "services/api/src/middleware/integrations-auth.ts",
+        "services/api/src/routes/integrations.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/integrations/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTELLIGENCE_ENQUEUE_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/intelligence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "producedIn": [
+        "services/api/src/routes/evidence-requests.routes.ts",
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INTERNAL_MEMBER",
+      "producedIn": [
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INTERNAL_SERVER_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_BODY",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_CREDENTIALS",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_CURSOR",
+      "producedIn": [
+        "services/api/src/routes/reviewer-ops.routes.ts",
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/review/queues/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_DIGEST",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_EVIDENCE",
+      "producedIn": [
+        "services/api/src/services/exchange/chain-transfer.service.ts",
+        "services/api/src/services/exchange/evidence-exchange.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_FILE_TYPE",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_IDENTIFIER",
+      "producedIn": [
+        "services/api/src/routes/admin-search.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/admin/search/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_INPUT",
+      "producedIn": [
+        "services/api/src/server.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx",
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/fieldErrors.ts"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/errors/safe-error.ts",
+        "apps/mobile/test/safe-error.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "INVALID_KIND",
+      "producedIn": [
+        "services/api/src/services/exchange/evidence-exchange.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_LOCATION_BODY",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_MIME_TYPE",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_OR_EXPIRED",
+      "producedIn": [
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/reset-password/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_OR_EXPIRED_LINK",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_ORG_ID",
+      "producedIn": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_PART_INDEX",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_PUBLIC_KEY",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_QUERY",
+      "producedIn": [
+        "services/api/src/routes/ops.routes.ts",
+        "services/api/src/routes/reviewer-console.routes.ts",
+        "services/api/src/routes/reviewer-ops.routes.ts",
+        "services/api/src/routes/reviewer-workspace.routes.ts"
+      ],
+      "producedCount": 5,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_REQUEST",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_SLUG",
+      "producedIn": [
+        "services/api/src/services/exchange/chain-transfer.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_STATE",
+      "producedIn": [
+        "services/api/src/services/exchange/chain-transfer.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_STATE_TRANSITION",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_TOKEN",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_TRANSFER_TARGET",
+      "producedIn": [
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVALID_TRANSITION",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-approval.service.ts",
+        "services/api/src/services/redaction/redaction-derivative.service.ts",
+        "services/api/src/services/redaction/redaction-policy-store.service.ts",
+        "services/api/src/services/redaction/redaction-project.service.ts"
+      ],
+      "producedCount": 4,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/redaction/policy/page.tsx",
+        "apps/web/components/redaction/PolicyScopePanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_VERIFICATION_TOKEN",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_WINDOW",
+      "producedIn": [
+        "services/api/src/services/trust/status-page.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVALID_WORKSPACE_ID",
+      "producedIn": [
+        "services/api/src/routes/workspace-operations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "INVITATION_EMAIL_FAILED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-invitation-email.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVITE_ALREADY_REVOKED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-bulk-invitations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/external-portal/PortalDenialNotice.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "INVITE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/routes/teams.routes.ts",
+        "services/api/src/services/external-review/portal-bulk-invitations.service.ts",
+        "services/api/src/services/external-review/portal-invitation-email.service.ts"
+      ],
+      "producedCount": 5,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/invite/[token]/page.tsx",
+        "apps/web/components/external-portal/PortalDenialNotice.tsx",
+        "apps/web/lib/invitations/resolveInvitationView.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LABEL_INVALID",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "LEGAL_DOCUMENT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/legal.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/app/(stack)/legal/[slug].tsx",
+        "apps/mobile/test/legal.render.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "LEGAL_HOLD_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/lib/evidence-delete-eligibility.ts",
+        "apps/web/app/(app)/evidence/lib/evidence-library-types.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/evidence-detail.ts",
+        "apps/mobile/test/closure.test.mjs",
+        "apps/mobile/test/evidence-detail.test.mjs"
+      ],
+      "shared": false
+    },
+    {
+      "code": "LEGAL_HOLD_BLOCKED",
+      "producedIn": [
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/teams.routes.ts",
+        "services/api/src/services/lifecycle/destruction-governance.service.ts",
+        "services/api/src/services/lifecycle/legal-hold.service.ts"
+      ],
+      "producedCount": 4,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LEGAL_POLICY_VERSION_NOT_CURRENT",
+      "producedIn": [
+        "services/api/src/routes/users.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "LIFECYCLE_BLOCKED_BY_HOLD",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_BLOCKED_BY_IMMUTABLE",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_DESTROYED",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW",
+      "producedIn": [
+        "services/api/src/routes/governance-lifecycle.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_INVALID_TRANSITION",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_ON_HOLD",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_PENDING_DESTRUCTION",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_RETENTION_LOCKED",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIFECYCLE_TERMINAL_STATE",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LIMIT_EXCEEDED",
+      "producedIn": [
+        "services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LINK_ALREADY_SUBMITTED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LINK_NO_LONGER_AVAILABLE",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "LOCATION_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MAX_FILES_REACHED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "METRICS_SCRAPE_TOKEN_TOO_WEAK",
+      "producedIn": [
+        "services/api/src/routes/ops.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MFA_CHALLENGE_FAILED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MFA_ENROLL_WRONG_ROUTE",
+      "producedIn": [
+        "services/api/src/routes/mfa.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MFA_POLICY_VERSION_CONFLICT",
+      "producedIn": [
+        "services/api/src/routes/identity-security.routes.ts",
+        "services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/posture/_sections/MfaPolicySection.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "MFA_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/accept/[grantId]/page.tsx",
+        "apps/web/app/portal/page.tsx",
+        "apps/web/components/external-portal/PortalMfaCodeStep.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/portal.ts"
+      ],
+      "shared": false
+    },
+    {
+      "code": "MFA_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/accept/[grantId]/page.tsx",
+        "apps/web/app/portal/page.tsx",
+        "apps/web/components/external-portal/PortalMfaCodeStep.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MIME_TYPE_NOT_ALLOWED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MISSING_AUTH_HEADER",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MISSING_REQUIRED_FIELD",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MONTHLY_COST_LIMIT",
+      "producedIn": [
+        "services/api/src/services/ai/ai-usage-ledger.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "MONTHLY_OP_LIMIT",
+      "producedIn": [
+        "services/api/src/services/ai/ai-usage-ledger.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "NL_SEARCH_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/ai-search.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "NONCE_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/http/not-found-handler.ts",
+        "services/api/src/routes/enterprise-security.routes.ts",
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 11,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/review/external/page.tsx",
+        "apps/web/app/(app)/security-center/posture/_sections/section-state.tsx",
+        "apps/web/components/reviewer-workspace/SidePaneEvidence.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+        "apps/mobile/app/(stack)/portal/[token].tsx",
+        "apps/mobile/src/product/account-security.ts"
+      ],
+      "shared": true
+    },
+    {
+      "code": "NOT_PERMITTED",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/routes/reviewer-workspace.routes.ts",
+        "services/api/src/services/external-review/portal-sso.service.ts",
+        "services/api/src/services/redaction/redaction-approval.service.ts"
+      ],
+      "producedCount": 6,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/review/external/page.tsx",
+        "apps/web/app/(app)/review/metrics/page.tsx",
+        "apps/web/app/(app)/review/qc/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "NOT_PUBLISHED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-criteria.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ORG_MEMBERS_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ORG_SECURITY_POLICY_NOT_APPLICABLE",
+      "producedIn": [
+        "services/api/src/routes/mfa-admin.routes.ts",
+        "services/api/src/services/identity-security/mfa-policy.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "OUT_OF_SCOPE",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/services/external-review/portal-comments.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/external-portal/PortalDenialNotice.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "OWNERSHIP_TRANSFER_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/organizations/[id]/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "PACKAGE_BLOCKED_BY_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PACKAGE_BLOCKED_BY_TEMPLATE_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance/template-export-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PACKAGE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/exchange/evidence-exchange.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PACKAGE_NOT_READY",
+      "producedIn": [
+        "services/api/src/services/exchange/evidence-exchange.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PARENT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PART_ALREADY_DECLARED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PART_INDEX_TAKEN",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYLOAD_DIGEST_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYLOAD_MODE_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYLOAD_SESSION_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYMENT_FAILED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYMENT_SERVICE_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYPAL_APPROVAL_PENDING",
+      "producedIn": [
+        "services/api/src/services/billing/pending-checkout-attempt.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYPAL_DIFFERENT_PLAN_PENDING",
+      "producedIn": [
+        "services/api/src/services/billing/pending-checkout-attempt.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PAYPAL_PENDING_ATTEMPT_STALE",
+      "producedIn": [
+        "services/api/src/services/billing/pending-checkout-attempt.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PERSONAL_SECURITY_LEGACY_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/users.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PERSONAL_WORKSPACE_NOT_CLOSABLE",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PERSONAL_WORKSPACE_ORGANIZATION",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_ACTIVATED",
+      "producedIn": [
+        "services/api/src/services/governance/governance-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_ARCHIVED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_ASSIGNED",
+      "producedIn": [
+        "services/api/src/services/governance/governance-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_ASSIGNMENT_CREATED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_ASSIGNMENT_REVOKED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_BLOCK",
+      "producedIn": [
+        "services/api/src/services/governance/governance-dashboard.service.ts",
+        "services/api/src/services/governance/policy-evaluation.service.ts",
+        "services/api/src/services/governance/policy-runtime-gates.service.ts",
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 4,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/ai-copilot/QcSamplingPanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_CREATED",
+      "producedIn": [
+        "services/api/src/services/governance/governance-policy.service.ts",
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_DEPRECATED",
+      "producedIn": [
+        "services/api/src/services/governance/governance-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_EVALUATED",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts",
+        "services/api/src/services/governance/policy-evaluation.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_NOT_PROVISIONED",
+      "producedIn": [
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "POLICY_REJECTED",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/routes/trust-and-governance.routes.ts",
+        "services/api/src/services/external-review/portal-bulk-invitations.service.ts",
+        "services/api/src/services/external-review/portal-decisions.service.ts"
+      ],
+      "producedCount": 26,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/redaction/page.tsx",
+        "apps/web/app/(app)/redaction/policy/page.tsx",
+        "apps/web/app/(app)/redaction/[projectId]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_VERSION_CREATED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_VIOLATION",
+      "producedIn": [
+        "services/api/src/middleware/require-delegated-tier.ts",
+        "services/api/src/services/governance/access-review-escalation.service.ts",
+        "services/api/src/services/governance/cross-org-review.service.ts",
+        "services/api/src/services/governance/department-scope.service.ts"
+      ],
+      "producedCount": 5,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_VIOLATION_LEGAL_HOLD",
+      "producedIn": [
+        "services/api/src/services/lifecycle/legal-hold.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence-lifecycle/_policy-violations-panel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_VIOLATION_RETENTION",
+      "producedIn": [
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence-lifecycle/_policy-violations-panel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_WARN_ACK_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/governance/policy-runtime-gates.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "POLICY_WARNING",
+      "producedIn": [
+        "services/api/src/services/governance/policy-evaluation.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PORTAL_INVITATION_REFUSED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PORTAL_SESSION_EXPIRED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PORTAL_SESSION_REVOKED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PRIVACY_CONFIG_OK",
+      "producedIn": [
+        "services/api/src/services/ai/provider-privacy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PRIVACY_MODE_UNKNOWN",
+      "producedIn": [
+        "services/api/src/services/ai/provider-privacy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PRIVACY_STORAGE_ENABLED",
+      "producedIn": [
+        "services/api/src/services/ai/provider-privacy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PRODUCTION_CONFIG_VIOLATION",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROJECT_CREATED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-project.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROJECT_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/redaction/evidence-bytes.service.ts",
+        "services/api/src/services/redaction/redaction-policy-store.service.ts",
+        "services/api/src/services/redaction/redaction-project.service.ts",
+        "services/api/src/services/redaction/redaction-projection.service.ts"
+      ],
+      "producedCount": 4,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/redaction/PolicyScopePanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CALL_COMPLETED",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CALL_FAILED",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CALL_REFUSED_BUDGET",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CALL_REFUSED_POLICY",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CALL_STARTED",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_CANCELLATION_FAILED",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "PROVIDER_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_NOT_CONFIGURED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-detection.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PROVIDER_UNSUPPORTED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/device-identity.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PUBLIC_VERIFY_BLOCKED_BY_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PUBLIC_VERIFY_BLOCKED_BY_TEMPLATE_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance/template-export-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "PUBLICATION_STATUS_CHANGED",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "QUOTA_EXCEEDED",
+      "producedIn": [
+        "services/api/src/routes/product-and-lifecycle.routes.ts",
+        "services/api/src/services/packaging/entitlement.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RATE_LIMIT_EXCEEDED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RATE_LIMITED",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/middleware/integrations-auth.ts",
+        "services/api/src/routes/auth.routes.ts",
+        "services/api/src/routes/capture-trust.routes.ts"
+      ],
+      "producedCount": 10,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/redaction/page.tsx",
+        "apps/web/app/(app)/review/external/page.tsx",
+        "apps/web/app/portal/accept/[grantId]/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/account-security.ts",
+        "apps/mobile/test/account-security.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "RATIONALE_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-approval.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RECORD_ACCEPTED",
+      "producedIn": [
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RECORD_INGESTED",
+      "producedIn": [
+        "services/api/src/services/intelligence/media-intelligence.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RECORD_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/intelligence-platform.routes.ts",
+        "services/api/src/services/intelligence/reviewer-correction.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REGION_ADDED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-region.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REGION_INVALID",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-region.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/redaction/RegionListPanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REGION_OUT_OF_BOUNDS",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-decision.service.ts",
+        "services/api/src/services/redaction/redaction-region.service.ts",
+        "services/api/src/services/redaction/video/video-frame.service.ts",
+        "services/api/src/services/redaction/video/video-track.service.ts"
+      ],
+      "producedCount": 4,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REGION_REMOVED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-region.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REPORT_BLOCKED_BY_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REPORT_BLOCKED_BY_TEMPLATE_POLICY",
+      "producedIn": [
+        "services/api/src/services/governance/template-export-policy.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RETENTION_EXPIRED",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RETENTION_LIMIT_EXCEEDED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RETENTION_NOT_EXPIRED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RETENTION_POLICY_CREATED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RETENTION_POLICY_RELEASED",
+      "producedIn": [
+        "services/api/src/services/lifecycle/retention-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REVIEW_ACTOR_BLOCKED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-console.routes.ts",
+        "services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "REVIEW_OPENED",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REVIEW_PERMISSION_DENIED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-ops.routes.ts",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/review/queues/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "REVIEW_WORKFLOW_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "REVIEWER_OPS_CRON_SECRET_NOT_CONFIGURED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "RISK_EVALUATION_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/services/identity-security/step-up-middleware.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCHEMA_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCHEMA_NOT_READY",
+      "producedIn": [
+        "services/api/src/server.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/StatusPublicationSection.tsx",
+        "apps/web/app/(app)/review/schemas/page.tsx",
+        "apps/web/app/(app)/trust-center/status/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/notification-preferences.ts",
+        "apps/mobile/test/notification-preferences.test.mjs"
+      ],
+      "shared": false
+    },
+    {
+      "code": "SCIM_TOKEN_ROTATE_CONFLICT",
+      "producedIn": [
+        "services/api/src/services/access-control/scim.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "SCOPE_TARGET_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/governance-platform/policies/_policy-details.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCREEN_MANIFEST_ARTIFACT_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCREEN_MANIFEST_DIGEST_UNDECLARED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCREEN_MANIFEST_INVALID",
+      "producedIn": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SCREEN_MANIFEST_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SECURITY_CONTEXT_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_ALREADY_RESERVED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_ENDED",
+      "producedIn": [
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+        "apps/web/components/external-portal/PortalDenialNotice.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_EXPIRED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/ai/assistant-state.ts"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/bootstrap/bootstrap-machine.ts",
+        "apps/mobile/test/bootstrap-machine.test.mjs",
+        "apps/mobile/test/journeys.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "SESSION_NOT_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 2,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_NOT_OPEN_FOR_UPLOAD",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_NOT_RESERVED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_TERMINAL",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SESSION_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+        "apps/web/components/external-portal/PortalDenialNotice.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SIGNATURE_INVALID",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SIGNATURE_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SIGNING_KEY_MISSING",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "SIMILARITY_RECONCILE_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/intelligence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SLA_BREACHED",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SLA_DUE_SOON",
+      "producedIn": [
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STALE_MEMBERSHIP_GENERATION",
+      "producedIn": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/organizations/OrgMemberLifecycleControls.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "STALE_STATE",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts",
+        "services/api/src/services/governance/department-membership.service.ts",
+        "services/api/src/services/trust/status-page.service.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/governance-platform/departments/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STATUS_INCIDENT_CREATED",
+      "producedIn": [
+        "services/api/src/services/trust/status-page.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STATUS_INCIDENT_UPDATED",
+      "producedIn": [
+        "services/api/src/services/trust/status-page.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STATUS_MAINTENANCE_SCHEDULED",
+      "producedIn": [
+        "services/api/src/services/trust/status-page.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STEP_UP_ENROLLMENT_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/identity-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/identity-security/StepUpModal.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "STEP_UP_REQUIRED",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/services/identity-security/account-step-up.service.ts",
+        "services/api/src/services/identity-security/step-up-middleware.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/organizations/[id]/setup/page.tsx",
+        "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+        "apps/web/app/(app)/security-center/identity/permission-matrix/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/src/product/step-up.ts",
+        "apps/mobile/test/step-up.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "STEP_UP_WORKSPACE_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/organization-domains.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "STORAGE_ADDON_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "STORAGE_ADDON_NOT_LINKED",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "STORAGE_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "STORAGE_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/capture/_lib/capture-errors.ts"
+      ],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/test/safe-error.test.mjs"
+      ],
+      "shared": true
+    },
+    {
+      "code": "SUBJECT_NOT_IN_WORKSPACE",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBJECT_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/governance/cross-org-review.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBMISSION_NOT_READY",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/intake/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBMIT_FAILED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBMITTER_IDENTITY_INVALID",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBPROCESSOR_DEPRECATED",
+      "producedIn": [
+        "services/api/src/services/trust/subprocessor.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUBSCRIPTION_ALREADY_ACTIVE",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "SUBSCRIPTION_INACTIVE",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "SUBSCRIPTION_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/billing.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "SUBSCRIPTION_REQUIRED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUPPORT_ACCESS_APPROVER_INVALID",
+      "producedIn": [
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUPPORT_ACCESS_APPROVER_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "SUPPORT_CONTEXT_ENTRY_DENIED",
+      "producedIn": [
+        "services/api/src/routes/enterprise-security.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TEAM_INVITES_NOT_INCLUDED",
+      "producedIn": [
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "TEAM_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/collaboration-teams/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "TEAM_MEMBER_LIMIT_REACHED",
+      "producedIn": [
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "TEAM_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TEAM_PLAN_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/capture/_lib/capture-errors.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "TOKEN_EXPIRED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/page.tsx",
+        "apps/web/components/external-portal/PortalDenialNotice.tsx",
+        "apps/web/components/external-portal/PortalMfaCodeStep.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TOKEN_INVALID",
+      "producedIn": [
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/services/external-review/portal-session.service.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/portal/accept/[grantId]/page.tsx",
+        "apps/web/app/portal/page.tsx",
+        "apps/web/app/portal/[token]/page.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRACK_CREATED",
+      "producedIn": [
+        "services/api/src/services/redaction/video/video-track.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRACK_MERGED",
+      "producedIn": [
+        "services/api/src/services/redaction/video/video-track.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRACK_SPLIT",
+      "producedIn": [
+        "services/api/src/services/redaction/video/video-track.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRANSFER_TARGET_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "TRANSITION_NOT_ALLOWED",
+      "producedIn": [
+        "services/api/src/routes/external-intake.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRUST_ARTICLE_MARKED_STALE",
+      "producedIn": [
+        "services/api/src/services/trust/trust-drift.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRUST_ARTICLE_PUBLISHED",
+      "producedIn": [
+        "services/api/src/services/trust/trust-center.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRUST_ARTICLE_REVIEW_FLAG_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "TRUST_ARTICLE_SUPERSEDED",
+      "producedIn": [
+        "services/api/src/services/trust/trust-center.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "UNKNOWN_DIFFERENCE",
+      "producedIn": [
+        "services/api/src/services/trust-decision-consistency.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "UNSUPPORTED_MODE",
+      "producedIn": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/capture-trust/screen-capture.service.ts",
+        "services/api/src/services/capture-trust/web-capture.service.ts"
+      ],
+      "producedCount": 4,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "UNSUPPORTED_REDACTION_MEDIA",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-derivative.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "USER_NOT_A_MEMBER",
+      "producedIn": [
+        "services/api/src/services/governance/department-membership.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "USER_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/platform-context/PlatformContextProvider.tsx",
+        "apps/web/lib/platform-context/types.ts"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "VALIDATION_ERROR",
+      "producedIn": [
+        "services/api/src/errors.ts",
+        "services/api/src/routes/identity-operations-completion.routes.ts"
+      ],
+      "producedCount": 2,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "VERDICT_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "VERIFICATION_POLICY_BLOCKED",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "VERIFICATION_TEMPORARILY_UNAVAILABLE",
+      "producedIn": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "VERSION_CREATED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-project.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "VERSION_LOCKED",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-decision.service.ts",
+        "services/api/src/services/redaction/redaction-detection.service.ts",
+        "services/api/src/services/redaction/redaction-region.service.ts"
+      ],
+      "producedCount": 3,
+      "web": true,
+      "webFiles": [
+        "apps/web/components/redaction/RegionListPanel.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "VERSION_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/redaction/redaction-approval.service.ts",
+        "services/api/src/services/redaction/redaction-derivative.service.ts",
+        "services/api/src/services/redaction/redaction-detection.service.ts",
+        "services/api/src/services/redaction/redaction-policy-store.service.ts"
+      ],
+      "producedCount": 7,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEB_MANIFEST_ARTIFACT_MISMATCH",
+      "producedIn": [
+        "services/api/src/services/capture-trust/web-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEB_MANIFEST_DIGEST_UNDECLARED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/web-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEB_MANIFEST_INVALID",
+      "producedIn": [
+        "services/api/src/services/capture-trust/web-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEB_MANIFEST_REQUIRED",
+      "producedIn": [
+        "services/api/src/services/capture-trust/web-capture.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEBHOOK_DELIVERY_FAILED",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEBHOOK_ENDPOINT_EVENT_UNKNOWN",
+      "producedIn": [
+        "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WEBHOOK_ENDPOINT_EVENTS_INVALID",
+      "producedIn": [
+        "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WEBHOOK_ENDPOINT_URL_INVALID",
+      "producedIn": [
+        "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WEBHOOK_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WEBHOOK_SIGNATURE_INVALID",
+      "producedIn": [
+        "services/api/src/errors.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/workflow-instances.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKFLOW_INSTANCE_REINDEX_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/search.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKFLOW_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx",
+        "apps/web/components/external-portal/PortalDenialNotice.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKFLOW_TEMPLATE_AUTHORING_RETIRED",
+      "producedIn": [
+        "services/api/src/routes/workflow.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKSPACE_CONTEXT_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WORKSPACE_CREATION_NOT_SELF_SERVICE",
+      "producedIn": [
+        "services/api/src/routes/teams.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WORKSPACE_MEMBERS_ACTIVE",
+      "producedIn": [
+        "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
+      ],
+      "producedCount": 1,
+      "web": false,
+      "webFiles": [],
+      "native": true,
+      "nativeFiles": [
+        "apps/mobile/test/closure.test.mjs"
+      ],
+      "shared": false
+    },
+    {
+      "code": "WORKSPACE_MEMBERSHIP_REQUIRED",
+      "producedIn": [
+        "services/api/src/routes/capture.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+        "apps/web/components/command-center/CommandCenter.tsx",
+        "apps/web/lib/platform-context/PlatformContextProvider.tsx"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    },
+    {
+      "code": "WORKSPACE_NOT_FOUND",
+      "producedIn": [
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/src/routes/product-and-lifecycle.routes.ts",
+        "services/api/src/routes/reviewer-workspace.routes.ts",
+        "services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "producedCount": 4,
+      "web": true,
+      "webFiles": [
+        "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx"
+      ],
+      "native": false,
+      "nativeFiles": [],
+      "shared": false
+    },
+    {
+      "code": "WORKSPACE_SEAT_CONTENTION",
+      "producedIn": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "producedCount": 1,
+      "web": true,
+      "webFiles": [
+        "apps/web/lib/invitations/resolveInvitationView.ts"
+      ],
+      "native": true,
+      "nativeFiles": [],
+      "shared": true
+    }
+  ]
+}

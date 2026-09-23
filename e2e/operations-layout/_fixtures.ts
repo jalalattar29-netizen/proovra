@@ -1225,3 +1225,33 @@ export async function isWithinViewport(
 export function capabilitiesFor(context: OpsContext): Record<string, boolean> {
   return CONTEXTS[context].capabilities;
 }
+
+/**
+ * LEAVE THE GROUPED DEFAULT FOR THE FLAT LIST OF CONDITIONS.
+ *
+ * The workbench groups by source by default — "one row per source rather than
+ * one per record: a workspace with five thousand failed timestamps had five
+ * thousand identical rows and nowhere to look" — so `IncidentSurface`, which
+ * owns the table, the cards and every per-row control, does not render until
+ * the operator asks for it.
+ *
+ * This is the control they use to ask: the real "All conditions" button in the
+ * header, not a state poke. A test that reached the flat list any other way
+ * would be proving something about a surface no operator can get to.
+ *
+ * Every per-row assertion in this project needs it. Without it they waited on
+ * `[data-ops-row-menu-trigger]` inside a grouped view that has no such
+ * control, which is why fifteen of them timed out at sixty seconds each — a
+ * gate measuring a surface the product had stopped showing by default.
+ */
+export async function showAllConditions(page: Page): Promise<void> {
+  // `data-ops-view="flat"` — the attribute the button actually carries. The
+  // label reads "All conditions"; the value is the state it selects.
+  const all = page.locator('[data-ops-view="flat"]');
+  await all.waitFor({ state: "visible", timeout: 30_000 });
+  await all.click();
+  await page
+    .locator("[data-ops-table-surface], [data-ops-cards]")
+    .first()
+    .waitFor({ state: "attached", timeout: 30_000 });
+}

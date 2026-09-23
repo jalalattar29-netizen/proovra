@@ -778,8 +778,26 @@ jobs:
           token=$(field token)
           test -n "$token"
 
+          # THE VERSIONS THE SERVER REQUIRES, ASKED FOR RATHER THAN ASSUMED.
+          #
+          # These were three literals reading "2026-04-06" while the documents
+          # had said 2026-06-23 and 2026-06-26 for months, so the smoke test
+          # 400'd on its own acceptance and never reached the capture it
+          # exists to prove. The same stale table cost the Playwright suite 86
+          # tests; `REQUIRED_LEGAL_VERSIONS` in @proovra/shared is derived
+          # from each document's own "Last Updated:" line and is the only
+          # authority for it.
           echo "--- accept the current policies"
-          req 200 POST /v1/users/legal-acceptance '{"source":"ci-smoke","acceptances":[{"policyKey":"terms","policyVersion":"2026-04-06"},{"policyKey":"privacy","policyVersion":"2026-04-06"},{"policyKey":"cookies","policyVersion":"2026-04-06"}]}'
+          acceptances=$(node -e '
+            const { REQUIRED_LEGAL_VERSIONS } = require("./packages/shared/dist/legal.js");
+            process.stdout.write(JSON.stringify({
+              source: "ci-smoke",
+              acceptances: Object.entries(REQUIRED_LEGAL_VERSIONS).map(
+                ([policyKey, policyVersion]) => ({ policyKey, policyVersion }),
+              ),
+            }));
+          ')
+          req 200 POST /v1/users/legal-acceptance "$acceptances"
 
           echo "--- capture a record"
           req 201 POST /v1/evidence '{"type":"PHOTO","mimeType":"text/plain"}'

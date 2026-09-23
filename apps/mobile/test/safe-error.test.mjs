@@ -10,7 +10,27 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(HERE, "../src/errors/safe-error.ts"), "utf8");
+
+/*
+ * THE SHARED DICTIONARY, INLINED — because a data URL cannot resolve a bare
+ * specifier.
+ *
+ * This module imports `@proovra/shared/user-facing-errors`, and the
+ * transpile-and-import idiom these pure tests use loads the result as a data
+ * URL, from which "@proovra/..." is not resolvable at all. Inlining the REAL
+ * built module as a nested data URL keeps one authority: the codes asserted
+ * below are the ones the product ships, not a fixture written to match.
+ */
+const dictionarySrc = readFileSync(
+  resolve(HERE, "../../../packages/shared/dist/user-facing-errors.js"),
+  "utf8",
+);
+const dictionaryUrl = `data:text/javascript,${encodeURIComponent(dictionarySrc)}`;
+
+const src = readFileSync(resolve(HERE, "../src/errors/safe-error.ts"), "utf8").replace(
+  '"@proovra/shared/user-facing-errors"',
+  JSON.stringify(dictionaryUrl),
+);
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
@@ -44,10 +64,49 @@ test("Fastify-flat envelope {error,message,statusCode} is understood", () => {
   assert.equal(e.status, 403);
 });
 
-test("400 INVALID_INPUT surfaces the backend message (it is user-facing)", () => {
-  const e = toSafeUserError({ status: 400, error: { code: "INVALID_INPUT", message: "email is required" } });
+test("400 INVALID_INPUT answers with the product's sentence, and the FIELDS", () => {
+  // CHANGED DELIBERATELY. This used to render the server's own summary, and
+  // that summary is not written for a person: `server.ts` composes it as
+  // "Invalid input: <root> — Too big: expected number to be <=100". The
+  // product's sentence is the summary now, and `fields[]` — which the same
+  // handler bounds to five entries of path + message — is what a form renders
+  // beside the input that is actually wrong.
+  const e = toSafeUserError({
+    status: 400,
+    error: {
+      code: "INVALID_INPUT",
+      message: "Invalid input: email — Required",
+      fields: [{ path: "email", code: "invalid_type", message: "Required" }],
+    },
+  });
   assert.equal(e.kind, "input");
-  assert.equal(e.message, "email is required");
+  assert.equal(e.explained, true, "INVALID_INPUT is in the shared dictionary");
+  assert.ok(!/<root>|expected number/.test(e.message), "no zod shape reaches a person");
+  assert.deepEqual(e.fields, [{ path: "email", message: "Required" }]);
+});
+
+test("a code the dictionary knows is answered by the PRODUCT, not by its status", () => {
+  // THE DEFECT THIS CLOSES. Native classified by status alone, so every 409
+  // — evidence locked, already finalized, a session already reserved — read
+  // "Something went wrong. Please try again." about something retrying can
+  // never fix, and every 403 read as a permission problem even when it was a
+  // plan limit.
+  const locked = toSafeUserError({ status: 409, error: { code: "EVIDENCE_LOCKED" } });
+  assert.equal(locked.explained, true);
+  assert.ok(!/Please try again/i.test(locked.message), locked.message);
+
+  const plan = toSafeUserError({ status: 403, error: { code: "STORAGE_LIMIT_REACHED" } });
+  assert.equal(plan.explained, true);
+  assert.notEqual(plan.message, "You don't have access to this.");
+});
+
+test("an UNMAPPED code still gets safe copy, never a raw server string", () => {
+  const e = toSafeUserError({
+    status: 409,
+    error: { code: "SOME_NEW_CODE_NOBODY_MAPPED", message: "constraint violation on evidence_pkey" },
+  });
+  assert.equal(e.explained, false);
+  assert.ok(!/constraint violation/.test(e.message));
 });
 
 test("transport failure (TypeError) → network, not invalid credentials", () => {
