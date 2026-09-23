@@ -108,8 +108,32 @@ describe("PHASE 12 — purge claim is bounded under concurrency", () => {
       await holderDone;
     });
 
-    // Give the holder time to actually take the lock.
-    await new Promise((r) => setTimeout(r, 250));
+    /*
+     * WAIT FOR THE LOCK TO EXIST, NOT FOR A DURATION.
+     *
+     * This slept 250ms and assumed the holder had the row. If it did not —
+     * and on a loaded runner it need not — the claim below SUCCEEDS and the
+     * test fails for a reason that has nothing to do with the property being
+     * proven. Its sibling in this suite failed exactly that way on CI.
+     *
+     * The probe is the lock itself: `FOR UPDATE NOWAIT` raises
+     * `lock_not_available` the moment somebody else holds the row, so a
+     * throw here is the positive signal and no other bookkeeping is trusted.
+     */
+    const lockDeadline = Date.now() + 30_000;
+    let holderHasLock = false;
+    while (!holderHasLock && Date.now() < lockDeadline) {
+      try {
+        await prisma.$queryRawUnsafe(
+          `SELECT id FROM "${table}" WHERE id = $1::uuid FOR UPDATE NOWAIT`,
+          id,
+        );
+        await new Promise((r) => setTimeout(r, 25));
+      } catch {
+        holderHasLock = true;
+      }
+    }
+    expect(holderHasLock, "the holder never took its row lock").toBe(true);
 
     const started = Date.now();
     const claimed = await prisma.$queryRawUnsafe<Array<{ id: string }>>(

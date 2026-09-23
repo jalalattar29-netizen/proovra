@@ -20,7 +20,7 @@
       "recordedAtUtc": "2026-09-23T03:24:10.611Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
-      "sha256": "223ef999fc976b8309caf7127fa8cc112aab73807de96ef268619e560bfd9d32",
+      "sha256": "60eedb061a5f30bb53ec9506aad156235d63e6f35be40032eb0405e71d35588a",
       "cases": [
         "archive.claim.active_not_stolen",
         "archive.claim.one_winner",
@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
+      "runId": "d2dbe4d1-ab56-40d3-95c0-6ecf11661f99",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-23T03:12:49.715Z"
+      "recordedAtUtc": "2026-09-23T16:51:36.159Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",

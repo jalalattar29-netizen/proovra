@@ -1693,7 +1693,27 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
       });
 
     const runs = [attempt(), attempt(), attempt()];
-    // Let every attempt reach either the body or the refusal.
+
+    /*
+     * WAIT FOR THE EVENT, NOT FOR A DURATION.
+     *
+     * This slept 250ms and then asserted. The property being proven is "exactly
+     * one body runs at a time", and a fixed sleep proves it only on a machine
+     * fast enough to have taken the lock within the sleep — on a loaded CI
+     * runner the count was ZERO, which is not a lock failure at all (that
+     * would read 2 or 3) but a test that asked too early. Measured on
+     * `schema-reproducibility`, where this file is the clean-boot suite.
+     *
+     * So: wait until the first body is actually in, then give the losers a
+     * moment to be refused, then assert. The assertion itself is unchanged
+     * and still fails if a second body ever enters.
+     */
+    const deadline = Date.now() + 30_000;
+    while (bodiesEntered === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    // The other two have had their answer by now: they either refused
+    // immediately or are blocked on the same lock.
     await new Promise((r) => setTimeout(r, 250));
     expect(bodiesEntered).toBe(1);
     for (const r of release) r();
