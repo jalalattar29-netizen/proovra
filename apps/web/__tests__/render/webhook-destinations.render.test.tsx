@@ -117,8 +117,20 @@ describe("automation webhook destinations", () => {
     mount();
     const add = await screen.findByRole("button", { name: "Add destination" });
     fireEvent.click(add);
-    expect(add.getAttribute("aria-expanded")).toBe("true");
-    const form = screen.getByRole("form", { name: "Add a webhook destination" });
+    /*
+     * WAIT FOR THE DISCLOSURE, DO NOT ASSUME THE CLICK ALREADY FLUSHED IT.
+     *
+     * Read immediately after the click, this was "false" on a loaded CI
+     * runner while passing everywhere else — the assertion raced the render
+     * rather than describing anything about the component. The form is
+     * awaited first because its presence IS the expansion; the attribute is
+     * then checked for what it uniquely adds, which is that assistive
+     * technology is told the same thing the eye is.
+     */
+    const form = await screen.findByRole("form", {
+      name: "Add a webhook destination",
+    });
+    await waitFor(() => expect(add.getAttribute("aria-expanded")).toBe("true"));
     expect(document.activeElement).toBe(within(form).getByLabelText("Name"));
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "New receiver" } });
     fireEvent.change(within(form).getByLabelText("Destination URL"), { target: { value: "https://new.example/in" } });
@@ -145,7 +157,10 @@ describe("automation webhook destinations", () => {
     });
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Add destination" }));
-    const form = screen.getByRole("form", { name: "Add a webhook destination" });
+    // Awaited for the same reason as above: the disclosure is a render away.
+    const form = await screen.findByRole("form", {
+      name: "Add a webhook destination",
+    });
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Local" } });
     fireEvent.change(within(form).getByLabelText("Destination URL"), { target: { value: "https://localhost/in" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add destination" }));
@@ -158,7 +173,11 @@ describe("automation webhook destinations", () => {
     mount();
     const add = await screen.findByRole("button", { name: "Add destination" });
     fireEvent.click(add);
-    fireEvent.click(within(screen.getByRole("form", { name: "Add a webhook destination" })).getByRole("button", { name: "Cancel" }));
+    // The disclosure is a render away — see the note on the create test.
+    const createForm = await screen.findByRole("form", {
+      name: "Add a webhook destination",
+    });
+    fireEvent.click(within(createForm).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("form", { name: "Add a webhook destination" })).toBeNull();
     expect(document.activeElement).toBe(add);
     expect(writes()).toHaveLength(0);
@@ -174,7 +193,9 @@ describe("automation webhook destinations", () => {
     cleanup();
     mount(true);
     fireEvent.click(await screen.findByRole("button", { name: "Add destination" }));
-    const submit = within(screen.getByRole("form", { name: "Add a webhook destination" })).getByRole("button", { name: "Add destination" });
+    const submit = within(
+      await screen.findByRole("form", { name: "Add a webhook destination" }),
+    ).getByRole("button", { name: "Add destination" });
     expect(reasonOf(submit)).toBe("Enter a name of 1 to 120 characters.");
   });
 
@@ -218,7 +239,7 @@ describe("automation webhook destinations", () => {
     mount();
     const edit = await screen.findByRole("button", { name: "Edit destination Receiver" });
     fireEvent.click(edit);
-    const form = screen.getByRole("form", { name: 'Edit "Receiver"' });
+    const form = await screen.findByRole("form", { name: 'Edit "Receiver"' });
     const submit = within(form).getByRole("button", { name: "Save changes" });
     expect(reasonOf(submit)).toBe("Change the name or the address to save.");
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Renamed" } });
@@ -231,7 +252,7 @@ describe("automation webhook destinations", () => {
     expect(JSON.parse(patch[1].body)).toEqual({ name: "Renamed" });
 
     fireEvent.click(screen.getByRole("button", { name: "Edit destination Renamed" }));
-    const second = screen.getByRole("form", { name: 'Edit "Renamed"' });
+    const second = await screen.findByRole("form", { name: 'Edit "Renamed"' });
     fireEvent.change(within(second).getByLabelText("Destination URL"), { target: { value: "https://other.example/in" } });
     mocks.confirm.mockResolvedValueOnce(false);
     fireEvent.click(within(second).getByRole("button", { name: "Save changes" }));
