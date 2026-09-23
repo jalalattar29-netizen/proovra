@@ -88,7 +88,7 @@ async function openForm() {
   const toggle = await screen.findByRole("button", { name: "Quarantine redacted copy" });
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(toggle);
-  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
   const field = screen.getByLabelText(/Reason for quarantine/);
   expect(document.getElementById(toggle.getAttribute("aria-controls")!)?.contains(field)).toBe(true);
   return { toggle, field: field as HTMLTextAreaElement };

@@ -203,7 +203,7 @@ describe("evidence certifications on the Integrity tab", () => {
     mount();
     const toggle = await screen.findByRole("button", { name: "Sign declaration" });
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     expect(document.querySelector("[data-certification-statement]")?.textContent).toBe(STATEMENT);
     expect(document.activeElement).toBe(screen.getByLabelText("Signer full name"));
     const submit = () => screen.getAllByRole("button", { name: "Sign declaration" }).at(-1)!;

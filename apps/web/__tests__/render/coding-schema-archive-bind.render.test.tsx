@@ -135,7 +135,7 @@ describe("coding schema binding on a review", () => {
     await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     const select = await screen.findByLabelText("Published schema");
     await waitFor(() => expect(document.activeElement).toBe(select));
     return { toggle, select };

@@ -107,7 +107,7 @@ describe("evidence request reviewer assignment", () => {
     render(<EvidenceRequestInspectorPage />);
     const toggle = await screen.findByRole("button", { name: "Assign reviewer" });
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     const save = screen.getByRole("button", { name: "Save reviewer" });
     expect(describedBy(save)).toBe("Choose a workspace member to assign.");
     await pick("Sam Ortiz");

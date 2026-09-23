@@ -50,7 +50,7 @@ describe("trust article version history", () => {
     expect(versionReads("/versions")).toHaveLength(0);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     const list = await screen.findByRole("list", { name: "Versions of Encryption" });
     const items = within(list).getAllByRole("listitem");
     expect(items[0].getAttribute("data-trust-article-version-row")).toBe("2");
@@ -107,7 +107,7 @@ describe("subprocessor change history", () => {
     const toggle = await screen.findByRole("button", { name: "Change history for Object storage" });
     expect(versionReads("/versions")).toHaveLength(0);
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     const list = await screen.findByRole("list", { name: "Change history for Object storage" });
     const items = within(list).getAllByRole("listitem");
     expect(items[0].textContent).toContain("Moved storage to the EU");

@@ -79,7 +79,7 @@ describe("ops causality chain drill-down", () => {
     const button = await toggle();
     expect(detailCalls()).toBe(0);
     fireEvent.click(button);
-    expect(button.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(button.getAttribute("aria-expanded")).toBe("true"));
     const panel = document.getElementById(button.getAttribute("aria-controls")!)!;
     await screen.findByRole("heading", { name: "Worker outage" });
     expect(panel.contains(screen.getByRole("heading", { name: "Worker outage" }))).toBe(true);

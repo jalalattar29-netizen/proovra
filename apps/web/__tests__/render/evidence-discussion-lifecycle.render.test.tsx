@@ -170,7 +170,7 @@ describe("evidence discussion thread lifecycle", () => {
     expect(mocks.fetch.mock.calls.some(([p]) => String(p).startsWith(`/v1/teams/${teamId}/members?`) && String(p).includes("status=ACTIVE"))).toBe(true);
     fireEvent.click(picker);
     fireEvent.click(await screen.findByRole("option", { name: /Dana Reyes/ }));
-    expect(document.getElementById(submit.getAttribute("aria-describedby")!)?.textContent).toBe("This member is already assigned to the thread.");
+    await waitFor(() => expect(document.getElementById(submit.getAttribute("aria-describedby")!)?.textContent).toBe("This member is already assigned to the thread."));
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(await screen.findByRole("option", { name: /Sam Ortiz/ }));
     expect(submit.hasAttribute("disabled")).toBe(false);

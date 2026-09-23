@@ -165,11 +165,11 @@ describe("governance retention policy edit", () => {
     const dialog = await openEditor();
     expect(reasonOf(save(dialog))).toBe("Change at least one setting to save a new version.");
     fireEvent.change(within(dialog).getByLabelText("Description (operator-readable only)"), { target: { value: "New words" } });
-    expect(reasonOf(save(dialog))).toMatch(/description change alone does not create a new version/);
+    await waitFor(() => expect(reasonOf(save(dialog))).toMatch(/description change alone does not create a new version/));
     fireEvent.change(within(dialog).getByLabelText("Retention in days (empty means indefinite)"), { target: { value: "abc" } });
-    expect(reasonOf(save(dialog))).toMatch(/whole number of days/);
+    await waitFor(() => expect(reasonOf(save(dialog))).toMatch(/whole number of days/));
     fireEvent.change(within(dialog).getByLabelText("Retention in days (empty means indefinite)"), { target: { value: "" } });
-    expect(reasonOf(save(dialog))).toBe("Enter a change note for the audit trail.");
+    await waitFor(() => expect(reasonOf(save(dialog))).toBe("Enter a change note for the audit trail."));
     fireEvent.change(within(dialog).getByLabelText("Change note (required)"), { target: { value: "Indefinite" } });
     expect(save(dialog).hasAttribute("disabled")).toBe(false);
   });

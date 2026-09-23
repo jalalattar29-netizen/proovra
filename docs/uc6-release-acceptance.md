@@ -26,10 +26,17 @@ readiness is not device acceptance, and neither is launch readiness.
 `ci` was red at every intermediate commit, for a DIFFERENT real reason each
 time, and each was fixed at its cause rather than retried or routed around.
 
-Four of the nine were tests asking a question before the answer could exist.
-That is worth naming as a pattern rather than nine separate accidents: a fixed
+Five of the ten were tests asking a question before the answer could exist.
+That is worth naming as a pattern rather than ten separate accidents: a fixed
 sleep, a click read on the next line, a poller assumed to have fired. Each one
 passed everywhere except where it mattered.
+
+The third one arrived AFTER the merge, on `main`, at a SHA this workflow had
+already passed on the branch — which is what finally made it a pattern rather
+than a coincidence. So the habit was swept instead of waited for: every read of
+an `aria-expanded`, an `aria-describedby` reason or a `.disabled` taken on
+the line after the action that changes it, across the whole render suite, now
+waits for the settled state. That is 13 sites in 10 files.
 
 | # | Cause | Fix |
 |---|---|---|
@@ -42,6 +49,7 @@ passed everywhere except where it mattered.
 | 7 | The freshness gate again, three commits running | regenerated — and fixing it is what let #8 become visible at all |
 | 8 | `Test — api`: the Point-5 ledger carried TWO runIds, so the gate read "proof stitched from 2 runs" and credited **0** of 34 units | all 14 credited suites re-executed in ONE invocation against a fresh database (19 files, 338 cases), leaving one runId |
 | 9 | `Test — web`: `webhook-destinations.render.test.tsx` failed on a commit whose ENTIRE diff is one markdown file, having passed on the commit before it — identical code, different result | six assertions read the form on the line after the click that opens it. All six now await it; the file passes 20/20 four consecutive times |
+| 10 | `Test — web` **on `main`, after the merge**: `external-bulk-invite-scope.render.test.tsx` read the submit button's reason on the line after the alert it awaited — separate state, a render later. The SAME SHA had passed this workflow on the branch | the read waits; and the pattern was then SWEPT rather than waited for: 12 more eager reads across 9 files now wait too |
 
 ### What #8 is worth remembering for
 
@@ -62,7 +70,7 @@ an application somebody can install, and a launch an operator can stand behind.
 | # | Category | Status | Evidence |
 |---|---|---|---|
 | 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone (a second run against a REUSED database read 2292/2294; both failures were residue-sensitive tick counters that scan every workspace, and the two files pass 50/50 on a database created and migrated fresh — which is what CI provisions) · worker 974/974 · web 3230 + 1470 render · operations/capture layout 296/296 on a freshly built bundle (§C3) · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
-| 2 | **CI readiness** | **PASS** | all three workflows green on `b79706b66`: `ci` (run 35902545060), `playwright-e2e` (35902545042), `schema-reproducibility` (35902545057). **Nine** distinct red causes were fixed at source along the way — none retried, none suppressed — and four of them were tests that asked a question too early rather than product faults. §A2 lists every one |
+| 2 | **CI readiness** | **PASS** | all three workflows green on `b79706b66`: `ci` (run 35902545060), `playwright-e2e` (35902545042), `schema-reproducibility` (35902545057). **Ten** distinct red causes were fixed at source along the way — none retried, none suppressed — and five of them were tests that asked a question too early rather than product faults. §A2 lists every one |
 | 3 | **Android build readiness** | **PASS (build)** · **SUPERSEDED (native manifest)** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. **No longer corresponds to the final app code**, in exactly one respect: `apps/mobile/app.json` was changed after the build to narrow the Android `/auth` deep-link claim (§C2). Nothing else the bundle includes has moved — `git diff 7f994890f..HEAD -- apps/mobile packages/shared packages/shared-runtime` is that file plus a doc. The JavaScript is therefore identical; only the native manifest differs, and it is INERT until the signing fingerprint in §E2 is written, which forces a rebuild anyway |
 | 4 | **iOS build readiness** | **PASS (bundle)** · **NOT_TESTED (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A JavaScript bundle is not a signed application: no iOS build was produced in this phase, though credentials exist on the account from earlier FINISHED builds |
 | 5 | **Android physical acceptance** | **NOT_TESTED** | no device was available to this session. The APK exists and `apps/mobile/docs/physical-acceptance.md` carries the script, the build id and the two UC-6 behaviours to exercise deliberately |

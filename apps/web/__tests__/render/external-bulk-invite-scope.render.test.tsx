@@ -206,9 +206,18 @@ describe("bulk invite scope", () => {
     expect(alert.textContent).not.toMatch(/raw body/);
     expect(document.querySelector("[data-bulk-scope-empty]")).toBeNull();
     expect(screen.queryByText(/has no evidence records/)).toBeNull();
-    expect(submit().disabled).toBe(true);
+    /*
+     * THE BUTTON LEARNS OF THE FAILED READ A RENDER AFTER THE ALERT DOES.
+     *
+     * The alert is awaited above, so the failure HAS surfaced — but the
+     * submit button's described-by reason is separate state, and read on the
+     * next line it can still be the generic scope reason. Measured on a CI
+     * runner as `expected <scope reason> not to be <scope reason>`: the test
+     * was describing a moment, not a behaviour.
+     */
+    await waitFor(() => expect(submit().disabled).toBe(true));
+    await waitFor(() => expect(reasonOf(submit())).not.toBe(SCOPE_REASON));
     const reason = reasonOf(submit());
-    expect(reason).not.toBe(SCOPE_REASON);
     expect(alert.textContent).toContain(reason);
   });
 

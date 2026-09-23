@@ -70,7 +70,7 @@ async function openAssign(name = "Assign QC reviewer") {
   await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(toggle);
-  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
   const select = await screen.findByLabelText("QC reviewer");
   expect(document.getElementById(toggle.getAttribute("aria-controls")!)?.contains(select)).toBe(true);
   await waitFor(() => expect(document.activeElement).toBe(select));
