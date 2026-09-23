@@ -184,19 +184,35 @@ describe("automation webhook destinations", () => {
   });
 
   it("explains disabled controls for a view-only operator and an invalid form", async () => {
+    /*
+     * EVERY READ HERE WAITS FOR THE SETTLED STATE.
+     *
+     * The panel fetches its list on mount and this test mounts TWICE, with a
+     * `cleanup()` between — so a row control, a disabled attribute and a
+     * described-by reason each arrive a render after the control they belong
+     * to. Read eagerly, they were green locally and on most runners and red
+     * on a loaded one, which is a test describing a schedule rather than a
+     * product.
+     */
     mount(false);
     const add = await screen.findByRole("button", { name: "Add destination" });
-    expect(add.hasAttribute("disabled")).toBe(true);
-    expect(reasonOf(add)).toBe("Only a workspace owner or admin can change webhook destinations.");
-    const enable = screen.getByRole("button", { name: "Enable destination Receiver" });
-    expect(reasonOf(enable)).toBe("Only a workspace owner or admin can change webhook destinations.");
+    const VIEW_ONLY =
+      "Only a workspace owner or admin can change webhook destinations.";
+    await waitFor(() => expect(add.hasAttribute("disabled")).toBe(true));
+    await waitFor(() => expect(reasonOf(add)).toBe(VIEW_ONLY));
+    const enable = await screen.findByRole("button", {
+      name: "Enable destination Receiver",
+    });
+    await waitFor(() => expect(reasonOf(enable)).toBe(VIEW_ONLY));
     cleanup();
     mount(true);
     fireEvent.click(await screen.findByRole("button", { name: "Add destination" }));
     const submit = within(
       await screen.findByRole("form", { name: "Add a webhook destination" }),
     ).getByRole("button", { name: "Add destination" });
-    expect(reasonOf(submit)).toBe("Enter a name of 1 to 120 characters.");
+    await waitFor(() =>
+      expect(reasonOf(submit)).toBe("Enter a name of 1 to 120 characters."),
+    );
   });
 
   it("enables after confirmation and announces after the reread", async () => {
