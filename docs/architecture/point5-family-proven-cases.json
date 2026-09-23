@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:38:20.925Z"
+      "recordedAtUtc": "2026-09-23T03:12:49.715Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",
@@ -166,9 +166,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:39:36.487Z"
+      "recordedAtUtc": "2026-09-23T03:12:31.937Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -393,9 +393,9 @@
         "auto.tenant.workspace_reloaded",
         "auto.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:35:25.321Z"
+      "recordedAtUtc": "2026-09-23T03:11:02.760Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",
