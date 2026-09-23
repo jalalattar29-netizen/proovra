@@ -56,7 +56,7 @@ an application somebody can install, and a launch an operator can stand behind.
 
 | # | Category | Status | Evidence |
 |---|---|---|---|
-| 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone · worker 974/974 · web 3223 + 1470 render · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
+| 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone (a second run against a REUSED database read 2292/2294; both failures were residue-sensitive tick counters that scan every workspace, and the two files pass 50/50 on a database created and migrated fresh — which is what CI provisions) · worker 974/974 · web 3230 + 1470 render · operations/capture layout 296/296 on a freshly built bundle (§C3) · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
 | 2 | **CI readiness** | **PASS** | `ci`, `playwright-e2e` and `schema-reproducibility` all green on the merged head. Five distinct red causes were fixed at source along the way, and two of them were flaky tests repaired rather than retried — see §A2 |
 | 3 | **Android build readiness** | **PASS** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. Verified to correspond to the final app code: every commit since it was built touches only docs, generated audit artifacts and API test files — zero files the mobile bundle includes |
 | 4 | **iOS build readiness** | **PASS (bundle)** · **NOT_TESTED (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A JavaScript bundle is not a signed application: no iOS build was produced in this phase, though credentials exist on the account from earlier FINISHED builds |
@@ -79,6 +79,12 @@ an application somebody can install, and a launch an operator can stand behind.
 * The error-surface work gained a reachability denominator: 441 produced, 326
   reachable, and 195 of those still undispositioned — now ratcheted so the
   number cannot grow silently.
+* Two product defects were found by running a suite nobody runs, and fixed: a
+  refused context still reading `/v1/ops/incident-groups` (§C3), and Android
+  claiming every path under `/auth` as a deep link (§C2). Neither was
+  reachable through any workflow, which is the part worth keeping in mind.
+* The UC-0 → UC-5 chain is now stated as a table with the proof for each mode
+  and the device column kept separate from the code column (§C1).
 
 ## C. SECURITY REVIEW — SCOPE AND LIMITS
 
@@ -101,6 +107,38 @@ Explicit limits:
 * No production system was contacted, scanned or mutated.
 * Rate limiting, resource exhaustion and long-running capture were reviewed in
   source and exercised only at test scale.
+
+---
+
+## C1. THE UC-0 → UC-5 CHAIN
+
+One authority decides origin for every capture: `acquisitionMode` in
+`packages/shared/src/evidence-acquisition.ts`, with `captureMethod`
+describing structure and never origin. Each mode below is a value of that
+one enum, accepted on the same ingest spine, and each is exercised against
+live PostgreSQL 16 in the API integration suite.
+
+| UC | `acquisitionMode` | Proof in the tree | Code | Device |
+|---|---|---|---|---|
+| 0 | `PROOVRA_MOBILE_APP` (and the spine itself) | `uc0-acquisition-capture` 10 cases · `uc0-discard-lifecycle` · `uc0-zero-legacy-acquisition` | PASS | see rows 5–7 of §B |
+| 1 | `DIRECT_WEB_CAPTURE_EXTENSION` | `uc1-web-capture` 4 cases · `uc1-extension-oauth` 5 cases | PASS | BLOCKED_EXTERNAL — unpublished (§B row 8) |
+| 2 | `DIRECT_SCREEN_CAPTURE_ANDROID` | `uc2-screen-capture` 4 cases | PASS | NOT_TESTED |
+| 3 | `DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS` | `uc3-continuous-capture` 10 cases | PASS | NOT_TESTED |
+| 4 | derived intelligence — `DERIVED_MACHINE_EXTRACTED`, `DERIVED_RECONSTRUCTED` | 19 test files across intelligence, OCR and transcript authority | PASS (mechanism) | **accuracy NOT EVALUATED** |
+| 5 | `DIRECT_SCREEN_CAPTURE_IOS` | `uc5-ios-screen-capture` 8 cases | PASS | NOT_TESTED |
+
+### What "PASS" means in the Code column, and what it does not
+
+It means the mode is accepted, recorded and refused correctly against a real
+database — not that a phone has ever produced one. Rows 5–7 of §B are the
+device question and they are all NOT_TESTED.
+
+**UC-4 accuracy is not claimed.** The mechanism is proven: a derived asset
+carries `DERIVED_MACHINE_EXTRACTED` or `DERIVED_RECONSTRUCTED` provenance and
+can never be presented as captured. Whether the OCR reads a given screenshot
+correctly, or a reconstructed conversation matches what was said, has not
+been measured against representative real data and must not be stated until
+it has.
 
 ---
 
@@ -134,6 +172,42 @@ than merely to pass on the new one.
 **Cost of the change:** the existing APK predates it. That costs nothing,
 because no deep link verifies until the signing fingerprint above is written,
 and writing it requires a new build regardless.
+
+---
+
+## C3. LAYOUT AND ACCESSIBILITY ACCEPTANCE
+
+**296 passed, 0 failed** across `operations-layout` and `capture-layout`,
+against a freshly built production bundle with the previously running
+`next start` servers killed first — `reuseExistingServer: true` will happily
+serve a stale build and report green about code that was never loaded.
+
+It began at **33 failed**. None of it was UC-6 damage: this project runs in
+no workflow (`playwright-e2e.yml` names `--project=chromium`, and these are
+opt-in behind `OPERATIONS_LAYOUT=1`), and it had been failing since
+2026-08-26 with nobody finding out.
+
+### What the silence was hiding
+
+| # | Finding | Kind |
+|---|---|---|
+| 1 | The grouped queue read did not ask the access gate. `readAccess` carries a docblock — "two gates over one boundary drift, and these two already had" — and by the time the grouped queue arrived there were three. A refused context rendered the refusal panel and still issued `/v1/ops/incident-groups` for that workspace. The server refuses it, so nothing leaked; the client asked a question it had been told not to ask | **product defect, fixed** |
+| 2 | Android claimed the deep-link prefix `/auth` — `/auth/login` included — while iOS claimed the two paths the documentation names (§C2) | **product defect, fixed** |
+| 3 | The workbench opens GROUPED and every per-row instrument lives in the flat surface, so the readers returned zero and the assertions read as "the control is gone" | stale suite |
+| 4 | The fixture never sent `lifecycle`, which `rowModel.ts` reads as an older server and fails closed — so NO row in the project could offer Resolve, whatever the product did | stale fixture |
+| 5 | Two assertions spelled the summary cards out as literals, while `vocabulary.ts` states that nothing may assert a card COUNT against one | stale literal |
+| 6 | `/v1/ops/incident-groups` was missing from the named endpoint allow-list | stale allow-list |
+| 7 | `personal-pro` was expected to poll conditions it has no teamId for — it polls nothing at all, by three deliberate steps of the same design | wrong expectation |
+| 8 | A focus-ring assertion used `.focus()` on a BUTTON styled with `:focus-visible`, which Chromium is right to withhold | wrong method |
+
+### Not claimed
+
+* An 8px horizontal document overflow at **320px RTL** appeared in one run
+  and passed in the next against the same specs. One observation and one
+  contradiction is not a defect — it is **unreproduced**, and it is recorded
+  here rather than either fixed or forgotten.
+* These projects still run in no workflow. Nothing in this phase changed
+  that, so the next regression in them will be just as quiet.
 
 ---
 
