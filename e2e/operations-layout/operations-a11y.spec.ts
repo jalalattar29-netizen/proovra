@@ -13,7 +13,12 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { openOperations, setDirection, showAllConditions } from "./_fixtures";
+import {
+  openOperations,
+  setDirection,
+  showAllConditions,
+  showGroupedQueue,
+} from "./_fixtures";
 
 const visible = (page: Page, selector: string) =>
   page.locator(`${selector}:visible`);
@@ -37,9 +42,12 @@ test("exactly one h1, and the landmark structure is not duplicated", async ({
 test("severity and status are TEXT, never colour alone", async ({ page }) => {
   await openOperations(page, "team-admin");
 
-  // THE GROUPED SURFACE IS WHAT AN OPERATOR LANDS ON, so it is checked first.
+  // THE GROUPED SURFACE IS WHAT AN OPERATOR LANDS ON in the product, so it
+  // is checked first. (`openOperations` establishes the flat list for this
+  // project, so the grouped view is selected here rather than assumed.)
   // It carries its own severity attribute, and this property — never colour
   // alone — has to hold there as much as on the flat list.
+  await showGroupedQueue(page);
   const groupSeverities = await visible(page, "[data-ops-group-severity]").allTextContents();
   expect(groupSeverities.length).toBeGreaterThan(0);
   for (const s of groupSeverities) expect(s.trim().length).toBeGreaterThan(0);

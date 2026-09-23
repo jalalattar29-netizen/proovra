@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 6,
       "noConsumerRoutes": 194,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "a062b7aa83b145eed9d9b871cadc2ca62f2bc6645746d10d1f194bcac5e1fcd2"
+      "consumerInventoryHash": "e34893492eb3849358ac4ea97594ea9ab274a420d2dd6c50c5c58f2e4594728a"
     },
     "capabilities": {
       "totalRoutes": 1161,
@@ -316,9 +316,9 @@
       "producer": "services/api/test/point5/family-coverage-manifest.ts",
       "producerPresent": true,
       "binding": "RUN_ID",
-      "bindingValue": "af1bffc8-00b2-4029-816b-345449f58c3a,d2dbe4d1-ab56-40d3-95c0-6ecf11661f99",
+      "bindingValue": "a29d917c-50ac-4281-924e-328434c859b3,af1bffc8-00b2-4029-816b-345449f58c3a",
       "schemaVersion": null,
-      "contentHash": "a9763ba295b37ad6161b53f96e60d85c6efc4bdf001c5fab9e0eeee67f7eb307",
+      "contentHash": "50b27d34b60dd90ac9fa43955c0e4cf857e30a4fbb109c9ba8e3ed52252077fc",
       "byteLength": 19763,
       "present": true,
       "freshness": "BOUND",

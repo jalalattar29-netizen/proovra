@@ -384,8 +384,41 @@ function OperationsWorkbench() {
   const [affectedError, setAffectedError] = React.useState<string | null>(null);
   const affectedSeq = React.useRef(0);
 
+  /**
+   * MAY THIS CONTEXT READ OPERATIONAL DATA AT ALL?
+   *
+   * The SAME predicate the application shell asks before its runtime poller
+   * fires. Sharing it is the point: two gates over one boundary drift, and
+   * these two already had — the route would read on an envelope that
+   * disagreed with itself about which workspace was active, because
+   * self-consistency was a question only the shell's resolver asked.
+   *
+   * It answers whether to ASK. What the answer MEANS still belongs to the
+   * canonical incident projection, and the server remains authoritative.
+   */
+  const readAccess = resolveRuntimeReadAccess({ envelope, teamId });
+
   React.useEffect(() => {
-    if (!teamId || !grouped) return;
+    /*
+     * THE THIRD GATE THAT DID NOT ASK.
+     *
+     * This read guarded on `teamId` alone. `readAccess` above says in as
+     * many words that two gates over one boundary drift — and by the time
+     * the grouped queue arrived there were three: a refused context
+     * (`context_mismatch`, a suspended account, a workspace the actor is
+     * not in) rendered the refusal panel and still issued
+     * `/v1/ops/incident-groups` for it. The server refuses the request, so
+     * nothing leaked; the client simply asked a question it had already been
+     * told not to ask. MEASURED by `operations-shell-boundary.spec.ts`,
+     * which asserts a refused context reads NOTHING and named this endpoint.
+     */
+    // `resolveRuntimeReadAccess` already answers "no_envelope" and
+    // "no_workspace" itself, so the refusal is read from PRIMITIVES — a
+    // string and two booleans. Depending on the envelope OBJECT here would
+    // re-run this effect on every render that produced a new one.
+    const refused =
+      readAccess.refusedReason !== null || !canView || !readAccess.incidents;
+    if (refused || !teamId || !grouped) return;
     const seq = ++groupsSeq.current;
     setGroupsLoading(true);
     // The SAME filters the flat list sends. A grouped view that ignored the
@@ -430,7 +463,15 @@ function OperationsWorkbench() {
       .finally(() => {
         if (seq === groupsSeq.current) setGroupsLoading(false);
       });
-  }, [teamId, grouped, filters, reloadToken]);
+  }, [
+    teamId,
+    grouped,
+    filters,
+    reloadToken,
+    canView,
+    readAccess.refusedReason,
+    readAccess.incidents,
+  ]);
 
   /** Load one page of the open group's members. */
   const loadAffected = React.useCallback(
@@ -544,19 +585,6 @@ function OperationsWorkbench() {
    */
   const stepUp = useStepUpAction({ teamId });
 
-  /**
-   * MAY THIS CONTEXT READ OPERATIONAL DATA AT ALL?
-   *
-   * The SAME predicate the application shell asks before its runtime poller
-   * fires. Sharing it is the point: two gates over one boundary drift, and
-   * these two already had — the route would read on an envelope that
-   * disagreed with itself about which workspace was active, because
-   * self-consistency was a question only the shell's resolver asked.
-   *
-   * It answers whether to ASK. What the answer MEANS still belongs to the
-   * canonical incident projection, and the server remains authoritative.
-   */
-  const readAccess = resolveRuntimeReadAccess({ envelope, teamId });
 
   // ORDER MATTERS, and it is the reverse of the obvious one.
   //

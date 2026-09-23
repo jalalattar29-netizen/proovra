@@ -172,7 +172,25 @@ test("focus stays visible at both widths", async ({ page }) => {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await openOperations(page, "team-admin");
-    await search(page).focus();
+
+    /*
+     * REACH IT WITH THE KEYBOARD, BECAUSE THAT IS WHAT THE RING IS FOR.
+     *
+     * The ring is `.app-header-search:focus-visible` and the control is a
+     * BUTTON. Chromium does not match `:focus-visible` on a button focused
+     * programmatically — only one reached by keyboard — so `.focus()` asked
+     * for a style the browser was right to withhold, and the failure said
+     * "no focus ring" about a product that has one.
+     */
+    await page.locator("body").click({ position: { x: 2, y: 2 } });
+    let reached = false;
+    for (let i = 0; i < 40 && !reached; i += 1) {
+      await page.keyboard.press("Tab");
+      reached = await search(page).evaluate(
+        (el) => document.activeElement === el,
+      );
+    }
+    expect(reached, `${width}px: the search is keyboard-reachable`).toBe(true);
     const ring = await search(page).evaluate((el) => {
       const s = getComputedStyle(el);
       return {

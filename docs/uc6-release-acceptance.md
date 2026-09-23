@@ -50,34 +50,35 @@ workflow has passed, after 86 tests had been failing on one stale string.
 
 ## B. RELEASE ACCEPTANCE MATRIX
 
+Twelve categories. **No category inherits another's result** — the three
+sentences that matter are kept apart on purpose: code that passes its gates,
+an application somebody can install, and a launch an operator can stand behind.
+
 | # | Category | Status | Evidence |
 |---|---|---|---|
-| 1 | Web production code | **PASS** | `apps/web` typecheck clean, lint 0 errors (1 pre-existing warning in `SurfaceGate.tsx`, untouched by this branch), 3222 node:test + 1470 render tests pass, production build succeeds |
-| 2 | API | **PASS** | 25 194 unit cases (1 skipped), 819/819 files, on a clean tree |
-| 3 | Database | **PASS** | clean boot of every migration from empty on disposable PostgreSQL 16; `db:drift-check` OK; `db:raw-schema-verify` 880 objects / 0 divergences; `db:preflight` 4 pass / 1 warn (historical destructive patterns, pre-existing) |
-| 4 | Workers | **PASS** | 974/974, 65/65 files, including the five verification-package cases against a real MinIO |
-| 5 | Object storage | **PASS** | streaming publication, exact-size HEAD, server-side promotion and stale-staging reconciliation proven against real MinIO rather than a double |
-| 6 | UC-0a provenance truth | **PASS (code)** | one acquisition authority in `@proovra/shared`; uploads are `isDirectCapture: false` with `CREATION_NOT_OBSERVED_BY_PROOVRA`; the AI path reads acquisition, never the structure enum; no forbidden authenticity claim found in any client |
-| 7 | UC-0b attestation truth | **PASS (code)** | canonical materials DOWNGRADE a claimed `ANCHORED` OTS state to `PENDING` when no txid or anchored-at time is present, and record why; TSA failure is `FAILED` + `TIMESTAMP_FAILED`, never silent |
-| 8 | UC-0c derivative lifecycle | **PASS (code)** | `EvidencePart.artifactClass` is `ORIGINAL` or `CAPTURE_MANIFEST` only; derived assets carry their own kinds and transformations; UC-4 kinds are separate |
-| 9 | UC-1 Direct Web Capture | **PASS (code)** · **BLOCKED_EXTERNAL (publication)** | extension builds and its MV3 manifest lints; the capture card states the truthful unavailable state because `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set nowhere in the repository. No store listing exists |
-| 10 | UC-2 Android screen capture | **PASS (code)** · **NOT_TESTED (device)** | integration suite against live PostgreSQL; MediaProjection path unchanged by UC-6 |
-| 11 | UC-3 continuous capture | **PASS (code)** · **NOT_TESTED (device)** | ordered segments, continuity manifest, refusals for non-contiguous / duplicate / substituted segments, all against live PostgreSQL |
-| 12 | UC-4 derived intelligence | **PASS (code)** | media-intelligence run kinds and derived-asset contracts covered by the API suites |
-| 13 | UC-5 iOS broadcast | **PASS (code)** · **NOT_TESTED (device)** | 8 integration cases against live PostgreSQL, including the defect regression where the shared continuity validator accepted Android and refused iOS |
-| 14 | Android physical acceptance | **NOT_TESTED** | no device available to this session. An internal-distribution build was produced on EAS from this branch; the script is `apps/mobile/docs/physical-acceptance.md` |
-| 15 | iPhone physical acceptance | **NOT_TESTED** | same. iOS credentials exist on the EAS account (previous builds FINISHED), so a build is producible |
-| 16 | iPad physical acceptance | **NOT_TESTED** | same |
-| 17 | Extension store readiness | **BLOCKED_EXTERNAL** | packaging exists; Chrome Web Store and Edge Add-ons submission, listing copy and review are outside the repository and were not performed |
-| 18 | Security | **PASS (targeted review)** | see §C. This is a source-and-tests review against disposable infrastructure — **not** a penetration test |
-| 19 | Accessibility | **PASS (measured surfaces)** | `operations-layout` 194/194 after the gate was repaired; `settings-layout` 74; `search-layout` 382; `capture-layout` 32; intake + evidence-detail + attention 230 |
-| 20 | Functional parity | **PASS (code)** | 62/62 NATIVE_REQUIRED surfaces; contract audit 79/79 with 0 UNRESOLVED; action inventory 218 actions with 0 reserved and 0 reserved links |
-| 21 | Error and recovery UX | **PASS (repository-resolvable)** | see §D. 441 codes inventoried; native went from 15 to 83 answered with the product's own copy; the capture screens stopped rendering raw thrown text |
-| 22 | Monitoring | **NOT_TESTED** | configuration reviewed, not exercised. No production contact was made |
-| 23 | Backup and restoration | **NOT_TESTED** | a restoration rehearsal needs a snapshot this session had no authorization to take |
-| 24 | Legal and commercial readiness | **PASS (code)** · **BLOCKED_EXTERNAL (store listings)** | legal corpus versions are derived from the documents themselves; consent version now names the Cookie Policy revision it is shown under |
+| 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone · worker 974/974 · web 3223 + 1470 render · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
+| 2 | **CI readiness** | **PASS** | `ci`, `playwright-e2e` and `schema-reproducibility` all green on the merged head. Five distinct red causes were fixed at source along the way, and two of them were flaky tests repaired rather than retried — see §A2 |
+| 3 | **Android build readiness** | **PASS** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. Verified to correspond to the final app code: every commit since it was built touches only docs, generated audit artifacts and API test files — zero files the mobile bundle includes |
+| 4 | **iOS build readiness** | **PASS (bundle)** · **NOT_TESTED (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A JavaScript bundle is not a signed application: no iOS build was produced in this phase, though credentials exist on the account from earlier FINISHED builds |
+| 5 | **Android physical acceptance** | **NOT_TESTED** | no device was available to this session. The APK exists and `apps/mobile/docs/physical-acceptance.md` carries the script, the build id and the two UC-6 behaviours to exercise deliberately |
+| 6 | **iPhone physical acceptance** | **NOT_TESTED** | same, and no iOS build was produced |
+| 7 | **iPad physical acceptance** | **NOT_TESTED** | same |
+| 8 | **Extension distribution readiness** | **PASS (package)** · **BLOCKED_EXTERNAL (submission)** | `proovra-extension-v1.0.0.zip`, 456 783 bytes, sha256 `9dc38c9a…`, built against `https://api.proovra.com`; MV3 lint OK — least privilege, strict CSP, no remote code, `host_permissions` empty. Listing copy, permission justifications and the privacy declaration are written. **The archive is gitignored and exists only on the build machine** — `apps/extension/release/` is not committed, so a reviewer reproduces it with the build rather than finding it in the tree. Submission, the store-assigned extension ID and the OAuth redirect registration are human-console steps that were not performed |
+| 9 | **Security and evidence integrity** | **PASS (targeted review)** | one acquisition authority; uploads are never described as direct capture; a claimed `ANCHORED` OTS state is downgraded to `PENDING` when nothing supports it; no user-facing copy leaks resource existence (all 92 dictionary entries checked); the capture screens no longer render thrown text. **Not a penetration test** — see §C |
+| 10 | **Backup and recovery** | **PASS (rehearsed on disposable data)** · **NOT_TESTED (production source)** | a full `pg_dump -Fc` of a 278-migration database was restored into a fresh database in **11 seconds with zero errors**: evidence 500, custody 52, teams 103, users 107, migrations 278, **0 orphaned custody events**, `db:drift-check` OK, and `db:raw-schema-verify` byte-identical to the source. The production backup source is a Neon snapshot this session had no access to, and `safe-migrate.mjs` already refuses a production migration that does not name one |
+| 11 | **Monitoring and incident response** | **FAIL (not wired)** | 32 alert rules exist in `infra/grafana/alerts/`, and **nothing evaluates them**: `docker-compose.prod.yml` declares redis, api, worker and caddy — no Prometheus, no Grafana, no Alertmanager — and the rule file names no contact point. The API exposes `/metrics`, `/health`, `/healthz` and `/readyz`, so the data exists and nothing is scraping it. Alerts that reach nobody are not monitoring |
+| 12 | **Full public launch readiness** | **NOT READY** | blocked by rows 5, 6, 7 (no device acceptance), row 8 (no store listing), row 11 (no alert delivery), and the external identifiers in §E |
 
----
+### What moved since the previous matrix
+
+* Backup restoration went from NOT_TESTED to rehearsed, with measured timings
+  and integrity checks.
+* Monitoring went from NOT_TESTED to **FAIL**, because exercising it is what
+  revealed that no evaluator is deployed. That is a worse answer than the one
+  it replaces, and it is the true one.
+* The error-surface work gained a reachability denominator: 441 produced, 326
+  reachable, and 195 of those still undispositioned — now ratcheted so the
+  number cannot grow silently.
 
 ## C. SECURITY REVIEW — SCOPE AND LIMITS
 
@@ -103,25 +104,81 @@ Explicit limits:
 
 ---
 
-## D. ERROR AND REJECTION UX — WHAT WAS MEASURED
+## C2. SIGNING, AUTHENTICATION AND APP LINKS
 
-`tools/error-surface-inventory.mjs` reads three inventories out of the tree and
-writes `docs/architecture/error-surface-inventory.json`. Nothing in it is
-hand-maintained.
+### Neither association file can verify anything today
 
-| | Before | After |
-|---|---|---|
-| Codes the API can emit | 441 | 441 |
-| Answered with product copy on the web | 140 | 140 |
-| Answered with product copy on native | **15** | **83** |
-| A single shared dictionary | no | yes (92 entries) |
+`apps/web/public/.well-known/assetlinks.json` carries the literal string
+`<ANDROID_SIGNING_SHA256_FINGERPRINT>` and `apple-app-site-association`
+carries `<APPLE_TEAM_ID>`. Both are served from real paths on a real host, so
+the files RESOLVE and the verification FAILS — which is the quiet failure
+mode: a link opens the browser and nothing anywhere says why. The two values
+are external prerequisites 1 and 2 in §E2, and neither can be read from this
+repository.
 
-The 298 codes named by neither client are not all defects: many are internal,
-and several MUST stay generic — an anti-enumeration 404 that explained itself
-would stop being one. The web's `error-code-registry.ts` is where each code's
-disposition is chosen, and its guard now reads the dictionary at its new home.
+### One real defect, found and fixed
+
+The Android configuration claimed the deep-link prefix `/auth` — every path
+beneath it, `/auth/login` included — while iOS claimed exactly the two paths
+`apps/mobile/docs/universal-links.md` documents. A verified Android install
+would have opened the app on a sign-in link it has no route for.
+
+Narrowed to `/auth/verify-email` and `/auth/mfa-recovery`. Both platforms now
+claim the same nine prefixes and the same two hosts, and
+`apps/web/__tests__/universal-link-parity.test.ts` holds them there: it
+compares the AASA components against `android.intentFilters`, compares the
+hosts, and requires every claimed path to appear in the documented table.
+Verified to FAIL on the pre-fix configuration (`androidOnly: /auth`) rather
+than merely to pass on the new one.
+
+**Cost of the change:** the existing APK predates it. That costs nothing,
+because no deep link verifies until the signing fingerprint above is written,
+and writing it requires a new build regardless.
 
 ---
+
+## D. ERROR AND REJECTION UX — WHAT WAS MEASURED
+
+`tools/error-surface-inventory.mjs` reads three inventories out of the tree
+and writes `docs/architecture/error-surface-inventory.json`. Nothing in it is
+hand-maintained.
+
+### Reachability — the denominator a coverage claim may honestly use
+
+| | count | what it means |
+|---|---:|---|
+| produced by the API | 441 | every code the enum declares, a route replies with, or a domain error carries |
+| **reachable** | **326** | a reply, a `denial:`, or a thrown code the server serialises as `err.code` |
+| observability-only | 86 | the code appears only inside a logger, audit row, metric or security event. It never leaves the server |
+| enum-only | 29 | declared and never constructed |
+
+Demanding copy for a code nobody can meet is noise, and noise is how a
+coverage number stops being read.
+
+### Coverage of the reachable set
+
+| | before UC-6 | now |
+|---|---:|---:|
+| answered with product copy on the web | 132 | 132 |
+| answered with product copy on native | **15** | **80** |
+| a single shared dictionary | no | yes (92 entries) |
+| carrying a registry disposition | 131 | 131 |
+| **undispositioned** | **195** | **195, ratcheted** |
+
+### What the ratchet is, and is not
+
+The coverage guard read route files only, so it was green over the 195 codes
+produced in the service layer. It reads every producer now. Failing outright
+would leave a permanently red gate, and a permanently red gate is one nobody
+reads — which is how the first silence happened. So the count is pinned: the
+suite fails the moment it GROWS, and lowering it takes a deliberate edit.
+
+Of the 195, **88 are produced only on enterprise/governance/admin paths** and
+**107 are reachable from ordinary product surfaces**. Several of the 107 are
+already handled contextually at a surface (the AI assistant answers
+`AI_NOT_INCLUDED` itself) and are undispositioned as bookkeeping rather than
+as silence. Separating those two is the next piece of work, and it is named
+here rather than implied.
 
 ## E. CONTROLLED LAUNCH PLAN
 
@@ -163,6 +220,27 @@ submission, production deployment and any production migration remain outside
 what this phase was authorized to do.
 
 ---
+
+## E2. EXTERNAL PREREQUISITES — the exact remaining human steps
+
+Nothing below is invented, and none of it can be done from a repository.
+
+| # | Value | Where it lives now | The exact step |
+|---|---|---|---|
+| 1 | Android signing SHA-256 | `assetlinks.json` carries `<ANDROID_SIGNING_SHA256_FINGERPRINT>` | Read it from `eas credentials` → Android → Keystore, **or** from Play Console → App integrity once the app is enrolled. Play App Signing re-signs, so the Play value is authoritative the moment enrolment happens — writing the EAS upload-key fingerprint before then would be wrong later. The APK is signed with v2/v3 only, so the certificate is in the APK Signing Block rather than `META-INF`, and `apksigner`/`keytool` is the way to read it |
+| 2 | Apple Team ID | `apple-app-site-association` carries `<APPLE_TEAM_ID>` | Apple Developer → Membership. It prefixes the App ID as `<TEAM>.com.jalalattar29.proovra` |
+| 3 | Extension ID + OAuth redirect | fails closed server-side until registered | After store review assigns the ID, set `EXTENSION_OAUTH_REDIRECT_ALLOW=https://<EXTENSION_ID>.chromiumapp.org/oauth2` in the production API environment and redeploy |
+| 4 | `NEXT_PUBLIC_EXTENSION_INSTALL_URL` | set nowhere, which is why the card says "not published yet" | Set it to the store listing URL after publication. The card flips to AVAILABLE through the canonical capability resolver — no code change |
+| 5 | Google OAuth client IDs | **already configured** in `eas.json` for all three profiles | Confirm the deployed API's `GOOGLE_CLIENT_IDS` includes them, and `APPLE_CLIENT_IDS` includes the bundle id. §0 of the physical-acceptance script checks this first, because a mismatch fails sign-in for a configuration reason that looks like a code defect |
+| 6 | Monitoring delivery | 32 rules, no evaluator, no contact point | Deploy Prometheus/Grafana (or point a hosted collector at `/metrics`), attach the rule file, and configure a contact point. Until then row 11 stays FAIL |
+
+Identifiers that ARE consistent across EAS, the native project and the
+association files, verified in this phase: bundle id
+`com.jalalattar29.proovra`, Android package `com.jalalattar29.proovra`,
+broadcast extension `com.jalalattar29.proovra.broadcast`, app group
+`group.com.jalalattar29.proovra` (matching in `app.json`, the screen-capture
+module and the broadcast SampleHandler), scheme `proovra`, associated domains
+`www.proovra.com` and `proovra.com`.
 
 ## F. WHAT THIS PHASE DID NOT DO
 

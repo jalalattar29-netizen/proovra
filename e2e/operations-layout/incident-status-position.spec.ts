@@ -14,7 +14,11 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { hasHorizontalOverflow, openOperations } from "./_fixtures";
+import {
+  hasHorizontalOverflow,
+  openOperations,
+  showGroupedQueue,
+} from "./_fixtures";
 
 /**
  * The banner is a fixed overlay and does not move the layout, but it does sit
@@ -201,6 +205,7 @@ test("grouped rows put the status in a trailing column, not beside the title", a
     document.cookie = `cc_cookie=${encodeURIComponent(v as string)};path=/`;
   }, ANSWERED_CONSENT);
   await openOperations(page, "team-admin", { scenario: "long-title" });
+  await showGroupedQueue(page);
   await page.waitForSelector("[data-ops-group]");
 
   const rows = await page.evaluate(() =>
@@ -254,6 +259,7 @@ test("at 390 the grouped status takes its own line rather than the title's", asy
     document.cookie = `cc_cookie=${encodeURIComponent(v as string)};path=/`;
   }, ANSWERED_CONSENT);
   await openOperations(page, "team-admin", { scenario: "long-title" });
+  await showGroupedQueue(page);
   await page.waitForSelector("[data-ops-group]");
 
   const rows = await page.evaluate(() =>

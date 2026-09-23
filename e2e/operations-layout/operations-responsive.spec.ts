@@ -10,6 +10,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { QUEUE_METRIC_ORDER } from "../../apps/web/app/(app)/operations/_lib/vocabulary";
+
 import {
   hasHorizontalOverflow,
   isWithinViewport,
@@ -20,6 +22,14 @@ import {
   VIEWPORTS,
   type OpsScenario,
 } from "./_fixtures";
+
+/**
+ * How many summary cards a COLLABORATIVE workspace shows.
+ *
+ * `team-admin` holds the ownership axis, so it gets every card the
+ * vocabulary declares — which is the only authority on how many there are.
+ */
+const COLLABORATIVE_CARD_COUNT = QUEUE_METRIC_ORDER.length;
 
 /**
  * The width at which the table hands over to the cards.
@@ -130,9 +140,11 @@ test("every summary card carries a NUMBER, never an empty caption", async ({
   const values = await page
     .locator("[data-ops-metric] .app-metric-card__value")
     .allTextContents();
-  // Eight: the seven triage slices plus Resolved. A number here rather than
-  // a length check, so a card silently disappearing still fails.
-  expect(values.length).toBe(8);
+  // Counted against the AUTHORITY rather than a literal, so a card that
+  // silently disappears still fails while a card added on purpose does not.
+  // The literal used to read 8 and went stale when Warning was added
+  // (de5aaddd1) — it pinned a number, not a contract.
+  expect(values.length).toBe(COLLABORATIVE_CARD_COUNT);
   for (const v of values) {
     expect(v.trim().length, "a card with no value is a caption for nothing").toBeGreaterThan(0);
   }
@@ -149,7 +161,7 @@ test("the summary cards share one geometry", async ({ page }) => {
         return { w: Math.round(r.width), h: Math.round(r.height) };
       }),
     );
-  expect(boxes.length).toBe(8);
+  expect(boxes.length).toBe(COLLABORATIVE_CARD_COUNT);
   // Equal widths and equal heights: a strip whose cards disagree reads as a
   // rendering fault, and the eye uses the difference as meaning.
   expect(new Set(boxes.map((b) => b.w)).size).toBe(1);
@@ -258,10 +270,23 @@ test("a long identifier is bounded and LTR-isolated, not a horizontal scroll", a
 test("opening the inspector does not move the queue", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openOperations(page, "team-admin");
+
+  /*
+   * MEASURE FROM WHERE THE CLICK WILL LEAVE THE PAGE.
+   *
+   * The queue is longer than the viewport, so the control this test clicks
+   * starts below the fold and Playwright scrolls it into view to reach it.
+   * Measuring before that scroll and again after it recorded a 558px shift
+   * and blamed the inspector, which had not moved anything: the question
+   * here is whether OPENING the drawer reflows the queue, so the scroll
+   * that merely reaches the control belongs before the first measurement.
+   */
+  const opener = visible(page, "[data-ops-open]").first();
+  await opener.scrollIntoViewIfNeeded();
   const before = await page
     .locator("[data-ops-row]")
     .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  await visible(page, "[data-ops-open]").first().click();
+  await opener.click();
   await expect(page.locator("[data-ops-inspector]")).toBeVisible();
   const after = await page
     .locator("[data-ops-row]")

@@ -122,7 +122,12 @@
             {
               "scheme": "https",
               "host": "www.proovra.com",
-              "pathPrefix": "/auth"
+              "pathPrefix": "/auth/verify-email"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/auth/mfa-recovery"
             },
             {
               "scheme": "https",
@@ -162,7 +167,12 @@
             {
               "scheme": "https",
               "host": "proovra.com",
-              "pathPrefix": "/auth"
+              "pathPrefix": "/auth/verify-email"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/auth/mfa-recovery"
             }
           ],
           "category": [

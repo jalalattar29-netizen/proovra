@@ -433,6 +433,8 @@ type IncidentOver = {
   firstSeenHoursAgo?: number;
   occurrences?: number;
   requestId?: string | null;
+  /** OPERATOR_DECISION (default), SOURCE_TRUTH or NO_DIRECT_RESOLUTION. */
+  resolutionAuthority?: string;
 };
 
 export function incident(i: number, over: IncidentOver = {}) {
@@ -473,6 +475,41 @@ export function incident(i: number, over: IncidentOver = {}) {
      * refusal the surface has to render correctly.
      */
     sla: slaFor(over.status ?? "OPEN", over.firstSeenHoursAgo ?? 5),
+    lifecycle: lifecycleFor(over.resolutionAuthority ?? "OPERATOR_DECISION"),
+  };
+}
+
+/**
+ * THE LIFECYCLE PROJECTION, WHICH THE SERVER SENDS ON EVERY CONDITION.
+ *
+ * This fixture used to omit it entirely, and the omission was not neutral.
+ * `rowModel.ts` reads `i.lifecycle?.manualResolution === true` and documents
+ * the absent case as "an older server, and it reads as NO … the fail-closed
+ * direction". So every row in this whole project offered no Resolve control,
+ * and a spec asserting that an operator IS offered the transition could not
+ * pass however correct the product was.
+ *
+ * Mirrors `projectIncidentLifecycle` in `incident.service.ts`: the refusal
+ * code is DERIVED from the authority, exactly as the server derives it, so a
+ * fixture row cannot claim a combination the server never sends.
+ */
+function lifecycleFor(resolutionAuthority: string) {
+  return {
+    sourceId: "tsa_failure",
+    sourceMatch: "FINGERPRINT",
+    resolutionAuthority,
+    audience: "OPERATOR",
+    cardinality: "PER_RECORD",
+    recoveryPolicy: "MANUAL",
+    // True only for OPERATOR_DECISION — the server says so in as many words.
+    manualResolution: resolutionAuthority === "OPERATOR_DECISION",
+    resolvableByOperator: resolutionAuthority !== "NO_DIRECT_RESOLUTION",
+    refusalCode:
+      resolutionAuthority === "NO_DIRECT_RESOLUTION"
+        ? "CONDITION_NOT_DIRECTLY_RESOLVABLE"
+        : resolutionAuthority === "SOURCE_TRUTH"
+          ? "CONDITION_STILL_ACTIVE"
+          : null,
   };
 }
 
@@ -1082,6 +1119,44 @@ export async function openOperations(
     waitUntil: "domcontentloaded",
   });
   await page.waitForLoadState("networkidle").catch(() => undefined);
+
+  /*
+   * THE WORKBENCH OPENS GROUPED, AND THIS PROJECT MEASURES ROWS.
+   *
+   * `36cc44c0e` (2026-08-26) made the grouped queue the default view. Every
+   * per-row instrument this project owns — the row menu, the checkbox, the
+   * SLA badge, the inspector, the owner cell — lives in `IncidentSurface`,
+   * which renders only in the FLAT view. Nothing in the suite switched, so
+   * the readers returned zero and the assertions read as "the control is
+   * gone" when the control was one click away.
+   *
+   * The switch belongs HERE rather than in each test, because this is the
+   * function that knows what it just opened: a refused context has no
+   * workbench and therefore no view control, and must not wait for one.
+   *
+   * Tests that want the grouped view select it explicitly — this only
+   * establishes the view the project was written against.
+   */
+  const mounted =
+    (await page.locator('[data-testid="operations-page"]').count()) > 0;
+  if (mounted) {
+    /*
+     * A REFUSED CONTEXT IS NOT ASKED ANYTHING AT ALL.
+     *
+     * The workbench check comes first because several tests here measure
+     * WHAT THE PAGE READ, and lingering on a refused page long enough for a
+     * poll to fire would manufacture the very requests they assert are
+     * absent. Where the workbench did mount, a bounded wait is safe: an
+     * INACTIVE or SUSPENDED workspace renders the page without queue
+     * controls, so the toggle is never coming and 5s is enough to know it.
+     */
+    const viewToggle = page.locator('[data-ops-view="flat"]');
+    const offersTheChoice = await viewToggle
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (offersTheChoice) await showAllConditions(page);
+  }
 }
 
 /**
@@ -1244,14 +1319,38 @@ export function capabilitiesFor(context: OpsContext): Record<string, boolean> {
  * control, which is why fifteen of them timed out at sixty seconds each — a
  * gate measuring a surface the product had stopped showing by default.
  */
+/**
+ * Select the GROUPED queue.
+ *
+ * `openOperations` establishes the flat list, because that is the view this
+ * project was written against. A test about the grouped renderer says so
+ * with this, rather than depending on which view happens to be the default.
+ */
+export async function showGroupedQueue(page: Page): Promise<void> {
+  const grouped = page.locator('[data-ops-view="grouped"]');
+  await grouped.waitFor({ state: "visible", timeout: 30_000 });
+  await grouped.click();
+  await page
+    .locator("[data-ops-group]")
+    .first()
+    .waitFor({ state: "attached", timeout: 30_000 });
+}
+
 export async function showAllConditions(page: Page): Promise<void> {
   // `data-ops-view="flat"` — the attribute the button actually carries. The
   // label reads "All conditions"; the value is the state it selects.
   const all = page.locator('[data-ops-view="flat"]');
   await all.waitFor({ state: "visible", timeout: 30_000 });
   await all.click();
+  /*
+   * An EMPTY queue renders neither surface, and waiting for one is a
+   * 30-second wait for something the `clear-empty` scenario will never
+   * produce. The flat view has arrived when the row surface OR the empty
+   * state is in the document — both are answers, and the empty one is a
+   * product statement this project measures too.
+   */
   await page
-    .locator("[data-ops-table-surface], [data-ops-cards]")
+    .locator("[data-ops-table-surface], [data-ops-cards], [data-ops-empty]")
     .first()
     .waitFor({ state: "attached", timeout: 30_000 });
 }

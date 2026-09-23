@@ -16,12 +16,36 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  QUEUE_METRIC_ORDER,
+  QUEUE_METRIC_VOCABULARY,
+} from "../../apps/web/app/(app)/operations/_lib/vocabulary";
+
+import {
   observedOpsCalls,
   observedPlatformCalls,
   openOperations,
   operatorCountFor,
   type OpsContext,
 } from "./_fixtures";
+
+/*
+ * THE CARDS ARE READ FROM THE AUTHORITY, NOT FROM A LIST WRITTEN HERE.
+ *
+ * These two assertions used to spell the cards out. That literal went stale
+ * the moment a card was added deliberately: a Warning card joined Critical
+ * and High on 2026-08-27 (de5aaddd1, long since on main) and this spec failed
+ * for being out of date rather than for anything being wrong.
+ *
+ * QUEUE_METRIC_ORDER calls itself "the ONLY authority on how many there are",
+ * and `collaborative` is the ONE reason a card is withheld from a workspace
+ * with a single operator. Deriving from both keeps the real contract under
+ * test — ownership cards appear only where ownership exists — while a card
+ * added on purpose stops being a failure.
+ */
+const COLLABORATIVE_METRICS: string[] = [...QUEUE_METRIC_ORDER];
+const SOLE_OPERATOR_METRICS: string[] = COLLABORATIVE_METRICS.filter(
+  (key) => !QUEUE_METRIC_VOCABULARY[key as keyof typeof QUEUE_METRIC_VOCABULARY].collaborative,
+);
 
 // ---------------------------------------------------------------------------
 // Readers — each answers ONE of the nine facts.
@@ -210,14 +234,7 @@ test.describe("personal-pro: a workbench with no ownership axis", () => {
     // The two that partition work between people are absent, because there
     // is only one person. Resolved stays: closed work is not an ownership
     // question.
-    expect(p.metrics).toEqual([
-      "open",
-      "critical",
-      "high",
-      "slaBreached",
-      "slaAtRisk",
-      "resolved",
-    ]);
+    expect(p.metrics).toEqual(SOLE_OPERATOR_METRICS);
     expect(p.ownerFilter).toBe(0);
     expect(p.ownerCells).toBe(0);
     // It never even asked who could be assigned.
@@ -291,16 +308,7 @@ for (const { context, canAssign, note } of COLLABORATIVE) {
       // Ownership is a real axis wherever more than one operator
       // can hold work, and that comes from the server's COUNT.
       expect(operatorCountFor(context)).toBeGreaterThan(1);
-      expect(p.metrics).toEqual([
-        "open",
-        "critical",
-        "high",
-        "slaBreached",
-        "slaAtRisk",
-        "resolved",
-        "assignedToMe",
-        "unassigned",
-      ]);
+      expect(p.metrics).toEqual(COLLABORATIVE_METRICS);
       expect(p.ownerFilter).toBe(1);
       expect(p.ownerCells).toBeGreaterThan(0);
       expect(p.rowMenus).toBeGreaterThan(0);
@@ -447,10 +455,14 @@ for (const context of MOUNTED) {
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
       expect(call.path, `${call.path} must be an ops endpoint`).toMatch(
-        // `saved-views` joined the set in Phase B. It is listed by NAME
+        // `saved-views` joined the set in Phase B, and `incident-groups`
+        // arrived with the grouped queue (36cc44c0e). It reads through the
+        // same `listIncidents` service the flat list does, behind the same
+        // `requireOpsActor(req, reply, q.teamId)` — and the teamId assertion
+        // below is what holds it to that. Both are listed by NAME
         // rather than loosened to a prefix, so a future surface still has to
         // declare itself here instead of arriving unnoticed.
-        /\/v1\/ops\/(summary|incidents|assignable-operators|bulk-actions|saved-views)/,
+        /\/v1\/ops\/(summary|incidents|incident-groups|assignable-operators|bulk-actions|saved-views)/,
       );
       expect(
         new URLSearchParams(call.query).get("teamId"),

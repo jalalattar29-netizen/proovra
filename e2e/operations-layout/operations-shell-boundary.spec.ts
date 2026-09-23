@@ -148,19 +148,68 @@ test("insufficient-role reads nothing operational either", async ({ page }) => {
 // 2. PERMITTED CONTEXTS STILL READ — THE GATE IS NOT A MUTE BUTTON
 // ===========================================================================
 
-const PERMITTED: OpsContext[] = ["personal-pro", "team-admin", "enterprise-active"];
+/*
+ * WHERE THE SHELL POLLS CONDITIONS AT ALL.
+ *
+ * `useGlobalRuntimeState` is handed a teamId by `AppSidebarV2`, and that
+ * teamId is non-null only for an ACTIVE workspace whose scope is TEAM. A
+ * PERSONAL workspace therefore has no team-scoped runtime to poll, and the
+ * shell reads `/v1/runtime/status` and nothing else — which is the product
+ * being correct, not the gate muting anything.
+ *
+ * This list used to include `personal-pro`, and the assertion below could
+ * not hold for it however long it waited.
+ */
+const PERMITTED: OpsContext[] = ["team-admin", "enterprise-active"];
 
 for (const context of PERMITTED) {
   test(`${context}: the shell still reads what it is entitled to`, async ({
     page,
   }) => {
     await openOperations(page, context);
-    await page.waitForTimeout(700);
-    const shell = observedShellRuntimeCalls().map((c) => c.source);
+
+    /*
+     * WAIT FOR THE POLL, NOT FOR 700ms.
+     *
+     * The shell's runtime poller fires on its own schedule, and a fixed sleep
+     * asserts only that it fired FAST. On a loaded machine this read an EMPTY
+     * array — which is not "the shell was muted", the thing this test exists
+     * to catch, but a question asked too early.
+     */
+    const deadline = Date.now() + 30_000;
+    let shell: string[] = [];
+    while (Date.now() < deadline) {
+      shell = observedShellRuntimeCalls().map((c) => c.source);
+      if (shell.includes("incidents")) break;
+      await page.waitForTimeout(100);
+    }
     // Incidents ride OPERATIONS_VIEW, which every one of these holds.
     expect(shell, `${context} should still poll incidents`).toContain("incidents");
   });
 }
+
+/*
+ * A PERSONAL WORKSPACE POLLS NOTHING, AND THAT IS THE DESIGN.
+ *
+ * `AppSidebarV2` hands `useGlobalRuntimeState` a teamId only for an ACTIVE
+ * workspace whose scope is TEAM. `resolveRuntimeReadAccess` answers
+ * `REFUSE("no_workspace")` without one, and `readsNothing` — a helper that
+ * exists for exactly this state — then silences all three sources.
+ *
+ * So the shell makes NO runtime request at all here: not the team queue, and
+ * not even the tenant-safe status enum. Measured rather than assumed: this
+ * test first expected `incidents`, then `readiness`, and the observed array
+ * was empty both times.
+ */
+test("personal-pro: the shell polls nothing, because there is no team to poll", async ({
+  page,
+}) => {
+  await openOperations(page, "personal-pro");
+
+  // Long enough that a poller on any schedule would have fired.
+  await page.waitForTimeout(3_000);
+  expect(observedShellRuntimeCalls().map((c) => c.source)).toEqual([]);
+});
 
 test("a PERSONAL workspace never asks for reviewer escalations", async ({
   page,
