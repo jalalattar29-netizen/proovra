@@ -21,6 +21,33 @@ readiness is not device acceptance, and neither is launch readiness.
 
 ---
 
+## A2. CI ON THIS BRANCH
+
+All three workflows are green on `4247636aa`:
+
+| workflow | conclusion |
+|---|---|
+| `ci` | **success** |
+| `playwright-e2e` | **success** |
+| `schema-reproducibility` | **success** |
+
+`ci` was red at every intermediate commit, for a different real reason each
+time, and each was fixed at its cause rather than routed around:
+
+1. Docker Hub rate-limited the anonymous MinIO pull (exit 125) → pinned quay.io
+   release, the image `playwright-e2e.yml` already uses here.
+2. The full-stack smoke test posted its own stale legal versions and 400'd
+   before reaching the capture it exists to prove.
+3. Four line-anchored capability sites moved when the error and mixed-origin
+   work inserted lines above them.
+4. Two imports left unused after the dictionary moved to `@proovra/shared`.
+5. The audit engine's freshness gate, on artifacts the bundling work changed.
+
+`playwright-e2e` went green at the first UC-6 commit — the first time that
+workflow has passed, after 86 tests had been failing on one stale string.
+
+---
+
 ## B. RELEASE ACCEPTANCE MATRIX
 
 | # | Category | Status | Evidence |
