@@ -12,6 +12,12 @@ import {
 import { theme } from "../../src/theme/theme";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import {
+  mixedOriginPrompt,
+  resolveDraftAcquisition,
+  wouldMixOrigins,
+  type MixedOriginPrompt,
+} from "../../src/capture/screen-acquisition";
+import {
   ProovraScreen,
   ProovraCard,
   ProovraSection,
@@ -243,6 +249,14 @@ export default function CaptureScreen() {
    * guess about the items.
    */
   const acquisitionRef = useRef<{ mode: ScreenAcquisitionMode; manifestJson: string } | null>(null);
+  /**
+   * The explanation shown when two acquisition origins meet in one draft.
+   *
+   * Held in state rather than thrown, because the answer is a product
+   * statement with an action, not a failure: nothing has gone wrong, and
+   * nothing staged is lost.
+   */
+  const [mixedOrigin, setMixedOrigin] = useState<MixedOriginPrompt | null>(null);
   const sessionItemsRef = useRef<CapturedItem[]>([]);
   const activeTypeRef = useRef<CaptureKind>(activeType);
   activeTypeRef.current = activeType;
@@ -650,6 +664,25 @@ hasActiveDraft: isSessionActive || isRecording,
     }) => {
       setError(null);
       setInfo(null);
+
+      /*
+       * ONE RECORD, ONE ORIGIN — checked before the item is staged.
+       *
+       * A staged screen recording and a camera photo cannot become one
+       * Evidence record: the server stamps the origin from the session it
+       * issued, and a record that claimed "captured from an Android screen"
+       * for a photograph would be a false statement about how it was made.
+       *
+       * Asked HERE rather than at finalize so the answer arrives while the
+       * person is still holding the camera.
+       */
+      const staged = sessionItemsRef.current.map((i) => ({
+        sourceLabel: i.itemSourceLabel ?? i.source,
+      }));
+      if (wouldMixOrigins(staged, input.source)) {
+        setMixedOrigin(mixedOriginPrompt(resolveDraftAcquisition(staged)));
+        return;
+      }
 
       try {
         await ensureDraft();
@@ -1202,6 +1235,19 @@ setSessionState(
       // through the route its manifest belongs to; an ordinary phone capture
       // through /complete. The screens no longer decide this for themselves —
       // that is what made the product have two endings.
+      //
+      // THE SECOND GATE. The add-path refuses a mixing item, but that is a UI
+      // affordance; this is the claim itself. A draft that is mixed by any
+      // route — a resumed session, a future caller — must not be sealed under
+      // one origin.
+      const sealing = resolveDraftAcquisition(
+        sessionItemsRef.current.map((i) => ({ sourceLabel: i.itemSourceLabel ?? i.source })),
+      );
+      if (sealing.kind === "MIXED_ORIGIN") {
+        setMixedOrigin(mixedOriginPrompt(sealing));
+        throw new Error("This session mixes capture origins.");
+      }
+
       await completeAcquisition(captureSession, acquisitionRef.current);
 
       setUploadProgress(96);
@@ -1507,6 +1553,36 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
                 </View>
               </ProovraCard>
             ) : null}
+
+            {/*
+              TWO ORIGINS MET IN ONE DRAFT.
+              A statement with a next step, not a silent refusal. The guard
+              that decides this existed in `screen-acquisition.ts` and
+              reached no screen, so the product used to seal the mixed draft
+              under ONE origin — a photo recorded as a screen capture.
+              Nothing staged is discarded by either action here.
+            */}
+            <ProovraSheet
+              visible={mixedOrigin !== null}
+              title={mixedOrigin?.title ?? ""}
+              onClose={() => setMixedOrigin(null)}
+            >
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {mixedOrigin?.message ?? ""}
+              </ProovraText>
+              <ProovraButton
+                label={mixedOrigin?.finishLabel ?? "Finish this capture first"}
+                onPress={() => {
+                  setMixedOrigin(null);
+                  void completeSession();
+                }}
+              />
+              <ProovraButton
+                label={mixedOrigin?.cancelLabel ?? "Not now"}
+                variant="ghost"
+                onPress={() => setMixedOrigin(null)}
+              />
+            </ProovraSheet>
 
             <ProovraSheet
               visible={planningItem !== null}

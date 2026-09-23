@@ -36,6 +36,16 @@ const compile = (rel) =>
 
 const dataUrl = (code) => `data:text/javascript,${encodeURIComponent(code)}`;
 
+/**
+ * Source with its comments removed.
+ *
+ * Asserting on a screen's SOURCE is asserting on what it does, and this
+ * file's own history includes an assertion that matched prose in a comment
+ * and passed while the code said otherwise.
+ */
+const stripComments = (source) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
 /* ------------------------------------------------------------- transport -- */
 
 /** Every request the real modules made, in order. */
@@ -419,4 +429,75 @@ test("10b. no completion route is called by acquisition — custody records one 
     [],
     "acquisition must not complete anything",
   );
+});
+
+/* ==========================================================================
+ * 11. Mixed origin — the refusal reaches the person, with a way forward
+ * ======================================================================== */
+
+test("11. adding an item of another origin is refused BEFORE it is staged", () => {
+  // THE DEFECT THIS CLOSES. `resolveDraftAcquisition` and the refusal copy
+  // existed, were tested, and were consumed by no screen — so a staged screen
+  // recording plus a camera photo uploaded into the ONE reserved Evidence and
+  // sealed through the screen route. The record then claimed a screen-capture
+  // origin for a photograph.
+  const screen = acquisition.toScreenDraftItem({
+    mode: "DIRECT_SCREEN_CAPTURE_ANDROID",
+    clientItemId: "cs-1",
+    partCount: 2,
+    sizeBytes: 10,
+  });
+
+  assert.equal(acquisition.wouldMixOrigins([screen], "CAMERA"), true);
+  assert.equal(acquisition.wouldMixOrigins([screen], "DIRECT_SCREEN_CAPTURE_ANDROID"), false);
+  // An empty draft mixes nothing — the first item decides the origin.
+  assert.equal(acquisition.wouldMixOrigins([], "CAMERA"), false);
+  // Two ordinary items are one origin, whatever their media type.
+  assert.equal(
+    acquisition.wouldMixOrigins([{ sourceLabel: "CAMERA" }], "PICKER"),
+    false,
+    "mixed MEDIA from one origin is supported and must not be refused",
+  );
+});
+
+test("11b. the refusal names a next step the product can actually perform", () => {
+  const staged = acquisition.resolveDraftAcquisition([
+    acquisition.toScreenDraftItem({
+      mode: "DIRECT_SCREEN_CAPTURE_ANDROID",
+      clientItemId: "cs-1",
+      partCount: 1,
+      sizeBytes: 1,
+    }),
+    { sourceLabel: "CAMERA" },
+  ]);
+  assert.equal(staged.kind, "MIXED_ORIGIN");
+
+  const prompt = acquisition.mixedOriginPrompt(staged);
+  assert.match(prompt.title, /separate evidence records/i);
+  // It says WHY, and it says that nothing is lost — both are the difference
+  // between a refusal and a dead end.
+  assert.match(prompt.message, /one origin/i);
+  assert.match(prompt.message, /nothing you have staged is lost/i);
+  // Finishing the current capture is something the product can do: it seals
+  // this record and leaves the next acquisition free to open its own session.
+  assert.ok(prompt.finishLabel.length > 0);
+  assert.ok(prompt.cancelLabel.length > 0);
+  assert.ok(!/error|failed|invalid/i.test(prompt.title), "this is not a failure");
+});
+
+test("11c. the capture screen consults the guard on BOTH the add and the seal", () => {
+  // A UI affordance is not the claim. The add-path keeps a person from
+  // building an unsealable draft; the seal-path is where the origin is
+  // actually stated, and it refuses independently.
+  // Comments stripped: the point is what the screen DOES, and this file's
+  // own history includes an assertion that matched prose in a comment.
+  const raw = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
+  const screen = stripComments(raw);
+  assert.match(screen, /wouldMixOrigins\(/, "the add path does not consult the guard");
+  assert.match(
+    screen,
+    /sealing\.kind === "MIXED_ORIGIN"/,
+    "the finalize path seals without checking the origin",
+  );
+  assert.match(screen, /setMixedOrigin\(/, "the refusal never reaches the person");
 });

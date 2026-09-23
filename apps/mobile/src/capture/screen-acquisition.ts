@@ -233,3 +233,62 @@ export const MIXED_ORIGIN_REFUSAL =
   "This session mixes a screen recording with items captured another way. One " +
   "evidence record states one origin, so these are finished separately — each " +
   "record then says truthfully how it was captured.";
+
+/**
+ * WHAT THE PRODUCT OFFERS WHEN TWO ORIGINS MEET.
+ *
+ * `resolveDraftAcquisition` decides that a draft cannot honestly be sealed.
+ * This decides what to SAY and what to offer, and it lives here — beside the
+ * decision — so the words and the actions are testable without a screen.
+ *
+ * The refusal is real and stays: one Evidence record states one origin, the
+ * server stamps that origin from the session it issued, and
+ * `SESSION_ALREADY_RESERVED` allows exactly one record per session. What was
+ * missing is everything after the refusal. A person who has just recorded
+ * their screen and then reaches for the camera was told nothing at all — the
+ * guard existed in this module and no surface consulted it.
+ *
+ * The actions are ones the product can actually perform. Finishing the
+ * current capture produces its record and leaves the next acquisition free to
+ * open its own session; nothing is discarded, and each record then says
+ * truthfully how it was made.
+ */
+export interface MixedOriginPrompt {
+  title: string;
+  message: string;
+  /** The primary action: finalize what is staged, then start the other one. */
+  finishLabel: string;
+  /** Leave everything exactly as it is. */
+  cancelLabel: string;
+}
+
+export function mixedOriginPrompt(staged: DraftAcquisition): MixedOriginPrompt {
+  const recording =
+    staged.kind === "SCREEN" || (staged.kind === "MIXED_ORIGIN" && staged.modes.length > 0);
+  return {
+    title: "These need separate evidence records",
+    message: recording
+      ? "This session already holds a screen recording. A record states one origin, " +
+        "so a photo or file captured another way is kept as its own record. " +
+        "Finish this one first — nothing you have staged is lost — and the next " +
+        "capture opens its own session."
+      : MIXED_ORIGIN_REFUSAL,
+    finishLabel: "Finish this capture first",
+    cancelLabel: "Not now",
+  };
+}
+
+/**
+ * Would adding an item of this origin make the draft unsealable?
+ *
+ * Asked BEFORE the item is staged, so the answer arrives while the person is
+ * still holding the camera rather than at the end of an upload.
+ */
+export function wouldMixOrigins(
+  staged: ReadonlyArray<{ sourceLabel?: string | null }>,
+  incomingSourceLabel: string | null | undefined,
+): boolean {
+  if (staged.length === 0) return false;
+  const next = resolveDraftAcquisition([...staged, { sourceLabel: incomingSourceLabel ?? null }]);
+  return next.kind === "MIXED_ORIGIN";
+}
