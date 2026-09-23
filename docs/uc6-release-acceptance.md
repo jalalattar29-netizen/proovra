@@ -23,31 +23,30 @@ readiness is not device acceptance, and neither is launch readiness.
 
 ## A2. CI ON THIS BRANCH
 
-All three workflows are green on `4247636aa`:
+`ci` was red at every intermediate commit, for a DIFFERENT real reason each
+time, and each was fixed at its cause rather than retried or routed around.
 
-| workflow | conclusion |
-|---|---|
-| `ci` | **success** |
-| `playwright-e2e` | **success** |
-| `schema-reproducibility` | **success** |
+| # | Cause | Fix |
+|---|---|---|
+| 1 | Docker Hub rate-limited the anonymous MinIO pull (exit 125) | pinned quay.io release — the image `playwright-e2e.yml` already uses on this runner |
+| 2 | The full-stack smoke test posted its own stale legal versions and 400'd before reaching the capture it exists to prove | corrected at the source of the versions |
+| 3 | Four line-anchored capability sites moved when the error and mixed-origin work inserted lines above them | re-anchored |
+| 4 | Two imports left unused after the dictionary moved to `@proovra/shared` | removed |
+| 5 | The audit engine's freshness gate, on artifacts the bundling work changed | regenerated |
+| 6 | `schema-reproducibility` failed on a DOC-ONLY commit: a concurrency test asserted `bodiesEntered === 1` after a fixed sleep and read **0** on a loaded runner — a question asked too early, not a lock failure (that reads 2 or 3) | both it and its sibling now wait for the EVENT, with a 30s deadline |
+| 7 | The freshness gate again, three commits running | regenerated — and fixing it is what let #8 become visible at all |
+| 8 | `Test — api`: the Point-5 ledger carried TWO runIds, so the gate read "proof stitched from 2 runs" and credited **0** of 34 units | all 14 credited suites re-executed in ONE invocation against a fresh database (19 files, 338 cases), leaving one runId |
 
-`ci` was red at every intermediate commit, for a different real reason each
-time, and each was fixed at its cause rather than routed around:
+### What #8 is worth remembering for
 
-1. Docker Hub rate-limited the anonymous MinIO pull (exit 125) → pinned quay.io
-   release, the image `playwright-e2e.yml` already uses here.
-2. The full-stack smoke test posted its own stale legal versions and 400'd
-   before reaching the capture it exists to prove.
-3. Four line-anchored capability sites moved when the error and mixed-origin
-   work inserted lines above them.
-4. Two imports left unused after the dictionary moved to `@proovra/shared`.
-5. The audit engine's freshness gate, on artifacts the bundling work changed.
-
-`playwright-e2e` went green at the first UC-6 commit — the first time that
-workflow has passed, after 86 tests had been failing on one stale string.
+The ledger churn looks like noise — every `binding` SHA and every case list is
+identical between the two runs, and only `runId` and a timestamp differ. It
+was reverted as noise, which preserved the mixture instead of clearing it. The
+runId **is** the evidence: it is the claim that one execution proved these
+families, and two of them stitched together is exactly the dishonest proof the
+gate exists to refuse.
 
 ---
-
 ## B. RELEASE ACCEPTANCE MATRIX
 
 Twelve categories. **No category inherits another's result** — the three
@@ -57,8 +56,8 @@ an application somebody can install, and a launch an operator can stand behind.
 | # | Category | Status | Evidence |
 |---|---|---|---|
 | 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone (a second run against a REUSED database read 2292/2294; both failures were residue-sensitive tick counters that scan every workspace, and the two files pass 50/50 on a database created and migrated fresh — which is what CI provisions) · worker 974/974 · web 3230 + 1470 render · operations/capture layout 296/296 on a freshly built bundle (§C3) · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
-| 2 | **CI readiness** | **PASS** | `ci`, `playwright-e2e` and `schema-reproducibility` all green on the merged head. Five distinct red causes were fixed at source along the way, and two of them were flaky tests repaired rather than retried — see §A2 |
-| 3 | **Android build readiness** | **PASS** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. Verified to correspond to the final app code: every commit since it was built touches only docs, generated audit artifacts and API test files — zero files the mobile bundle includes |
+| 2 | **CI readiness** | **PASS** | all three workflows green on `b79706b66`: `ci` (run 35902545060), `playwright-e2e` (35902545042), `schema-reproducibility` (35902545057). **Eight** distinct red causes were fixed at source along the way — none retried, none suppressed — and three of them were tests that asked a question too early rather than product faults. §A2 lists every one |
+| 3 | **Android build readiness** | **PASS (build)** · **SUPERSEDED (native manifest)** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. **No longer corresponds to the final app code**, in exactly one respect: `apps/mobile/app.json` was changed after the build to narrow the Android `/auth` deep-link claim (§C2). Nothing else the bundle includes has moved — `git diff 7f994890f..HEAD -- apps/mobile packages/shared packages/shared-runtime` is that file plus a doc. The JavaScript is therefore identical; only the native manifest differs, and it is INERT until the signing fingerprint in §E2 is written, which forces a rebuild anyway |
 | 4 | **iOS build readiness** | **PASS (bundle)** · **NOT_TESTED (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A JavaScript bundle is not a signed application: no iOS build was produced in this phase, though credentials exist on the account from earlier FINISHED builds |
 | 5 | **Android physical acceptance** | **NOT_TESTED** | no device was available to this session. The APK exists and `apps/mobile/docs/physical-acceptance.md` carries the script, the build id and the two UC-6 behaviours to exercise deliberately |
 | 6 | **iPhone physical acceptance** | **NOT_TESTED** | same, and no iOS build was produced |
@@ -320,8 +319,39 @@ module and the broadcast SampleHandler), scheme `proovra`, associated domains
 
 * No production deployment, no production migration, no production data access.
 * No store submission for the extension or either app.
-* No merge to `main`.
+* The merge to `main` is the ONE outward action this phase was authorised to
+  take. Its preconditions are in §G. Nothing else outward was performed.
 * No change to `/share/[id]` or anything it reaches — verified byte-identical
   to `origin/main`.
 * No invented Apple Team ID, Android fingerprint or provisioning profile. The
   association files still carry their placeholders, deliberately.
+* No device acceptance of any kind. Rows 5–7 of §B are NOT_TESTED because no
+  phone or tablet was reachable from this session, not because the question
+  was deferred as unimportant.
+* No accuracy evaluation of UC-4 OCR or conversation reconstruction (§C1).
+* No alert delivery wired up. Row 11 remains FAIL, and this phase did not
+  change it — it only established that it is a FAIL rather than an unknown.
+* No fix for the intermittent 320px RTL overflow (§C3): it was observed once,
+  contradicted once, and is not understood well enough to change anything.
+
+---
+
+## G. THE MERGE TO `main`
+
+A **fast-forward**, so `main` ends at exactly the branch head CI verified —
+no merge commit introduces code no workflow has seen.
+
+| precondition | how it was checked | result |
+|---|---|---|
+| `origin/main` is an ancestor of the branch | `git merge-base --is-ancestor` | yes — fast-forward possible |
+| no database migration rides along | `git diff --name-only origin/main..HEAD -- services/api/prisma/migrations` | **0 files** |
+| no schema change rides along | same, for `schema.prisma` | **0 files** |
+| Secure Share untouched | `git diff origin/main..HEAD -- apps/web/app/share` and the API share routes | **byte-identical** |
+| no deployment is triggered | `deploy-images.yml` builds GHCR images on push to `main`; `deploy-staging.yml` is `workflow_dispatch` only | images only, no environment changed |
+| branch protection respected | no required checks are configured on this repository; nothing was bypassed and no force-push was used | clean |
+| all three workflows green on the exact SHA | `ci`, `playwright-e2e`, `schema-reproducibility` | see §A2 |
+
+**What pushing to `main` does cause:** `deploy-images.yml` builds and pushes
+container images to GHCR. That is a registry write, not a deployment — no
+running environment reads them without a separate, manual step. It is stated
+here rather than left for somebody to discover.
