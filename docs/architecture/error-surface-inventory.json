@@ -6,11 +6,21 @@
     "shared": 77,
     "neither": 298,
     "webOnly": 60,
-    "nativeOnly": 3
+    "nativeOnly": 3,
+    "reachable": 326,
+    "observabilityOnly": 86,
+    "enumOnly": 29,
+    "reachableAnsweredOnWeb": 132,
+    "reachableAnsweredOnNative": 80,
+    "reachableAnsweredByNeither": 192
   },
   "rows": [
     {
       "code": "ACCESS_ACTIVITY_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -23,6 +33,10 @@
     },
     {
       "code": "ACCESS_REVIEW_DECIDED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/access-review-escalation.service.ts",
         "services/api/src/services/trust/trust-and-governance-audit.service.ts"
@@ -36,6 +50,10 @@
     },
     {
       "code": "ACCESS_REVIEW_GRANT_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/trust-and-governance-audit.service.ts"
       ],
@@ -48,6 +66,10 @@
     },
     {
       "code": "ACTIVE_CASE_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -60,6 +82,10 @@
     },
     {
       "code": "ACTIVE_LEGAL_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -72,6 +98,10 @@
     },
     {
       "code": "ACTOR_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -84,6 +114,10 @@
     },
     {
       "code": "AI_CHAT_RATE_LIMITED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ai.routes.ts"
       ],
@@ -98,6 +132,10 @@
     },
     {
       "code": "AI_CHAT_TIMEOUT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ai.routes.ts"
       ],
@@ -112,6 +150,10 @@
     },
     {
       "code": "AI_DUPLICATE_REQUEST",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-rate-limit.service.ts"
       ],
@@ -124,6 +166,10 @@
     },
     {
       "code": "AI_MONTHLY_LIMIT_REACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/billing-enforcement.service.ts"
       ],
@@ -138,6 +184,10 @@
     },
     {
       "code": "AI_NOT_INCLUDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/billing-enforcement.service.ts"
       ],
@@ -152,6 +202,10 @@
     },
     {
       "code": "AI_RATE_LIMITED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-rate-limit.service.ts"
       ],
@@ -164,6 +218,10 @@
     },
     {
       "code": "AI_WORKSPACE_POLICY_DENIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ai.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
@@ -181,6 +239,10 @@
     },
     {
       "code": "ALGORITHM_UNSUPPORTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -193,6 +255,10 @@
     },
     {
       "code": "ALREADY_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department-membership.service.ts"
       ],
@@ -207,6 +273,10 @@
     },
     {
       "code": "ANNOTATION_ALREADY_RESOLVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
       ],
@@ -219,6 +289,10 @@
     },
     {
       "code": "ANNOTATION_NESTING_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
       ],
@@ -231,6 +305,10 @@
     },
     {
       "code": "ANNOTATION_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
       ],
@@ -243,6 +321,10 @@
     },
     {
       "code": "API_KEYS_LEGACY_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise.routes.ts"
       ],
@@ -255,6 +337,10 @@
     },
     {
       "code": "ARCHIVE_BLOCKED_BY_LEGAL_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance.service.ts"
       ],
@@ -267,6 +353,10 @@
     },
     {
       "code": "ARCHIVE_RESTORE_REQUESTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/archive-tier.service.ts"
       ],
@@ -279,6 +369,10 @@
     },
     {
       "code": "ARCHIVE_TRANSITION_COMPLETED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/archive-tier.service.ts"
       ],
@@ -291,6 +385,10 @@
     },
     {
       "code": "ARCHIVE_TRANSITION_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/archive-tier.service.ts"
       ],
@@ -303,6 +401,10 @@
     },
     {
       "code": "ARCHIVE_TRANSITION_REQUESTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/archive-tier.service.ts"
       ],
@@ -315,6 +417,10 @@
     },
     {
       "code": "ARCHIVE_TRANSITION_STARTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/archive-tier.service.ts"
       ],
@@ -327,6 +433,10 @@
     },
     {
       "code": "ARTIFACT_NOT_REDACTABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/evidence-bytes.service.ts",
         "services/api/src/services/redaction/redaction-derivative.service.ts",
@@ -341,6 +451,10 @@
     },
     {
       "code": "ARTIFACT_UNAVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -353,6 +467,10 @@
     },
     {
       "code": "ARTIFACT_VERSION_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -365,6 +483,10 @@
     },
     {
       "code": "ATTESTATION_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -379,6 +501,10 @@
     },
     {
       "code": "BILLING_CONTRACT_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -391,6 +517,10 @@
     },
     {
       "code": "BILLING_SUBSCRIPTION_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-closure-subscription-policy.ts",
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
@@ -404,6 +534,10 @@
     },
     {
       "code": "BILLING_SUBSCRIPTION_READ_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -416,6 +550,10 @@
     },
     {
       "code": "BUDGET_BLOCKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/provider-budget.service.ts"
       ],
@@ -428,6 +566,10 @@
     },
     {
       "code": "BUDGET_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/provider-budget.service.ts"
       ],
@@ -440,6 +582,10 @@
     },
     {
       "code": "BUDGET_HARD_LIMIT_REACHED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/provider-budget.service.ts"
       ],
@@ -452,6 +598,10 @@
     },
     {
       "code": "BUDGET_SOFT_LIMIT_REACHED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/provider-budget.service.ts"
       ],
@@ -464,6 +614,10 @@
     },
     {
       "code": "BULK_INVITATION_ROW_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-bulk-invitations.service.ts"
       ],
@@ -476,6 +630,10 @@
     },
     {
       "code": "BULK_SET_TOO_LARGE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
       ],
@@ -488,6 +646,10 @@
     },
     {
       "code": "CANCELLATION_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -500,6 +662,10 @@
     },
     {
       "code": "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -512,6 +678,10 @@
     },
     {
       "code": "CAPTURE_DEVICE_REGISTERED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -524,6 +694,10 @@
     },
     {
       "code": "CAPTURE_DEVICE_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -536,6 +710,10 @@
     },
     {
       "code": "CAPTURE_SESSION_BOUND",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -548,6 +726,10 @@
     },
     {
       "code": "CAPTURE_SESSION_ENDED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -560,6 +742,10 @@
     },
     {
       "code": "CAPTURE_SESSION_INTERRUPTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -572,6 +758,10 @@
     },
     {
       "code": "CAPTURE_SESSION_NOT_EDITABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/capture.routes.ts"
       ],
@@ -586,6 +776,10 @@
     },
     {
       "code": "CAPTURE_SESSION_STARTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -598,6 +792,10 @@
     },
     {
       "code": "CASE_ACCESS_TARGET_NOT_MEMBER",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts"
       ],
@@ -610,6 +808,10 @@
     },
     {
       "code": "CASE_DELETE_DENIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts"
       ],
@@ -622,6 +824,11 @@
     },
     {
       "code": "CASE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/cases.routes.ts"
@@ -635,6 +842,10 @@
     },
     {
       "code": "CASE_RENAME_DENIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts"
       ],
@@ -647,6 +858,10 @@
     },
     {
       "code": "CASE_WORKSPACE_READ_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/case-workspace.routes.ts"
       ],
@@ -659,6 +874,10 @@
     },
     {
       "code": "CASES_MANAGE_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts"
       ],
@@ -671,6 +890,11 @@
     },
     {
       "code": "CERTIFICATION_ALREADY_ATTESTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-certification.service.ts"
@@ -684,6 +908,11 @@
     },
     {
       "code": "CERTIFICATION_STATEMENT_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-certification.service.ts"
@@ -697,6 +926,11 @@
     },
     {
       "code": "CERTIFICATION_STATEMENT_MISSING",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-certification.service.ts"
@@ -710,6 +944,10 @@
     },
     {
       "code": "CHAIN_TRANSFER_CUSTODY_EXTENDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/chain-transfer.service.ts"
       ],
@@ -722,6 +960,10 @@
     },
     {
       "code": "CHECKOUT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -734,6 +976,10 @@
     },
     {
       "code": "CITIZEN_CAPTURE_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/citizen-capture.routes.ts"
       ],
@@ -746,6 +992,10 @@
     },
     {
       "code": "CODING_SCHEMA_PUBLISH_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-workspace.routes.ts"
       ],
@@ -758,6 +1008,10 @@
     },
     {
       "code": "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration-completion.routes.ts"
       ],
@@ -770,6 +1024,10 @@
     },
     {
       "code": "COLLABORATION_TEAM_GUESTS_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration-completion.routes.ts"
       ],
@@ -782,6 +1040,10 @@
     },
     {
       "code": "COLLABORATION_TEAM_INVITE_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration-teams.routes.ts"
       ],
@@ -794,6 +1056,10 @@
     },
     {
       "code": "COLLABORATION_TEAM_NOTIFICATIONS_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration-completion.routes.ts"
       ],
@@ -806,6 +1072,10 @@
     },
     {
       "code": "COLLABORATION_TEAM_PREFERENCES_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration-completion.routes.ts"
       ],
@@ -818,6 +1088,10 @@
     },
     {
       "code": "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration.routes.ts"
       ],
@@ -830,6 +1104,10 @@
     },
     {
       "code": "COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/collaboration.routes.ts"
       ],
@@ -842,6 +1120,10 @@
     },
     {
       "code": "COMMENT_BODY_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-comments.service.ts"
       ],
@@ -854,6 +1136,10 @@
     },
     {
       "code": "COMMENT_POSTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-comments.service.ts"
       ],
@@ -866,6 +1152,10 @@
     },
     {
       "code": "COMMERCIAL_LIFECYCLE_RESTRICTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/billing-enforcement.service.ts"
       ],
@@ -878,6 +1168,10 @@
     },
     {
       "code": "COMMERCIAL_SUBJECT_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/billing/commercial-context.service.ts"
       ],
@@ -890,6 +1184,10 @@
     },
     {
       "code": "CONFIGURATION_ERROR",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/middleware/cron-secret.ts",
         "services/api/src/middleware/internal-service-auth.ts"
@@ -905,6 +1203,10 @@
     },
     {
       "code": "CONSENT_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -919,6 +1221,10 @@
     },
     {
       "code": "CONSENT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -933,6 +1239,10 @@
     },
     {
       "code": "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/continuous-capture.service.ts"
       ],
@@ -945,6 +1255,10 @@
     },
     {
       "code": "CONTINUOUS_MANIFEST_DIGEST_UNDECLARED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/continuous-capture.service.ts"
       ],
@@ -957,6 +1271,10 @@
     },
     {
       "code": "CONTINUOUS_MANIFEST_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/continuous-capture.service.ts"
       ],
@@ -969,6 +1287,10 @@
     },
     {
       "code": "CONTINUOUS_MANIFEST_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/continuous-capture.service.ts"
       ],
@@ -981,6 +1303,10 @@
     },
     {
       "code": "CORE_INTEGRITY_SIGNALS_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -993,6 +1319,11 @@
     },
     {
       "code": "CORRECTION_ACCEPTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/executive-metrics.service.ts",
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
@@ -1006,6 +1337,11 @@
     },
     {
       "code": "CORRECTION_CREATED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/executive-metrics.service.ts",
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
@@ -1019,6 +1355,11 @@
     },
     {
       "code": "CORRECTION_REVERTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/executive-metrics.service.ts",
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
@@ -1032,6 +1373,11 @@
     },
     {
       "code": "CORRECTION_SUPERSEDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/executive-metrics.service.ts",
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
@@ -1045,6 +1391,10 @@
     },
     {
       "code": "CROSS_ORG_REVIEW_ACCEPTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1057,6 +1407,10 @@
     },
     {
       "code": "CROSS_ORG_REVIEW_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1069,6 +1423,10 @@
     },
     {
       "code": "CROSS_ORG_REVIEW_DECLINED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1081,6 +1439,10 @@
     },
     {
       "code": "CROSS_ORG_REVIEW_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1093,6 +1455,10 @@
     },
     {
       "code": "CROSS_TEAM_ATTACH_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/cases/case-permission.service.ts"
       ],
@@ -1105,6 +1471,10 @@
     },
     {
       "code": "CROSS_TENANT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-criteria.routes.ts"
       ],
@@ -1117,6 +1487,10 @@
     },
     {
       "code": "DAILY_COST_LIMIT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-usage-ledger.service.ts"
       ],
@@ -1129,6 +1503,10 @@
     },
     {
       "code": "DAILY_OP_LIMIT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-usage-ledger.service.ts"
       ],
@@ -1141,6 +1519,11 @@
     },
     {
       "code": "DATABASE_ERROR",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "ENUM",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/server.ts"
@@ -1154,6 +1537,10 @@
     },
     {
       "code": "DECISION_BULK_APPLIED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/video/video-track.service.ts"
       ],
@@ -1166,6 +1553,10 @@
     },
     {
       "code": "DECISION_SUBMITTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-decisions.service.ts"
       ],
@@ -1178,6 +1569,10 @@
     },
     {
       "code": "DEFAULT_ROLE_DOWNGRADED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/security/saml-mapping.service.ts"
       ],
@@ -1192,6 +1587,10 @@
     },
     {
       "code": "DELEGATED_ADMIN_GRANTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/delegated-admin.service.ts"
       ],
@@ -1204,6 +1603,10 @@
     },
     {
       "code": "DELEGATED_ADMIN_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/middleware/require-delegated-tier.ts",
         "services/api/src/routes/trust-and-governance.routes.ts"
@@ -1221,6 +1624,10 @@
     },
     {
       "code": "DELEGATED_ADMIN_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/delegated-admin.service.ts"
       ],
@@ -1233,6 +1640,10 @@
     },
     {
       "code": "DEPARTMENT_ARCHIVED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department.service.ts"
       ],
@@ -1245,6 +1656,10 @@
     },
     {
       "code": "DEPARTMENT_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department.service.ts"
       ],
@@ -1257,6 +1672,10 @@
     },
     {
       "code": "DEPARTMENT_FORBIDDEN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department-scope.service.ts"
       ],
@@ -1269,6 +1688,10 @@
     },
     {
       "code": "DEPARTMENT_MEMBERSHIP_GRANTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts"
       ],
@@ -1281,6 +1704,10 @@
     },
     {
       "code": "DEPARTMENT_MEMBERSHIP_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts"
       ],
@@ -1293,6 +1720,10 @@
     },
     {
       "code": "DEPARTMENT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department-membership.service.ts"
       ],
@@ -1305,6 +1736,10 @@
     },
     {
       "code": "DERIVATIVE_DOWNLOADED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/redaction.routes.ts"
       ],
@@ -1317,6 +1752,10 @@
     },
     {
       "code": "DERIVATIVE_NOT_READY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/redaction.routes.ts",
         "services/api/src/services/redaction/redaction-derivative.service.ts"
@@ -1330,6 +1769,11 @@
     },
     {
       "code": "DERIVATIVE_QUARANTINED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "OBSERVABILITY",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-derivative.service.ts"
       ],
@@ -1342,6 +1786,10 @@
     },
     {
       "code": "DERIVATIVE_REQUESTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-derivative.service.ts"
       ],
@@ -1354,6 +1802,10 @@
     },
     {
       "code": "DESTRUCTION_BLOCKED_BY_LEGAL_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -1366,6 +1818,10 @@
     },
     {
       "code": "DESTRUCTION_PARTIAL_FAILURE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -1378,6 +1834,10 @@
     },
     {
       "code": "DESTRUCTION_REQUEST_NOT_APPROVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -1390,6 +1850,10 @@
     },
     {
       "code": "DESTRUCTION_REQUEST_NOT_EXECUTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -1402,6 +1866,10 @@
     },
     {
       "code": "DESTRUCTION_REQUEST_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/destruction-governance.service.ts"
       ],
@@ -1414,6 +1882,10 @@
     },
     {
       "code": "DESTRUCTION_REVIEW_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -1426,6 +1898,10 @@
     },
     {
       "code": "DESTRUCTION_REVIEW_PENDING",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -1440,6 +1916,10 @@
     },
     {
       "code": "DETECTION_GENERATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-detection.service.ts"
       ],
@@ -1452,6 +1932,10 @@
     },
     {
       "code": "DETECTION_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-decision.service.ts"
       ],
@@ -1464,6 +1948,10 @@
     },
     {
       "code": "DETECTION_RUN_COMPLETED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-detection.service.ts"
       ],
@@ -1476,6 +1964,10 @@
     },
     {
       "code": "DETECTION_RUN_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-detection.service.ts"
       ],
@@ -1488,6 +1980,10 @@
     },
     {
       "code": "DETECTION_RUN_STARTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-detection.service.ts"
       ],
@@ -1500,6 +1996,10 @@
     },
     {
       "code": "DEVICE_ALREADY_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -1514,6 +2014,10 @@
     },
     {
       "code": "DEVICE_NOT_BOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -1526,6 +2030,10 @@
     },
     {
       "code": "DEVICE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -1538,6 +2046,10 @@
     },
     {
       "code": "DEVICE_NOT_REGISTERED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -1550,6 +2062,10 @@
     },
     {
       "code": "DEVICE_PUBKEY_TAKEN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -1562,6 +2078,10 @@
     },
     {
       "code": "DEVICE_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -1574,6 +2094,10 @@
     },
     {
       "code": "DUPLICATE_EVIDENCE",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -1586,6 +2110,10 @@
     },
     {
       "code": "DUPLICATE_REQUEST",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-usage-ledger.service.ts"
       ],
@@ -1598,6 +2126,11 @@
     },
     {
       "code": "EMAIL_ALREADY_EXISTS",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/auth.routes.ts"
@@ -1613,6 +2146,10 @@
     },
     {
       "code": "EMAIL_MAPPING_REMOVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/security/saml-mapping.service.ts"
       ],
@@ -1627,6 +2164,10 @@
     },
     {
       "code": "EMAIL_NOT_VERIFIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/auth.routes.ts"
       ],
@@ -1643,6 +2184,10 @@
     },
     {
       "code": "EMAIL_SERVICE_ERROR",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -1655,6 +2200,10 @@
     },
     {
       "code": "ENTITLEMENT_GRANTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/packaging/entitlement.service.ts"
       ],
@@ -1667,6 +2216,10 @@
     },
     {
       "code": "ENTITLEMENT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/routes/external-review.routes.ts",
@@ -1689,6 +2242,10 @@
     },
     {
       "code": "ESCALATION_OPEN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -1701,6 +2258,10 @@
     },
     {
       "code": "EVIDENCE_ACQUISITION_MODE_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/evidence.service.ts"
       ],
@@ -1713,6 +2274,10 @@
     },
     {
       "code": "EVIDENCE_ALREADY_SIGNED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -1725,6 +2290,10 @@
     },
     {
       "code": "EVIDENCE_BYTES_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/intelligence-platform.routes.ts"
       ],
@@ -1737,6 +2306,10 @@
     },
     {
       "code": "EVIDENCE_BYTES_UNVERIFIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/intelligence-platform.routes.ts"
       ],
@@ -1749,6 +2322,10 @@
     },
     {
       "code": "EVIDENCE_INTEGRITY_FAILED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -1761,6 +2338,10 @@
     },
     {
       "code": "EVIDENCE_LOCKED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -1773,13 +2354,17 @@
       "native": true,
       "nativeFiles": [
         "apps/mobile/src/product/evidence-detail.ts",
-        "apps/mobile/test/evidence-detail.test.mjs",
-        "apps/mobile/test/safe-error.test.mjs"
+        "apps/mobile/test/error-presentation.test.mjs",
+        "apps/mobile/test/evidence-detail.test.mjs"
       ],
       "shared": true
     },
     {
       "code": "EVIDENCE_NOT_FINALIZED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -1792,6 +2377,12 @@
     },
     {
       "code": "EVIDENCE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/cases.routes.ts",
@@ -1809,6 +2400,10 @@
     },
     {
       "code": "EVIDENCE_NOT_LOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -1821,6 +2416,10 @@
     },
     {
       "code": "EVIDENCE_NOT_OPEN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -1833,6 +2432,10 @@
     },
     {
       "code": "EVIDENCE_RELATIONSHIP_SELF_LINK",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/evidence-review/relationship-summary.service.ts"
       ],
@@ -1845,6 +2448,10 @@
     },
     {
       "code": "EXCHANGE_PACKAGE_MANUAL_READY_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
@@ -1857,6 +2464,10 @@
     },
     {
       "code": "EXCHANGE_PACKAGE_NOT_DRAFT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
@@ -1871,6 +2482,10 @@
     },
     {
       "code": "EXPORT_SNAPSHOT_CURSOR_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/governance-operations.routes.ts"
       ],
@@ -1883,6 +2498,10 @@
     },
     {
       "code": "EXPORT_SNAPSHOT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/governance-operations.routes.ts"
       ],
@@ -1895,6 +2514,10 @@
     },
     {
       "code": "EXTERNAL_GRANT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1907,6 +2530,10 @@
     },
     {
       "code": "EXTERNAL_GRANT_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -1919,6 +2546,10 @@
     },
     {
       "code": "EXTERNAL_ID_OVERRIDE_RISKY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/security/saml-mapping.service.ts"
       ],
@@ -1933,6 +2564,10 @@
     },
     {
       "code": "EXTERNAL_SERVICE_ERROR",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -1945,6 +2580,10 @@
     },
     {
       "code": "EXTERNAL_SSO_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-sso.service.ts"
       ],
@@ -1957,6 +2596,10 @@
     },
     {
       "code": "EXTERNAL_SSO_IDENTITY_MISMATCH",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-sso.service.ts"
       ],
@@ -1969,6 +2612,10 @@
     },
     {
       "code": "EXTERNAL_SSO_STARTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-sso.service.ts"
       ],
@@ -1981,6 +2628,10 @@
     },
     {
       "code": "EXTERNAL_SSO_SUCCEEDED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-sso.service.ts"
       ],
@@ -1993,6 +2644,10 @@
     },
     {
       "code": "FEATURE_DISABLED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence-requests.routes.ts",
         "services/api/src/routes/external-intake.routes.ts",
@@ -2006,11 +2661,17 @@
         "apps/web/components/access/AccessGate.tsx"
       ],
       "native": true,
-      "nativeFiles": [],
+      "nativeFiles": [
+        "apps/mobile/test/error-presentation.test.mjs"
+      ],
       "shared": true
     },
     {
       "code": "FIELD_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
       ],
@@ -2023,6 +2684,10 @@
     },
     {
       "code": "FILE_TOO_LARGE",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2035,6 +2700,10 @@
     },
     {
       "code": "FILE_VALIDATION_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -2049,6 +2718,10 @@
     },
     {
       "code": "FINALIZE_BLOCKED_BY_UPLOAD_SESSION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -2061,6 +2734,10 @@
     },
     {
       "code": "FORENSIC_CUSTODY_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -2073,6 +2750,10 @@
     },
     {
       "code": "GOVERNANCE_BLOCKED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2085,6 +2766,11 @@
     },
     {
       "code": "GOVERNANCE_CHECK_FAILED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/integrations-api.routes.ts",
         "services/api/src/services/evidence/evidence-lifecycle.service.ts",
@@ -2101,6 +2787,10 @@
     },
     {
       "code": "GRANT_ACCEPTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-invitation.service.ts"
       ],
@@ -2113,6 +2803,10 @@
     },
     {
       "code": "GRANT_ISSUED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-invitation.service.ts"
       ],
@@ -2125,6 +2819,10 @@
     },
     {
       "code": "GRANT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/teams.routes.ts"
       ],
@@ -2139,6 +2837,10 @@
     },
     {
       "code": "GRANT_RESENT",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts"
       ],
@@ -2151,6 +2853,10 @@
     },
     {
       "code": "GRANT_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-invitation.service.ts"
       ],
@@ -2165,6 +2871,10 @@
     },
     {
       "code": "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/security/saml-mapping.service.ts"
       ],
@@ -2179,6 +2889,10 @@
     },
     {
       "code": "GROUP_ROLE_OVERLAPS_SCIM",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/security/saml-mapping.service.ts"
       ],
@@ -2193,6 +2907,10 @@
     },
     {
       "code": "HEALTH_SNAPSHOT_UNAVAILABLE",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/admin-platform-telemetry.routes.ts"
       ],
@@ -2205,6 +2923,11 @@
     },
     {
       "code": "HIGH_RISK_ACTION_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/services/identity-security/step-up-middleware.ts"
@@ -2218,6 +2941,10 @@
     },
     {
       "code": "HIGH_SECURITY_PREREQUISITES_UNMET",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise-security.routes.ts"
       ],
@@ -2232,6 +2959,10 @@
     },
     {
       "code": "ILLEGAL_MEMBERSHIP_TRANSITION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organizations.routes.ts"
       ],
@@ -2246,6 +2977,10 @@
     },
     {
       "code": "IMMUTABLE_STORAGE_DRIFT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -2258,6 +2993,10 @@
     },
     {
       "code": "INCIDENT_OPEN_CRITICAL",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -2270,6 +3009,10 @@
     },
     {
       "code": "INCIDENT_OPEN_HIGH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -2282,6 +3025,10 @@
     },
     {
       "code": "INGEST_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/capture-trust.routes.ts"
       ],
@@ -2294,6 +3041,10 @@
     },
     {
       "code": "INSUFFICIENT_CREDITS",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -2306,6 +3057,10 @@
     },
     {
       "code": "INSUFFICIENT_PERMISSIONS",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2318,6 +3073,10 @@
     },
     {
       "code": "INSUFFICIENT_SCOPE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/middleware/integrations-auth.ts"
       ],
@@ -2330,6 +3089,10 @@
     },
     {
       "code": "INTAKE_LINK_BLOCKED_BY_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/integrations-api.routes.ts"
       ],
@@ -2342,6 +3105,10 @@
     },
     {
       "code": "INTAKE_MODE_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -2356,6 +3123,10 @@
     },
     {
       "code": "INTAKE_NOT_ACCEPTING_EVIDENCE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -2370,6 +3141,11 @@
     },
     {
       "code": "INTEGRATIONS_DISABLED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/middleware/integrations-auth.ts",
         "services/api/src/routes/integrations.routes.ts"
@@ -2385,6 +3161,10 @@
     },
     {
       "code": "INTELLIGENCE_ENQUEUE_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/intelligence.routes.ts"
       ],
@@ -2397,6 +3177,11 @@
     },
     {
       "code": "INTERNAL_ERROR",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "OBSERVABILITY",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence-requests.routes.ts",
         "services/api/src/routes/external-intake.routes.ts"
@@ -2410,6 +3195,10 @@
     },
     {
       "code": "INTERNAL_MEMBER",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/teams.routes.ts"
       ],
@@ -2424,6 +3213,11 @@
     },
     {
       "code": "INTERNAL_SERVER_ERROR",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/auth.routes.ts"
@@ -2437,6 +3231,10 @@
     },
     {
       "code": "INVALID_BODY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/enterprise-security.routes.ts"
@@ -2450,6 +3248,11 @@
     },
     {
       "code": "INVALID_CREDENTIALS",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/auth.routes.ts"
@@ -2463,6 +3266,10 @@
     },
     {
       "code": "INVALID_CURSOR",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-ops.routes.ts",
         "services/api/src/routes/teams.routes.ts"
@@ -2478,6 +3285,10 @@
     },
     {
       "code": "INVALID_DIGEST",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -2490,6 +3301,10 @@
     },
     {
       "code": "INVALID_EVIDENCE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/chain-transfer.service.ts",
         "services/api/src/services/exchange/evidence-exchange.service.ts"
@@ -2503,6 +3318,10 @@
     },
     {
       "code": "INVALID_FILE_TYPE",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2515,6 +3334,10 @@
     },
     {
       "code": "INVALID_IDENTIFIER",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/admin-search.routes.ts"
       ],
@@ -2529,6 +3352,10 @@
     },
     {
       "code": "INVALID_INPUT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/server.ts"
       ],
@@ -2548,6 +3375,10 @@
     },
     {
       "code": "INVALID_KIND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/evidence-exchange.service.ts"
       ],
@@ -2560,6 +3391,10 @@
     },
     {
       "code": "INVALID_LOCATION_BODY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -2574,6 +3409,10 @@
     },
     {
       "code": "INVALID_MIME_TYPE",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2586,6 +3425,10 @@
     },
     {
       "code": "INVALID_OR_EXPIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/auth.routes.ts"
       ],
@@ -2600,6 +3443,10 @@
     },
     {
       "code": "INVALID_OR_EXPIRED_LINK",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -2612,6 +3459,10 @@
     },
     {
       "code": "INVALID_ORG_ID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organizations.routes.ts"
       ],
@@ -2624,6 +3475,10 @@
     },
     {
       "code": "INVALID_PART_INDEX",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -2636,6 +3491,10 @@
     },
     {
       "code": "INVALID_PUBLIC_KEY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -2648,6 +3507,10 @@
     },
     {
       "code": "INVALID_QUERY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ops.routes.ts",
         "services/api/src/routes/reviewer-console.routes.ts",
@@ -2663,6 +3526,11 @@
     },
     {
       "code": "INVALID_REQUEST",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/auth.routes.ts"
@@ -2678,6 +3546,10 @@
     },
     {
       "code": "INVALID_SLUG",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/chain-transfer.service.ts"
       ],
@@ -2690,6 +3562,10 @@
     },
     {
       "code": "INVALID_STATE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/chain-transfer.service.ts"
       ],
@@ -2702,6 +3578,10 @@
     },
     {
       "code": "INVALID_STATE_TRANSITION",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2714,6 +3594,10 @@
     },
     {
       "code": "INVALID_TOKEN",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2726,6 +3610,10 @@
     },
     {
       "code": "INVALID_TRANSFER_TARGET",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/teams.routes.ts"
       ],
@@ -2740,6 +3628,10 @@
     },
     {
       "code": "INVALID_TRANSITION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-approval.service.ts",
         "services/api/src/services/redaction/redaction-derivative.service.ts",
@@ -2758,6 +3650,10 @@
     },
     {
       "code": "INVALID_VERIFICATION_TOKEN",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -2770,6 +3666,10 @@
     },
     {
       "code": "INVALID_WINDOW",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/status-page.service.ts"
       ],
@@ -2782,6 +3682,10 @@
     },
     {
       "code": "INVALID_WORKSPACE_ID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/workspace-operations.routes.ts"
       ],
@@ -2794,6 +3698,10 @@
     },
     {
       "code": "INVITATION_EMAIL_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-invitation-email.service.ts"
       ],
@@ -2806,6 +3714,10 @@
     },
     {
       "code": "INVITE_ALREADY_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-bulk-invitations.service.ts"
       ],
@@ -2820,6 +3732,10 @@
     },
     {
       "code": "INVITE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/routes/teams.routes.ts",
@@ -2839,6 +3755,10 @@
     },
     {
       "code": "LABEL_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -2851,6 +3771,10 @@
     },
     {
       "code": "LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -2863,6 +3787,10 @@
     },
     {
       "code": "LEGAL_DOCUMENT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/legal.routes.ts"
       ],
@@ -2878,6 +3806,10 @@
     },
     {
       "code": "LEGAL_HOLD_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -2898,6 +3830,10 @@
     },
     {
       "code": "LEGAL_HOLD_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/teams.routes.ts",
@@ -2913,6 +3849,10 @@
     },
     {
       "code": "LEGAL_POLICY_VERSION_NOT_CURRENT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/users.routes.ts"
       ],
@@ -2925,6 +3865,10 @@
     },
     {
       "code": "LIFECYCLE_BLOCKED_BY_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
       ],
@@ -2937,6 +3881,10 @@
     },
     {
       "code": "LIFECYCLE_BLOCKED_BY_IMMUTABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
       ],
@@ -2949,6 +3897,10 @@
     },
     {
       "code": "LIFECYCLE_DESTROYED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -2961,6 +3913,10 @@
     },
     {
       "code": "LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/governance-lifecycle.routes.ts"
       ],
@@ -2973,6 +3929,10 @@
     },
     {
       "code": "LIFECYCLE_INVALID_TRANSITION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
       ],
@@ -2985,6 +3945,10 @@
     },
     {
       "code": "LIFECYCLE_ON_HOLD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -2997,6 +3961,10 @@
     },
     {
       "code": "LIFECYCLE_PENDING_DESTRUCTION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -3009,6 +3977,10 @@
     },
     {
       "code": "LIFECYCLE_RETENTION_LOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -3021,6 +3993,10 @@
     },
     {
       "code": "LIFECYCLE_TERMINAL_STATE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts"
       ],
@@ -3033,6 +4009,10 @@
     },
     {
       "code": "LIMIT_EXCEEDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
@@ -3045,6 +4025,10 @@
     },
     {
       "code": "LINK_ALREADY_SUBMITTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3059,6 +4043,10 @@
     },
     {
       "code": "LINK_NO_LONGER_AVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3073,6 +4061,10 @@
     },
     {
       "code": "LOCATION_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3087,6 +4079,10 @@
     },
     {
       "code": "MAX_FILES_REACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3101,6 +4097,10 @@
     },
     {
       "code": "METRICS_SCRAPE_TOKEN_TOO_WEAK",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ops.routes.ts"
       ],
@@ -3113,6 +4113,10 @@
     },
     {
       "code": "MFA_CHALLENGE_FAILED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -3125,6 +4129,10 @@
     },
     {
       "code": "MFA_ENROLL_WRONG_ROUTE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/mfa.routes.ts"
       ],
@@ -3137,6 +4145,10 @@
     },
     {
       "code": "MFA_POLICY_VERSION_CONFLICT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/identity-security.routes.ts",
         "services/api/src/routes/mfa-admin.routes.ts"
@@ -3152,6 +4164,10 @@
     },
     {
       "code": "MFA_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -3170,6 +4186,10 @@
     },
     {
       "code": "MFA_UNAVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -3186,6 +4206,10 @@
     },
     {
       "code": "MIME_TYPE_NOT_ALLOWED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3200,6 +4224,10 @@
     },
     {
       "code": "MISSING_AUTH_HEADER",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -3212,6 +4240,10 @@
     },
     {
       "code": "MISSING_REQUIRED_FIELD",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -3224,6 +4256,10 @@
     },
     {
       "code": "MONTHLY_COST_LIMIT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-usage-ledger.service.ts"
       ],
@@ -3236,6 +4272,10 @@
     },
     {
       "code": "MONTHLY_OP_LIMIT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/ai-usage-ledger.service.ts"
       ],
@@ -3248,6 +4288,10 @@
     },
     {
       "code": "NL_SEARCH_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/ai-search.routes.ts"
       ],
@@ -3260,6 +4304,10 @@
     },
     {
       "code": "NONCE_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -3272,6 +4320,12 @@
     },
     {
       "code": "NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/http/not-found-handler.ts",
@@ -3295,6 +4349,10 @@
     },
     {
       "code": "NOT_PERMITTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/routes/reviewer-workspace.routes.ts",
@@ -3314,6 +4372,10 @@
     },
     {
       "code": "NOT_PUBLISHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-criteria.routes.ts"
       ],
@@ -3326,6 +4388,10 @@
     },
     {
       "code": "ORG_MEMBERS_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -3338,6 +4404,11 @@
     },
     {
       "code": "ORG_SECURITY_POLICY_NOT_APPLICABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/mfa-admin.routes.ts",
         "services/api/src/services/identity-security/mfa-policy.service.ts"
@@ -3351,6 +4422,10 @@
     },
     {
       "code": "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -3363,6 +4438,10 @@
     },
     {
       "code": "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance.service.ts"
       ],
@@ -3375,6 +4454,10 @@
     },
     {
       "code": "OUT_OF_SCOPE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/services/external-review/portal-comments.service.ts"
@@ -3390,6 +4473,10 @@
     },
     {
       "code": "OWNERSHIP_TRANSFER_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organizations.routes.ts"
       ],
@@ -3404,6 +4491,10 @@
     },
     {
       "code": "PACKAGE_BLOCKED_BY_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance.service.ts"
       ],
@@ -3418,6 +4509,10 @@
     },
     {
       "code": "PACKAGE_BLOCKED_BY_TEMPLATE_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance/template-export-policy.service.ts"
       ],
@@ -3430,6 +4525,10 @@
     },
     {
       "code": "PACKAGE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/evidence-exchange.service.ts"
       ],
@@ -3442,6 +4541,10 @@
     },
     {
       "code": "PACKAGE_NOT_READY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/exchange/evidence-exchange.service.ts"
       ],
@@ -3454,6 +4557,10 @@
     },
     {
       "code": "PARENT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
       ],
@@ -3466,6 +4573,10 @@
     },
     {
       "code": "PART_ALREADY_DECLARED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -3478,6 +4589,10 @@
     },
     {
       "code": "PART_INDEX_TAKEN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -3490,6 +4605,10 @@
     },
     {
       "code": "PAYLOAD_DIGEST_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -3502,6 +4621,10 @@
     },
     {
       "code": "PAYLOAD_MODE_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -3514,6 +4637,10 @@
     },
     {
       "code": "PAYLOAD_SESSION_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -3526,6 +4653,10 @@
     },
     {
       "code": "PAYMENT_FAILED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -3538,6 +4669,10 @@
     },
     {
       "code": "PAYMENT_SERVICE_ERROR",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -3550,6 +4685,10 @@
     },
     {
       "code": "PAYPAL_APPROVAL_PENDING",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/billing/pending-checkout-attempt.service.ts"
       ],
@@ -3562,6 +4701,10 @@
     },
     {
       "code": "PAYPAL_DIFFERENT_PLAN_PENDING",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/billing/pending-checkout-attempt.service.ts"
       ],
@@ -3574,6 +4717,10 @@
     },
     {
       "code": "PAYPAL_PENDING_ATTEMPT_STALE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/billing/pending-checkout-attempt.service.ts"
       ],
@@ -3586,6 +4733,10 @@
     },
     {
       "code": "PERSONAL_SECURITY_LEGACY_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/users.routes.ts"
       ],
@@ -3598,6 +4749,10 @@
     },
     {
       "code": "PERSONAL_WORKSPACE_NOT_CLOSABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -3610,6 +4765,10 @@
     },
     {
       "code": "PERSONAL_WORKSPACE_ORGANIZATION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -3622,6 +4781,10 @@
     },
     {
       "code": "POLICY_ACTIVATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/governance-policy.service.ts"
       ],
@@ -3634,6 +4797,10 @@
     },
     {
       "code": "POLICY_ARCHIVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-policy-store.service.ts"
       ],
@@ -3646,6 +4813,10 @@
     },
     {
       "code": "POLICY_ASSIGNED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/governance-policy.service.ts"
       ],
@@ -3658,6 +4829,10 @@
     },
     {
       "code": "POLICY_ASSIGNMENT_CREATED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-policy-store.service.ts"
       ],
@@ -3670,6 +4845,10 @@
     },
     {
       "code": "POLICY_ASSIGNMENT_REVOKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-policy-store.service.ts"
       ],
@@ -3682,6 +4861,12 @@
     },
     {
       "code": "POLICY_BLOCK",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/governance-dashboard.service.ts",
         "services/api/src/services/governance/policy-evaluation.service.ts",
@@ -3699,6 +4884,11 @@
     },
     {
       "code": "POLICY_CREATED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/governance-policy.service.ts",
         "services/api/src/services/redaction/redaction-policy-store.service.ts"
@@ -3712,6 +4902,10 @@
     },
     {
       "code": "POLICY_DEPRECATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/governance-policy.service.ts"
       ],
@@ -3724,6 +4918,10 @@
     },
     {
       "code": "POLICY_EVALUATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts",
         "services/api/src/services/governance/policy-evaluation.service.ts"
@@ -3737,6 +4935,10 @@
     },
     {
       "code": "POLICY_NOT_PROVISIONED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise-security.routes.ts"
       ],
@@ -3751,6 +4953,10 @@
     },
     {
       "code": "POLICY_REJECTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/routes/trust-and-governance.routes.ts",
@@ -3770,6 +4976,10 @@
     },
     {
       "code": "POLICY_VERSION_CREATED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-policy-store.service.ts"
       ],
@@ -3782,6 +4992,10 @@
     },
     {
       "code": "POLICY_VIOLATION",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/middleware/require-delegated-tier.ts",
         "services/api/src/services/governance/access-review-escalation.service.ts",
@@ -3797,6 +5011,10 @@
     },
     {
       "code": "POLICY_VIOLATION_LEGAL_HOLD",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/legal-hold.service.ts"
       ],
@@ -3811,6 +5029,10 @@
     },
     {
       "code": "POLICY_VIOLATION_RETENTION",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/retention-engine.service.ts"
       ],
@@ -3825,6 +5047,10 @@
     },
     {
       "code": "POLICY_WARN_ACK_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/policy-runtime-gates.service.ts"
       ],
@@ -3837,6 +5063,10 @@
     },
     {
       "code": "POLICY_WARNING",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/policy-evaluation.service.ts"
       ],
@@ -3849,6 +5079,10 @@
     },
     {
       "code": "PORTAL_INVITATION_REFUSED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -3861,6 +5095,10 @@
     },
     {
       "code": "PORTAL_SESSION_EXPIRED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -3873,6 +5111,10 @@
     },
     {
       "code": "PORTAL_SESSION_REVOKED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -3885,6 +5127,10 @@
     },
     {
       "code": "PRIVACY_CONFIG_OK",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/provider-privacy.service.ts"
       ],
@@ -3897,6 +5143,10 @@
     },
     {
       "code": "PRIVACY_MODE_UNKNOWN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/provider-privacy.service.ts"
       ],
@@ -3909,6 +5159,10 @@
     },
     {
       "code": "PRIVACY_STORAGE_ENABLED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/ai/provider-privacy.service.ts"
       ],
@@ -3921,6 +5175,10 @@
     },
     {
       "code": "PRODUCTION_CONFIG_VIOLATION",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -3933,6 +5191,10 @@
     },
     {
       "code": "PROJECT_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-project.service.ts"
       ],
@@ -3945,6 +5207,10 @@
     },
     {
       "code": "PROJECT_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/evidence-bytes.service.ts",
         "services/api/src/services/redaction/redaction-policy-store.service.ts",
@@ -3962,6 +5228,10 @@
     },
     {
       "code": "PROVIDER_CALL_COMPLETED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -3974,6 +5244,10 @@
     },
     {
       "code": "PROVIDER_CALL_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -3986,6 +5260,10 @@
     },
     {
       "code": "PROVIDER_CALL_REFUSED_BUDGET",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -3998,6 +5276,10 @@
     },
     {
       "code": "PROVIDER_CALL_REFUSED_POLICY",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -4010,6 +5292,10 @@
     },
     {
       "code": "PROVIDER_CALL_STARTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -4022,6 +5308,10 @@
     },
     {
       "code": "PROVIDER_CANCELLATION_FAILED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -4034,6 +5324,10 @@
     },
     {
       "code": "PROVIDER_ERROR",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -4048,6 +5342,10 @@
     },
     {
       "code": "PROVIDER_NOT_CONFIGURED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-detection.service.ts"
       ],
@@ -4062,6 +5360,10 @@
     },
     {
       "code": "PROVIDER_UNSUPPORTED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/device-identity.service.ts"
       ],
@@ -4074,6 +5376,10 @@
     },
     {
       "code": "PUBLIC_VERIFY_BLOCKED_BY_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance.service.ts"
       ],
@@ -4086,6 +5392,10 @@
     },
     {
       "code": "PUBLIC_VERIFY_BLOCKED_BY_TEMPLATE_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance/template-export-policy.service.ts"
       ],
@@ -4098,6 +5408,10 @@
     },
     {
       "code": "PUBLICATION_STATUS_CHANGED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -4110,6 +5424,10 @@
     },
     {
       "code": "QUOTA_EXCEEDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/product-and-lifecycle.routes.ts",
         "services/api/src/services/packaging/entitlement.service.ts"
@@ -4123,6 +5441,10 @@
     },
     {
       "code": "RATE_LIMIT_EXCEEDED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -4135,6 +5457,12 @@
     },
     {
       "code": "RATE_LIMITED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/middleware/integrations-auth.ts",
@@ -4157,6 +5485,10 @@
     },
     {
       "code": "RATIONALE_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-approval.service.ts"
       ],
@@ -4169,6 +5501,10 @@
     },
     {
       "code": "RECORD_ACCEPTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
       ],
@@ -4181,6 +5517,10 @@
     },
     {
       "code": "RECORD_INGESTED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/intelligence/media-intelligence.service.ts"
       ],
@@ -4193,6 +5533,10 @@
     },
     {
       "code": "RECORD_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/intelligence-platform.routes.ts",
         "services/api/src/services/intelligence/reviewer-correction.service.ts"
@@ -4206,6 +5550,10 @@
     },
     {
       "code": "REGION_ADDED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-region.service.ts"
       ],
@@ -4218,6 +5566,10 @@
     },
     {
       "code": "REGION_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-region.service.ts"
       ],
@@ -4232,6 +5584,10 @@
     },
     {
       "code": "REGION_OUT_OF_BOUNDS",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-decision.service.ts",
         "services/api/src/services/redaction/redaction-region.service.ts",
@@ -4247,6 +5603,10 @@
     },
     {
       "code": "REGION_REMOVED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-region.service.ts"
       ],
@@ -4259,6 +5619,10 @@
     },
     {
       "code": "REPORT_BLOCKED_BY_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance.service.ts"
       ],
@@ -4271,6 +5635,10 @@
     },
     {
       "code": "REPORT_BLOCKED_BY_TEMPLATE_POLICY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance/template-export-policy.service.ts"
       ],
@@ -4283,6 +5651,10 @@
     },
     {
       "code": "RETENTION_EXPIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -4295,6 +5667,10 @@
     },
     {
       "code": "RETENTION_LIMIT_EXCEEDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/retention-engine.service.ts"
       ],
@@ -4307,6 +5683,10 @@
     },
     {
       "code": "RETENTION_NOT_EXPIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/retention-engine.service.ts"
       ],
@@ -4319,6 +5699,10 @@
     },
     {
       "code": "RETENTION_POLICY_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/retention-engine.service.ts"
       ],
@@ -4331,6 +5715,10 @@
     },
     {
       "code": "RETENTION_POLICY_RELEASED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/lifecycle/retention-engine.service.ts"
       ],
@@ -4343,6 +5731,10 @@
     },
     {
       "code": "REVIEW_ACTOR_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-console.routes.ts",
         "services/api/src/routes/reviewer-ops.routes.ts"
@@ -4356,6 +5748,10 @@
     },
     {
       "code": "REVIEW_OPENED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts"
       ],
@@ -4368,6 +5764,11 @@
     },
     {
       "code": "REVIEW_PERMISSION_DENIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-ops.routes.ts",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
@@ -4383,6 +5784,10 @@
     },
     {
       "code": "REVIEW_WORKFLOW_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
       ],
@@ -4395,6 +5800,10 @@
     },
     {
       "code": "REVIEWER_OPS_CRON_SECRET_NOT_CONFIGURED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-ops.routes.ts"
       ],
@@ -4407,6 +5816,10 @@
     },
     {
       "code": "RISK_EVALUATION_UNAVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity-security/step-up-middleware.ts"
       ],
@@ -4419,6 +5832,10 @@
     },
     {
       "code": "SCHEMA_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
       ],
@@ -4433,6 +5850,10 @@
     },
     {
       "code": "SCHEMA_NOT_READY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/server.ts"
       ],
@@ -4452,6 +5873,10 @@
     },
     {
       "code": "SCIM_TOKEN_ROTATE_CONFLICT",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/access-control/scim.service.ts"
       ],
@@ -4464,6 +5889,10 @@
     },
     {
       "code": "SCOPE_TARGET_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts"
       ],
@@ -4478,6 +5907,10 @@
     },
     {
       "code": "SCREEN_MANIFEST_ARTIFACT_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/screen-capture.service.ts"
       ],
@@ -4490,6 +5923,10 @@
     },
     {
       "code": "SCREEN_MANIFEST_DIGEST_UNDECLARED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/screen-capture.service.ts"
       ],
@@ -4502,6 +5939,10 @@
     },
     {
       "code": "SCREEN_MANIFEST_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/screen-capture.service.ts"
       ],
@@ -4514,6 +5955,10 @@
     },
     {
       "code": "SCREEN_MANIFEST_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/screen-capture.service.ts"
       ],
@@ -4526,6 +5971,10 @@
     },
     {
       "code": "SECURITY_CONTEXT_UNAVAILABLE",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -4538,6 +5987,10 @@
     },
     {
       "code": "SESSION_ALREADY_RESERVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4550,6 +6003,10 @@
     },
     {
       "code": "SESSION_ENDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/external-review/portal-session.service.ts"
       ],
@@ -4565,6 +6022,10 @@
     },
     {
       "code": "SESSION_EXPIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4583,6 +6044,10 @@
     },
     {
       "code": "SESSION_NOT_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4595,6 +6060,11 @@
     },
     {
       "code": "SESSION_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY",
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
@@ -4608,6 +6078,10 @@
     },
     {
       "code": "SESSION_NOT_OPEN_FOR_UPLOAD",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -4622,6 +6096,10 @@
     },
     {
       "code": "SESSION_NOT_RESERVED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4634,6 +6112,10 @@
     },
     {
       "code": "SESSION_TERMINAL",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -4648,6 +6130,10 @@
     },
     {
       "code": "SESSION_UNAVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/services/external-review/portal-session.service.ts"
@@ -4664,6 +6150,10 @@
     },
     {
       "code": "SIGNATURE_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4676,6 +6166,10 @@
     },
     {
       "code": "SIGNATURE_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
       ],
@@ -4688,6 +6182,10 @@
     },
     {
       "code": "SIGNING_KEY_MISSING",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -4700,6 +6198,10 @@
     },
     {
       "code": "SIMILARITY_RECONCILE_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/intelligence.routes.ts"
       ],
@@ -4712,6 +6214,10 @@
     },
     {
       "code": "SLA_BREACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -4724,6 +6230,10 @@
     },
     {
       "code": "SLA_DUE_SOON",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
       ],
@@ -4736,6 +6246,10 @@
     },
     {
       "code": "STALE_MEMBERSHIP_GENERATION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organizations.routes.ts"
       ],
@@ -4750,6 +6264,10 @@
     },
     {
       "code": "STALE_STATE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts",
         "services/api/src/services/governance/department-membership.service.ts",
@@ -4766,6 +6284,10 @@
     },
     {
       "code": "STATUS_INCIDENT_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/status-page.service.ts"
       ],
@@ -4778,6 +6300,10 @@
     },
     {
       "code": "STATUS_INCIDENT_UPDATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/status-page.service.ts"
       ],
@@ -4790,6 +6316,10 @@
     },
     {
       "code": "STATUS_MAINTENANCE_SCHEDULED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/status-page.service.ts"
       ],
@@ -4802,6 +6332,10 @@
     },
     {
       "code": "STEP_UP_ENROLLMENT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/identity-security.routes.ts"
       ],
@@ -4816,6 +6350,11 @@
     },
     {
       "code": "STEP_UP_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/services/identity-security/account-step-up.service.ts",
@@ -4837,6 +6376,10 @@
     },
     {
       "code": "STEP_UP_WORKSPACE_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organization-domains.routes.ts"
       ],
@@ -4849,6 +6392,10 @@
     },
     {
       "code": "STORAGE_ADDON_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -4861,6 +6408,10 @@
     },
     {
       "code": "STORAGE_ADDON_NOT_LINKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -4873,6 +6424,10 @@
     },
     {
       "code": "STORAGE_ERROR",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -4885,6 +6440,10 @@
     },
     {
       "code": "STORAGE_LIMIT_REACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -4895,12 +6454,17 @@
       ],
       "native": true,
       "nativeFiles": [
+        "apps/mobile/test/error-presentation.test.mjs",
         "apps/mobile/test/safe-error.test.mjs"
       ],
       "shared": true
     },
     {
       "code": "SUBJECT_NOT_IN_WORKSPACE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -4913,6 +6477,10 @@
     },
     {
       "code": "SUBJECT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/cross-org-review.service.ts"
       ],
@@ -4925,6 +6493,10 @@
     },
     {
       "code": "SUBMISSION_NOT_READY",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -4939,6 +6511,10 @@
     },
     {
       "code": "SUBMIT_FAILED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -4951,6 +6527,10 @@
     },
     {
       "code": "SUBMITTER_IDENTITY_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -4963,6 +6543,10 @@
     },
     {
       "code": "SUBPROCESSOR_DEPRECATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/subprocessor.service.ts"
       ],
@@ -4975,6 +6559,10 @@
     },
     {
       "code": "SUBSCRIPTION_ALREADY_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -4987,6 +6575,11 @@
     },
     {
       "code": "SUBSCRIPTION_INACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/services/collaboration-team/billing-guards.ts"
@@ -5000,6 +6593,10 @@
     },
     {
       "code": "SUBSCRIPTION_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/billing.routes.ts"
       ],
@@ -5012,6 +6609,10 @@
     },
     {
       "code": "SUBSCRIPTION_REQUIRED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5024,6 +6625,10 @@
     },
     {
       "code": "SUPPORT_ACCESS_APPROVER_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise-security.routes.ts"
       ],
@@ -5036,6 +6641,10 @@
     },
     {
       "code": "SUPPORT_ACCESS_APPROVER_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise-security.routes.ts"
       ],
@@ -5048,6 +6657,10 @@
     },
     {
       "code": "SUPPORT_CONTEXT_ENTRY_DENIED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/enterprise-security.routes.ts"
       ],
@@ -5060,6 +6673,10 @@
     },
     {
       "code": "TEAM_INVITES_NOT_INCLUDED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/collaboration-team/billing-guards.ts"
       ],
@@ -5074,6 +6691,10 @@
     },
     {
       "code": "TEAM_LIMIT_REACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/collaboration-team/billing-guards.ts"
       ],
@@ -5088,6 +6709,10 @@
     },
     {
       "code": "TEAM_MEMBER_LIMIT_REACHED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/collaboration-team/billing-guards.ts"
       ],
@@ -5102,6 +6727,10 @@
     },
     {
       "code": "TEAM_NOT_FOUND",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5114,6 +6743,11 @@
     },
     {
       "code": "TEAM_PLAN_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/collaboration-team/billing-guards.ts"
@@ -5129,6 +6763,10 @@
     },
     {
       "code": "TOKEN_EXPIRED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5145,6 +6783,10 @@
     },
     {
       "code": "TOKEN_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-portal.routes.ts",
         "services/api/src/services/external-review/portal-session.service.ts"
@@ -5162,6 +6804,10 @@
     },
     {
       "code": "TRACK_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/video/video-track.service.ts"
       ],
@@ -5174,6 +6820,10 @@
     },
     {
       "code": "TRACK_MERGED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/video/video-track.service.ts"
       ],
@@ -5186,6 +6836,10 @@
     },
     {
       "code": "TRACK_SPLIT",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/video/video-track.service.ts"
       ],
@@ -5198,6 +6852,10 @@
     },
     {
       "code": "TRANSFER_TARGET_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/teams.routes.ts"
       ],
@@ -5212,6 +6870,10 @@
     },
     {
       "code": "TRANSITION_NOT_ALLOWED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/external-intake.routes.ts"
       ],
@@ -5224,6 +6886,10 @@
     },
     {
       "code": "TRUST_ARTICLE_MARKED_STALE",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/trust-drift.service.ts"
       ],
@@ -5236,6 +6902,10 @@
     },
     {
       "code": "TRUST_ARTICLE_PUBLISHED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/trust-center.service.ts"
       ],
@@ -5248,6 +6918,10 @@
     },
     {
       "code": "TRUST_ARTICLE_REVIEW_FLAG_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/trust-and-governance.routes.ts"
       ],
@@ -5260,6 +6934,10 @@
     },
     {
       "code": "TRUST_ARTICLE_SUPERSEDED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/trust/trust-center.service.ts"
       ],
@@ -5272,6 +6950,10 @@
     },
     {
       "code": "UNKNOWN_DIFFERENCE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
       ],
@@ -5284,6 +6966,10 @@
     },
     {
       "code": "UNSUPPORTED_MODE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/continuous-capture.service.ts",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
@@ -5299,6 +6985,10 @@
     },
     {
       "code": "UNSUPPORTED_REDACTION_MEDIA",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-derivative.service.ts"
       ],
@@ -5311,6 +7001,10 @@
     },
     {
       "code": "USER_NOT_A_MEMBER",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/governance/department-membership.service.ts"
       ],
@@ -5323,6 +7017,10 @@
     },
     {
       "code": "USER_NOT_FOUND",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5338,6 +7036,11 @@
     },
     {
       "code": "VALIDATION_ERROR",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENUM",
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/errors.ts",
         "services/api/src/routes/identity-operations-completion.routes.ts"
@@ -5353,6 +7056,10 @@
     },
     {
       "code": "VERDICT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
       ],
@@ -5365,6 +7072,10 @@
     },
     {
       "code": "VERIFICATION_POLICY_BLOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -5377,6 +7088,10 @@
     },
     {
       "code": "VERIFICATION_TEMPORARILY_UNAVAILABLE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/evidence.routes.ts"
       ],
@@ -5389,6 +7104,10 @@
     },
     {
       "code": "VERSION_CREATED",
+      "reachability": "OBSERVABILITY_ONLY",
+      "producedAs": [
+        "OBSERVABILITY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-project.service.ts"
       ],
@@ -5401,6 +7120,10 @@
     },
     {
       "code": "VERSION_LOCKED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-decision.service.ts",
         "services/api/src/services/redaction/redaction-detection.service.ts",
@@ -5417,6 +7140,10 @@
     },
     {
       "code": "VERSION_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/redaction/redaction-approval.service.ts",
         "services/api/src/services/redaction/redaction-derivative.service.ts",
@@ -5432,6 +7159,10 @@
     },
     {
       "code": "WEB_MANIFEST_ARTIFACT_MISMATCH",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/web-capture.service.ts"
       ],
@@ -5444,6 +7175,10 @@
     },
     {
       "code": "WEB_MANIFEST_DIGEST_UNDECLARED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/web-capture.service.ts"
       ],
@@ -5456,6 +7191,10 @@
     },
     {
       "code": "WEB_MANIFEST_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/web-capture.service.ts"
       ],
@@ -5468,6 +7207,10 @@
     },
     {
       "code": "WEB_MANIFEST_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "THROWN"
+      ],
       "producedIn": [
         "services/api/src/services/capture-trust/web-capture.service.ts"
       ],
@@ -5480,6 +7223,10 @@
     },
     {
       "code": "WEBHOOK_DELIVERY_FAILED",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5492,6 +7239,10 @@
     },
     {
       "code": "WEBHOOK_ENDPOINT_EVENT_UNKNOWN",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
       ],
@@ -5504,6 +7255,10 @@
     },
     {
       "code": "WEBHOOK_ENDPOINT_EVENTS_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
       ],
@@ -5516,6 +7271,10 @@
     },
     {
       "code": "WEBHOOK_ENDPOINT_URL_INVALID",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
       ],
@@ -5528,6 +7287,10 @@
     },
     {
       "code": "WEBHOOK_NOT_FOUND",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5540,6 +7303,10 @@
     },
     {
       "code": "WEBHOOK_SIGNATURE_INVALID",
+      "reachability": "ENUM_ONLY",
+      "producedAs": [
+        "ENUM"
+      ],
       "producedIn": [
         "services/api/src/errors.ts"
       ],
@@ -5552,6 +7319,10 @@
     },
     {
       "code": "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/workflow-instances.routes.ts"
       ],
@@ -5564,6 +7335,10 @@
     },
     {
       "code": "WORKFLOW_INSTANCE_REINDEX_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/search.routes.ts"
       ],
@@ -5576,6 +7351,10 @@
     },
     {
       "code": "WORKFLOW_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/services/reviewer-workspace/bulk-operations.service.ts"
       ],
@@ -5591,6 +7370,10 @@
     },
     {
       "code": "WORKFLOW_TEMPLATE_AUTHORING_RETIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/workflow.routes.ts"
       ],
@@ -5603,6 +7386,10 @@
     },
     {
       "code": "WORKSPACE_CONTEXT_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/reviewer-ops.routes.ts"
       ],
@@ -5615,6 +7402,10 @@
     },
     {
       "code": "WORKSPACE_CREATION_NOT_SELF_SERVICE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/teams.routes.ts"
       ],
@@ -5627,6 +7418,10 @@
     },
     {
       "code": "WORKSPACE_MEMBERS_ACTIVE",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "ENVELOPE"
+      ],
       "producedIn": [
         "services/api/src/services/identity/account-lifecycle-preflight.service.ts"
       ],
@@ -5641,6 +7436,10 @@
     },
     {
       "code": "WORKSPACE_MEMBERSHIP_REQUIRED",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/capture.routes.ts"
       ],
@@ -5657,6 +7456,10 @@
     },
     {
       "code": "WORKSPACE_NOT_FOUND",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/capture-trust.routes.ts",
         "services/api/src/routes/product-and-lifecycle.routes.ts",
@@ -5674,6 +7477,10 @@
     },
     {
       "code": "WORKSPACE_SEAT_CONTENTION",
+      "reachability": "REACHABLE",
+      "producedAs": [
+        "REPLY"
+      ],
       "producedIn": [
         "services/api/src/routes/organizations.routes.ts"
       ],

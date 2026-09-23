@@ -71,6 +71,53 @@ function emittedErrorCodes(): Set<string> {
   return codes;
 }
 
+/**
+ * Every bounded code the API can put on the wire, wherever it is produced.
+ *
+ * `emittedErrorCodes` reads route files only, and most bounded codes are not
+ * written there: they are THROWN from the service layer and the server's
+ * handler serialises `err.code`. That is why this guard was green over 195
+ * codes it could not see.
+ *
+ * `denial:` is included because the capture-trust surfaces answer with that
+ * shape, and a denial is exactly the kind of refusal a person is owed a
+ * sentence for.
+ */
+function thrownErrorCodes(): Set<string> {
+  const codes = new Set<string>();
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.name.endsWith(".ts")) continue;
+      const src = readFileSync(full, "utf8");
+      for (const m of src.matchAll(/new AppError\(\s*"([A-Z][A-Z0-9_]{2,})"/g)) codes.add(m[1]);
+      for (const m of src.matchAll(/DirectCaptureError\(\s*"([A-Z][A-Z0-9_]{2,})"/g)) codes.add(m[1]);
+      for (const m of src.matchAll(/\bdenial:\s*"([A-Z][A-Z0-9_]{2,})"/g)) codes.add(m[1]);
+    }
+  };
+  walk(resolve(REPO_ROOT, "services/api/src"));
+  return codes;
+}
+
+/**
+ * THE RECORDED DEBT, and the only direction it may move.
+ *
+ * Widening the collection made 195 undispositioned codes visible at once.
+ * Failing outright would make this gate permanently red, and a permanently
+ * red gate is one nobody reads — which is how the first silence happened.
+ *
+ * So the number is ratcheted: the suite fails when it GROWS. Lowering it is
+ * the point, and lowering it requires editing this line, which is a decision
+ * somebody makes deliberately rather than a default.
+ *
+ * Measured 2026-09-23 with `node tools/error-surface-inventory.mjs`.
+ */
+const UNDISPOSITIONED_BASELINE = 195;
+
 /** The dispositions the registry declares, parsed from its source. */
 function declaredDispositions(): Map<
   string,
@@ -283,5 +330,23 @@ test("a failed sign-in is not described as an expired session", () => {
   assert.ok(
     !/not registered|no account|unknown email|doesn't exist/i.test(entry),
     "the credential copy must not imply whether the address exists",
+  );
+});
+
+test("a code the API can throw is classified, and the debt never grows", () => {
+  // The guard above asks whether a REGISTERED code is honestly described.
+  // This one asks the prior question — whether the code is in the registry at
+  // all — over every producer, not just the route files.
+  const declared = new Set(DECLARED.keys());
+  const undispositioned = [...thrownErrorCodes()]
+    .filter((code) => !declared.has(code))
+    .sort();
+
+  assert.ok(
+    undispositioned.length <= UNDISPOSITIONED_BASELINE,
+    `${undispositioned.length} bounded codes have no disposition, up from ` +
+      `${UNDISPOSITIONED_BASELINE}. A new code must be classified — customer, ` +
+      `generic or internal — before it ships.\n` +
+      `  new since the baseline: ${undispositioned.slice(0, 12).join(", ")}`,
   );
 });

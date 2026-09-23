@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "d2dbe4d1-ab56-40d3-95c0-6ecf11661f99",
+      "runId": "a29d917c-50ac-4281-924e-328434c859b3",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-23T16:51:36.159Z"
+      "recordedAtUtc": "2026-09-23T17:01:21.476Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",
@@ -393,9 +393,9 @@
         "auto.tenant.workspace_reloaded",
         "auto.terminal.stale_cannot_overwrite"
       ],
-      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
+      "runId": "a29d917c-50ac-4281-924e-328434c859b3",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-23T03:11:02.760Z"
+      "recordedAtUtc": "2026-09-23T16:59:16.762Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",

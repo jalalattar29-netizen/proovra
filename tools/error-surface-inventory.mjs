@@ -88,28 +88,67 @@ const CODE_SHAPE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
  * canonical enum, `new AppError(ErrorCode.X | "X")`, `code: "X"` on a reply,
  * and `denial: "X"` — the capture-trust surfaces answer with that shape.
  */
+/**
+ * WHERE a code is produced, which is what decides whether anybody can see it.
+ *
+ * `code:` matches a log line, an audit row and a security event as readily
+ * as an error envelope, and treating those as user-facing would demand copy
+ * for things no user can reach. The call the occurrence sits inside is read
+ * instead — a bounded window back from the match, which is enough to see the
+ * receiver.
+ */
+const OBSERVABILITY_RECEIVER =
+  /\b(log(ger)?|req\.log|app\.log|audit\w*|record\w*Audit|emit\w*|track\w*|metric\w*|counter|security\w*Event|captureException|telemetry)\b\s*[.(]/i;
+
 function producedCodes() {
   const found = new Map(); // code -> Set(file)
-  const add = (code, file) => {
+  const origin = new Map(); // code -> Set(kind)
+  const add = (code, file, kind) => {
     if (!CODE_SHAPE.test(code)) return;
     if (!found.has(code)) found.set(code, new Set());
     found.get(code).add(rel(file));
+    if (!origin.has(code)) origin.set(code, new Set());
+    origin.get(code).add(kind);
   };
 
   const enumFile = join(REPO, "services/api/src/errors.ts");
   const enumSrc = readFileSync(enumFile, "utf8");
   for (const m of enumSrc.matchAll(/^\s*([A-Z][A-Z0-9_]+)\s*=\s*"([A-Z][A-Z0-9_]+)"/gm)) {
-    add(m[2], enumFile);
+    add(m[2], enumFile, "ENUM");
   }
 
   for (const file of walk(join(REPO, "services/api/src"))) {
     const src = readFileSync(file, "utf8");
-    for (const m of src.matchAll(/\bcode:\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file);
-    for (const m of src.matchAll(/\bdenial:\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file);
-    for (const m of src.matchAll(/new AppError\(\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file);
-    for (const m of src.matchAll(/DirectCaptureError\(\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file);
+    const inRoutes = /[/\\]routes[/\\]/.test(file);
+
+    for (const m of src.matchAll(/\bcode:\s*"([A-Z][A-Z0-9_]+)"/g)) {
+      const before = src.slice(Math.max(0, m.index - 220), m.index);
+      const observability = OBSERVABILITY_RECEIVER.test(before);
+      add(m[1], file, observability ? "OBSERVABILITY" : inRoutes ? "REPLY" : "ENVELOPE");
+    }
+    for (const m of src.matchAll(/\bdenial:\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file, "REPLY");
+    for (const m of src.matchAll(/new AppError\(\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file, "THROWN");
+    for (const m of src.matchAll(/DirectCaptureError\(\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file, "THROWN");
   }
-  return found;
+  return { found, origin };
+}
+
+/**
+ * Can a person meet this code?
+ *
+ * A reply carries it to the client by definition. A thrown domain error does
+ * too: the server's handler serialises `err.code` onto the wire
+ * (`errors.ts`), which is the whole reason a bounded code exists. An
+ * `ENVELOPE` occurrence outside a route file is a service composing the same
+ * shape and is treated as reaching a client, because it usually does.
+ *
+ * Everything else — a code that only ever appears in a log, an audit row or
+ * the enum itself — cannot.
+ */
+function reachabilityOf(kinds) {
+  if (kinds.has("REPLY") || kinds.has("THROWN") || kinds.has("ENVELOPE")) return "REACHABLE";
+  if (kinds.has("OBSERVABILITY")) return "OBSERVABILITY_ONLY";
+  return "ENUM_ONLY";
 }
 
 /** Codes each client NAMES, and where. */
@@ -160,7 +199,7 @@ function sharedDictionaryCodes() {
 }
 
 export function inventory() {
-  const produced = producedCodes();
+  const { found: produced, origin } = producedCodes();
   const web = clientCodes("apps/web", ["apps/web/lib/feedback/toSafeUserError.ts"]);
   const native = clientCodes("apps/mobile");
   const shared = sharedDictionaryCodes();
@@ -175,8 +214,12 @@ export function inventory() {
     // coverage the move created — and understating it is how somebody
     // "fixes" it twice.
     const inShared = shared.has(code);
+    const kinds = origin.get(code) ?? new Set();
+    const reachability = reachabilityOf(kinds);
     rows.push({
       code,
+      reachability,
+      producedAs: [...kinds].sort(),
       producedIn: [...files].slice(0, 4),
       producedCount: files.size,
       web: inShared || Boolean(webFiles),
@@ -196,6 +239,16 @@ export function inventory() {
     neither: rows.filter((r) => !r.web && !r.native).length,
     webOnly: rows.filter((r) => r.web && !r.native).length,
     nativeOnly: rows.filter((r) => r.native && !r.web).length,
+    reachable: rows.filter((r) => r.reachability === "REACHABLE").length,
+    observabilityOnly: rows.filter((r) => r.reachability === "OBSERVABILITY_ONLY").length,
+    enumOnly: rows.filter((r) => r.reachability === "ENUM_ONLY").length,
+    // THE NUMBER A COVERAGE CLAIM MAY USE. Any denominator that includes
+    // codes nobody can meet overstates the gap and understates the work.
+    reachableAnsweredOnWeb: rows.filter((r) => r.reachability === "REACHABLE" && r.web).length,
+    reachableAnsweredOnNative: rows.filter((r) => r.reachability === "REACHABLE" && r.native).length,
+    reachableAnsweredByNeither: rows.filter(
+      (r) => r.reachability === "REACHABLE" && !r.web && !r.native,
+    ).length,
   };
   return { rows, counts };
 }
@@ -206,8 +259,13 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   const { rows, counts } = inventory();
   console.log(
     `error codes produced by the API: ${counts.produced}  ` +
-      `web ${counts.web}  native ${counts.native}  shared-dictionary ${counts.shared}  ` +
-      `named by neither client ${counts.neither}`,
+      `(reachable ${counts.reachable}, observability-only ${counts.observabilityOnly}, ` +
+      `enum-only ${counts.enumOnly})`,
+  );
+  console.log(
+    `  of the REACHABLE ones: web ${counts.reachableAnsweredOnWeb}  ` +
+      `native ${counts.reachableAnsweredOnNative}  ` +
+      `answered by neither ${counts.reachableAnsweredByNeither}`,
   );
 
   if (process.argv.includes("--json")) {
