@@ -171,9 +171,16 @@ An internal-distribution Android build was produced from `uc6-public-launch`
 on EAS using the existing keystore (`Build Credentials hQGv5KPYxF`) — no new
 signing material was created:
 
-    build id  3472ff2d-d28c-4fc2-a205-3402d886e62e
+    build id  1bb438ab-d353-4f54-8aaa-858def204906
     profile   preview (internal distribution)
-    logs      expo.dev/accounts/jalalattar29/projects/proovra/builds/3472ff2d-d28c-4fc2-a205-3402d886e62e
+    version   1.0.0 (build 17)
+    artifact  https://expo.dev/artifacts/eas/PtEnbdW1C412odTZLwxLv-GwlpP04N7-CKfXBu72ZTg.apk
+
+The FIRST attempt from this branch — 3472ff2d — ERRORED in the Bundle
+JavaScript phase, and that failure is the reason the metro config now exists:
+a TYPE-only `react` path mapping was being read by Metro as a runtime one, so
+the app had not been bundlable since that mapping landed. The build above is
+from the fix.
 
 iOS credentials also exist on the account (earlier builds FINISHED), so an
 equivalent `eas build --profile preview --platform ios` is producible without
