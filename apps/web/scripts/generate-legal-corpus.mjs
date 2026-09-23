@@ -53,6 +53,29 @@ const CONTENT_DIR = join(REPO_ROOT, "apps", "web", "content", "legal", "en");
 const SLUGS_FILE = join(REPO_ROOT, "packages", "shared", "src", "legal", "slugs.ts");
 const OUT_FILE = join(REPO_ROOT, "packages", "shared", "src", "legal", "corpus.generated.ts");
 
+/*
+ * THE REVISIONS, WITHOUT THE TEXT.
+ *
+ * `LEGAL_DOCUMENT_REVISIONS` in `@proovra/shared/legal` is derived from the
+ * corpus, and the corpus carries every document's full markdown. A CLIENT
+ * module that only needs to know which revision it is showing — the cookie
+ * consent record's `consentVersion` is the one that matters — would drag the
+ * whole corpus into the bundle of every page.
+ *
+ * So the same generator emits the dates on their own. One source (the
+ * markdown), two artifacts, no hand-maintained copy: the consent version went
+ * stale by exactly that mechanism, naming 2026-04-06 while the Cookie Policy
+ * said 2026-06-26.
+ */
+const REVISIONS_FILE = join(
+  REPO_ROOT,
+  "packages",
+  "shared",
+  "src",
+  "legal",
+  "revisions.generated.ts",
+);
+
 /** Read the canonical slug list out of `slugs.ts` so there is no second list. */
 function readCanonicalSlugs() {
   const src = readFileSync(SLUGS_FILE, "utf8");
@@ -159,7 +182,32 @@ function build() {
     "export const LEGAL_CORPUS: Readonly<Record<LegalSlug, LegalCorpusEntry>> = {",
   ].join("\n");
 
-  return { source: header + "\n" + entries + "\n};\n", sha, count: docs.length };
+  const revisionEntries = docs
+    .map((d) => "  " + JSON.stringify(d.slug) + ": " + JSON.stringify(d.lastUpdated) + ",")
+    .join("\n");
+
+  const revisionsHeader = [
+    "// GENERATED FILE — DO NOT EDIT.",
+    "//",
+    "// Source:    apps/web/content/legal/en/*.md",
+    "// Generator: apps/web/scripts/generate-legal-corpus.mjs",
+    "// Gate:      apps/web/__tests__/legal-corpus-freshness.test.ts",
+    "//",
+    "// Each document's own `Last Updated:` line, and nothing else. This exists",
+    "// so a CLIENT module can state which revision it is showing without",
+    "// importing the corpus, which carries the full text of every document.",
+    "",
+    'import type { LegalSlug } from "./slugs.js";',
+    "",
+    "export const LEGAL_REVISIONS: Readonly<Record<LegalSlug, string>> = {",
+  ].join("\n");
+
+  return {
+    source: header + "\n" + entries + "\n};\n",
+    revisionsSource: revisionsHeader + "\n" + revisionEntries + "\n};\n",
+    sha,
+    count: docs.length,
+  };
 }
 
 const built = build();
@@ -167,10 +215,25 @@ const check = process.argv.includes("--check");
 
 if (check) {
   let current = "";
+  let currentRevisions = "";
   try {
     current = readFileSync(OUT_FILE, "utf8");
   } catch {
     console.error("legal corpus module is missing: " + OUT_FILE);
+    process.exit(1);
+  }
+  try {
+    currentRevisions = readFileSync(REVISIONS_FILE, "utf8");
+  } catch {
+    console.error("legal revisions module is missing: " + REVISIONS_FILE);
+    process.exit(1);
+  }
+  if (currentRevisions !== built.revisionsSource) {
+    console.error(
+      "legal revisions module is STALE.\n" +
+        "  apps/web/content/legal/en/ has changed since it was generated.\n" +
+        "  Run: node apps/web/scripts/generate-legal-corpus.mjs",
+    );
     process.exit(1);
   }
   if (current !== built.source) {
@@ -186,6 +249,7 @@ if (check) {
   );
 } else {
   writeFileSync(OUT_FILE, built.source, "utf8");
+  writeFileSync(REVISIONS_FILE, built.revisionsSource, "utf8");
   console.log(
     "wrote " + OUT_FILE + " (" + built.count + " documents, " + built.sha.slice(0, 12) + ").",
   );

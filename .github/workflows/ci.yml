@@ -330,6 +330,55 @@ jobs:
           fi
           exit $rc
 
+      # THE WORKER'S STORAGE PROOF NEEDS A REAL OBJECT STORE.
+      #
+      # `test/verification-package-publication.minio.test.ts` streams a ZIP to
+      # staging, HEADs it for an exact size, promotes it server-side and
+      # reconciles orphaned staging residue. Every one of those is a property
+      # of real S3 semantics, which is why the suite is written against a
+      # disposable MinIO rather than a double — the repository already records
+      # what a half-built storage double costs.
+      #
+      # It had never run here. The job's five earlier failures were all this
+      # file, and the cause was simply that nothing on the runner was
+      # listening on the endpoint the canonical test bootstrap pins:
+      # 127.0.0.1:59000 with the `point7-local-*` credentials
+      # (services/api/test/setup/local-s3-endpoint.mjs). Until now the job
+      # never reached this step, because it failed earlier at the audit gate.
+      #
+      # Not the compose stack: that starts much later, serves the full-stack
+      # E2E on :9000, and is a different bucket with different credentials.
+      # This one lives for the unit steps and is thrown away with the runner.
+      - name: Disposable object store for the worker storage proof
+        run: |
+          set -euo pipefail
+          docker run -d --name uc6-worker-minio \
+            -p 127.0.0.1:59000:9000 \
+            -e MINIO_ROOT_USER=point7-local-minio \
+            -e MINIO_ROOT_PASSWORD=point7-local-minio-secret \
+            minio/minio:latest server /data
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:59000/minio/health/live >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then
+              echo "::error::disposable MinIO never became healthy on 127.0.0.1:59000"
+              docker logs uc6-worker-minio 2>&1 | tail -30
+              exit 1
+            fi
+            sleep 1
+          done
+          # The bucket the bootstrap pins, created with the `mc` the MinIO
+          # image already ships, from INSIDE the container.
+          #
+          # Not a second `docker run --network host` with the mc image: that
+          # image's entrypoint is `mc` itself, so `/bin/sh -c …` is read as an
+          # mc subcommand and fails with "`/bin/sh` is not a recognized
+          # command" — measured, not guessed. Talking to 127.0.0.1:9000 inside
+          # the container also needs no host networking, so this step behaves
+          # the same on every runner.
+          docker exec uc6-worker-minio sh -c \
+            "mc alias set local http://127.0.0.1:9000 point7-local-minio point7-local-minio-secret \
+             && mc mb --ignore-existing local/point7-local-bucket"
+
       - name: Test — worker
         run: |
           set +e

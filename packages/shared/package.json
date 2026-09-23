@@ -26,6 +26,11 @@
       "import": "./dist/legal.js",
       "default": "./dist/legal.js"
     },
+    "./legal-revisions": {
+      "types": "./dist/legal/revisions.generated.d.ts",
+      "import": "./dist/legal/revisions.generated.js",
+      "default": "./dist/legal/revisions.generated.js"
+    },
     "./i18n": {
       "types": "./dist/i18n.d.ts",
       "import": "./dist/i18n.js",

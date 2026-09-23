@@ -1,4 +1,6 @@
 "use client";
+import { LEGAL_REVISIONS } from "@proovra/shared/legal-revisions";
+
 import { clearLocaleCookies } from "./i18n";
 
 export type ConsentCategory =
@@ -20,7 +22,23 @@ const CONSENT_STORAGE_KEY = "proovra-cookie-consent-state";
 const CONSENT_SYNC_PREFIX = "proovra-cookie-consent-synced:";
 const CONSENT_EVENT_NAME = "proovra:consent-updated";
 
-export const CONSENT_VERSION = "2026-04-06";
+/**
+ * THE REVISION THE USER IS ACTUALLY CONSENTING UNDER.
+ *
+ * This was the string "2026-04-06", written by hand, while the Cookie Policy's
+ * own `Last Updated:` line has said 2026-06-26 for months. The value is not
+ * cosmetic: it is sent to the server, stored on the consent record, shown in
+ * Settings as "v<version>", and carried into evidence technical metadata and
+ * the public verification page as "Consent policy version" — so the product
+ * was stating that a capture happened under a cookie policy revision that did
+ * not exist on that date.
+ *
+ * It is the document's own revision now. `legal-revisions` carries the dates
+ * WITHOUT the corpus text, because this module is reached from
+ * `providers.tsx` and pulling every legal document's markdown into the
+ * bundle of every page would be a real cost for one date.
+ */
+export const CONSENT_VERSION = LEGAL_REVISIONS.cookies;
 
 function getDefaultConsentState(): ConsentState {
   return {

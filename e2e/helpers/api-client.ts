@@ -9,6 +9,25 @@ import { dirname, join } from "node:path";
 
 import { request as pwRequest, APIRequestContext } from "@playwright/test";
 
+/*
+ * THE ACCEPTANCE REQUIREMENT IS THE SERVER'S, NOT A COPY OF IT.
+ *
+ * This file held a fourth hand-written version table. The repository has
+ * already paid for that mistake once: `services/api/src/legal/
+ * legal-versioning.ts` records that the same three dates were duplicated in
+ * the register, login and verify-email pages, all saying "2026-04-06" while
+ * the documents had moved on months earlier.
+ *
+ * The cost here was different and larger. Every guest session this helper
+ * creates accepts the legal terms before doing anything else, so when the
+ * corpus moved the acceptance no longer satisfied the gate and EVERY
+ * authenticated call in the critical-flow suite answered
+ * LEGAL_REACCEPT_REQUIRED — 86 failed tests whose actual cause was one stale
+ * constant in the fixture. `e2e/point7/_global-setup.ts` already imports the
+ * canonical authority; this now does the same.
+ */
+import { REQUIRED_LEGAL_VERSIONS } from "../../services/api/src/legal/legal-versioning";
+
 export const API_BASE = process.env.API_BASE ?? "http://localhost:8081";
 
 /**
@@ -246,17 +265,15 @@ export async function createGuestSession(
 
   const api = await makeApi(body.token);
 
-  // Accept the current legal versions so subsequent calls aren't gated.
-  // These versions match the API's currently-active legal acceptance
-  // requirements (defined in services/api/src/services/legal-acceptance.service.ts).
+  // Accept the versions the SERVER currently requires, read from the one
+  // authority that decides it. A literal here goes stale the moment a legal
+  // document is edited, and takes the whole suite with it.
   await api.post("/v1/users/legal-acceptance", {
     data: {
       source: "playwright-e2e",
-      acceptances: [
-        { policyKey: "terms", policyVersion: "2026-04-06" },
-        { policyKey: "privacy", policyVersion: "2026-04-06" },
-        { policyKey: "cookies", policyVersion: "2026-04-06" },
-      ],
+      acceptances: Object.entries(REQUIRED_LEGAL_VERSIONS).map(
+        ([policyKey, policyVersion]) => ({ policyKey, policyVersion }),
+      ),
     },
   });
 
