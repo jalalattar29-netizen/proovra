@@ -29,7 +29,14 @@ const read = (rel: string) => readFileSync(resolve(REPO_ROOT, rel), "utf8");
 const LOGIN = read("apps/web/app/login/page.tsx");
 const REGISTER = read("apps/web/app/register/page.tsx");
 const TOGGLE = read("apps/web/components/auth/PasswordVisibilityToggle.tsx");
-const SAFE = read("apps/web/lib/feedback/toSafeUserError.ts");
+// The copy itself moved to `@proovra/shared`, so the native app answers a
+// refusal with the same words the web does. This guard reads the SOURCE of
+// both halves on purpose: the sentences live in the shared table, and the
+// resolver that chooses between them still lives here.
+const SAFE = [
+  read("packages/shared/src/user-facing-errors.ts"),
+  read("apps/web/lib/feedback/toSafeUserError.ts"),
+].join(String.fromCharCode(10));
 const AUTH_ROUTES = read("services/api/src/routes/auth.routes.ts");
 
 // ===========================================================================
