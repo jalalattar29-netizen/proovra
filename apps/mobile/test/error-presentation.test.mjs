@@ -76,8 +76,12 @@ test("the capture screens resolve failures through the canonical layer", () => {
 test("the dictionary is the SHARED one, and native actually imports it", () => {
   // Not a second copy of the web's table: the same module, so a refusal reads
   // the same on both clients.
+  // From the package ROOT, which is what Metro can resolve: package `exports`
+  // subpaths are off by default in this Expo version, and the subpath form of
+  // this very import took the Android bundle down.
   const safeError = readFileSync(join(MOBILE, "src/errors/safe-error.ts"), "utf8");
-  assert.match(safeError, /@proovra\/shared\/user-facing-errors/);
+  assert.match(safeError, /from "@proovra\/shared"/);
+  assert.match(safeError, /userFacingErrorFor/);
 
   const dictionary = readFileSync(
     resolve(MOBILE, "../../packages/shared/src/user-facing-errors.ts"),
@@ -109,4 +113,28 @@ test("a mapped refusal never tells a phone to just try again", () => {
       `${code} answers with a bare retry, which is what the status bucket already said`,
     );
   }
+});
+
+test("no source imports a @proovra subpath Metro cannot resolve", () => {
+  // THE DEFECT THIS CLOSES, AND IT COST THE WHOLE APP.
+  //
+  // Expo 52's Metro does not resolve package `exports` subpaths, so
+  // `@proovra/shared/password-rules` and `@proovra/shared/user-facing-errors`
+  // do not resolve AT ALL — the bundle fails on the first file whose import
+  // graph reaches one. `password-rules.tsx` carried such an import for some
+  // time without consequence, because nothing reachable imported that
+  // component; adding one in the error layer, which everything reaches, took
+  // the Android build down at the Bundle JavaScript phase.
+  //
+  // Every JavaScript suite in this app passed throughout, because they
+  // transpile modules directly and never run Metro. This guard is the cheap
+  // part of that lesson.
+  const offenders = [];
+  for (const file of SOURCES) {
+    const src = readFileSync(file, "utf8");
+    for (const m of src.matchAll(/from "(@proovra\/[a-z-]+\/[^"]+)"/g)) {
+      offenders.push(`${rel(file)} → ${m[1]}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
 });

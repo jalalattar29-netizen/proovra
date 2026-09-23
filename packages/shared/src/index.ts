@@ -2417,3 +2417,17 @@ export * from "./screen-reconstruction.js";
 export * from "./screen-keyframes.js";
 export * from "./screen-intelligence.js";
 export * from "./screen-intelligence-descriptor.js";
+
+/*
+ * THE USER-FACING ERROR DICTIONARY, FROM THE ROOT TOO.
+ *
+ * It has its own subpath export for the web, which resolves package
+ * `exports`. Metro does not, by default: a subpath import from the native app
+ * fails to resolve at all, which is how the first REACHED subpath import —
+ * this one — took the Android bundle down. The root entry is what the native
+ * app can resolve, so the same table is available from both.
+ */
+export * from "./user-facing-errors.js";
+
+/* Same reason as the dictionary above: the native app resolves the root. */
+export * from "./password-rules.js";

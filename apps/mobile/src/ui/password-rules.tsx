@@ -17,7 +17,10 @@ import {
   PASSWORD_RULES,
   evaluatePassword,
   type PasswordEvaluation,
-} from "@proovra/shared/password-rules";
+  // From the package ROOT. Metro does not resolve package `exports` by
+  // default, so a subpath import fails to resolve at all — this one took the
+  // Android bundle down the moment the graph reached it.
+} from "@proovra/shared";
 
 import { theme } from "../theme/theme";
 import { ProovraText } from "./index";

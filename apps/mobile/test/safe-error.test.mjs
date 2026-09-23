@@ -15,7 +15,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * THE SHARED DICTIONARY, INLINED — because a data URL cannot resolve a bare
  * specifier.
  *
- * This module imports `@proovra/shared/user-facing-errors`, and the
+ * This module imports `@proovra/shared` — the ROOT, because Metro does not
  * transpile-and-import idiom these pure tests use loads the result as a data
  * URL, from which "@proovra/..." is not resolvable at all. Inlining the REAL
  * built module as a nested data URL keeps one authority: the codes asserted
@@ -28,7 +28,7 @@ const dictionarySrc = readFileSync(
 const dictionaryUrl = `data:text/javascript,${encodeURIComponent(dictionarySrc)}`;
 
 const src = readFileSync(resolve(HERE, "../src/errors/safe-error.ts"), "utf8").replace(
-  '"@proovra/shared/user-facing-errors"',
+  '"@proovra/shared"',
   JSON.stringify(dictionaryUrl),
 );
 const js = ts.transpileModule(src, {

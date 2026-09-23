@@ -10,7 +10,9 @@
  * rendering `err.message` (incl. requestId / API base) directly in the UI.
  */
 
-import { userFacingErrorFor } from "@proovra/shared/user-facing-errors";
+// From the package ROOT, not the subpath: Metro does not resolve package
+// `exports` by default, and a subpath import here fails to resolve at all.
+import { userFacingErrorFor } from "@proovra/shared";
 
 export type SafeErrorKind =
   | "auth" // 401 — session expired / invalid

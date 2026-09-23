@@ -200,9 +200,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:44:05.710Z"
+      "recordedAtUtc": "2026-09-23T03:16:10.909Z"
     },
     "test/point5/family-evidence-finalization.integration.test.ts": {
       "sha256": "b3b624def3c0857ecad373e386974c85a814db67f2ab669b59bb5b708259c3a2",
@@ -217,9 +217,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:46:36.701Z"
+      "recordedAtUtc": "2026-09-23T03:19:37.289Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "5cb1f4b32023939063997087d289affde9a058d34497ed2fa35588700c0d8ab5",
@@ -258,9 +258,9 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:47:51.080Z"
+      "recordedAtUtc": "2026-09-23T03:20:34.024Z"
     },
     "test/point5/family-exchange-package.integration.test.ts": {
       "sha256": "822ca15e9fab4d8e0993698b7aaf19d058ba8444f8061d3165d561516b56e4f4",
@@ -273,9 +273,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:48:24.434Z"
+      "recordedAtUtc": "2026-09-23T03:21:56.566Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "9cc25039419442543b2affa41aee317bfad284806033db8075d4fb6f247f61da",
@@ -339,9 +339,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "dcb03150-dab5-4c96-8d3f-981b1bc93258",
+      "runId": "af1bffc8-00b2-4029-816b-345449f58c3a",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-22T18:50:10.562Z"
+      "recordedAtUtc": "2026-09-23T03:21:29.027Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
