@@ -112,8 +112,8 @@ const GENERIC: Omit<SafeUserError, "supportReference"> = {
 const SERVER_MESSAGE_CODES = SERVER_MESSAGE_ERROR_CODES;
 
 /** The placeholder `apps/web/lib/api.ts` substitutes when a body carries no message. */
-const SYNTHETIC_MESSAGE = /^HTTP \d{3}: API error$/;
-const SERVER_MESSAGE_MAX = 240;
+const SYNTHETIC_MESSAGE = SYNTHETIC_ERROR_MESSAGE;
+const SERVER_MESSAGE_MAX = SERVER_MESSAGE_MAX_LENGTH;
 
 function trustedServerMessage(code: string, e: ErrorLike): string | undefined {
   if (!SERVER_MESSAGE_CODES[code]) return undefined;
