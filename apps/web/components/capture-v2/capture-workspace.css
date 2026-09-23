@@ -2746,38 +2746,56 @@
 }
 
 /* UC-1 — Direct Web Capture entry card (informational, non-blocking). */
+/* THE SURFACE, FROM THE TOKENS THIS PAGE ACTUALLY DEFINES.
+   `--capture-border` and `--capture-surface` are declared nowhere, so both
+   properties used to fall through to this rule's own fallbacks — two values
+   from the older green palette — and the card painted a grey-green wash
+   beside panels that are white. The page defines `--capture-card` and
+   `--capture-line` and, for the fill, `--cap-panel` — the token §B1
+   introduced when the capture surfaces were deliberately dropped to 0.42 so
+   that "the background is the dominant value and the border does the
+   grouping". Measured against its siblings, the hero, the requirements panel
+   and the activity panel all compute to exactly that, with an 18px radius and
+   NO shadow. The card now matches them, so it belongs to the page instead of
+   sitting on top of it. */
 .capture-direct-web {
-  border: 1px solid var(--capture-border, rgba(11, 46, 39, 0.14));
-  background: var(--capture-surface, rgba(11, 46, 39, 0.03));
-  border-radius: 14px;
-  padding: 16px 18px;
+  border: 1px solid var(--capture-line, rgba(16, 24, 40, 0.08));
+  background: var(--cap-panel, rgba(255, 255, 255, 0.42));
+  border-radius: 18px;
+  padding: 20px 22px;
   margin: 12px 0;
   display: grid;
   gap: 8px;
+  box-shadow: none;
 }
+/* The heading carries the weight of a panel title, not of body text: it is
+   the first thing in the card and was rendering at the same weight as the
+   sentence under it. */
 .capture-direct-web__title {
-  font-size: 14px;
+  font-size: var(--cap-fs-panel, 1.06rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
-  color: var(--capture-ink, #0b2e27);
+  color: var(--capture-ink, #101828);
 }
 .capture-direct-web__body {
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
-  color: var(--capture-ink, #0b2e27);
+  color: var(--capture-ink, #101828);
 }
 .capture-direct-web__note {
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
-  color: var(--capture-muted, #4a5b57);
+  color: var(--capture-muted, #667085);
 }
 /* Truthful platform/availability line (F3/F11). */
 .capture-direct-web__availability {
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
-  color: var(--capture-muted, #4a5b57);
+  color: var(--capture-muted, #667085);
   font-weight: 600;
 }
 .capture-direct-web__actions {
@@ -2793,6 +2811,7 @@
    former ad-hoc green fallback. */
 .capture-direct-web__learn-more {
   font-size: 12px;
+  font-weight: 700;
   color: var(--accent-500, #2563eb);
   text-decoration: underline;
   text-underline-offset: 2px;
