@@ -314,7 +314,7 @@ Nothing below is invented, and none of it can be done from a repository.
 
 | # | Value | Where it lives now | The exact step |
 |---|---|---|---|
-| 1 | Android signing SHA-256 | `assetlinks.json` carries `<ANDROID_SIGNING_SHA256_FINGERPRINT>` | Read it from `eas credentials` → Android → Keystore, **or** from Play Console → App integrity once the app is enrolled. Play App Signing re-signs, so the Play value is authoritative the moment enrolment happens — writing the EAS upload-key fingerprint before then would be wrong later. The APK is signed with v2/v3 only, so the certificate is in the APK Signing Block rather than `META-INF`, and `apksigner`/`keytool` is the way to read it |
+| 1 | ~~Android signing SHA-256~~ **RESOLVED 2026-09-24** | extracted from the signed APK itself — the APK Signing Block (v2) carries the X.509 certificate, and `assetlinks.json` now holds `F0:59:34:F6:…:7D:38`, corroborated by `openssl x509 -fingerprint -sha256`. **Still required at Play enrolment:** Play App Signing re-signs, so its key must be ADDED to the array (the field is a list so both coexist) |
 | 2 | Apple Team ID | `apple-app-site-association` carries `<APPLE_TEAM_ID>` | Apple Developer → Membership. It prefixes the App ID as `<TEAM>.com.jalalattar29.proovra` |
 | 3 | Extension ID + OAuth redirect | fails closed server-side until registered | After store review assigns the ID, set `EXTENSION_OAUTH_REDIRECT_ALLOW=https://<EXTENSION_ID>.chromiumapp.org/oauth2` in the production API environment and redeploy |
 | 4 | `NEXT_PUBLIC_EXTENSION_INSTALL_URL` | set nowhere, which is why the card says "not published yet" | Set it to the store listing URL after publication. The card flips to AVAILABLE through the canonical capability resolver — no code change |

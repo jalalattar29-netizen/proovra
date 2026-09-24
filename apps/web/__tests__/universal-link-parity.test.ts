@@ -100,6 +100,66 @@ test("iOS and Android claim the same hosts", () => {
   );
 });
 
+/**
+ * A PLACEHOLDER IN A SERVED FILE FAILS SILENTLY.
+ *
+ * Both association files sit on real paths on a real host, so a placeholder
+ * RESOLVES and then fails verification — the link opens the browser and
+ * nothing anywhere says why. The Android fingerprint was extracted from the
+ * signed APK itself on 2026-09-24 (APK Signing Block v2, corroborated with
+ * `openssl x509 -fingerprint -sha256`).
+ *
+ * The Apple Team ID is still outstanding, and this test says so out loud
+ * rather than leaving its absence to be discovered on a device.
+ */
+test("the Android fingerprint is a real one, not a placeholder", () => {
+  const links = JSON.parse(
+    readFileSync(
+      resolve(REPO_ROOT, "apps/web/public/.well-known/assetlinks.json"),
+      "utf8",
+    ),
+  ) as { target: { sha256_cert_fingerprints: string[] } }[];
+
+  const prints = links.flatMap((l) => l.target.sha256_cert_fingerprints);
+  assert.ok(prints.length > 0, "assetlinks.json claims no signing key at all");
+  for (const print of prints) {
+    assert.match(
+      print,
+      /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/,
+      `${print} is not an uppercase colon-separated SHA-256 fingerprint. ` +
+        "Android App Links verification rejects anything else, and it does so " +
+        "silently — the link simply opens the browser.",
+    );
+  }
+});
+
+/**
+ * THE ONE THAT IS STILL MISSING, STATED AS A FACT RATHER THAN A HOPE.
+ *
+ * This test PASSES while the Apple Team ID is a placeholder. It exists to
+ * keep the gap legible and to fail the moment somebody writes something
+ * that is neither the placeholder nor a valid ten-character Team ID.
+ */
+test("the Apple Team ID is either the known placeholder or a real one", () => {
+  const aasa = readFileSync(
+    resolve(REPO_ROOT, "apps/web/public/.well-known/apple-app-site-association"),
+    "utf8",
+  );
+  const appIds = [...aasa.matchAll(/"([^"]+).com.jalalattar29.proovra"/g)].map(
+    (m) => m[1],
+  );
+  assert.ok(appIds.length > 0, "the AASA file claims no app ID");
+  for (const id of appIds) {
+    const real = /^[A-Z0-9]{10}$/.test(id);
+    const placeholder = id === "<APPLE_TEAM_ID>";
+    assert.ok(
+      real || placeholder,
+      `${id} is neither a ten-character Apple Team ID nor the recorded ` +
+        "placeholder. Universal Links verification fails silently on anything else.",
+    );
+  }
+});
+
 test("every claimed path is one the mobile app documents", () => {
   const documented = readFileSync(
     resolve(REPO_ROOT, "apps/mobile/docs/universal-links.md"),
