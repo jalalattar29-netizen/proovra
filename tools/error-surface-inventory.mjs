@@ -138,6 +138,8 @@ function producedCodes() {
       const labelled =
         /\blabel:\s*["'`]/.test(after) &&
         !/\berror:\s*\{/.test(before.slice(-80));
+        /\blabel:\s*["'`]/.test(after) &&
+        !/\berror:\s*\{/.test(before.slice(-80));
       add(
         m[1],
         file,

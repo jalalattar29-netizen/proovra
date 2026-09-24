@@ -22,6 +22,7 @@ export type SafeErrorKind =
   | "input" // 400 — validation
   | "network" // transport failure / offline
   | "server" // 5xx
+  | "retired" // 410 — the endpoint was withdrawn, not broken
   | "unknown";
 
 export interface SafeError {
@@ -147,6 +148,11 @@ function classify(x: Extracted): SafeErrorKind {
   if (x.status === 401 || x.code === "UNAUTHENTICATED") return "auth";
   if (x.status === 403) return "forbidden";
   if (x.status === 404) return "notFound";
+  // THE SUFFIX IS THE SIGNAL, NOT THE STATUS. Without this a retirement fell
+  // to "unknown" and read "Something went wrong / Please try again" about a
+  // route deliberately withdrawn. Keyed on the code because 410 also answers
+  // an expired intake link, which is a different sentence entirely.
+  if (typeof x.code === "string" && x.code.endsWith("_RETIRED")) return "retired";
   if (x.status === 400 || x.code === "INVALID_INPUT") return "input";
   if (x.isNetwork) return "network";
   if (typeof x.status === "number" && x.status >= 500) return "server";
@@ -162,6 +168,7 @@ const TITLES: Record<SafeErrorKind, string> = {
   input: "Check the details",
   network: "You appear to be offline",
   server: "Something went wrong",
+  retired: "This feature is no longer available",
   unknown: "Something went wrong",
 };
 
@@ -173,6 +180,8 @@ const SAFE_MESSAGES: Record<SafeErrorKind, string> = {
   input: "Some information looks incorrect. Please review and try again.",
   network: "Check your connection and try again.",
   server: "We hit a problem on our side. Please try again.",
+  retired:
+    "It has been retired and replaced. Nothing was changed. Update the app to the current version.",
   unknown: "Please try again.",
 };
 

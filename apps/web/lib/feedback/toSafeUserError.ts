@@ -200,6 +200,20 @@ export function toSafeUserError(
     base = { ...SERVER_MESSAGE_CODES[code], message: serverMessage };
   } else if (code && CODE_MAP[code]) {
     base = CODE_MAP[code];
+  } else if (code && code.endsWith("_RETIRED")) {
+    // THE SUFFIX IS THE SIGNAL, NOT THE STATUS.
+    //
+    // Twenty-two routes answer 410 with a `*_RETIRED` code and a truthful
+    // sentence, and every one was discarded: only `TEAM_CONFLICT` may show a
+    // server message, so these fell to the generic 4xx bucket and read
+    // "review your input and try again" about an endpoint no input reaches.
+    //
+    // Keyed on the code rather than on 410, because 410 is not only used for
+    // retirement: `external-intake.routes.ts` answers 410 for an expired or
+    // already-used link, which the public intake page explains in its own
+    // words. Calling that "this feature is no longer available" would be a
+    // new wrong answer in place of an old one.
+    base = CODE_MAP.FEATURE_RETIRED;
   } else if (typeof status === "number") {
     base = fromStatus(status);
   } else if (readString(e.name) === "TypeError") {

@@ -500,6 +500,27 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "This capability is not currently enabled for your workspace. A workspace admin can turn it on.",
     severity: "info",
   },
+  /**
+   * HTTP 410 — the endpoint was RETIRED, not broken.
+   *
+   * Twenty-two routes answer 410 with a `*_RETIRED` code (NL_SEARCH_RETIRED,
+   * COLLABORATION_TEAM_INVITE_RETIRED, INGEST_RETIRED …). Each already carries
+   * a truthful server sentence, and every one of them was being discarded:
+   * only `TEAM_CONFLICT` is allowed to show a server message, so a 410 fell
+   * into the `status >= 400` bucket and read "We couldn't complete that
+   * action — please review your input and try again."
+   *
+   * That is the exact failure this table was written to end. No input can fix
+   * a retired endpoint, and "try again" is a lie about something that will
+   * never succeed. `severity: "info"` because nothing went wrong: the caller
+   * is simply out of date.
+   */
+  FEATURE_RETIRED: {
+    title: "This feature is no longer available",
+    message:
+      "It has been retired and replaced. Nothing was changed. If you are using an older version of the app or an integration, update it to the current one.",
+    severity: "info",
+  },
   STEP_UP_REQUIRED: {
     title: "Confirm your identity to continue",
     message:
