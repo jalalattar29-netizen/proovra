@@ -866,3 +866,92 @@ jobs:
           cat /tmp/compose-logs.txt
           tail -n 60 /tmp/compose-logs.txt | while IFS= read -r line; do echo "::error::compose-logs: $line"; done
           exit 0
+
+  # ===========================================================================
+  # THE BROWSER EXTENSION — UC-1 Direct Web Capture.
+  #
+  # Nothing in CI touched this workspace: its 21 tests, its MV3 manifest lint
+  # and its typecheck all ran only on a developer's machine, and the release
+  # archive existed only there too — `apps/extension/release/` is gitignored,
+  # so the single copy of the deliverable lived on one disk.
+  #
+  # This job runs the gates and publishes the package as a build artifact, so
+  # every commit has a downloadable, checksummed extension build that somebody
+  # other than its author can verify.
+  #
+  # The archive is deterministic (a dependency-free STORED zip, fixed entry
+  # order, fixed timestamps), which is what makes the checksum meaningful: the
+  # same source produces the same bytes, so a mismatch is a real difference
+  # rather than a repack artefact.
+  # ===========================================================================
+  extension-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `prelint` and `pretypecheck` build @proovra/shared themselves, so the
+      # dependency is not duplicated here.
+      - name: Manifest lint and typecheck
+        working-directory: apps/extension
+        run: pnpm run lint
+
+      - name: Unit tests
+        working-directory: apps/extension
+        run: pnpm run test
+
+      # THE ORIGIN IS REQUIRED, AND THAT IS DELIBERATE.
+      #
+      # `release.mjs` refuses to build without `PROOVRA_API_ORIGIN` rather than
+      # quietly defaulting, because an extension shipped against the wrong
+      # origin is indistinguishable from a working one until someone installs
+      # it. Stated here in the open: it is a public endpoint, not a secret.
+      - name: Build the store package
+        working-directory: apps/extension
+        env:
+          PROOVRA_API_ORIGIN: https://api.proovra.com
+        run: pnpm run release
+
+      - name: Record the artifact provenance
+        working-directory: apps/extension
+        run: |
+          set -euo pipefail
+          zip=$(ls release/proovra-extension-v*.zip)
+          echo "file:   ${zip}"
+          echo "bytes:  $(stat -c%s "${zip}")"
+          echo "sha256: $(sha256sum "${zip}" | cut -d' ' -f1)"
+          {
+            echo "### Extension package"
+            echo ""
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| file | \`$(basename "${zip}")\` |"
+            echo "| bytes | $(stat -c%s "${zip}") |"
+            echo "| sha256 | \`$(sha256sum "${zip}" | cut -d' ' -f1)\` |"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      # ONE archive, not two. Chrome Web Store and Edge Add-ons both accept the
+      # same MV3 stored zip, and this manifest carries nothing browser-specific
+      # — no `browser_specific_settings`, no vendor APIs. Emitting a second
+      # identical file under an "edge" name would suggest a difference that
+      # does not exist.
+      - name: Upload the extension package
+        uses: actions/upload-artifact@v4
+        with:
+          name: proovra-extension-${{ github.sha }}
+          path: apps/extension/release/proovra-extension-v*.zip
+          if-no-files-found: error
+          retention-days: 90
