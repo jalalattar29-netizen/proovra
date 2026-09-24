@@ -7,6 +7,14 @@ import { getStoredToken, isSignedIn, signIn, signOut } from "./lib/auth.js";
 import { CONFIG } from "./lib/config.js";
 import { denialToMessage } from "./lib/denial-copy.js";
 
+/** Shown when sign-in does not complete, for any reason. */
+const SIGN_IN_FAILED =
+  "Sign-in did not complete. Nothing was saved. Try again, and check that pop-ups are allowed for PROOVRA.";
+
+/** The one sentence shown when no written refusal copy applies. */
+const CAPTURE_FAILED =
+  "The capture could not be completed. Nothing was saved. Please try again, or open PROOVRA if this keeps happening.";
+
 type Workspace = { id: string; name: string };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -79,11 +87,23 @@ async function preserve(mode: "VIEWPORT" | "FULL_PAGE") {
       // -creation / quota / entitlement reason it actually is, never as a
       // capture-specific plan restriction. Unknown codes (auth, not-found,
       // faults) fall back to the generic error line.
+      // NEVER `result.error`. That field carries the SERVER'S message — or, for
+      // a non-API throw, a raw JavaScript error string — straight from
+      // background.ts, and this line put it on screen. A backend sentence in a
+      // user surface is the one thing the platform error discipline forbids,
+      // and it is how internal wording, ids and URLs reach people.
+      //
+      // Known refusals keep their written copy; everything else gets one
+      // truthful generic line, and the detail goes to the console for whoever
+      // is debugging.
       const denialMessage = denialToMessage(result.denial);
-      setStatus(denialMessage ?? result.error ?? "Capture could not be completed.", "error");
+      if (!denialMessage && result.error) console.debug("capture failed:", result.error);
+      setStatus(denialMessage ?? CAPTURE_FAILED, "error");
     }
   } catch (err) {
-    setStatus(err instanceof Error ? err.message : "Capture failed.", "error");
+    // Same rule on the throw path: an exception message is not user copy.
+    console.debug("capture threw:", err);
+    setStatus(CAPTURE_FAILED, "error");
   } finally {
     chrome.runtime.onMessage.removeListener(onProgress);
     busy(false);
@@ -140,7 +160,11 @@ document.addEventListener("DOMContentLoaded", () => {
       await render();
       setStatus("");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Sign-in failed.", "error");
+      // The OAuth path throws for a cancelled window, a closed tab, a network
+      // drop and a server refusal alike, and `err.message` is whatever threw —
+      // an internal string the reader cannot act on.
+      console.debug("sign-in failed:", err);
+      setStatus(SIGN_IN_FAILED, "error");
     }
   });
   $("sign-out").addEventListener("click", async () => {
