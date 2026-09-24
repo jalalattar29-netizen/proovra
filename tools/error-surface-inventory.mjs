@@ -245,17 +245,30 @@ export function inventory() {
     const inShared = shared.has(code);
     const kinds = origin.get(code) ?? new Set();
     const reachability = reachabilityOf(kinds);
+    /*
+     * A CODE CAN BE ANSWERED BY A RULE RATHER THAN BY AN ENTRY.
+     *
+     * Both clients map any `*_RETIRED` code to the shared FEATURE_RETIRED
+     * copy — web in `toSafeUserError`, native in `safe-error.ts` — because
+     * twenty-two routes answer 410 with one and every one of them used to
+     * fall through to "review your input and try again".
+     *
+     * Counting them as unanswered would report a debt that has been paid,
+     * and would grow by one every time another endpoint is retired.
+     */
+    const answeredByRule = /_RETIRED$/.test(code);
     rows.push({
       code,
       reachability,
       producedAs: [...kinds].sort(),
       producedIn: [...files].slice(0, 4),
       producedCount: files.size,
-      web: inShared || Boolean(webFiles),
+      web: inShared || Boolean(webFiles) || answeredByRule,
       webFiles: webFiles ? [...webFiles].slice(0, 3) : [],
-      native: inShared || Boolean(nativeFiles),
+      native: inShared || Boolean(nativeFiles) || answeredByRule,
       nativeFiles: nativeFiles ? [...nativeFiles].slice(0, 3) : [],
       shared: inShared,
+      answeredByRule,
     });
   }
   rows.sort((a, b) => a.code.localeCompare(b.code));
