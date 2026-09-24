@@ -22,7 +22,7 @@
  */
 
 import React from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 import { PageHeader, PageShell, PageSection } from "../../components/ui/PageShell";
@@ -82,9 +82,30 @@ describe("PageHeader", () => {
      * known to be capable of failing. Without this, "no nested headings" could
      * pass because the helper never finds anything.
      */
-    const { container } = render(
-      <PageHeader title={<h1 className="cc-title">Billing</h1>} />,
-    );
+    /*
+     * REACT'S COMPLAINT IS EXPECTED HERE, SO IT IS CAPTURED RATHER THAN
+     * PRINTED.
+     *
+     * Rendering the defect on purpose makes React log
+     * "In HTML, <h1> cannot be a child of <h1>" with a component stack, and
+     * that block appeared in every full run of the web suite — a warning
+     * nobody can act on, emitted by the one test whose whole point is that
+     * this DOM is invalid. Left in the output it teaches the reader to
+     * scroll past exactly the message that matters when real code causes it.
+     *
+     * `vi.spyOn` rather than assigning to console.error: vitest patches and
+     * restores that function around each test, so a hand-rolled override is
+     * replaced before React ever calls it.
+     */
+    const complaint = vi.spyOn(console, "error").mockImplementation(() => {});
+    let container: HTMLElement;
+    try {
+      ({ container } = render(
+        <PageHeader title={<h1 className="cc-title">Billing</h1>} />,
+      ));
+    } finally {
+      complaint.mockRestore();
+    }
     expect(container.querySelectorAll("h1")).toHaveLength(2);
     expect(nestedHeadings(container)).toEqual(["H1 > H1"]);
   });

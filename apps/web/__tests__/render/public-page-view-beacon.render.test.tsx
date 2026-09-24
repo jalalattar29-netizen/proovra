@@ -54,13 +54,45 @@ function trackCalls(): Array<Record<string, unknown>> {
     .map((call) => JSON.parse(call[1]?.body ?? "{}") as Record<string, unknown>);
 }
 
+/**
+ * WAIT FOR THE IMPORT, NOT FOR TWO TICKS.
+ *
+ * This used to `vi.waitFor(() => expect(apiFetch.mock.calls.length >= 0)
+ * .toBe(true))`, which is a tautology — it is satisfied on the first
+ * attempt whether or not anything was sent — so the only real wait was the
+ * two `setTimeout(0)` calls that followed.
+ *
+ * `PublicPageView` does `await import("../../lib/analytics")` before it
+ * sends, and a dynamic import is not guaranteed to resolve within two
+ * macrotask ticks. On a loaded CI runner it does not, and the suite read
+ * zero calls: `expected [] to have a length of 1 but got +0`.
+ *
+ * MEASURED: deleting the two ticks reproduces exactly that failure on seven
+ * tests locally, which is what identifies the tick count — rather than any
+ * observed condition — as the thing the assertions were relying on.
+ *
+ * So the module is now awaited directly. Once it has loaded here it is in
+ * the registry, and the component's own `import()` resolves from cache on a
+ * microtask. That makes the ZERO-call assertions meaningful too: they can
+ * no longer pass merely because the test asked before the import finished.
+ */
 async function settle(): Promise<void> {
-  // The beacon dynamically imports the analytics module before sending.
+  await import("../../lib/analytics");
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Wait until the beacon has actually sent `count` events.
+ *
+ * Used where a send is EXPECTED. The zero-call cases keep `settle()`, since
+ * there is no event to wait for — only the import, which `settle()` awaits.
+ */
+async function settleUntil(count: number): Promise<void> {
+  await settle();
   await vi.waitFor(() => {
-    expect(apiFetch.mock.calls.length >= 0).toBe(true);
+    expect(trackCalls()).toHaveLength(count);
   });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 beforeEach(() => {
