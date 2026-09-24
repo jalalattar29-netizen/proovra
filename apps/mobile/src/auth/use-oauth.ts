@@ -7,6 +7,7 @@
  * EXTERNAL-CONFIG-PENDING; this is the repository-side wiring.
  */
 import { useCallback, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Google from "expo-auth-session/providers/google";
 import * as AuthSession from "expo-auth-session";
@@ -43,10 +44,47 @@ export function useOAuth(opts: {
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
   const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined;
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
+
+  /*
+   * THE PROVIDER THROWS DURING RENDER WHEN ITS PLATFORM ID IS MISSING.
+   *
+   * `expo-auth-session` resolves the id inside a useMemo and calls
+   * `invariantClientId`, which is literally:
+   *
+   *     if (typeof value === 'undefined')
+   *       throw new Error(`Client Id property \`${idName}\` must be
+   *         defined to use ${providerName} auth on this platform.`);
+   *
+   * So on iOS with no `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `useAuthRequest`
+   * throws while rendering and the `if (!googleRequest)` guard below never
+   * runs — it is dead code in exactly the case it was written for. MEASURED
+   * on a physical iPad on 2026-09-24: the sign-in screen failed with that
+   * message, from a Metro bundle whose `.env` still carried the old generic
+   * `EXPO_PUBLIC_GOOGLE_CLIENT_ID`.
+   *
+   * The id the CURRENT platform needs decides whether Google is offered at
+   * all. When it is absent the provider is handed a placeholder that cannot
+   * authenticate anything, purely to keep the invariant from throwing, and
+   * `promptGoogle` refuses before it could ever be used. A legible refusal
+   * beats a crash on the first screen of the app.
+   */
+  const platformClientId =
+    Platform.OS === "ios"
+      ? iosClientId
+      : Platform.OS === "android"
+        ? androidClientId
+        : webClientId;
+  const googleConfigured = typeof platformClientId === "string" && platformClientId.length > 0;
+
+  // Never sent anywhere: `promptGoogle` returns OAUTH_GOOGLE_UNCONFIGURED
+  // before any request is built. It exists only so the provider's invariant
+  // sees a defined value instead of throwing mid-render.
+  const UNCONFIGURED = "proovra-google-unconfigured.invalid";
+
   const [googleRequest, googleResponse, promptAsync] = Google.useAuthRequest({
-    iosClientId,
-    androidClientId,
-    webClientId,
+    iosClientId: iosClientId ?? UNCONFIGURED,
+    androidClientId: androidClientId ?? UNCONFIGURED,
+    webClientId: webClientId ?? UNCONFIGURED,
     responseType: AuthSession.ResponseType.IdToken,
     scopes: ["openid", "email", "profile"],
   });
@@ -89,7 +127,7 @@ export function useOAuth(opts: {
   }, [googleResponse, onResult]);
 
   const promptGoogle = useCallback(() => {
-    if (!googleRequest) {
+    if (!googleConfigured || !googleRequest) {
       // Request is null until a platform client id is provisioned via
       // EXPO_PUBLIC_GOOGLE_{IOS,ANDROID,WEB}_CLIENT_ID (EXTERNAL-CONFIG-PENDING).
       setError(toSafeUserError({ status: 503, code: "OAUTH_GOOGLE_UNCONFIGURED" }));
@@ -97,7 +135,7 @@ export function useOAuth(opts: {
     }
     setError(null);
     void promptAsync();
-  }, [googleRequest, promptAsync]);
+  }, [googleConfigured, googleRequest, promptAsync]);
 
   const signInApple = useCallback(() => {
     void (async () => {
@@ -124,7 +162,7 @@ export function useOAuth(opts: {
   }, [onResult]);
 
   return {
-    googleReady: !!googleRequest,
+    googleReady: googleConfigured && !!googleRequest,
     appleAvailable,
     busy,
     error,

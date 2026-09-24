@@ -6,13 +6,14 @@
   "main": "index.js",
   "scripts": {
     "dev": "expo start",
-    "lint": "eslint .",
+    "lint": "node scripts/check-env-example.mjs && eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --test",
     "build:deps": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build",
     "prebuild": "pnpm run build:deps",
     "pretypecheck": "pnpm run build:deps",
-    "eas-build-post-install": "pnpm run build:deps"
+    "eas-build-post-install": "pnpm run build:deps",
+    "check:env": "node scripts/check-env-example.mjs"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
