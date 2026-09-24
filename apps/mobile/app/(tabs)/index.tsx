@@ -77,6 +77,19 @@ type CaseItem = { id: string; title?: string; name?: string; status?: string };
 
 type LoadState = "loading" | "ready" | "error";
 
+/** What each source is called when we have to name it to a person. */
+const SOURCE_LABELS: Record<string, string> = {
+  commandCenter: "Workspace summary",
+  trustSummary: "Evidence integrity",
+  billing: "Plan usage",
+  reports: "Reports",
+  intakeLinks: "Intake links",
+  inbox: "Inbox",
+  recordsByType: "Records by type",
+  series: "Recent activity",
+  cases: "Matters",
+};
+
 export default function HomeScreen() {
   const { t } = useLocale();
   const router = useRouter();
@@ -88,6 +101,25 @@ export default function HomeScreen() {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [sources, setSources] = useState<HomeSources>({});
+  /*
+   * WHY A FIGURE IS MISSING, WHICH THE SCREEN COULD NOT PREVIOUSLY SAY.
+   *
+   * The KPI row is already honest about the VALUE: `buildHomeKpis` returns
+   * null for an absent source and the tile reads "—" with "Not available",
+   * never a fabricated zero. What it cannot say is WHY, and the ten
+   * requests below discard that: `Promise.allSettled` rejections were
+   * mapped to `undefined`, so a 401, a 403, a 500 and a dropped connection
+   * all arrived at the tile as the same silence.
+   *
+   * MEASURED on a physical iPad, 2026-09-24: Home reported itself ready
+   * with cards showing nothing, and there was no way to tell "this
+   * workspace is empty" from "the request failed".
+   *
+   * The reasons are kept so the screen can name them. Values are still
+   * never invented, and the page is still never blanked — both are
+   * properties `home.render.test.mjs` holds.
+   */
+  const [failed, setFailed] = useState<Record<string, SafeError>>({});
   const [distribution, setDistribution] = useState<TypeDistribution | null>(null);
   /**
    * A WIDER evidence page, for the activity series only.
@@ -144,22 +176,29 @@ export default function HomeScreen() {
         apiFetch("/v1/evidence?scope=active&limit=200"),
       ]);
 
-    const ok = <T,>(r: PromiseSettledResult<T>): T | undefined =>
-      r.status === "fulfilled" ? r.value : undefined;
+    const problems: Record<string, SafeError> = {};
+    /** Unwrap a settled result, RECORDING a rejection rather than erasing it. */
+    const ok = <T,>(r: PromiseSettledResult<T>, key: string): T | undefined => {
+      if (r.status === "fulfilled") return r.value;
+      problems[key] = toSafeUserError(r.reason);
+      return undefined;
+    };
 
     setSources({
-      commandCenter: ok(commandCenter),
-      trustSummary: ok(trustSummary),
-      billingOverview: ok(billing),
-      reports: ok(reports),
-      intakeLinks: ok(intake),
-      inbox: ok(inbox),
+      commandCenter: ok(commandCenter, "commandCenter"),
+      trustSummary: ok(trustSummary, "trustSummary"),
+      billingOverview: ok(billing, "billing"),
+      reports: ok(reports, "reports"),
+      intakeLinks: ok(intake, "intakeLinks"),
+      inbox: ok(inbox, "inbox"),
     });
 
-    const byType = ok(recordsByType);
+    setFailed(problems);
+
+    const byType = ok(recordsByType, "recordsByType");
     setDistribution(byType ? parseRecordsByType(byType) : null);
 
-    const page = ok(seriesPage) as
+    const page = ok(seriesPage, "series") as
       | { items?: Array<{ createdAt?: string | null }>; nextCursor?: string | null }
       | undefined;
     setSeriesSource(
@@ -173,7 +212,7 @@ export default function HomeScreen() {
         : null,
     );
 
-    const caseRows = ok(caseList) as { items?: CaseItem[]; cases?: CaseItem[] } | undefined;
+    const caseRows = ok(caseList, "cases") as { items?: CaseItem[]; cases?: CaseItem[] } | undefined;
     setCases(caseRows?.items ?? caseRows?.cases ?? []);
 
     if (evidence.status === "rejected") {
@@ -189,6 +228,21 @@ export default function HomeScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /*
+   * Six of the ten requests short-circuit to `Promise.resolve(null)` when
+   * there is no active workspace — they are never SENT. That is a third
+   * state, and it used to look exactly like an empty workspace.
+   */
+  const noWorkspace = teamId === null;
+  /** One sentence per failed source, in the words the user is owed. */
+  const loadFailures = Object.entries(failed).map(
+    ([key, err]) => `${SOURCE_LABELS[key] ?? key}: ${err.message}`,
+  );
+  const failureSentence =
+    loadFailures.length > 0
+      ? `Some figures could not be loaded. ${loadFailures.join(" ")}`
+      : "";
 
   const priorities = buildHomePriorities(sources);
   const summary = buildHomeSummary(sources, priorities);
@@ -245,6 +299,30 @@ export default function HomeScreen() {
           {summary.sentence}
         </ProovraText>
       </ProovraCard>
+
+      {/*
+        WHY THE FIGURES ARE MISSING — shown ABOVE the row, never instead of
+        it. `one failed dashboard source does not blank the page` is a
+        property this screen keeps; a banner adds the reason without taking
+        the page away.
+      */}
+      {noWorkspace ? (
+        <ProovraCard>
+          <ProovraText variant="body" color={theme.color.ink.secondary}>
+            No workspace is selected, so six of the figures below are not
+            requested at all. Choose a workspace to see them.
+          </ProovraText>
+        </ProovraCard>
+      ) : null}
+
+      {loadFailures.length > 0 ? (
+        <ProovraCard>
+          <ProovraText variant="body" color={theme.color.ink.secondary}>
+            {failureSentence}
+          </ProovraText>
+          <ProovraButton label="Try again" fullWidth={false} onPress={load} />
+        </ProovraCard>
+      ) : null}
 
       {/* The five canonical KPIs. */}
       <ProovraKpiGrid

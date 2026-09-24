@@ -34,7 +34,19 @@ function installFetch() {
 }
 
 const OK = () => ({
-  "/v1/platform/context": () => ({ context: { activeSpace: { id: "team-1" } } }),
+  /*
+   * THE ENVELOPE SHAPE THE SERVER ACTUALLY SENDS.
+   *
+   * This stub nested `activeSpace` under a `context` key. The route answers
+   * `reply.code(200).send(result.envelope)` with `activeSpace` at the TOP
+   * level, and `projectPlatformContext` reads it there.
+   *
+   * So `activeTeamId` was null in every test in this file: six of the ten Home
+   * requests short-circuited to `Promise.resolve(null)` and the
+   * workspace-scoped path — the one a signed-in person actually uses — was
+   * never exercised at all.
+   */
+  "/v1/platform/context": () => ({ activeSpace: { id: "team-1", type: "ORGANIZATION" } }),
   "/v1/evidence": () => ({
     items: [
       {
@@ -183,6 +195,58 @@ test("KPIs show an em dash, never a fabricated zero, when a source is missing", 
   };
   const r = await render();
   assert.ok(r.hasText("Not available"), "an unknown metric says so");
+});
+
+/*
+ * A FAILED SOURCE MUST NAME ITSELF.
+ *
+ * The KPI tiles were already honest about the VALUE — "—" and "Not
+ * available", never a fabricated zero. What Home could not say was WHY, and
+ * a 401, a 403, a 500 and a dropped connection all reached the tile as the
+ * same silence: `Promise.allSettled` rejections were mapped to `undefined`.
+ *
+ * On a physical iPad on 2026-09-24 that read as a page of empty cards with
+ * no way to tell "this workspace is empty" from "the request failed".
+ */
+test("a failed source is NAMED, and the page is still not blanked", async () => {
+  // The stub answers 500 for anything unstubbed, so deleting a route is a
+  // real server failure rather than an absent response.
+  delete routes["/v1/me/inbox"];
+  const r = await render();
+
+  assert.ok(
+    r.hasText("Inbox"),
+    "the failed source is named in the words a person can act on",
+  );
+  assert.ok(
+    r.hasText("Total evidence"),
+    "the KPI row still renders — a failure must not blank the page",
+  );
+  assert.ok(
+    r.hasText("IMG_0042.jpg"),
+    "recent work, which did load, is still shown",
+  );
+});
+
+/*
+ * NO WORKSPACE IS A THIRD STATE, NOT AN EMPTY ONE.
+ *
+ * Six of the ten requests short-circuit to `Promise.resolve(null)` when
+ * there is no active workspace — they are never SENT. That used to look
+ * exactly like a workspace with nothing in it.
+ */
+test("with no workspace, Home says so rather than showing nothing", async () => {
+  routes["/v1/platform/context"] = () => ({ context: {} });
+  const r = await render();
+
+  assert.ok(
+    r.hasText("No workspace is selected"),
+    "the screen distinguishes an unchosen workspace from an empty one",
+  );
+  assert.ok(
+    !r.hasText("Some figures could not be loaded"),
+    "nothing failed here, so nothing should claim it did",
+  );
 });
 
 test("the search entry point is present and reachable", async () => {
