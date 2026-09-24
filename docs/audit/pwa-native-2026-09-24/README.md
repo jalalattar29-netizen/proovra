@@ -36,6 +36,10 @@ was modified. Files written: this directory only.
 | **I** | [`I-audit-coverage-certificate.md`](I-audit-coverage-certificate.md) | Exact counts: inspected vs uninspected, rendered vs source-only, device-unverified |
 | **J** | [`J-reconciliation-on-recovery-branch.md`](J-reconciliation-on-recovery-branch.md) | Re-run on `uc6-public-launch`: which findings persist, changed or disappeared |
 | **K** | [`K-rendered-parity-plan.md`](K-rendered-parity-plan.md) | The practical staged plan to close rendered visual parity |
+| **L–O** | `L-source-tree.mjs`, `M-style-resolver.mjs`, `N-page-compare.mjs`, `O-global-findings.mjs` | The source-comparison instruments (recursive component trees, style resolution, per-page compare, global register) |
+| **P** | [`P-global-findings-register.md`](P-global-findings-register.md) | **Global findings register** — root causes linked to every affected page |
+| **Q** | [`Q-source-audit-coverage.md`](Q-source-audit-coverage.md) | **Source-audit coverage report** — the mandatory counts |
+| — | [`pages/`](pages/) | **64 per-page source comparison registers** (A–K per route) |
 
 ### Machine data
 

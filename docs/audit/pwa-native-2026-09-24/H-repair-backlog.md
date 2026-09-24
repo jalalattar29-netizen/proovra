@@ -266,3 +266,127 @@ H-9, H-10     ← visual/accessibility, cheap and app-wide
 H-11 … H-13   ← quality and coverage
 H-14          ← the gate. Cannot be short-circuited.
 ```
+
+---
+
+# ADDENDUM — items from the per-page SOURCE COMPARISON (2026-09-24, pass 2)
+
+Added after the exhaustive source comparison of all 64 applicable routes
+(artifacts **L–P**, `pages/*.md`). These are **code-level** findings with exact
+file and line references. Nothing here was observed running; every item is a
+source fact.
+
+The earlier items H-1…H-14 stand unchanged.
+
+## ROOT CAUSE 6 — A shared token module is not shared styling
+
+### H-N1 (P1) — 222 colours are hardcoded in web CSS, outside the token system
+
+**Finding (SOURCE-DEFINITIVE).** Both platforms import the same generated token
+module, and it governs far less than it appears to:
+
+| | Count |
+|---|---:|
+| Values in `packages/ui/src/tokens/proovra.generated.ts` | 136 |
+| Distinct hex colours declared anywhere in web CSS | **238** |
+| …with a counterpart in the native token set | 28 |
+| Hex literals written directly in component CSS, bypassing tokens | **2 079 occurrences / 222 distinct** |
+| …with a counterpart in the native token set | **25** |
+
+Concentration (`global-findings.json` → `style.hardcodedByFile`):
+
+| Literals | File | Applicable route |
+|---:|---|---|
+| 776 | `apps/web/components/capture-v2/capture-v2.css` | `/capture` |
+| 344 | `apps/web/components/command-center/command-center.css` | `/home` |
+| 243 | `apps/web/components/capture-v2/capture-workspace.css` | `/capture` |
+| 123 | `apps/web/app/globals.css` | all |
+| 112 | `apps/web/app/(app)/settings/settings.css` | `/settings` |
+| 88 | `apps/web/components/app-primitives/app-primitives.css` | shared |
+| 87 | `apps/web/app/(app)/evidence/[id]/evidence-detail.css` | `/evidence/[id]` |
+
+`/capture` is NATIVE_REQUIRED, and its native screen paints from the 136-value
+token set while its web counterpart declares 1 019 colour literals across two
+stylesheets.
+
+**Acceptance criteria**
+1. A generator or lint rule fails on a raw hex in `apps/web/**/*.css` outside
+   `lib/design-tokens/tokens.css`.
+2. Every colour a NATIVE_REQUIRED surface uses exists as a token in
+   `proovra.generated.ts`, so both renderers can reach it.
+3. The count above is asserted by a test, so it cannot regress silently.
+4. **Not** in scope: deciding which declaration wins at runtime. That is
+   cascade-dependent and is recorded SOURCE-UNRESOLVED.
+
+## ROOT CAUSE 7 — Capabilities absent from the native tree
+
+### H-N2 (P1) — Legal documents are unreachable from the native sign-in screen
+
+**Finding (SOURCE-DEFINITIVE).** Web `/login` renders three tappable links —
+Terms of Service, Privacy Policy, Cookie Policy. Native
+`apps/mobile/app/(stack)/auth.tsx:135-139` renders a single **non-interactive**
+element:
+
+```tsx
+<View style={styles.legal}>
+  <ProovraText variant="label" color={theme.color.ink.muted} center>
+    By continuing you agree to the Terms and acknowledge the Privacy Policy.
+  </ProovraText>
+</View>
+```
+
+No `Pressable`, no `onPress`, no `Link`. Neither document can be opened **at the
+point of consent**, and Cookie Policy is not mentioned at all. The same line uses
+`ink.muted` `#94A3B8` on `surface.app` `#F7F8FC` = **2.42:1**, below WCAG AA at
+every text size.
+
+This matters beyond parity: the app asks for agreement to documents it does not
+let the user read, and a native legal reader **already exists** at
+`app/(stack)/legal/[slug].tsx`.
+
+**Acceptance criteria**
+1. Terms, Privacy and Cookie Policy are each tappable and open
+   `/(stack)/legal/[slug]` in-app.
+2. The consent line meets WCAG AA (≥ 4.5:1) — `ink.secondary` `#475569` is 7.58:1.
+3. A test asserts each link resolves to a legal slug the API serves.
+
+### H-N3 (P2) — Three shared capabilities have no native counterpart
+
+| Capability | Web | Native | Blast radius |
+|---|---|---|---:|
+| Copy support reference | `components/feedback/ProovraSupportReference.tsx` Copy button | **no clipboard affordance anywhere** in `apps/mobile` | 36 routes |
+| Accessible listbox / select | `components/app-primitives/AppListbox.tsx` (WAI-ARIA listbox, "replaces native `<select>` everywhere") | no Picker/Listbox/Dropdown/Select in `src/ui/index.tsx` | 13 routes |
+| Legal table of contents | `components/legal/LegalDocumentShell.tsx` "On this page" + "Open public Trust Center" | no index/anchor/scrollTo in `src/ui/legal-document.tsx` | 6 routes |
+
+**Acceptance criteria**
+1. A support reference is copyable natively (`expo-clipboard`), with the same
+   confirmation the web gives.
+2. A native selection primitive exists in `src/ui`, or each consuming surface
+   documents the affordance it uses instead.
+3. The native legal reader offers section navigation for multi-thousand-word
+   documents.
+
+### H-N4 (P3) — 746 elements are present natively but on a different screen
+
+Of 1 271 distinct unpaired elements, **746 exist elsewhere in the native app** —
+the largest single group being the whole change-password form, which the web
+renders inside `/settings` and native renders at
+`app/(stack)/settings/security.tsx:218-273`.
+
+These are **navigation/decomposition differences, not gaps**, and they are
+separated from the 525 that are found nowhere.
+
+**Acceptance criteria**
+1. The route matrix records, per applicable route, which native screen serves
+   each capability when it is not the route's own screen.
+2. No future audit reports a placement difference as a missing capability.
+
+### H-N5 (P3) — The native toast dismiss control is unlabelled
+
+`src/toast-context.tsx:115-120` renders a `TouchableOpacity` whose only content
+is `×` and which carries **no `accessibilityLabel`**. Web uses
+`aria-label="Dismiss notification"`. A screen reader announces "times".
+
+**Acceptance criteria** — every icon-only native control carries an
+`accessibilityLabel`; a lint rule enforces it. Note only **40** files in
+`apps/mobile` reference any accessibility prop.
