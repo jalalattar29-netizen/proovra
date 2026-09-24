@@ -646,7 +646,13 @@ jobs:
   # ===========================================================================
   layout:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A FULL PRODUCTION WEB BUILD PLUS 296 BROWSER TESTS.
+    #
+    # 45 was a guess and the first real run spent about forty minutes without
+    # finishing. A job killed by its own timeout emits no annotations — the
+    # step that reports the failures never runs — so an undersized limit here
+    # costs the diagnosis as well as the result.
+    timeout-minutes: 75
 
     env:
       # POINT THE BUILD AT A DEAD PORT.
