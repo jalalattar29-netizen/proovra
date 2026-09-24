@@ -1,6 +1,7 @@
 # PWA → NATIVE FORENSIC PARITY AUDIT — 2026-09-24
 
-**Audited SHA:** `f822de79ad9397928cb59d1760e42bd63e583457` (`main`, clean tree)
+**Baseline SHA:** `f822de79ad9397928cb59d1760e42bd63e583457` (= current `origin/main`, and the merge-base of this branch)
+**Re-run SHA:** `10668edbe` on `uc6-public-launch` — see **J**. All findings persist; one changed (Android fingerprint fixed in repo, not deployed).
 **Applicable routes:** **64** of 208 discovered
 **Mode:** AUDIT ONLY — no product code, migration, stash, worktree, branch or deployment
 was modified. Files written: this directory only.
@@ -33,6 +34,8 @@ was modified. Files written: this directory only.
 | **G** | [`G-test-coverage-matrix.md`](G-test-coverage-matrix.md) | What was **executed** (942/942), proof tiers, per-route coverage |
 | **H** | [`H-repair-backlog.md`](H-repair-backlog.md) | 14 items grouped by **5 root causes**, each with acceptance criteria |
 | **I** | [`I-audit-coverage-certificate.md`](I-audit-coverage-certificate.md) | Exact counts: inspected vs uninspected, rendered vs source-only, device-unverified |
+| **J** | [`J-reconciliation-on-recovery-branch.md`](J-reconciliation-on-recovery-branch.md) | Re-run on `uc6-public-launch`: which findings persist, changed or disappeared |
+| **K** | [`K-rendered-parity-plan.md`](K-rendered-parity-plan.md) | The practical staged plan to close rendered visual parity |
 
 ### Machine data
 

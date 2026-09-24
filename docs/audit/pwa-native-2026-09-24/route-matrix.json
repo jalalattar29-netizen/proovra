@@ -1,7 +1,7 @@
 {
- "auditedSha": "f822de79ad9397928cb59d1760e42bd63e583457",
+ "auditedSha": "10668edbe4ac189ff965a09c7e8be17953d83f4a",
  "counts": {
-  "auditedSha": "f822de79ad9397928cb59d1760e42bd63e583457",
+  "auditedSha": "10668edbe4ac189ff965a09c7e8be17953d83f4a",
   "webRoutesDiscovered": 208,
   "applicable": 64,
   "excluded": 144,
@@ -14,10 +14,10 @@
   "ledgerCodeParity": 62,
   "physicallyAcceptedTrue": 0,
   "distinctNativeScreens": 41,
-  "nativeControlsOnApplicableScreens": 484,
-  "nativeControlsWired": 451,
+  "nativeControlsOnApplicableScreens": 485,
+  "nativeControlsWired": 452,
   "nativeControlsUnresolved": 33,
-  "nativeControlsTotalApp": 514,
+  "nativeControlsTotalApp": 515,
   "webControlsTotalApp": 1815,
   "routesWithEndpointGaps": 35,
   "distinctEndpointsMissing": 195,
@@ -1188,6 +1188,7 @@
     "auth-runtime-binding.test.mjs",
     "bootstrap-machine.test.mjs",
     "branding-config.test.mjs",
+    "capture-lifecycle.render.test.mjs",
     "capture-plan.test.mjs",
     "case-workspace.test.mjs",
     "contract-audit.test.mjs",
@@ -1200,6 +1201,7 @@
     "evidence-internal-materials.render.test.mjs",
     "evidence-requests.test.mjs",
     "external-flows.test.mjs",
+    "home.render.test.mjs",
     "journeys.test.mjs",
     "legal.test.mjs",
     "native-action-inventory.test.mjs",
@@ -1217,7 +1219,9 @@
     "step-up.test.mjs"
    ],
    "renderTests": [
+    "capture-lifecycle.render.test.mjs",
     "evidence-internal-materials.render.test.mjs",
+    "home.render.test.mjs",
     "settings-security.render.test.mjs"
    ]
   },
@@ -1258,6 +1262,7 @@
     "auth-runtime-binding.test.mjs",
     "bootstrap-machine.test.mjs",
     "branding-config.test.mjs",
+    "capture-lifecycle.render.test.mjs",
     "capture-plan.test.mjs",
     "case-workspace.test.mjs",
     "contract-audit.test.mjs",
@@ -1270,6 +1275,7 @@
     "evidence-internal-materials.render.test.mjs",
     "evidence-requests.test.mjs",
     "external-flows.test.mjs",
+    "home.render.test.mjs",
     "journeys.test.mjs",
     "legal.test.mjs",
     "native-action-inventory.test.mjs",
@@ -1287,7 +1293,9 @@
     "step-up.test.mjs"
    ],
    "renderTests": [
+    "capture-lifecycle.render.test.mjs",
     "evidence-internal-materials.render.test.mjs",
+    "home.render.test.mjs",
     "settings-security.render.test.mjs"
    ]
   },
@@ -2876,7 +2884,7 @@
    "nativeEndpointsPresent": 6,
    "endpointsMissingEntirely": 18,
    "endpointsElsewhereInApp": 0,
-   "nativeControls": 6,
+   "nativeControls": 7,
    "nativeStates": {
     "loading": true,
     "empty": true,
@@ -3465,6 +3473,7 @@
     "auth-runtime-binding.test.mjs",
     "bootstrap-machine.test.mjs",
     "branding-config.test.mjs",
+    "capture-lifecycle.render.test.mjs",
     "capture-plan.test.mjs",
     "case-workspace.test.mjs",
     "contract-audit.test.mjs",
@@ -3477,6 +3486,7 @@
     "evidence-internal-materials.render.test.mjs",
     "evidence-requests.test.mjs",
     "external-flows.test.mjs",
+    "home.render.test.mjs",
     "journeys.test.mjs",
     "legal.test.mjs",
     "native-action-inventory.test.mjs",
@@ -3494,7 +3504,9 @@
     "step-up.test.mjs"
    ],
    "renderTests": [
+    "capture-lifecycle.render.test.mjs",
     "evidence-internal-materials.render.test.mjs",
+    "home.render.test.mjs",
     "settings-security.render.test.mjs"
    ]
   },

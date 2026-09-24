@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const OUTDIR = resolve("D:/digital-witness/docs/audit/pwa-native-2026-09-24");
+const OUTDIR = resolve(import.meta.dirname, ".");
 const M = JSON.parse(readFileSync(join(OUTDIR, "route-matrix.json"), "utf8"));
 const I = JSON.parse(readFileSync(join(OUTDIR, "interaction-register.json"), "utf8"));
 const G = JSON.parse(readFileSync(join(OUTDIR, "endpoint-gap-register.json"), "utf8"));

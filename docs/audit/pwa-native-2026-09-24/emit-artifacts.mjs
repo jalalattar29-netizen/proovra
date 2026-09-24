@@ -4,9 +4,17 @@
  * Every number in the written report comes from here, not from a keyboard.
  */
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 
-const REPO = resolve("D:/digital-witness");
+/**
+ * REPO ROOT — derived from this file, never hardcoded. These instruments live at
+ * <repo>/docs/audit/pwa-native-2026-09-24/, so the root is three levels up. An
+ * earlier revision pinned "D:/digital-witness", which meant running them from a
+ * worktree silently measured the MAIN checkout instead of the branch under test.
+ * PROOVRA_AUDIT_REPO overrides it for a deliberate cross-tree comparison.
+ */
+const REPO = resolve(process.env.PROOVRA_AUDIT_REPO ?? resolve(import.meta.dirname, "..", "..", ".."));
 const SCRATCH = resolve(import.meta.dirname, ".");
 const OUTDIR = join(REPO, "docs/audit/pwa-native-2026-09-24");
 mkdirSync(OUTDIR, { recursive: true });
@@ -121,7 +129,7 @@ for (const r of applicableRows) {
 /* ------------------------------------------------------------ counters */
 
 const counts = {
-  auditedSha: "f822de79ad9397928cb59d1760e42bd63e583457",
+  auditedSha: execSync("git rev-parse HEAD", { cwd: REPO }).toString().trim(),
   webRoutesDiscovered: rows.length,
   applicable: applicableRows.length,
   excluded: rows.length - applicableRows.length,

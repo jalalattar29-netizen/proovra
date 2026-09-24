@@ -29,9 +29,17 @@
  *   apps/mobile/src/product/native-destinations.mjs        (native routeFile)
  */
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
-const REPO = resolve("D:/digital-witness");
+/**
+ * REPO ROOT — derived from this file, never hardcoded. These instruments live at
+ * <repo>/docs/audit/pwa-native-2026-09-24/, so the root is three levels up. An
+ * earlier revision pinned "D:/digital-witness", which meant running them from a
+ * worktree silently measured the MAIN checkout instead of the branch under test.
+ * PROOVRA_AUDIT_REPO overrides it for a deliberate cross-tree comparison.
+ */
+const REPO = resolve(process.env.PROOVRA_AUDIT_REPO ?? resolve(import.meta.dirname, "..", "..", ".."));
 const CAPABILITY_MAP = join(REPO, "docs/architecture/current-runtime-capability-map.json");
 const OUT = resolve(import.meta.dirname, ".");
 
@@ -269,7 +277,7 @@ for (const [id, rec] of endpoints) {
 }
 
 const summary = {
-  auditedSha: "f822de79ad9397928cb59d1760e42bd63e583457",
+  auditedSha: execSync("git rev-parse HEAD", { cwd: REPO }).toString().trim(),
   webRoutesTotal: manifest.rows.length,
   applicableRoutes: applicable.length,
   endpointsWithConsumers: endpoints.size,

@@ -1,7 +1,7 @@
 # D — COMPLETE INTERACTION REGISTER
 
-**Audited SHA:** `f822de79ad9397928cb59d1760e42bd63e583457`
-**Machine source:** `interaction-register.json` (484 controls).
+**Audited SHA:** `10668edbe4ac189ff965a09c7e8be17953d83f4a`
+**Machine source:** `interaction-register.json` (485 controls).
 
 Every interactive control on every applicable native screen, with what its handler is
 **wired to** — resolved by following named handlers up to 3 levels inside the file.
@@ -9,7 +9,7 @@ Every interactive control on every applicable native screen, with what its handl
 **No control is marked passing because an `onPress` exists.** A handler whose effect
 cannot be reached in-file is `UNVERIFIED`, not a pass. And no verdict here is a
 runtime claim: this is source evidence that a handler is bound and what it calls. That
-a tap reaches the server on a real device is **UNVERIFIED for all 484 controls**
+a tap reaches the server on a real device is **UNVERIFIED for all 485 controls**
 (0 simulator runs, 0 device runs).
 
 | Wired to | Controls |
@@ -18,7 +18,7 @@ a tap reaches the server on a real device is **UNVERIFIED for all 484 controls**
 | `NAVIGATION` | 140 |
 | `API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE` | 69 |
 | `EXTERNAL_HANDLER_UNRESOLVED` | 33 |
-| `API_CALL+LOCAL_STATE` | 31 |
+| `API_CALL+LOCAL_STATE` | 32 |
 | `FEEDBACK_OR_DIALOG+LOCAL_STATE` | 13 |
 | `API_CALL+LOCAL_STATE+NAVIGATION` | 7 |
 | `API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION` | 5 |
@@ -27,7 +27,7 @@ a tap reaches the server on a real device is **UNVERIFIED for all 484 controls**
 
 | Verdict | Controls |
 |---|---:|
-| WIRED_SOURCE_INFERRED | 451 |
+| WIRED_SOURCE_INFERRED | 452 |
 | UNVERIFIED (handler leaves the file) | 33 |
 
 
@@ -497,6 +497,20 @@ a tap reaches the server on a real device is **UNVERIFIED for all 484 controls**
 | 220 | `onPress` | `NAVIGATION` | `() => router.push(`/collaboration-team/${team.id}`)` | wired |
 | 227 | `onPress` | `API_CALL+LOCAL_STATE` | `() => void load(cursor, teams)` | wired |
 
+## `/home` — 7 controls
+
+`apps/mobile/app/(tabs)/index.tsx`
+
+| Line | Prop | Wired to | Handler | Verdict |
+|---:|---|---|---|---|
+| 280 | `onPress` | `NAVIGATION` | `() => router.push("/search")` | wired |
+| 295 | `onPress` | `NAVIGATION` | `() => router.push("/capture")` | wired |
+| 323 | `onPress` | `API_CALL+LOCAL_STATE` | `load` | wired |
+| 355 | `onPress` | `NAVIGATION` | `p.href ? () => router.push(p.href as never) : undefined` | wired |
+| 376 | `onPress` | `NAVIGATION` | `() => router.push("/capture")` | wired |
+| 393 | `onPress` | `NAVIGATION` | `() => router.push(`/evidence/${item.id}`)` | wired |
+| 415 | `onPress` | `NAVIGATION` | `() => router.push(`/case/${c.id}`)` | wired |
+
 ## `/intake-links` — 7 controls
 
 `apps/mobile/app/(stack)/intake-links.tsx`
@@ -552,19 +566,6 @@ a tap reaches the server on a real device is **UNVERIFIED for all 484 controls**
 | 77 | `onChangeText` | `LOCAL_STATE` | `setPassword` | wired |
 | 90 | `onPress` | `LOCAL_STATE` | `() => void submit()` | wired |
 | 93 | `onPress` | `NAVIGATION` | `() => router.replace("/(stack)/auth")` | wired |
-
-## `/home` — 6 controls
-
-`apps/mobile/app/(tabs)/index.tsx`
-
-| Line | Prop | Wired to | Handler | Verdict |
-|---:|---|---|---|---|
-| 226 | `onPress` | `NAVIGATION` | `() => router.push("/search")` | wired |
-| 241 | `onPress` | `NAVIGATION` | `() => router.push("/capture")` | wired |
-| 277 | `onPress` | `NAVIGATION` | `p.href ? () => router.push(p.href as never) : undefined` | wired |
-| 298 | `onPress` | `NAVIGATION` | `() => router.push("/capture")` | wired |
-| 315 | `onPress` | `NAVIGATION` | `() => router.push(`/evidence/${item.id}`)` | wired |
-| 337 | `onPress` | `NAVIGATION` | `() => router.push(`/case/${c.id}`)` | wired |
 
 ## `/search` — 6 controls
 

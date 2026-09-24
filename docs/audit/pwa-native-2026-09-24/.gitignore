@@ -1,0 +1,6 @@
+# Regenerable intermediates. Each is rebuilt by the documented run order in
+# README.md, and inverse-coverage.json duplicates endpoint-gap-register.json
+# byte for byte. Committing them would put ~750 KB of derived JSON in history
+# for no reader's benefit.
+inverse-coverage.json
+controls-and-states.json

@@ -1,6 +1,6 @@
 # B — COMPLETE ROUTE MATRIX (all 208 routes)
 
-**Audited SHA:** `f822de79ad9397928cb59d1760e42bd63e583457`
+**Audited SHA:** `10668edbe4ac189ff965a09c7e8be17953d83f4a`
 **Machine source:** `route-matrix.json` in this directory (emitted by `emit-artifacts.mjs`).
 
 Every route discovered under `apps/web/app` appears exactly once, including the
@@ -27,8 +27,8 @@ controls on the native screen; **Tests** = mobile test files referencing it
 | Route | Native screen | Ledger | Phys | WebEP | Nat | Gap | Ctl | Tests |
 |---|---|---|---:|---:|---:|---:|---:|---|
 | `/abuse-reporting` | `(stack)/legal/[slug].tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 2 | **0** |
-| `/auth` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 9 | 32 R |
-| `/auth/callback/ui` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 3 | 3 | 0 | 9 | 32 R |
+| `/auth` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 9 | 34 R |
+| `/auth/callback/ui` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 3 | 3 | 0 | 9 | 34 R |
 | `/auth/mfa-challenge` | `(stack)/mfa.tsx` | CODE_PARITY | **no** | 8 | 5 | 2 | 4 | 5 R |
 | `/auth/mfa-recovery/verify` | `(stack)/mfa-recovery-verify.tsx` | CODE_PARITY | **no** | 3 | 3 | 0 | 2 | 1 |
 | `/auth/verify-email` | `(stack)/verify-email.tsx` | CODE_PARITY | **no** | 4 | 3 | 1 | 1 | 3 |
@@ -45,14 +45,14 @@ controls on the native screen; **Tests** = mobile test files referencing it
 | `/evidence-requests/[id]` | `(stack)/evidence-request/[id].tsx` | CODE_PARITY | **no** | 18 | 6 | 10 | 11 | 1 R |
 | `/evidence/[id]` | `(stack)/evidence/[id].tsx` | CODE_PARITY | **no** | 110 | 24 | 42 | 29 | **0** |
 | `/forgot-password` | `(stack)/forgot-password.tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 4 | **0** |
-| `/home` | `(tabs)/index.tsx` | CODE_PARITY | **no** | 24 | 6 | 18 | 6 | 15 R |
+| `/home` | `(tabs)/index.tsx` | CODE_PARITY | **no** | 24 | 6 | 18 | 7 | 15 R |
 | `/inbox` | `(tabs)/notifications.tsx` | CODE_PARITY | **no** | 6 | 5 | 1 | 9 | **0** |
 | `/intake-links` | `(stack)/intake-links.tsx` | CODE_PARITY | **no** | 12 | 4 | 6 | 7 | 4 R |
 | `/intake/[token]` | `(stack)/intake/[token].tsx` | CODE_PARITY | **no** | 6 | 3 | 1 | 7 | 2 |
 | `/intake/[token]/capture` | `(stack)/intake/capture.tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 4 | 9 R |
 | `/invite/[token]` | `(stack)/invite/[token].tsx` | CODE_PARITY | **no** | 2 | 0 | 2 | 3 | 2 |
 | `/legal/[slug]` | `(stack)/legal/[slug].tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 2 | **0** |
-| `/login` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 7 | 6 | 1 | 9 | 32 R |
+| `/login` | `(stack)/auth.tsx` | CODE_PARITY | **no** | 7 | 6 | 1 | 9 | 34 R |
 | `/notifications` | `(tabs)/notifications.tsx` | CODE_PARITY | **no** | 0 | 0 | 0 | 9 | **0** |
 | `/operations` ⚠️ | **NONE** | NO_LEDGER_ROW | — | 19 | 0 | 19 | — | **0** |
 | `/operations/batch-analysis` | `(stack)/operations/batch-analysis.tsx` | CODE_PARITY | **no** | 5 | 5 | 0 | 12 | 1 |

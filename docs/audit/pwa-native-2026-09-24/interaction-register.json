@@ -1,6 +1,6 @@
 {
- "auditedSha": "f822de79ad9397928cb59d1760e42bd63e583457",
- "count": 484,
+ "auditedSha": "10668edbe4ac189ff965a09c7e8be17953d83f4a",
+ "count": 485,
  "controls": [
   {
    "routePath": "/abuse-reporting",
@@ -1679,7 +1679,7 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 226,
+   "line": 280,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "() => router.push(\"/search\")",
@@ -1688,7 +1688,7 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 241,
+   "line": 295,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "() => router.push(\"/capture\")",
@@ -1697,7 +1697,16 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 277,
+   "line": 323,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "load",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 355,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "p.href ? () => router.push(p.href as never) : undefined",
@@ -1706,7 +1715,7 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 298,
+   "line": 376,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "() => router.push(\"/capture\")",
@@ -1715,7 +1724,7 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 315,
+   "line": 393,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "() => router.push(`/evidence/${item.id}`)",
@@ -1724,7 +1733,7 @@
   {
    "routePath": "/home",
    "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
-   "line": 337,
+   "line": 415,
    "prop": "onPress",
    "wiredTo": "NAVIGATION",
    "handler": "() => router.push(`/case/${c.id}`)",

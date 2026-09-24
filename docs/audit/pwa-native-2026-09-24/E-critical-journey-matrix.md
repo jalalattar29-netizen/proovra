@@ -1,5 +1,7 @@
 # E — CRITICAL JOURNEY MATRIX
 
+> **Currency:** this document reports the BASELINE run at `f822de79a`. It was re-run on `uc6-public-launch` @ `10668edbe` — see **[J](J-reconciliation-on-recovery-branch.md)**. All findings persist; the Android fingerprint is now fixed in-repo but undeployed, and the measured counts moved slightly (tests 942→946, controls 484→485).
+
 **Audited SHA:** `f822de79ad9397928cb59d1760e42bd63e583457`
 
 ## E.0 How to read a verdict
