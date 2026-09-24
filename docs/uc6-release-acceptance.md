@@ -253,6 +253,48 @@ hand-maintained.
 Demanding copy for a code nobody can meet is noise, and noise is how a
 coverage number stops being read.
 
+### Where the measurement moved on 2026-09-24, and why
+
+| | reported before | now |
+|---|---|---|
+| produced by the API | 441 | 441 |
+| **reachable errors** | 326 | **306** |
+| answered on web | 132 | **154** |
+| answered on native | 80 | **102** |
+| **answered by neither** | 192 | **150** |
+
+Twenty of that movement is a misclassification corrected: `ACTIVE_LEGAL_HOLD`,
+`SLA_BREACHED`, `INCIDENT_OPEN_CRITICAL` and seventeen others are WARNINGS in
+a governance snapshot — `{ code, label, severity }` — that already carry their
+own words. They were never errors, and counting them inflated every
+denominator.
+
+Twenty-two is a fix: the `*_RETIRED` family, answered on both clients by one
+shared rule rather than twenty-two duplicated entries.
+
+### The 150 that remain, by where they are produced
+
+| count | area |
+|---|---|
+| 35 | `services/capture-trust` |
+| 25 | `routes` |
+| 14 | `services/governance` |
+| 11 | `services/redaction` |
+| 10 | `services/ai` |
+| 8 | `services/lifecycle` |
+| 47 | seven smaller areas |
+
+The largest group is capture-trust protocol failures — `SIGNATURE_INVALID`,
+`NONCE_MISMATCH`, `PAYLOAD_DIGEST_MISMATCH`, `DEVICE_NOT_REGISTERED`. A person
+cannot act on any of them beyond retrying, so a documented generic
+presentation is the correct answer rather than 35 sentences. What that generic
+presentation must do is say whether the work survived, and on the extension it
+now does ("Nothing was saved"). The native capture surface still answers
+"Something went wrong — please try again", which does not.
+
+**These 150 are not handled. They fall through to each client's documented
+generic bucket**, which is safe and is not the same thing.
+
 ### Coverage of the reachable set
 
 | | before UC-6 | now |
