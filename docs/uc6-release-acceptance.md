@@ -190,10 +190,21 @@ and writing it requires a new build regardless.
 
 ## C3. LAYOUT AND ACCESSIBILITY ACCEPTANCE
 
-**296 passed, 0 failed** across `operations-layout` and `capture-layout`,
-against a freshly built production bundle with the previously running
-`next start` servers killed first — `reuseExistingServer: true` will happily
-serve a stale build and report green about code that was never loaded.
+**296 passed, 0 failed on Windows** across `operations-layout` and
+`capture-layout`, against a freshly built production bundle with the
+previously running `next start` servers killed first — `reuseExistingServer:
+true` will happily serve a stale build and report green about code that was
+never loaded.
+
+> **CORRECTION (2026-09-24).** That number was reported here as layout
+> ACCEPTANCE. It is not. It was measured on one developer's operating system,
+> and the first CI run of the new `layout` job — which builds and runs the
+> same 296 on Linux — FAILED, with a 462 MB trace artifact implying many
+> failures rather than one. Every step before the suite passed, including the
+> discovery assertion, so the projects did run. A suite that passes on Windows
+> and fails on Linux has not been accepted; it has been measured once, on the
+> platform that happened to be to hand. The cause is under investigation and
+> the honest status of this section is **INCOMPLETE**.
 
 It began at **33 failed**. None of it was UC-6 damage: this project runs in
 no workflow (`playwright-e2e.yml` names `--project=chromium`, and these are
