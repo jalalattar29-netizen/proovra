@@ -76,6 +76,21 @@ production credentials and booting it locally would reach production.
 
 4. `Redis unavailable` delivered separately, via the NoData→Alerting policy,
    because no redis-exporter runs in the disposable stack.
+5. The target was restored and the **recovery** notification arrived:
+   `API down -> resolved` at 02:26:38.
+6. `Redis unavailable` then repeated at roughly five-minute intervals, which
+   is `repeat_interval` doing its job rather than a duplicate-delivery bug.
+
+The ten deliveries are recorded verbatim in
+`docs/operations/monitoring-exercise-2026-09-24.jsonl` — the receiver's own
+log, not a transcription.
+
+### The cold-start measurement
+
+| | deliveries on a start with nothing scraped yet |
+|---|---|
+| before the `noDataState` policy | **21** |
+| after | **0** |
 
 ## What this does NOT prove
 
