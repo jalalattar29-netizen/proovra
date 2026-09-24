@@ -240,13 +240,20 @@ describe("O1.6 — alert YAML carries new alert UIDs", () => {
   }
 
   it("every rule has a runbook_url", () => {
-    const ruleCount = (src.match(/uid: /g) ?? []).length;
+    // ANCHORED TO THE RULE LINE, not to `uid:` anywhere.
+    //
+    // A rule is `- uid: <name>` at the start of a list item. `uid:` also
+    // appears inside each query's `datasource:` block, so the bare pattern
+    // counted every rule twice the moment the queries named their data
+    // source — and reported the file as half-documented when nothing about
+    // its documentation had changed.
+    const ruleCount = (src.match(/^\s*- uid: /gm) ?? []).length;
     const runbookCount = (src.match(/runbook_url:/g) ?? []).length;
     expect(runbookCount).toBeGreaterThanOrEqual(ruleCount);
   });
 
   it("every rule carries a severity label", () => {
-    const ruleCount = (src.match(/uid: /g) ?? []).length;
+    const ruleCount = (src.match(/^\s*- uid: /gm) ?? []).length;
     const severityCount = (src.match(/severity:/g) ?? []).length;
     expect(severityCount).toBeGreaterThanOrEqual(ruleCount);
   });
