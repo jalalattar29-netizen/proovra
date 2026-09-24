@@ -623,3 +623,114 @@ jobs:
         env:
           SHARD_RESULT: ${{ needs.admin-control-plane.result }}
         run: node scripts/admin-shard-accounting.mjs shard-reports 97 5
+
+  # ===========================================================================
+  # LAYOUT AND ACCESSIBILITY — the projects nothing used to run.
+  #
+  # `operations-layout` and `capture-layout` measure what only a real engine
+  # can answer: whether a row surface renders, whether the header overflows at
+  # 320px RTL, whether a refused context reads anything, whether a disclosure
+  # opens. On 2026-09-23 they were executed for the first time in months and
+  # returned 33 failures — among them a REFUSED context still issuing
+  # `/v1/ops/incident-groups`, which is a product defect no other gate sees.
+  #
+  # They are deliberately NOT part of the `e2e` job above. That job provisions
+  # one stack on one port for the Phase-1 critical flows; these two bring their
+  # own `next start` on 3014 and 3015 behind their own opt-in variables, and
+  # intercept the API entirely — so they need no Postgres, no Redis, no MinIO
+  # and no seeded fixture. A separate job is both cheaper and honest about
+  # what each one proves.
+  #
+  # No `if:` guard anywhere in this job: a gate that skips itself on the
+  # branches that matter is not a gate.
+  # ===========================================================================
+  layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      # POINT THE BUILD AT A DEAD PORT.
+      #
+      # `NEXT_PUBLIC_API_BASE` defaults to https://api.proovra.com, so a
+      # request these projects failed to intercept would leave the runner and
+      # reach PRODUCTION. Every one of the 296 is intercepted — verified by
+      # building against this origin and running the whole suite green — and
+      # pointing the build here means a future un-intercepted call fails
+      # locally and loudly instead of succeeding quietly against the real API.
+      NEXT_PUBLIC_API_BASE: http://127.0.0.1:59999
+      NEXT_TELEMETRY_DISABLED: "1"
+      OPERATIONS_LAYOUT: "1"
+      CAPTURE_LAYOUT: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm run build:shared
+
+      # THE PRODUCTION BUILD, because that is the whole point.
+      #
+      # These projects resolve real CSS variables through the real stylesheet
+      # order and the real class hashing. `next dev` differs in all three, so a
+      # dev-server pass would prove nothing about what ships.
+      - name: Build the web app (production)
+        run: pnpm --filter proovra-web build
+
+      - name: Install Playwright browser
+        run: pnpm test:e2e:playwright:install
+
+      # A JOB THAT RUNS ZERO TESTS IS GREEN AND WORTHLESS.
+      #
+      # Both projects are opt-in: without their variables the config contributes
+      # no projects and no web servers, and `playwright test` exits 0 having
+      # done nothing. It has also happened that a spec failed to PARSE, which
+      # reports "Total: 0 tests in 0 files" and exit 0. So the count is asserted
+      # before the suite is trusted to mean anything.
+      - name: Assert both projects discover their tests
+        run: |
+          set -euo pipefail
+          total=$(pnpm exec playwright test \
+            --project=operations-layout --project=capture-layout --list 2>&1 \
+            | sed -E 's/\x1b\[[0-9;]*m//g' \
+            | grep -oE 'Total: [0-9]+ tests' | grep -oE '[0-9]+' || echo 0)
+          echo "discovered: ${total}"
+          if [ "${total}" -lt 280 ]; then
+            echo "::error::layout projects discovered ${total} tests; expected at least 280 (296 at f822de79a). A parse error or a missing opt-in variable reports zero and exits 0."
+            exit 1
+          fi
+
+      - name: Run the layout and accessibility suites
+        run: |
+          pnpm exec playwright test \
+            --project=operations-layout --project=capture-layout \
+            --reporter=line
+
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+
+      # Traces and screenshots are what make a layout failure diagnosable at
+      # all: "the header overflowed by 8px" is unreadable without the picture.
+      - name: Upload failure traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
