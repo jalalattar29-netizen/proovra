@@ -124,7 +124,31 @@ function producedCodes() {
     for (const m of src.matchAll(/\bcode:\s*"([A-Z][A-Z0-9_]+)"/g)) {
       const before = src.slice(Math.max(0, m.index - 220), m.index);
       const observability = OBSERVABILITY_RECEIVER.test(before);
-      add(m[1], file, observability ? "OBSERVABILITY" : inRoutes ? "REPLY" : "ENVELOPE");
+      // NOT EVERY `code:` IS AN ERROR.
+      //
+      // `ACTIVE_LEGAL_HOLD` is a WARNING inside a governance snapshot —
+      // `{ code, label, severity }` pushed onto a warnings array — and it
+      // already carries its own human label. Counting it as an unanswered
+      // error code asks for dictionary copy that would never be shown, and
+      // inflates the denominator every coverage claim is measured against.
+      //
+      // The tell is a sibling `label:` within the same object literal, which
+      // an error envelope never has.
+      const after = src.slice(m.index, m.index + 220);
+      const labelled =
+        /\blabel:\s*["'`]/.test(after) &&
+        !/\berror:\s*\{/.test(before.slice(-80));
+      add(
+        m[1],
+        file,
+        observability
+          ? "OBSERVABILITY"
+          : labelled
+            ? "LABELLED_WARNING"
+            : inRoutes
+              ? "REPLY"
+              : "ENVELOPE",
+      );
     }
     for (const m of src.matchAll(/\bdenial:\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file, "REPLY");
     for (const m of src.matchAll(/new AppError\(\s*"([A-Z][A-Z0-9_]+)"/g)) add(m[1], file, "THROWN");
@@ -147,6 +171,9 @@ function producedCodes() {
  */
 function reachabilityOf(kinds) {
   if (kinds.has("REPLY") || kinds.has("THROWN") || kinds.has("ENVELOPE")) return "REACHABLE";
+  // A code that only ever appears as a labelled warning reaches a person
+  // WITH its own words already attached, so it needs no dictionary entry.
+  if (kinds.has("LABELLED_WARNING")) return "LABELLED_WARNING";
   if (kinds.has("OBSERVABILITY")) return "OBSERVABILITY_ONLY";
   return "ENUM_ONLY";
 }

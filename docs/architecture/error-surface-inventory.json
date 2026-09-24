@@ -7,19 +7,19 @@
     "neither": 298,
     "webOnly": 60,
     "nativeOnly": 3,
-    "reachable": 326,
+    "reachable": 306,
     "observabilityOnly": 86,
     "enumOnly": 29,
     "reachableAnsweredOnWeb": 132,
     "reachableAnsweredOnNative": 80,
-    "reachableAnsweredByNeither": 192
+    "reachableAnsweredByNeither": 172
   },
   "rows": [
     {
       "code": "ACCESS_ACTIVITY_CHANGED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
@@ -66,9 +66,9 @@
     },
     {
       "code": "ACTIVE_CASE_HOLD",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -82,9 +82,9 @@
     },
     {
       "code": "ACTIVE_LEGAL_HOLD",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -467,9 +467,9 @@
     },
     {
       "code": "ARTIFACT_VERSION_CHANGED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
@@ -1303,9 +1303,9 @@
     },
     {
       "code": "CORE_INTEGRITY_SIGNALS_CHANGED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
@@ -1882,9 +1882,9 @@
     },
     {
       "code": "DESTRUCTION_REVIEW_ACTIVE",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -2242,9 +2242,9 @@
     },
     {
       "code": "ESCALATION_OPEN",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -2734,9 +2734,9 @@
     },
     {
       "code": "FORENSIC_CUSTODY_CHANGED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
@@ -2977,9 +2977,9 @@
     },
     {
       "code": "IMMUTABLE_STORAGE_DRIFT",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -2993,9 +2993,9 @@
     },
     {
       "code": "INCIDENT_OPEN_CRITICAL",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -3009,9 +3009,9 @@
     },
     {
       "code": "INCIDENT_OPEN_HIGH",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -3897,9 +3897,9 @@
     },
     {
       "code": "LIFECYCLE_DESTROYED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -3945,9 +3945,9 @@
     },
     {
       "code": "LIFECYCLE_ON_HOLD",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -3961,9 +3961,9 @@
     },
     {
       "code": "LIFECYCLE_PENDING_DESTRUCTION",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -3977,9 +3977,9 @@
     },
     {
       "code": "LIFECYCLE_RETENTION_LOCKED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -5408,9 +5408,9 @@
     },
     {
       "code": "PUBLICATION_STATUS_CHANGED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
@@ -5651,9 +5651,9 @@
     },
     {
       "code": "RETENTION_EXPIRED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -6214,9 +6214,9 @@
     },
     {
       "code": "SLA_BREACHED",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -6230,9 +6230,9 @@
     },
     {
       "code": "SLA_DUE_SOON",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts"
@@ -6950,9 +6950,9 @@
     },
     {
       "code": "UNKNOWN_DIFFERENCE",
-      "reachability": "REACHABLE",
+      "reachability": "LABELLED_WARNING",
       "producedAs": [
-        "ENVELOPE"
+        "LABELLED_WARNING"
       ],
       "producedIn": [
         "services/api/src/services/trust-decision-consistency.service.ts"
