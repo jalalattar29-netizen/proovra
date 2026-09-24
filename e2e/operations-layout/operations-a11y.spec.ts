@@ -327,7 +327,24 @@ test("a failed mutation is ANNOUNCED, not merely drawn", async ({ page }) => {
   await openOperations(page, "team-admin", { scenario: "mutation-error" });
   await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
-  await page.locator('[data-ops-row-action="acknowledge"]').click();
+  /*
+   * SCOPE THE ACTION TO THE PANEL THAT JUST OPENED.
+   *
+   * `AppAnchoredOverlay` returns null until it has measured its anchor
+   * (`if (!open || !coords) return null`), so the menu's items appear a
+   * frame or more after the trigger is pressed — and a page-wide locator
+   * for the action can resolve against a row whose menu is not the open
+   * one. These two tests were the only pair in this file clicking an action
+   * without scoping it, and they were the only two that failed on CI while
+   * passing locally: 294 of 296 green on Linux, both failures here, both
+   * "locator.click: Test timeout of 60000ms exceeded".
+   *
+   * Waiting for the panel first also means a future failure says the menu
+   * never opened, instead of blaming the click.
+   */
+  const menu = visible(page, "[data-ops-row-menu-panel]").first();
+  await menu.waitFor({ state: "visible", timeout: 15_000 });
+  await menu.locator('[data-ops-row-action="acknowledge"]').click();
   const err = page.locator("[data-ops-mutation-error]");
   await expect(err).toBeVisible();
   expect(await err.getAttribute("role")).toBe("alert");
@@ -337,11 +354,29 @@ test("a pending mutation cannot be fired twice", async ({ page }) => {
   await openOperations(page, "team-admin", { scenario: "mutation-pending" });
   await showAllConditions(page);
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
-  await page.locator('[data-ops-row-action="acknowledge"]').click();
+  /*
+   * SCOPE THE ACTION TO THE PANEL THAT JUST OPENED.
+   *
+   * `AppAnchoredOverlay` returns null until it has measured its anchor
+   * (`if (!open || !coords) return null`), so the menu's items appear a
+   * frame or more after the trigger is pressed — and a page-wide locator
+   * for the action can resolve against a row whose menu is not the open
+   * one. These two tests were the only pair in this file clicking an action
+   * without scoping it, and they were the only two that failed on CI while
+   * passing locally: 294 of 296 green on Linux, both failures here, both
+   * "locator.click: Test timeout of 60000ms exceeded".
+   *
+   * Waiting for the panel first also means a future failure says the menu
+   * never opened, instead of blaming the click.
+   */
+  const menu = visible(page, "[data-ops-row-menu-panel]").first();
+  await menu.waitFor({ state: "visible", timeout: 15_000 });
+  await menu.locator('[data-ops-row-action="acknowledge"]').click();
   // The menu closed on the first press; re-opening shows the action disabled
   // or the row busy. Either way a second identical transition cannot be sent.
   await visible(page, "[data-ops-row-menu-trigger]").first().click();
-  const item = page.locator('[data-ops-row-action="acknowledge"]');
+  const reopened = visible(page, "[data-ops-row-menu-panel]").first();
+  const item = reopened.locator('[data-ops-row-action="acknowledge"]');
   if ((await item.count()) > 0) {
     expect(await item.isDisabled()).toBe(true);
   }

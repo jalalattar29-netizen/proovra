@@ -197,14 +197,25 @@ true` will happily serve a stale build and report green about code that was
 never loaded.
 
 > **CORRECTION (2026-09-24).** That number was reported here as layout
-> ACCEPTANCE. It is not. It was measured on one developer's operating system,
-> and the first CI run of the new `layout` job — which builds and runs the
-> same 296 on Linux — FAILED, with a 462 MB trace artifact implying many
-> failures rather than one. Every step before the suite passed, including the
-> discovery assertion, so the projects did run. A suite that passes on Windows
-> and fails on Linux has not been accepted; it has been measured once, on the
-> platform that happened to be to hand. The cause is under investigation and
-> the honest status of this section is **INCOMPLETE**.
+> ACCEPTANCE. It is not: it was measured on one developer's operating system,
+> and the first CI run of the new `layout` job — the same 296 tests built and
+> run on Linux — failed.
+>
+> **A second correction, to the first one.** That paragraph originally read
+> "a 462 MB trace artifact implying many failures rather than one". That
+> inference was wrong. Once the job was made to report its own failures as
+> annotations, the result was **294 passed, 2 failed** — Playwright writes a
+> video and a full trace per failing attempt, so two tests with retries
+> produce hundreds of megabytes. Artifact size says nothing about failure
+> count, and it should not have been read as though it did.
+>
+> Both failures were in `operations-a11y.spec.ts`, both
+> `locator.click: Test timeout of 60000ms exceeded`, and both were the only
+> two places in that file clicking a row-menu action without scoping it to
+> the panel that had just opened. `AppAnchoredOverlay` returns null until it
+> has measured its anchor, so the items arrive a frame or more after the
+> trigger is pressed. Fixed by scoping; the status of this section stays
+> **INCOMPLETE** until a green CI run says otherwise.
 
 It began at **33 failed**. None of it was UC-6 damage: this project runs in
 no workflow (`playwright-e2e.yml` names `--project=chromium`, and these are
