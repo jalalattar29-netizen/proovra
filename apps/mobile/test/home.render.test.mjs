@@ -8,7 +8,13 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadWithProviders, renderInProviders, React } from "./support/render.mjs";
+import { loadModule, renderComponent, React } from "./support/render.mjs";
+import {
+  authenticatedRoutes,
+  signIn,
+  assertScopedRequests,
+  TEST_TEAM_ID,
+} from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -34,19 +40,7 @@ function installFetch() {
 }
 
 const OK = () => ({
-  /*
-   * THE ENVELOPE SHAPE THE SERVER ACTUALLY SENDS.
-   *
-   * This stub nested `activeSpace` under a `context` key. The route answers
-   * `reply.code(200).send(result.envelope)` with `activeSpace` at the TOP
-   * level, and `projectPlatformContext` reads it there.
-   *
-   * So `activeTeamId` was null in every test in this file: six of the ten Home
-   * requests short-circuited to `Promise.resolve(null)` and the
-   * workspace-scoped path — the one a signed-in person actually uses — was
-   * never exercised at all.
-   */
-  "/v1/platform/context": () => ({ activeSpace: { id: "team-1", type: "ORGANIZATION" } }),
+  ...authenticatedRoutes(),
   "/v1/evidence": () => ({
     items: [
       {
@@ -73,15 +67,23 @@ const OK = () => ({
 });
 
 before(async () => {
-  M = await loadWithProviders("app/(tabs)/index.tsx");
+  M = await loadModule("app/(tabs)/index.tsx", [
+    "test/support/providers.tsx",
+    // The SecureStore the screen itself resolves to, so seeding it is
+    // seeding the app's own store rather than a second copy.
+    "test/support/expo-stub.mjs",
+  ]);
 });
-beforeEach(() => {
+beforeEach(async () => {
   requests = [];
   routes = OK();
   installFetch();
+  // Without this every test below renders the SIGNED-OUT branch while
+  // reading as coverage of the signed-in screen.
+  await signIn(M);
 });
 
-const render = () => renderInProviders(M, h(M.default, {}));
+const render = () => renderComponent(h(M.TestProviders, null, h(M.default, {})));
 
 test("Home reads the canonical dashboard sources, not just two", async () => {
   await render();
@@ -94,6 +96,31 @@ test("Home reads the canonical dashboard sources, not just two", async () => {
   ]) {
     assert.ok(paths.includes(p), `Home never requested ${p}`);
   }
+});
+
+/*
+ * THE TEST THE SUITE DID NOT HAVE.
+ *
+ * Six of Home's ten requests are written as
+ * `teamId ? apiFetch(scoped(path)) : Promise.resolve(null)`. With a null
+ * activeTeamId they are never SENT, and the screen renders a plausible
+ * empty workspace. Every test in this file used to run in exactly that
+ * state, so none of them touched the path a signed-in person uses.
+ */
+test("the workspace-scoped requests actually execute", async () => {
+  await render();
+
+  const scoped = assertScopedRequests(assert, requests, [
+    "/v1/dashboard/command-center",
+    "/v1/dashboard/trust-summary",
+    "/v1/reports",
+    "/v1/workflow/intake-links",
+  ]);
+
+  assert.ok(
+    scoped.every((p) => p.includes(`teamId=${TEST_TEAM_ID}`)),
+    "a scoped request without the workspace id is a cross-workspace read",
+  );
 });
 
 test("Home renders the five canonical KPIs", async () => {
