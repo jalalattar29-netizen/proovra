@@ -72,7 +72,7 @@ an application somebody can install, and a launch an operator can stand behind.
 | 1 | **Repository code readiness** | **PASS** | api unit 25 194 (1 skipped) · api integration 2294/2294 across 160 files against live PostgreSQL 16 booted from migrations alone (a second run against a REUSED database read 2292/2294; both failures were residue-sensitive tick counters that scan every workspace, and the two files pass 50/50 on a database created and migrated fresh — which is what CI provisions) · worker 974/974 · web 3230 + 1470 render · operations/capture layout 296/296 on a freshly built bundle (§C3) · mobile 942/942 · contract audit 79/79 with 0 UNRESOLVED · AuditEngineIntegrity PASS · ReleaseBlockingClosure PASS · typecheck and lint clean across every workspace |
 | 2 | **CI readiness** | **PASS** | all three workflows green on `b79706b66`: `ci` (run 35902545060), `playwright-e2e` (35902545042), `schema-reproducibility` (35902545057). **Ten** distinct red causes were fixed at source along the way — none retried, none suppressed — and five of them were tests that asked a question too early rather than product faults. §A2 lists every one |
 | 3 | **Android build readiness** | **PASS (build)** · **SUPERSEDED (native manifest)** | EAS build `1bb438ab` FINISHED, v1.0.0 (17), internal distribution, existing keystore, APK published to the account's artifact store. **No longer corresponds to the final app code**, in exactly one respect: `apps/mobile/app.json` was changed after the build to narrow the Android `/auth` deep-link claim (§C2). Nothing else the bundle includes has moved — `git diff 7f994890f..HEAD -- apps/mobile packages/shared packages/shared-runtime` is that file plus a doc. The JavaScript is therefore identical; only the native manifest differs, and it is INERT until the signing fingerprint in §E2 is written, which forces a rebuild anyway |
-| 4 | **iOS build readiness** | **PASS (bundle)** · **NOT_TESTED (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A JavaScript bundle is not a signed application: no iOS build was produced in this phase, though credentials exist on the account from earlier FINISHED builds |
+| 4 | **iOS build readiness** | **PASS (bundle)** · **BLOCKED_EXTERNAL (signed native build)** | `expo export --platform ios` succeeds (1608 modules) after a clean `--frozen-lockfile` install. A device build WAS attempted on 2026-09-24 and reached Xcode, which proves the signing material exists — then failed on one exact thing: the App ID `com.jalalattar29.proovra` lacks the **Associated Domains** capability the declared `applinks:` entitlement needs (§E1). Not worked around, because removing the declaration would yield a green build whose Universal Links silently do not work |
 | 5 | **Android physical acceptance** | **NOT_TESTED** | no device was available to this session. The APK exists and `apps/mobile/docs/physical-acceptance.md` carries the script, the build id and the two UC-6 behaviours to exercise deliberately |
 | 6 | **iPhone physical acceptance** | **NOT_TESTED** | same, and no iOS build was produced |
 | 7 | **iPad physical acceptance** | **NOT_TESTED** | same |
@@ -316,6 +316,45 @@ now measurable because the inventory exists.
 Only after Stage 3 holds, and only with explicit publication approval. Store
 submission, production deployment and any production migration remain outside
 what this phase was authorized to do.
+
+---
+
+## E1. THE iOS BUILD ATTEMPT — what it proved and what it found
+
+An iOS **device** build was submitted on 2026-09-24 and accepted
+non-interactively: `c9aa4432-f2ca-44fc-b1b7-d6f43dc00011`, profile `preview`,
+`simulator: false`, `distribution: INTERNAL`, from commit `5f4b50fb6`.
+
+**It proved the signing material exists.** EAS would have demanded an Apple
+login to mint a distribution certificate or a provisioning profile if it did
+not already hold usable ones. The earlier reading — that Apple access blocked
+the iOS path — came from `eas credentials` refusing to run, which is
+interactive-only rather than unauthorised.
+
+**It then failed, precisely:**
+
+```
+XCODE_BUILD_ERROR
+Provisioning profile "*[expo] com.jalalattar29.proovra AdHoc 1789777604482"
+  doesn't support the Associated Domains capability.
+Provisioning profile ... doesn't include the
+  com.apple.developer.associated-domains entitlement.
+```
+
+`app.json` declares `ios.associatedDomains` — `applinks:proovra.com` and
+`applinks:www.proovra.com` — and the App ID does not carry the capability
+that entitlement needs.
+
+This is NEW, not a longstanding oversight. The last FINISHED iOS build
+(`889d719e`, commit `8d857dd49`) predates the declaration: `associatedDomains`
+was absent there, and `c22e8c1df` added it. **iOS has never been built since
+Universal Links were declared.**
+
+### Why it was not worked around
+
+Removing `associatedDomains` would produce a green build immediately — and an
+app whose Universal Links silently do not work, which is the same quiet
+failure as the placeholder association files. A downgrade is not progress.
 
 ---
 
