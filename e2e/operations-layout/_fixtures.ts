@@ -33,6 +33,10 @@
 
 import type { Page } from "@playwright/test";
 
+// The consent version lives in ONE place; reading it here means a bump cannot
+// silently leave this fixture seeding a stale decision.
+import { CONSENT_VERSION } from "../../apps/web/lib/consent";
+
 import {
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
@@ -1190,8 +1194,60 @@ export async function openOperations(
  * is recorded, no analytics are enabled, and nothing consents on behalf of an
  * automated run. The privacy-hardening assertions that check the banner exists
  * and defaults to necessary-only live in their own suites and are untouched.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-09-24 — THE STYLE RULE ALONE WAS NOT ENOUGH, AND THIS IS THE MEASUREMENT
+ * ---------------------------------------------------------------------------
+ * Two cases in `operations-a11y` failed on CI with `locator.click: Test timeout
+ * of 60000ms exceeded` while 294 passed, and both attempts of each retry failed
+ * the same way. They are the ONLY two cases in this project that click an item
+ * INSIDE the anchored overlay; the other eleven only open the menu.
+ *
+ * Probed against this build at the CI viewport (1280x720):
+ *
+ *   #cc-main               computed display: block   (the rule below did NOT win)
+ *   .cm.cm--box.cm--bottom.cm--right   x 880  y 327  w 384  h 377
+ *   row menu panel                     x 975  y 289  w 216  h 202
+ *   document.elementFromPoint(item centre) -> button.cm__btn
+ *
+ * The consent box and the row menu occupy the same bottom-right region, and the
+ * hit test at the menu item's centre returns the consent button — so Playwright
+ * correctly refuses to click and waits out the timeout. At a 400px viewport the
+ * same click fails locally in 8s, which is how this was reproduced off CI.
+ *
+ * Why the rule lost is a cascade question this fixture should not have to win:
+ * vanilla-cookieconsent ships `all: unset` / `all: initial` resets across every
+ * `#cc-main` descendant, and its stylesheet arrives in a route CSS chunk. So the
+ * suppression no longer DEPENDS on a stylesheet fight. The node is removed as
+ * soon as it mounts, which is decidable rather than negotiated.
+ *
+ * The recorded decision is seeded too — necessary-only, the most
+ * privacy-preserving option and the correct default for a run nobody consented
+ * on behalf of — matching `apps/web/e2e/admin-control-plane/admin-matrix.spec.ts`,
+ * which already does both halves. This project only ever did the second half.
  */
 async function suppressConsentOverlay(page: Page): Promise<void> {
+  await page.addInitScript(
+    ({ key, version }) => {
+      try {
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({
+            necessary: true,
+            preferences: false,
+            analytics: false,
+            marketing: false,
+            consentVersion: version,
+            updatedAt: new Date().toISOString(),
+          }),
+        );
+      } catch {
+        /* a context with storage disabled still runs the rest of the suite */
+      }
+    },
+    { key: "proovra-cookie-consent-state", version: CONSENT_VERSION },
+  );
+
   await page.addInitScript(() => {
     const style = document.createElement("style");
     style.textContent =
@@ -1199,6 +1255,26 @@ async function suppressConsentOverlay(page: Page): Promise<void> {
     const attach = () => document.head?.appendChild(style);
     if (document.head) attach();
     else document.addEventListener("DOMContentLoaded", attach, { once: true });
+
+    /*
+     * And take it out of the DOM, not just out of the paint. The rule above is
+     * kept because it costs nothing and covers the frames before the observer
+     * sees the node; this is what actually guarantees the consent box is never
+     * in the hit-testing layer when a test clicks a menu item beneath it.
+     */
+    const drop = () => {
+      const root = document.getElementById("cc-main");
+      if (root) root.remove();
+    };
+    const observe = () => {
+      drop();
+      new MutationObserver(drop).observe(document.body, {
+        childList: true,
+        subtree: false,
+      });
+    };
+    if (document.body) observe();
+    else document.addEventListener("DOMContentLoaded", observe, { once: true });
   });
 }
 
