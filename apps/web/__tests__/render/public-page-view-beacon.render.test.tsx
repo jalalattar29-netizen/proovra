@@ -82,18 +82,6 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-/**
- * Wait until the beacon has actually sent `count` events.
- *
- * Used where a send is EXPECTED. The zero-call cases keep `settle()`, since
- * there is no event to wait for — only the import, which `settle()` awaits.
- */
-async function settleUntil(count: number): Promise<void> {
-  await settle();
-  await vi.waitFor(() => {
-    expect(trackCalls()).toHaveLength(count);
-  });
-}
 
 beforeEach(() => {
   apiFetch.mockClear();
