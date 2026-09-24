@@ -379,6 +379,26 @@ broadcast extension `com.jalalattar29.proovra.broadcast`, app group
 module and the broadcast SampleHandler), scheme `proovra`, associated domains
 `www.proovra.com` and `proovra.com`.
 
+## E3. BLOCKERS, TO THE EXACT MISSING THING (2026-09-24)
+
+Every row below was reached by EXECUTING until something outside this
+environment refused, rather than by reading configuration and inferring.
+Two entries that appeared here previously are gone because the execution
+showed they were not blockers at all: the Android signing fingerprint (read
+out of the APK) and Apple signing itself (a device build reached Xcode).
+
+| # | Task | Verified state | Already executed | Exact missing thing | Where it must be configured | What I do immediately after | Blocks |
+|---|---|---|---|---|---|---|---|
+| 1 | iOS signed build | `c9aa4432` ERRORED at Xcode with `XCODE_BUILD_ERROR` | submitted a device build non-interactively; proved certificate + profile exist; read the exact Xcode error | **Associated Domains capability** on App ID `com.jalalattar29.proovra`, then a regenerated provisioning profile | Apple Developer → Certificates, Identifiers & Profiles → Identifiers → that App ID → enable Associated Domains; then `eas credentials` (interactive) or let EAS re-mint | re-run `eas build -p ios --profile preview`, verify the `.ipa`, record build id + version | internal testing AND public distribution |
+| 2 | Apple Team ID in `apple-app-site-association` | file still carries `<APPLE_TEAM_ID>` | wrote the Android fingerprint by extracting it from the APK; added a guard that fails on a malformed value | the ten-character Team ID | Apple Developer → Membership | write it, re-run the parity guards, redeploy the web app so the file serves | Universal Links on iOS |
+| 3 | Play App Signing fingerprint | `assetlinks.json` holds the real upload-key SHA-256 (extracted 2026-09-24) | extracted and published the current signing key; the field is an array so both coexist | the Play-assigned key, if and when the app is enrolled | Play Console → App integrity → App signing | append it to the array and redeploy | Android App Links only after Play enrolment |
+| 4 | Store submission (Chrome, Edge) | package built and published as a CI artifact each commit | gates, deterministic build, checksum, listing copy, permissions and privacy text | a store account session; submission is a human console step | Chrome Web Store dev console; Microsoft Partner Center | upload the artifact, fill the listing, register the extension ID and the OAuth redirect | public distribution |
+| 5 | Production alert destination | evaluator and delivery proven against a local sink | Prometheus + Grafana provisioning, repaired rules, contact point, routing, compose that refuses to start without a destination | the real `PROOVRA_ALERT_WEBHOOK_URL` (or SMTP settings) | the deployment environment; never in the repository | deploy the monitoring compose alongside prod, fire one synthetic alert, confirm delivery | full public launch |
+| 6 | Physical device acceptance | APK verified by static inspection only | built the APK, verified its manifest and deep links with `aapt` | an Android phone, an iPhone and an iPad — or a device-farm account | n/a — hardware or a paid farm | run the scripted acceptance in `apps/mobile/docs/physical-acceptance.md` and record real logs | full public launch |
+| 7 | `traces_spanmetrics_*` alerts | 4 of 32 rules can never fire | set them `noDataState: OK` so they are silent rather than noisy | an OpenTelemetry collector with the spanmetrics connector, and the API exporting OTLP | the deployment; a new compose service | add the collector, confirm the series appear, flip those rules back to a real NoData policy | observability completeness, not launch |
+
+---
+
 ## F. WHAT THIS PHASE DID NOT DO
 
 * No production deployment, no production migration, no production data access.
