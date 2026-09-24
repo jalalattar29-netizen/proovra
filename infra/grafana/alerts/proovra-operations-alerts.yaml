@@ -17,15 +17,29 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-api-down
+        # NoData here means the SCRAPER lost the target, which is the outage
+        # this rule exists to report — so absence must alert, not reassure.
+        noDataState: Alerting
+        execErrState: Error
         title: API down
         condition: api_down
         for: 2m
         data:
           - refId: api_down
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: api_down
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                avg_over_time(up{job="proovra-api"}[2m]) < 0.5
+                avg_over_time(up{job="proovra-api"}[2m]) < bool 0.5
         annotations:
           summary: PROOVRA API is not responding to scrapes.
           runbook_url: docs/operations/observability-runbooks.md#api-down
@@ -33,15 +47,31 @@ groups:
           severity: critical
 
       - uid: proovra-worker-degraded
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Worker degraded
         condition: worker_missing_heartbeat
         for: 5m
         data:
           - refId: worker_missing_heartbeat
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: worker_missing_heartbeat
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(increase(worker_heartbeat_missing_total[5m])) > 0
+                sum(increase(worker_heartbeat_missing_total[5m])) > bool 0
         annotations:
           summary: PROOVRA worker missed heartbeats in the last 5 minutes.
           runbook_url: docs/operations/observability-runbooks.md#worker-degraded
@@ -49,15 +79,31 @@ groups:
           severity: warning
 
       - uid: proovra-queue-failed-jobs-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Queue failed jobs spike
         condition: dlq_spike
         for: 10m
         data:
           - refId: dlq_spike
+            relativeTimeRange:
+              from: 1200
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: dlq_spike
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum by (queue_name) (rate(dlq_job_total[10m])) > 1
+                sum by (queue_name) (rate(dlq_job_total[10m])) > bool 1
         annotations:
           summary: Queue {{$labels.queue_name}} is producing failed jobs above the 1/s threshold.
           runbook_url: docs/operations/observability-runbooks.md#queue-failures
@@ -65,13 +111,29 @@ groups:
           severity: warning
 
       - uid: proovra-export-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Export failure spike
         condition: export_failure_spike
         for: 15m
         data:
           - refId: export_failure_spike
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: export_failure_spike
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
                 sum(rate(export_generation_failed_total[15m]))
                   + sum(rate(siu_export_failed_total[15m])) > 0.05
@@ -82,15 +144,31 @@ groups:
           severity: critical
 
       - uid: proovra-package-generation-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Verification Package generation failure
         condition: package_gen_fail
         for: 15m
         data:
           - refId: package_gen_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: package_gen_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(package_generation_failed_total[15m])) > 0.05
+                sum(rate(package_generation_failed_total[15m])) > bool 0.05
         annotations:
           summary: Verification Package generation failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#package-generation-failures
@@ -98,15 +176,31 @@ groups:
           severity: critical
 
       - uid: proovra-recovery-validation-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Recovery validation failure
         condition: recovery_fail
         for: 30m
         data:
           - refId: recovery_fail
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: recovery_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(increase(recovery_validation_failed_total[30m])) > 0
+                sum(increase(recovery_validation_failed_total[30m])) > bool 0
         annotations:
           summary: Recovery validation produced at least one failure in the last 30 minutes.
           runbook_url: docs/operations/observability-runbooks.md#recovery-validation-failures
@@ -114,15 +208,31 @@ groups:
           severity: warning
 
       - uid: proovra-siu-export-upload-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: SIU export upload failure
         condition: siu_upload_fail
         for: 5m
         data:
           - refId: siu_upload_fail
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: siu_upload_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(increase(siu_export_upload_failure_total[5m])) > 0
+                sum(increase(siu_export_upload_failure_total[5m])) > bool 0
         annotations:
           summary: SIU export ZIP upload to S3 failed.
           runbook_url: docs/operations/observability-runbooks.md#siu-export-upload-failure
@@ -130,15 +240,31 @@ groups:
           severity: critical
 
       - uid: proovra-signer-health-degraded
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Signer health degraded
         condition: signer_degraded
         for: 5m
         data:
           - refId: signer_degraded
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: signer_degraded
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(increase(signer_health_degraded_total[5m])) > 0
+                sum(increase(signer_health_degraded_total[5m])) > bool 0
         annotations:
           summary: Signer health probe returned a degraded state.
           runbook_url: docs/operations/observability-runbooks.md#signer-health-degraded
@@ -146,15 +272,31 @@ groups:
           severity: critical
 
       - uid: proovra-forbidden-replay-attempted
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Forbidden replay attempted
         condition: forbidden_replay
         for: 5m
         data:
           - refId: forbidden_replay
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: forbidden_replay
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(increase(queue_replay_forbidden_total[5m])) > 0
+                sum(increase(queue_replay_forbidden_total[5m])) > bool 0
         annotations:
           summary: An operator attempted to replay a forbidden job category.
           runbook_url: docs/operations/observability-runbooks.md#forbidden-replay-attempted
@@ -162,15 +304,31 @@ groups:
           severity: warning
 
       - uid: proovra-pii-reveal-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: SIU PII reveal spike
         condition: pii_reveal_spike
         for: 30m
         data:
           - refId: pii_reveal_spike
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: pii_reveal_spike
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(siu_pii_revealed_total[30m])) > 0.05
+                sum(rate(siu_pii_revealed_total[30m])) > bool 0.05
         annotations:
           summary: SIU claimant PII has been revealed at an elevated rate.
           runbook_url: docs/operations/observability-runbooks.md#siu-pii-reveal-spike
@@ -198,15 +356,29 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-redis-unavailable
+        # NoData here means the SCRAPER lost the target, which is the outage
+        # this rule exists to report — so absence must alert, not reassure.
+        noDataState: Alerting
+        execErrState: Error
         title: Redis unavailable
         condition: redis_down
         for: 2m
         data:
           - refId: redis_down
+            relativeTimeRange:
+              from: 600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: redis_down
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                avg_over_time(up{job=~"proovra-redis|redis"}[2m]) < 0.5
+                avg_over_time(up{job=~"proovra-redis|redis"}[2m]) < bool 0.5
         annotations:
           summary: Redis is not responding to scrapes. BullMQ + presence + caches are degraded.
           runbook_url: docs/operations/observability-runbooks.md#redis-unavailable
@@ -214,13 +386,29 @@ groups:
           severity: critical
 
       - uid: proovra-queue-backlog-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Queue backlog spike (stalled jobs)
         condition: queue_stalled_spike
         for: 10m
         data:
           - refId: queue_stalled_spike
+            relativeTimeRange:
+              from: 1200
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: queue_stalled_spike
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
                 sum(rate(worker_stalled_total[10m]))
                   + sum(rate(queue_job_stalled_total[10m])) > 0.05
@@ -231,15 +419,31 @@ groups:
           severity: warning
 
       - uid: proovra-queue-retry-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Queue retry failure spike
         condition: queue_retry_fail
         for: 15m
         data:
           - refId: queue_retry_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: queue_retry_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(queue_retry_failure_total[15m])) > 0.05
+                sum(rate(queue_retry_failure_total[15m])) > bool 0.05
         annotations:
           summary: Operator-initiated queue retries are failing above threshold.
           runbook_url: docs/operations/observability-runbooks.md#queue-retry-failure-spike
@@ -252,15 +456,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-signature-verify-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Signature verify failure spike
         condition: sig_verify_fail
         for: 10m
         data:
           - refId: sig_verify_fail
+            relativeTimeRange:
+              from: 1200
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: sig_verify_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.integrity.signature.verify",status_code="STATUS_CODE_ERROR"}[10m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.integrity.signature.verify",status_code="STATUS_CODE_ERROR"}[10m])) > bool 0.05
         annotations:
           summary: Integrity signature verification failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#signature-verify-failure
@@ -268,15 +488,31 @@ groups:
           severity: critical
 
       - uid: proovra-custody-chain-verify-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Custody chain verify failure spike
         condition: custody_chain_fail
         for: 10m
         data:
           - refId: custody_chain_fail
+            relativeTimeRange:
+              from: 1200
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: custody_chain_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.custody.chain.verify",status_code="STATUS_CODE_ERROR"}[10m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.custody.chain.verify",status_code="STATUS_CODE_ERROR"}[10m])) > bool 0.05
         annotations:
           summary: Custody chain verification failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#custody-chain-verify-failure
@@ -284,15 +520,31 @@ groups:
           severity: critical
 
       - uid: proovra-tsa-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: TSA timestamp failure spike
         condition: tsa_fail
         for: 15m
         data:
           - refId: tsa_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: tsa_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.tsa\\..*",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.tsa\\..*",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
         annotations:
           summary: TSA timestamp request/verify failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#tsa-failure-spike
@@ -300,15 +552,31 @@ groups:
           severity: warning
 
       - uid: proovra-ots-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: OTS anchor/upgrade/verify failure spike
         condition: ots_fail
         for: 30m
         data:
           - refId: ots_fail
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: ots_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.ots\\..*",status_code="STATUS_CODE_ERROR"}[30m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.ots\\..*",status_code="STATUS_CODE_ERROR"}[30m])) > bool 0.05
         annotations:
           summary: OpenTimestamps anchor/upgrade/verify failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#ots-failure-spike
@@ -321,15 +589,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-report-generate-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Report generate failure spike
         condition: report_gen_fail
         for: 15m
         data:
           - refId: report_gen_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: report_gen_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.generate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.generate",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
         annotations:
           summary: Report generate failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#report-generate-failure
@@ -337,15 +621,31 @@ groups:
           severity: critical
 
       - uid: proovra-report-upload-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Report upload failure spike
         condition: report_upload_fail
         for: 15m
         data:
           - refId: report_upload_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: report_upload_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.upload",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.upload",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
         annotations:
           summary: Report upload to object storage failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#report-upload-failure
@@ -353,15 +653,31 @@ groups:
           severity: warning
 
       - uid: proovra-package-upload-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Package upload failure spike
         condition: package_upload_fail
         for: 15m
         data:
           - refId: package_upload_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: package_upload_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.package.upload",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.package.upload",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
         annotations:
           summary: Verification package upload to S3 failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#package-upload-failure
@@ -369,13 +685,29 @@ groups:
           severity: critical
 
       - uid: proovra-package-attestation-degraded
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Package attestation degraded
         condition: package_attestation_degraded
         for: 30m
         data:
           - refId: package_attestation_degraded
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: package_attestation_degraded
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
                 sum(rate(package_attestations_degraded_total[30m]))
                   + sum(rate(package_attestation_generation_failure_total[30m])) > 0.05
@@ -391,15 +723,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-reviewer-reconcile-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Reviewer reconcile failure spike
         condition: reviewer_reconcile_fail
         for: 15m
         data:
           - refId: reviewer_reconcile_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: reviewer_reconcile_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(reviewer_reconcile_failed_total[15m])) > 0.05
+                sum(rate(reviewer_reconcile_failed_total[15m])) > bool 0.05
                   or sum(rate(traces_spanmetrics_calls_total{span_name="proovra.reviewer.reconcile",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
         annotations:
           summary: Reviewer reconcile loop is producing failures above threshold.
@@ -408,13 +756,29 @@ groups:
           severity: warning
 
       - uid: proovra-reviewer-assignment-backlog
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Reviewer assignment backlog spike
         condition: reviewer_assignment_backlog
         for: 30m
         data:
           - refId: reviewer_assignment_backlog
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: reviewer_assignment_backlog
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
                 sum(rate(reviewer_queue_pressure_total[30m]))
                   + sum(rate(reviewer_assignment_overload_detected_total[30m])) > 0.1
@@ -425,15 +789,31 @@ groups:
           severity: warning
 
       - uid: proovra-graph-reconcile-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Graph reconcile failure spike
         condition: graph_reconcile_fail
         for: 15m
         data:
           - refId: graph_reconcile_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: graph_reconcile_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(graph_reconcile_failed_total[15m])) > 0.05
+                sum(rate(graph_reconcile_failed_total[15m])) > bool 0.05
                   or sum(rate(traces_spanmetrics_calls_total{span_name="proovra.graph.reconcile",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
         annotations:
           summary: Graph reconcile loop is producing failures above threshold.
@@ -447,15 +827,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-siu-export-generate-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: SIU export generate failure spike
         condition: siu_export_gen_fail
         for: 15m
         data:
           - refId: siu_export_gen_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: siu_export_gen_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.export.generate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.export.generate",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
                   or sum(rate(siu_export_failed_total[15m])) > 0.05
         annotations:
           summary: SIU export generation is failing above threshold.
@@ -464,15 +860,31 @@ groups:
           severity: critical
 
       - uid: proovra-siu-followup-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: SIU follow-up request failure spike
         condition: siu_followup_fail
         for: 30m
         data:
           - refId: siu_followup_fail
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: siu_followup_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.followup.request",status_code="STATUS_CODE_ERROR"}[30m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.followup.request",status_code="STATUS_CODE_ERROR"}[30m])) > bool 0.05
         annotations:
           summary: SIU follow-up request emission failing above threshold.
           runbook_url: docs/operations/observability-runbooks.md#siu-followup-failure
@@ -485,15 +897,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-openai-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: OpenAI request failure spike
         condition: openai_fail
         for: 15m
         data:
           - refId: openai_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: openai_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.openai.ai_request",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.openai.ai_request",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
         annotations:
           summary: OpenAI provider is failing above threshold.
           runbook_url: docs/operations/observability-runbooks.md#openai-failure-spike
@@ -501,15 +929,31 @@ groups:
           severity: warning
 
       - uid: proovra-openai-latency-elevated
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: OpenAI request p95 latency elevated
         condition: openai_p95
         for: 15m
         data:
           - refId: openai_p95
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: openai_p95
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name="proovra.openai.ai_request"}[15m]))) > 15000
+                histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name="proovra.openai.ai_request"}[15m]))) > bool 15000
         annotations:
           summary: OpenAI provider p95 latency above 15s for 15 minutes.
           runbook_url: docs/operations/observability-runbooks.md#openai-latency-elevated
@@ -517,15 +961,31 @@ groups:
           severity: warning
 
       - uid: proovra-ai-chat-rate-limited
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: AI chat rate-limit spike
         condition: ai_chat_rl
         for: 15m
         data:
           - refId: ai_chat_rl
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: ai_chat_rl
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(ai_chat_rate_limited_total[15m])) > 0.1
+                sum(rate(ai_chat_rate_limited_total[15m])) > bool 0.1
         annotations:
           summary: AI chat is rate-limiting requests above threshold.
           runbook_url: docs/operations/observability-runbooks.md#ai-chat-rate-limited
@@ -538,15 +998,31 @@ groups:
     interval: 60s
     rules:
       - uid: proovra-smtp-failure-spike
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: SMTP send failure spike
         condition: smtp_fail
         for: 15m
         data:
           - refId: smtp_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: smtp_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.smtp.email_send",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.smtp.email_send",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
                   or sum(rate(communication_message_failed[15m])) > 0.05
         annotations:
           summary: SMTP (Resend) send failure rate above threshold.
@@ -555,15 +1031,31 @@ groups:
           severity: warning
 
       - uid: proovra-external-review-notify-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: External review notify failure spike
         condition: external_review_fail
         for: 15m
         data:
           - refId: external_review_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: external_review_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.external.review.notify",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.external.review.notify",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
                   or sum(rate(external_review_grant_issue_failed_total[15m])) > 0.05
         annotations:
           summary: External reviewer grant / notification failure rate above threshold.
@@ -572,15 +1064,31 @@ groups:
           severity: warning
 
       - uid: proovra-webhook-dispatch-failure
+        # A counter has no series until its first increment, so "nothing has
+        # gone wrong yet" arrives as NoData. Left at the default, every rule
+        # below pages on an empty database — measured 2026-09-24: a fresh
+        # stack delivered 21 DatasourceNoData alerts before scraping anything.
+        noDataState: OK
+        execErrState: Error
         title: Webhook dispatch failure spike
         condition: webhook_dispatch_fail
         for: 15m
         data:
           - refId: webhook_dispatch_fail
+            relativeTimeRange:
+              from: 1800
+              to: 0
             datasourceUid: prometheus
             model:
+              refId: webhook_dispatch_fail
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
               expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.webhook.dispatch",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.webhook.dispatch",status_code="STATUS_CODE_ERROR"}[15m])) > bool 0.05
                   or sum(rate(webhook_delivery_failed[15m])) > 0.05
         annotations:
           summary: Webhook dispatch failure rate above threshold.

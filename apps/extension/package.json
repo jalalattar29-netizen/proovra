@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "prelint": "pnpm run build:deps",
     "lint": "node scripts/validate-manifest.mjs && tsc --noEmit",
-    "test": "node --test \"test/*.test.mjs\"",
+    "test": "node scripts/run-tests.mjs",
     "validate:manifest": "node scripts/validate-manifest.mjs",
     "pretest": "pnpm run build:deps && node build-test.mjs"
   },

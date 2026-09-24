@@ -1,0 +1,90 @@
+# PROOVRA — the monitoring stack that was missing.
+#
+# `docker-compose.prod.yml` declares redis, api, worker and caddy. It has never
+# declared anything that EVALUATES the 32 alert rules in
+# infra/grafana/alerts/, which is why "we have alerting" was true of the
+# repository and false of the deployment.
+#
+# Deployed alongside the production stack:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
+#
+# Nothing here is exposed publicly. Grafana and Prometheus bind to LOOPBACK
+# only; reaching them is a deliberate tunnel, not an open port on the host.
+name: proovra-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Thirty days is enough to review an incident that happened while
+      # somebody was away, and small enough to sit on one disk.
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/secrets:/etc/prometheus/secrets:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Redis speaks RESP, not Prometheus exposition. Without this, the
+  # `up{job=~"proovra-redis|redis"}` rule is permanently firing on a target
+  # that was never scrapable — an alert that is always on is an alert that is
+  # always ignored.
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: ${REDIS_ADDR:-redis://redis:6379}
+    expose:
+      - "9121"
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      # NO DEFAULT, DELIBERATELY.
+      #
+      # Compose fails to start when this is unset rather than substituting an
+      # empty string, because a contact point with no URL provisions cleanly
+      # and silently swallows every alert — the exact failure this stack
+      # exists to end.
+      PROOVRA_ALERT_WEBHOOK_URL: ${PROOVRA_ALERT_WEBHOOK_URL:?set the alert destination; an unset one silently discards every alert}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set a Grafana admin password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Alerting reads its rules from the provisioning directory below.
+      GF_UNIFIED_ALERTING_ENABLED: "true"
+    volumes:
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # ONE authority for the rules: the same file the repository has always
+      # had, mounted where Grafana provisions alerting from. Copying it would
+      # create a second copy to drift.
+      - ../grafana/alerts:/etc/grafana/provisioning/alerting/rules:ro
+      - ../grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      - ../grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3030:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  prometheus_data:
+  grafana_data:

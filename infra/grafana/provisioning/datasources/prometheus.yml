@@ -1,0 +1,20 @@
+# THE UID IS THE CONTRACT.
+#
+# Every rule in `infra/grafana/alerts/proovra-operations-alerts.yaml` names
+# `datasourceUid: prometheus`. Grafana generates a random uid when a data
+# source is created through the UI, so a hand-made data source would leave all
+# 32 rules pointing at nothing — they provision without error and evaluate to
+# NoData, which is indistinguishable from "everything is fine" on a dashboard.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Matches `global.scrape_interval` in infra/prometheus/prometheus.yml.
+      timeInterval: 15s

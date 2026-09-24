@@ -1,0 +1,26 @@
+# HOW ALERTS ARE GROUPED, REPEATED AND SILENCED.
+#
+# Grouping by alertname and severity rather than firing one notification per
+# series: a queue incident that touches nine queues is one problem, and nine
+# messages about it is how a channel gets muted.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: proovra-oncall
+    group_by: [alertname, severity]
+    # Wait for a burst to settle before the first message, then batch.
+    group_wait: 30s
+    group_interval: 5m
+    # A still-firing incident repeats every four hours. Short enough that a
+    # forgotten page comes back, long enough that it is not the reason people
+    # stop reading.
+    repeat_interval: 4h
+    routes:
+      # Critical does not wait to be batched with warnings.
+      - receiver: proovra-oncall
+        object_matchers:
+          - ["severity", "=", "critical"]
+        group_wait: 10s
+        group_interval: 2m
+        repeat_interval: 1h

@@ -1,0 +1,17 @@
+# The thirteen dashboards in infra/grafana/dashboards/ were in the repository
+# with nothing to load them. This provisioner mounts that directory read-only,
+# so the files in git are what Grafana serves and an edit in the UI cannot
+# quietly become the authority.
+apiVersion: 1
+
+providers:
+  - name: proovra
+    orgId: 1
+    folder: PROOVRA
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

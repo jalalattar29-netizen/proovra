@@ -1,0 +1,50 @@
+# PROOVRA — the evaluator's data source.
+#
+# Every alert in `infra/grafana/alerts/proovra-operations-alerts.yaml` is a
+# PromQL query, and 32 of them existed for months with nothing to query. This
+# file is what makes them evaluable: without a Prometheus actually scraping
+# these targets, `up{job="proovra-api"}` has no series and the rule sits in
+# NoData forever rather than telling anyone the API is down.
+#
+# THE JOB NAMES ARE LOAD-BEARING. `proovra-api` is written into the rules by
+# hand (`up{job="proovra-api"}`), so renaming a job here silently disarms the
+# alert that depends on it. `alert-target-parity.test.mjs` compares the two
+# files and fails when a rule references a job this config does not scrape.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    # Set per deployment. An alert that cannot say WHICH environment it came
+    # from wakes somebody up to answer that question first.
+    environment: "${PROOVRA_ENVIRONMENT:-unset}"
+
+scrape_configs:
+  # The API's own exposition — the entire COUNTER_NAMES/GAUGE_NAMES catalog
+  # plus process uptime, served at /metrics in text/plain; version=0.0.4.
+  #
+  # `METRICS_SCRAPE_TOKEN` is optional in the API: unset means the endpoint is
+  # open and expected to be network-firewalled. When it IS set, the API
+  # answers 401 without a bearer token, so the scrape must carry one or every
+  # rule reads NoData — which looks exactly like a healthy silence.
+  - job_name: proovra-api
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["proovra-api:8080"]
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/metrics-scrape-token
+
+  # Redis, via the exporter — `up{job=~"proovra-redis|redis"}` in the rules.
+  # Redis speaks RESP, not Prometheus exposition, so scraping the server
+  # directly yields a permanently DOWN target and a permanently firing alert.
+  - job_name: proovra-redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # Prometheus itself. If the evaluator dies, the thing that would tell you is
+  # the evaluator, so this is deliberately modest: it makes the failure visible
+  # on a dashboard rather than pretending to alert on its own absence.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

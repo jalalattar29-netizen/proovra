@@ -1,0 +1,27 @@
+# WHERE AN ALERT ACTUALLY GOES.
+#
+# This is the file whose absence made 32 rules worthless. Grafana will happily
+# evaluate a rule and route it to the default contact point, which in a fresh
+# install is an email receiver with no address configured — so the alert fires,
+# the rule turns red on a dashboard nobody is watching, and no human is told.
+#
+# THE DESTINATION IS NOT INVENTED HERE. `PROOVRA_ALERT_WEBHOOK_URL` is supplied
+# by the operator at deploy time and has no default on purpose: a placeholder
+# URL would provision cleanly and swallow every alert, which is worse than
+# refusing to start. `docker-compose.monitoring.yml` refuses to bring Grafana
+# up without it.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: proovra-oncall
+    receivers:
+      - uid: proovra-oncall-webhook
+        type: webhook
+        settings:
+          url: ${PROOVRA_ALERT_WEBHOOK_URL}
+          httpMethod: POST
+        # Resolved notifications are ON. An alert that never says it is over
+        # teaches its reader that alerts are noise: the second incident is
+        # judged by whether the first one ever cleared.
+        disableResolveMessage: false
