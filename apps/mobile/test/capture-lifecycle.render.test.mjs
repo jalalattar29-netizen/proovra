@@ -16,7 +16,8 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadWithProviders, renderInProviders, React } from "./support/render.mjs";
+import { loadModule, renderComponent, React } from "./support/render.mjs";
+import { authenticatedRoutes, signIn } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -42,22 +43,27 @@ function installFetch() {
 }
 
 const OK = () => ({
-  "/v1/platform/context": () => ({ context: { activeSpace: { id: "team-1" } } }),
+  ...authenticatedRoutes(),
   "/v1/capture/sessions": () => ({ session: { id: "draft-1", status: "DRAFT" } }),
   "/v1/evidence?scope=active": () => ({ items: [] }),
   "/v1/users/me": () => ({ user: { id: "u1" } }),
 });
 
 before(async () => {
-  M = await loadWithProviders("app/(stack)/capture.tsx");
+  M = await loadModule("app/(stack)/capture.tsx", [
+    "test/support/providers.tsx",
+    "test/support/expo-stub.mjs",
+  ]);
 });
-beforeEach(() => {
+beforeEach(async () => {
   requests = [];
   routes = OK();
   installFetch();
+  // This suite asserted on the capture screen while SIGNED OUT.
+  await signIn(M);
 });
 
-const render = () => renderInProviders(M, h(M.default, {}));
+const render = () => renderComponent(h(M.TestProviders, null, h(M.default, {})));
 
 /** Every request whose path names an evidence endpoint. */
 const evidenceCalls = () =>
@@ -122,7 +128,9 @@ test("a recovered draft is offered for resume, not silently resumed", async () =
 /* -------------------------------------------------------------- guardrails */
 
 test("a blocked personal space explains itself instead of failing at finalize", async () => {
-  routes["/v1/platform/context"] = () => ({ context: { activeSpace: null } });
+  // Signed in, but no workspace resolved — the envelope the server sends
+  // when a member has no active space, not a differently-shaped stub.
+  routes["/v1/platform/context"] = () => ({ personalSpaceAllowed: true });
   const r = await render();
   // Whatever it renders, it must not have committed anything.
   assert.deepEqual(evidenceCalls(), []);

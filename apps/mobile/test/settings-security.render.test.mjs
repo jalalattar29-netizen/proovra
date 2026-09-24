@@ -11,7 +11,8 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadWithProviders, renderInProviders, React } from "./support/render.mjs";
+import { loadModule, renderComponent, React } from "./support/render.mjs";
+import { authenticatedRoutes, signIn } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -41,6 +42,7 @@ function installFetch() {
 }
 
 const OK_ROUTES = () => ({
+  ...authenticatedRoutes(),
   "/v1/identity/links": () => ({
     body: {
       passwordConfigured: true,
@@ -65,16 +67,21 @@ const OK_ROUTES = () => ({
 });
 
 before(async () => {
-  M = await loadWithProviders("app/(stack)/settings/security.tsx");
+  M = await loadModule("app/(stack)/settings/security.tsx", [
+    "test/support/providers.tsx",
+    "test/support/expo-stub.mjs",
+  ]);
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   requests = [];
   routes = OK_ROUTES();
   installFetch();
+  // This suite asserted on the security screen while SIGNED OUT.
+  await signIn(M);
 });
 
-const render = () => renderInProviders(M, h(M.default, {}));
+const render = () => renderComponent(h(M.TestProviders, null, h(M.default, {})));
 
 test("it reads all four canonical security sections", async () => {
   await render();
