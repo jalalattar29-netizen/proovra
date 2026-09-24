@@ -725,9 +725,34 @@ jobs:
 
       - name: Run the layout and accessibility suites
         run: |
+          set +e
           pnpm exec playwright test \
             --project=operations-layout --project=capture-layout \
-            --reporter=line
+            --reporter=line 2>&1 | tee /tmp/layout.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # SURFACE THE FAILURES AS ANNOTATIONS.
+            #
+            # Step logs and artifacts both need a token; annotations do not.
+            # This is the reasoning ci.yml already records for its test
+            # steps, and it is why this job's first red run said nothing but
+            # "Process completed with exit code 1" while its 462 MB of
+            # traces sat behind an authenticated download.
+            #
+            # These projects measure GEOMETRY, so a failure is as likely to
+            # be a platform difference as a product change — and the test
+            # title with its expected/received numbers is exactly what tells
+            # those apart.
+            #
+            # GitHub keeps ten error annotations per step, so the totals go
+            # last and are the ones that survive.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/layout.log \
+              | grep -aE "^[[:space:]]*([0-9]+\) \\[|Error:|Expected|Received|[0-9]+ (passed|failed))" \
+              | tail -10 \
+              | while IFS= read -r line; do echo "::error::layout: $line"; done
+          fi
+          exit $rc
 
       - name: Upload the Playwright report on failure
         if: failure()
