@@ -662,6 +662,19 @@ jobs:
       OPERATIONS_LAYOUT: "1"
       CAPTURE_LAYOUT: "1"
 
+      # PRISMA GENERATE REFUSES TO RUN WITHOUT A URL, AND NEVER CONNECTS TO IT.
+      #
+      # `build:shared` begins with `prisma generate`, and
+      # `services/api/prisma.config.ts` throws "DATABASE_URL is not set" when
+      # it cannot find one in the environment, `.env` or `services/api/.env`.
+      # Locally that file exists, which is why this only failed here.
+      #
+      # Generation reads the SCHEMA, not a server, so this points at a port
+      # nothing listens on: the client is generated and any accidental
+      # connection attempt fails immediately instead of reaching something
+      # real. These projects need no database at all.
+      DATABASE_URL: postgresql://prisma:generate@127.0.0.1:59998/unused?schema=public
+
     steps:
       - uses: actions/checkout@v4
 
