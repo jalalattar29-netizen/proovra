@@ -1,0 +1,4362 @@
+{
+ "auditedSha": "f822de79ad9397928cb59d1760e42bd63e583457",
+ "count": 484,
+ "controls": [
+  {
+   "routePath": "/abuse-reporting",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/abuse-reporting",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 75,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 85,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPassword",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 89,
+   "prop": "onSubmitEditing",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 99,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => void resendVerification(email.trim())",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 103,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 105,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/register\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 106,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/forgot-password\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 123,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.promptGoogle",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 130,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.signInApple",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 75,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 85,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPassword",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 89,
+   "prop": "onSubmitEditing",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 99,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => void resendVerification(email.trim())",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 103,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 105,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/register\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 106,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/forgot-password\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 123,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.promptGoogle",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth/callback/ui",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 130,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.signInApple",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/auth/mfa-challenge",
+   "nativeFile": "apps/mobile/app/(stack)/mfa.tsx",
+   "line": 56,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setCode",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/mfa-challenge",
+   "nativeFile": "apps/mobile/app/(stack)/mfa.tsx",
+   "line": 59,
+   "prop": "onSubmitEditing",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/mfa-challenge",
+   "nativeFile": "apps/mobile/app/(stack)/mfa.tsx",
+   "line": 62,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/mfa-challenge",
+   "nativeFile": "apps/mobile/app/(stack)/mfa.tsx",
+   "line": 67,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setUseRecovery((v) => !v); setCode(\"\"); setError(null); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/mfa-recovery/verify",
+   "nativeFile": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+   "line": 124,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => state.sessionPresent ? router.replace(\"/(tabs)\") : router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/mfa-recovery/verify",
+   "nativeFile": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/auth/verify-email",
+   "nativeFile": "apps/mobile/app/(stack)/verify-email.tsx",
+   "line": 46,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/billing",
+   "nativeFile": "apps/mobile/app/(stack)/billing.tsx",
+   "line": 88,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1306,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1317,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void resumeSession(resumable)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1318,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void discardRecovered()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1341,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG",
+   "handler": "() => { if (isRecording) { addToast(\"Stop the current recording before changing type\", \"warning\"); return; } /* * Switching source mid-session is now allowed. *",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1373,
+   "prop": "onValueChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setUseLocation",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1402,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/screen-capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1408,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/continuous-capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1416,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/continuous-capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1440,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "isRecording ? handleStopAudioRecording : handleStartAudioRecording",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1454,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "handleTakePhoto",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1459,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "isRecording ? handleStopRecording : handleStartRecording",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1462,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCameraOpen(false)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1466,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "openPickerOrCamera",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1512,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setNoteDraft(item.privateNote ?? \"\"); setPlanningItem(item); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1521,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => removeFromSession(item.id)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1530,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "openPickerOrCamera",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1536,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "handleStartAudioRecording",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1543,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "openPickerOrCamera",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1550,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "completeSession",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1552,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void discardSession()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1575,
+   "prop": "onPress",
+   "wiredTo": "FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => { setMixedOrigin(null); void completeSession(); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1583,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setMixedOrigin(null)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1602,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { if (!planningItem) return; // The ROLE string is what readiness reads first: a // template whose step ids do not follow primary_* // would otherwise nev",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1632,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNoteDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1641,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { if (planningItem) { applyPlan(planningItem.id, { privateNote: noteDraft.trim() || null }); } setPlanningItem(null); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/capture",
+   "nativeFile": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1652,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => Linking.openSettings()",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 122,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCreating((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 141,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 141,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void create()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 143,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void create()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 150,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setQuery",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 159,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setStatusFilter(f)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 179,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCreating(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases",
+   "nativeFile": "apps/mobile/app/(tabs)/cases.tsx",
+   "line": 189,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/case/${c.id}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 325,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 331,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 349,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void changeStatus(s)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 371,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setChangingStatus((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 374,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void exportZip()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 388,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void openAdd()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 403,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void attach(e.id)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 407,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setAvailable(null)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 420,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/(stack)/evidence/${item.id}` as never)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 423,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => removeFromCase(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 445,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNoteText",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 445,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void addNote()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 447,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void addNote()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 468,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void setNoteResolved(note, !note.resolved)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 477,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void deleteNote(note)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 513,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setNameDraft(name); setRenaming(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 525,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setDeleting(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 535,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNameDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 544,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void renameCase()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/cases/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/case/[id].tsx",
+   "line": 558,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void deleteCase()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 139,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/workspace-people\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 155,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 164,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewType",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 174,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void create()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 179,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setCreating(false); setNewName(\"\"); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 186,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCreating(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 220,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/collaboration-team/${team.id}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams",
+   "nativeFile": "apps/mobile/app/(tabs)/teams.tsx",
+   "line": 227,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load(cursor, teams)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 82,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 83,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 90,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 160,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/workspace-people\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]/collaboration",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 82,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]/collaboration",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 83,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]/collaboration",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 90,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/[teamId]/collaboration",
+   "nativeFile": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "line": 160,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/workspace-people\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 95,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 110,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void accept()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/collaboration-teams/invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 111,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/data-retention",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/data-retention",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 117,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onPress",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 118,
+   "prop": "onLongPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onLongPress",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 186,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onClose",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 280,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(preview.url)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 333,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onOpenReport",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 361,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onOpenPackage",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 375,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onShareVerification",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 384,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onOpenRecord",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1104,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setScope(s.key)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1123,
+   "prop": "onChangeText",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "onSearch",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1127,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setTypeFilter(\"ALL\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1129,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setTypeFilter(tf)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1131,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setSort((s) => nextSort(s))",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1132,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowFilters((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1139,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setStatusFilter(\"ALL\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1141,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setStatusFilter(st)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1146,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setSourceFilter(\"ALL\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1148,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setSourceFilter(sf)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1153,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setReportFilter(\"ALL\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1155,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setReportFilter(rf)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1158,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "clearFilters",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1170,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => applyView(v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1171,
+   "prop": "onLongPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => openViewManager(v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1175,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowSaveView((s) => !s)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1176,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setSelectionMode((m) => !m); setSelected(new Set()); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1181,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewViewName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1181,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void saveView()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1187,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void saveView()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1204,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setRenameDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1217,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void renameView()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1228,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void makeViewDefault()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1235,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "deleteView",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1255,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCaseChooserOpen(false)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1278,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => addSelectionToCase(caseOption)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1292,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => runBulk(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1306,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1319,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => (selectionMode ? toggleSelected(item.id) : openInspector(item.id))",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1324,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => restore(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence",
+   "nativeFile": "apps/mobile/app/(tabs)/evidence.tsx",
+   "line": 1335,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => void reload(true, cursor)",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 167,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 168,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 178,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 237,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setReviewing(resp); setDecision(null); setReviewNote(\"\"); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 251,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 270,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setPending(t)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 348,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNote",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 359,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void runTransition()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 392,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setDecision(d)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 405,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setReviewNote",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence-requests/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "line": 416,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void reviewResponse()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 614,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 662,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 682,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setLabelDraft(c.displayTitle?.trim() || c.originalFileName?.trim() || \"\"); setRenaming(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 714,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setLabelDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 727,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void renameRecord()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 742,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLinkTypePicker(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 747,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setLinkNote",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 773,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLinkTarget({ id: cand.id, title: cand.title })",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 782,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void createLink()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 796,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setLinkType(t); setLinkTypePicker(false); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 809,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { setTab(tb.key); if (tb.key === \"duplicates\" && duplicates === null) void loadDuplicates(); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 849,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Unlock\", { buildPath: buildEvidenceUnlockPath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 851,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Lock\", { buildPath: buildEvidenceLockPath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 854,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Archive\", { buildPath: buildEvidenceArchivePath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 857,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Restore\", { buildPath: buildEvidenceUnarchivePath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 873,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION",
+   "handler": "openOriginal",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 876,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Move to Trash\", { buildPath: buildEvidencePath, method: \"DELETE\", destructive: true, })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 940,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void shareVerification()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1020,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/evidence/${rel.linkedId}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1021,
+   "prop": "onLongPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "linkRefusal ? undefined : () => removeLink(rel)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1044,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { setLinking(true); void loadLinkCandidates(); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1062,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(reportUrl)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1082,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { if (generationNeedsConfirmation(reportState === \"READY\" ? \"REGENERATE\" : \"GENERATE\")) { setConfirmingRegenerate(true); } else { void requestGeneration()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1156,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/(stack)/evidence/${m.evidenceId}` as never)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1171,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void requestGeneration()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1215,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(m.viewUrl as string)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1268,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1278,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "(v: string) => setVisibility(v as EvidenceCommentVisibility)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/evidence/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1288,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void postComment()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/forgot-password",
+   "nativeFile": "apps/mobile/app/(stack)/forgot-password.tsx",
+   "line": 46,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/forgot-password",
+   "nativeFile": "apps/mobile/app/(stack)/forgot-password.tsx",
+   "line": 52,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/forgot-password",
+   "nativeFile": "apps/mobile/app/(stack)/forgot-password.tsx",
+   "line": 54,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/forgot-password",
+   "nativeFile": "apps/mobile/app/(stack)/forgot-password.tsx",
+   "line": 56,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 226,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/search\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 241,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 277,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "p.href ? () => router.push(p.href as never) : undefined",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 298,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/capture\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 315,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/evidence/${item.id}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/home",
+   "nativeFile": "apps/mobile/app/(tabs)/index.tsx",
+   "line": 337,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/case/${c.id}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 158,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void markAllRead()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 168,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/notifications\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 173,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setFilter",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 194,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setFilter(\"all\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 210,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => open(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 222,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void act(item, item.isRead ? \"unread\" : \"read\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 228,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void act(item, \"archive\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 241,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setSnoozing(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/inbox",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 262,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void snooze(choice.hours)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 193,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 219,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => revoke(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 224,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void openSubmissions(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 284,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void toggleArchive(item, archived)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 290,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setRevealing(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 323,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setRevealReason",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake-links",
+   "nativeFile": "apps/mobile/app/(stack)/intake-links.tsx",
+   "line": 333,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void reveal()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 184,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPseudonym",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 194,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDisplayName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 205,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 212,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submitIdentity()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 234,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void acceptConsent()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 236,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "line": 267,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push( `/intake/capture?token=${encodeURIComponent(token ?? \"\")}` + `&sid=${encodeURIComponent(phase.intake.session!.id)}`, )",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]/capture",
+   "nativeFile": "apps/mobile/app/(stack)/intake/capture.tsx",
+   "line": 164,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]/capture",
+   "nativeFile": "apps/mobile/app/(stack)/intake/capture.tsx",
+   "line": 177,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]/capture",
+   "nativeFile": "apps/mobile/app/(stack)/intake/capture.tsx",
+   "line": 206,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void pick()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/intake/[token]/capture",
+   "nativeFile": "apps/mobile/app/(stack)/intake/capture.tsx",
+   "line": 225,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void send()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/invite/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 95,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/invite/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 110,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void accept()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/invite/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "line": 111,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/legal/[slug]",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/legal/[slug]",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 75,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 85,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPassword",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 89,
+   "prop": "onSubmitEditing",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 99,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => void resendVerification(email.trim())",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 103,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 105,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/register\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 106,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/forgot-password\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 123,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.promptGoogle",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/login",
+   "nativeFile": "apps/mobile/app/(stack)/auth.tsx",
+   "line": 130,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "oauth.signInApple",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 158,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void markAllRead()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 168,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/notifications\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 173,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setFilter",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 194,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setFilter(\"all\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 210,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => open(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 222,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void act(item, item.isRead ? \"unread\" : \"read\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 228,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void act(item, \"archive\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 241,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setSnoozing(item)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/notifications",
+   "nativeFile": "apps/mobile/app/(tabs)/notifications.tsx",
+   "line": 262,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void snooze(choice.hours)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 154,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onExport",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 168,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onCancel",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 320,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setComposing(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 328,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 350,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setComposing(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 388,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 398,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDescription",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 409,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setSearch",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 411,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void loadCandidates()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 432,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => toggle(row.id)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 446,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void create()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/batch-analysis",
+   "nativeFile": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "line": 463,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void cancel()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/operations/quotas",
+   "nativeFile": "apps/mobile/app/(stack)/operations/quotas.tsx",
+   "line": 138,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/org-invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "line": 115,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/org-invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "line": 155,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(tabs)\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/org-invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "line": 159,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(tabs)/teams\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/org-invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "line": 180,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void accept()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/org-invites/[token]/accept",
+   "nativeFile": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "line": 181,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/index.tsx",
+   "line": 74,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/index.tsx",
+   "line": 105,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/organizations/${org.organizationId}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 285,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 419,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void loadMoreAudit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 443,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLeaving(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 453,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setTransferring(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 469,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCancellingClosure(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 497,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setClosing(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 523,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void leave()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 547,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setTransferring(false); setTransferTarget(m); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 563,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void transfer()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 581,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPhrase",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 602,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void requestClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/organizations/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "line": 613,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void cancelClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 466,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 508,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setDraftName(overview.name ?? \"\"); setRenaming(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 533,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "canChangeRole(m, overview.canManageMembers) ? () => setRoleFor(m) : undefined",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 557,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void loadMore()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 574,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 584,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setRole",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 591,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void invite()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 630,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void resend(i.id)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 637,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setRevoking(i)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 674,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setUnlinking(c)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 687,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void openLinkPicker()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 727,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setTransferring(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 743,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCancellingClosure(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 766,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setClosing(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 794,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setTransferring(false); setTransferTarget(m); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 810,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void transferOwnership()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 828,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPhrase",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 844,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void requestClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 855,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void cancelClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 888,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => { if (roleFor) void changeRole(roleFor, r); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 906,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void linkCase(c)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 919,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDraftName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 928,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void rename()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 939,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void unlinkCase()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/people",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 955,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void revoke()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal",
+   "nativeFile": "apps/mobile/app/(stack)/portal/index.tsx",
+   "line": 53,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setToken",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal",
+   "nativeFile": "apps/mobile/app/(stack)/portal/index.tsx",
+   "line": 65,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/portal/${encodeURIComponent(token.trim())}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/[token].tsx",
+   "line": 173,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setMfaCode",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/[token].tsx",
+   "line": 183,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void authenticate(mfaCode.trim())",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/[token].tsx",
+   "line": 233,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/portal/work/${a.workflowId}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/[token].tsx",
+   "line": 265,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void signOut()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 152,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 163,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 195,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 206,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void send()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 222,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNote",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 236,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setPending(d)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/[token]/work/[workflowId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "line": 252,
+   "prop": "onConfirm",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void decide()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/portal/accept/[grantId]",
+   "nativeFile": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+   "line": 110,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(`/portal/${encodeURIComponent(phase.token)}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/pricing",
+   "nativeFile": "apps/mobile/app/(stack)/billing.tsx",
+   "line": 88,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/privacy",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/privacy",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 56,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => void resendVerification(sentTo)",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 57,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 71,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDisplayName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 74,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 77,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPassword",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 90,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/register",
+   "nativeFile": "apps/mobile/app/(stack)/register.tsx",
+   "line": 93,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reports",
+   "nativeFile": "apps/mobile/app/(stack)/reports.tsx",
+   "line": 133,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reports",
+   "nativeFile": "apps/mobile/app/(stack)/reports.tsx",
+   "line": 151,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setFilter",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reports",
+   "nativeFile": "apps/mobile/app/(stack)/reports.tsx",
+   "line": 181,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setFilter(\"all\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reports",
+   "nativeFile": "apps/mobile/app/(stack)/reports.tsx",
+   "line": 222,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION",
+   "handler": "() => void retrieve(row.evidenceId)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reports",
+   "nativeFile": "apps/mobile/app/(stack)/reports.tsx",
+   "line": 227,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/evidence/${row.evidenceId}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reset-password",
+   "nativeFile": "apps/mobile/app/(stack)/reset-password.tsx",
+   "line": 53,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/(stack)/auth\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reset-password",
+   "nativeFile": "apps/mobile/app/(stack)/reset-password.tsx",
+   "line": 59,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPassword",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/reset-password",
+   "nativeFile": "apps/mobile/app/(stack)/reset-password.tsx",
+   "line": 66,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void submit()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 165,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setQ",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 179,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setQ(sug)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 188,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setFilter",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 196,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setRecency",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 212,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "(v: string) => setMode(v as SearchMode)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/search",
+   "nativeFile": "apps/mobile/app/(stack)/search.tsx",
+   "line": 266,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "navigable ? () => open(row) : undefined",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 108,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNameValue",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 108,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void saveName()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 111,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void saveName()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setEditingName(false); setNameValue(nameShown); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 120,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setNameValue(nameShown); setEditingName(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 127,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => void setDeviceTimezone()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 136,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLocaleMode(\"auto\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 142,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setLocaleMode(\"manual\"); setLocale(lng); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 159,
+   "prop": "onValueChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "onToggleTelemetry",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 164,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/privacy\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 169,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/reviewer-criteria\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 174,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/spaces\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 179,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/organizations\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 184,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/workspace-people\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 195,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/ai\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/notifications\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 205,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/legal-acceptance\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/legal/terms\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 217,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/legal/privacy\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 221,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 226,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/support\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 228,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/verify\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 232,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/trust-center\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 249,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/settings/security\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/teams\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 264,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/evidence-requests\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 269,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/intake-links\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 276,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/billing\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 288,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/operations/quotas\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 293,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/(stack)/operations/batch-analysis\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 298,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE+NAVIGATION",
+   "handler": "() => void doLogout()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings",
+   "nativeFile": "apps/mobile/app/(tabs)/settings.tsx",
+   "line": 308,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "onPress",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/settings/legal/[slug]",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/legal/[slug]",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 199,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCreating(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 204,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 230,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCreating(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 283,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setPending({ set, action })",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 298,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setEditing((cur) => (cur === set.id ? null : set.id))",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 318,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { if (usage[set.id]) { setUsage((prev) => { const next = { ...prev }; delete next[set.id]; return next; }); } else { void loadUsage(set.id); } }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 374,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 384,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewDescription",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 395,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewTitle",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 403,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setNewRows",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 405,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void create()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/settings/reviewer-criteria",
+   "nativeFile": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "line": 420,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void run()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 614,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 662,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 682,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setLabelDraft(c.displayTitle?.trim() || c.originalFileName?.trim() || \"\"); setRenaming(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 714,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setLabelDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 727,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void renameRecord()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 742,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLinkTypePicker(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 747,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setLinkNote",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 773,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setLinkTarget({ id: cand.id, title: cand.title })",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 782,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void createLink()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 796,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setLinkType(t); setLinkTypePicker(false); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 809,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { setTab(tb.key); if (tb.key === \"duplicates\" && duplicates === null) void loadDuplicates(); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 849,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Unlock\", { buildPath: buildEvidenceUnlockPath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 851,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Lock\", { buildPath: buildEvidenceLockPath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 854,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Archive\", { buildPath: buildEvidenceArchivePath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 857,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Restore\", { buildPath: buildEvidenceUnarchivePath })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 873,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE+NAVIGATION",
+   "handler": "openOriginal",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 876,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "() => runAction(\"Move to Trash\", { buildPath: buildEvidencePath, method: \"DELETE\", destructive: true, })",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 940,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void shareVerification()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1020,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/evidence/${rel.linkedId}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1021,
+   "prop": "onLongPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "linkRefusal ? undefined : () => removeLink(rel)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1044,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { setLinking(true); void loadLinkCandidates(); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1062,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(reportUrl)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1082,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => { if (generationNeedsConfirmation(reportState === \"READY\" ? \"REGENERATE\" : \"GENERATE\")) { setConfirmingRegenerate(true); } else { void requestGeneration()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1156,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/(stack)/evidence/${m.evidenceId}` as never)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1171,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void requestGeneration()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1215,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(m.viewUrl as string)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1268,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDraft",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1278,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "(v: string) => setVisibility(v as EvidenceCommentVisibility)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/share/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "line": 1288,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void postComment()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/support",
+   "nativeFile": "apps/mobile/app/(stack)/support.tsx",
+   "line": 43,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/support",
+   "nativeFile": "apps/mobile/app/(stack)/support.tsx",
+   "line": 63,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => { if (path) { router.push(path); return; } if (route.destination.kind === \"email\") { // The one legitimate departure from the app: an email client // is w",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/support",
+   "nativeFile": "apps/mobile/app/(stack)/support.tsx",
+   "line": 90,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(`/legal/${ref.slug}`)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 466,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 508,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setDraftName(overview.name ?? \"\"); setRenaming(true); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 533,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "canChangeRole(m, overview.canManageMembers) ? () => setRoleFor(m) : undefined",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 557,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void loadMore()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 574,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setEmail",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 584,
+   "prop": "onChange",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setRole",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 591,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void invite()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 630,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void resend(i.id)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 637,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setRevoking(i)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 674,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setUnlinking(c)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 687,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void openLinkPicker()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 727,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setTransferring(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 743,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setCancellingClosure(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 766,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setClosing(true)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 794,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => { setTransferring(false); setTransferTarget(m); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 810,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void transferOwnership()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 828,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setPhrase",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 844,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void requestClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 855,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void cancelClosure()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 888,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => { if (roleFor) void changeRole(roleFor, r); }",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 906,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void linkCase(c)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 919,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setDraftName",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 928,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void rename()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 939,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void unlinkCase()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/teams/[id]",
+   "nativeFile": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "line": 955,
+   "prop": "onConfirm",
+   "wiredTo": "API_CALL+FEEDBACK_OR_DIALOG+LOCAL_STATE",
+   "handler": "() => void revoke()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/terms",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 112,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/terms",
+   "nativeFile": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "line": 137,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.replace(\"/legal\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/ai-disclosure",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/ai-disclosure",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/ai-disclosure",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/ai-disclosure",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/methodology",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/methodology",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/methodology",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/methodology",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/security",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/security",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/security",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/security",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/status",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/status",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/status",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/status",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 109,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 200,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "() => void load()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 216,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setOpen(a)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/trust-center/subprocessors",
+   "nativeFile": "apps/mobile/app/(stack)/trust-center.tsx",
+   "line": 259,
+   "prop": "onPress",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "() => setShowVersions((v) => !v)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 89,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 89,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "submitManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 91,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "submitManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 181,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(d.publicUrl as string)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify/[token]",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 89,
+   "prop": "onChangeText",
+   "wiredTo": "LOCAL_STATE",
+   "handler": "setManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify/[token]",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 89,
+   "prop": "onSubmitEditing",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "submitManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify/[token]",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 91,
+   "prop": "onPress",
+   "wiredTo": "API_CALL+LOCAL_STATE",
+   "handler": "submitManual",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/verify/[token]",
+   "nativeFile": "apps/mobile/app/verify.tsx",
+   "line": 181,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => void Linking.openURL(d.publicUrl as string)",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/workspaces",
+   "nativeFile": "apps/mobile/app/(stack)/spaces.tsx",
+   "line": 79,
+   "prop": "onPress",
+   "wiredTo": "EXTERNAL_HANDLER_UNRESOLVED",
+   "handler": "active || busy ? undefined : onSwitch",
+   "verdict": "UNVERIFIED"
+  },
+  {
+   "routePath": "/workspaces",
+   "nativeFile": "apps/mobile/app/(stack)/spaces.tsx",
+   "line": 135,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.back()",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/workspaces",
+   "nativeFile": "apps/mobile/app/(stack)/spaces.tsx",
+   "line": 224,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/organizations\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  },
+  {
+   "routePath": "/workspaces",
+   "nativeFile": "apps/mobile/app/(stack)/spaces.tsx",
+   "line": 229,
+   "prop": "onPress",
+   "wiredTo": "NAVIGATION",
+   "handler": "() => router.push(\"/workspace-people\")",
+   "verdict": "WIRED_SOURCE_INFERRED"
+  }
+ ]
+}

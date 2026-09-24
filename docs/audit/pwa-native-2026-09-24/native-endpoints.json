@@ -1,0 +1,1504 @@
+{
+ "filesScanned": 155,
+ "buildersResolved": 98,
+ "filesWithPaths": 56,
+ "distinctPaths": 191,
+ "endpointCandidates": 311,
+ "paths": [
+  "/v1/auth/apple",
+  "/v1/auth/email/login",
+  "/v1/auth/email/register",
+  "/v1/auth/email/resend-verification",
+  "/v1/auth/email/verify",
+  "/v1/auth/google",
+  "/v1/auth/logout",
+  "/v1/auth/me",
+  "/v1/auth/mfa/verify",
+  "/v1/auth/password-reset/confirm",
+  "/v1/auth/password-reset/request",
+  "/v1/auth/session-light",
+  "/v1/batch-analysis",
+  "/v1/billing/accounts",
+  "/v1/billing/accounts/:param/:param",
+  "/v1/billing/accounts/:param/:param/history",
+  "/v1/billing/accounts/:param/:param/retry-storage-cancellation",
+  "/v1/billing/overview",
+  "/v1/billing/pricing",
+  "/v1/billing/storage-addons/cancel",
+  "/v1/billing/subscription/cancel",
+  "/v1/capture/direct-sessions",
+  "/v1/capture/direct-sessions/:param/complete",
+  "/v1/capture/direct-sessions/:param/continuous-complete",
+  "/v1/capture/direct-sessions/:param/discard",
+  "/v1/capture/direct-sessions/:param/evidence",
+  "/v1/capture/direct-sessions/:param/parts/:param/declaration",
+  "/v1/capture/direct-sessions/:param/screen-complete",
+  "/v1/capture/intake-templates",
+  "/v1/capture/mobile/ingest",
+  "/v1/capture/sessions",
+  "/v1/capture/sessions/:param",
+  "/v1/cases",
+  "/v1/cases/:param",
+  "/v1/cases/:param/available-evidence",
+  "/v1/cases/:param/comments",
+  "/v1/cases/:param/comments/:param",
+  "/v1/cases/:param/comments/:param/resolve",
+  "/v1/cases/:param/evidence",
+  "/v1/cases/:param/evidence/:param",
+  "/v1/cases/:param/matter-workspace",
+  "/v1/cases/:param/status",
+  "/v1/cases/summary",
+  "/v1/collaboration-team-invites/:param/accept",
+  "/v1/collaboration-team-invites/accept",
+  "/v1/collaboration-teams",
+  "/v1/collaboration-teams/:param",
+  "/v1/collaboration-teams/:param/archive",
+  "/v1/collaboration-teams/:param/assignments",
+  "/v1/collaboration-teams/:param/disposability",
+  "/v1/collaboration-teams/:param/members/:param",
+  "/v1/collaboration-teams/:param/unarchive",
+  "/v1/collaboration-teams/entitlement",
+  "/v1/collaboration/threads",
+  "/v1/collaboration/threads/:param/messages",
+  "/v1/collaboration/threads/:param/reopen",
+  "/v1/collaboration/threads/:param/resolve",
+  "/v1/communications/verify/*",
+  "/v1/dashboard/command-center",
+  "/v1/dashboard/records-by-type",
+  "/v1/dashboard/trust-summary",
+  "/v1/deep-link/resolve",
+  "/v1/evidence",
+  "/v1/evidence-requests",
+  "/v1/evidence-requests/:param",
+  "/v1/evidence-requests/:param/:param",
+  "/v1/evidence-requests/:param/assign",
+  "/v1/evidence-requests/:param/deliveries",
+  "/v1/evidence-requests/:param/events",
+  "/v1/evidence-requests/:param/responses/:param/review",
+  "/v1/evidence/:param",
+  "/v1/evidence/:param/annotations",
+  "/v1/evidence/:param/annotations/:param",
+  "/v1/evidence/:param/archive",
+  "/v1/evidence/:param/artifacts/status",
+  "/v1/evidence/:param/certifications",
+  "/v1/evidence/:param/comments",
+  "/v1/evidence/:param/comments/:param",
+  "/v1/evidence/:param/derived-review",
+  "/v1/evidence/:param/derived-review/generate",
+  "/v1/evidence/:param/duplicates",
+  "/v1/evidence/:param/label",
+  "/v1/evidence/:param/legal-notes",
+  "/v1/evidence/:param/legal-notes/:param",
+  "/v1/evidence/:param/lock",
+  "/v1/evidence/:param/original",
+  "/v1/evidence/:param/parts",
+  "/v1/evidence/:param/relationships",
+  "/v1/evidence/:param/relationships/:param",
+  "/v1/evidence/:param/report/latest",
+  "/v1/evidence/:param/reports/regenerate",
+  "/v1/evidence/:param/review-workspace",
+  "/v1/evidence/:param/reviewer-workflow",
+  "/v1/evidence/:param/reviewer-workflow/events",
+  "/v1/evidence/:param/technical-metadata",
+  "/v1/evidence/:param/unarchive",
+  "/v1/evidence/:param/unlock",
+  "/v1/evidence/:param/verification-package",
+  "/v1/evidence/:param:param",
+  "/v1/evidence/bulk",
+  "/v1/evidence/library-summary",
+  "/v1/evidence/saved-views",
+  "/v1/evidence/saved-views/:param",
+  "/v1/evidence/saved-views/:param/default",
+  "/v1/external-intake/:param",
+  "/v1/external-review/access/:param",
+  "/v1/identity-security/*",
+  "/v1/identity-security/my-sessions",
+  "/v1/identity-security/my-sessions/:param/revoke",
+  "/v1/identity-security/my-sessions/revoke-others",
+  "/v1/identity-security/password",
+  "/v1/identity-security/security-events",
+  "/v1/identity/account-closure",
+  "/v1/identity/data-export",
+  "/v1/identity/links",
+  "/v1/identity/mfa-admin/recovery-requests",
+  "/v1/identity/mfa/*",
+  "/v1/identity/mfa/enroll/start",
+  "/v1/identity/mfa/enroll/verify",
+  "/v1/identity/mfa/factors",
+  "/v1/identity/mfa/factors/:param",
+  "/v1/identity/mfa/recovery-codes/regenerate",
+  "/v1/identity/mfa/recovery-requests/:param/cancel",
+  "/v1/identity/mfa/recovery-requests/:param/resend-email",
+  "/v1/identity/mfa/recovery-requests/:param/verify-email",
+  "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
+  "/v1/legal",
+  "/v1/legal/:param",
+  "/v1/me/inbox",
+  "/v1/me/inbox/items/:param/:param",
+  "/v1/me/inbox/items/:param/read",
+  "/v1/me/inbox/items/:param/{read,unread,archive,remind}",
+  "/v1/me/inbox/items/:param/{read,unread,dismiss,snooze}",
+  "/v1/me/inbox/mark-all-read",
+  "/v1/me/notification-preferences",
+  "/v1/me/notification-schedule",
+  "/v1/me/orgs",
+  "/v1/org-invites/:param/accept",
+  "/v1/orgs/:param",
+  "/v1/orgs/:param/audit-events",
+  "/v1/orgs/:param/closure",
+  "/v1/orgs/:param/closure/:param/cancel",
+  "/v1/orgs/:param/invites",
+  "/v1/orgs/:param/leave",
+  "/v1/orgs/:param/members",
+  "/v1/orgs/:param/transfer-ownership",
+  "/v1/orgs/:param/workspaces",
+  "/v1/platform/context",
+  "/v1/platform/context/switch-workspace",
+  "/v1/portal/auth",
+  "/v1/portal/dashboard",
+  "/v1/portal/logout",
+  "/v1/portal/work/:param/comments",
+  "/v1/portal/work/:param/decision",
+  "/v1/portal/work/:param/view",
+  "/v1/quotas",
+  "/v1/reports",
+  "/v1/reports/artifacts",
+  "/v1/reviewer-criteria",
+  "/v1/reviewer-criteria/:param",
+  "/v1/reviewer-criteria/:param/:param",
+  "/v1/reviewer-criteria/:param/draft",
+  "/v1/reviewer-criteria/:param/usage",
+  "/v1/search",
+  "/v1/search/suggest",
+  "/v1/teams/:param",
+  "/v1/teams/:param/activity",
+  "/v1/teams/:param/cases",
+  "/v1/teams/:param/cases/:param",
+  "/v1/teams/:param/cases/link",
+  "/v1/teams/:param/closure",
+  "/v1/teams/:param/closure/:param/cancel",
+  "/v1/teams/:param/invites",
+  "/v1/teams/:param/invites/:param",
+  "/v1/teams/:param/invites/:param/resend",
+  "/v1/teams/:param/members",
+  "/v1/teams/:param/members/:param",
+  "/v1/teams/:param/transfer-ownership",
+  "/v1/trust/articles",
+  "/v1/trust/articles/:param/versions",
+  "/v1/usage-stats",
+  "/v1/users/legal-acceptance",
+  "/v1/users/legal-status",
+  "/v1/users/me",
+  "/v1/workflow/intake-links",
+  "/v1/workflow/intake-links/:param/:param",
+  "/v1/workflow/intake-links/:param/recipient-contact",
+  "/v1/workflow/intake-links/:param/revoke",
+  "/v1/workflow/intake-links/:param/send",
+  "/v1/workflow/intake-links/:param/submissions",
+  "/v1/workspaces/ai-assistance-status"
+ ],
+ "pathsByFile": {
+  "apps/mobile/app/(stack)/capture.tsx": [
+   "/v1/capture/sessions",
+   "/v1/evidence",
+   "/v1/evidence/:param/artifacts/status"
+  ],
+  "apps/mobile/app/(stack)/case/[id].tsx": [
+   "/v1/cases/:param",
+   "/v1/cases/:param/available-evidence",
+   "/v1/cases/:param/evidence",
+   "/v1/cases/:param/evidence/:param",
+   "/v1/cases/:param/matter-workspace",
+   "/v1/cases/:param/status",
+   "/v1/evidence"
+  ],
+  "apps/mobile/app/(stack)/collaboration-team/[id].tsx": [
+   "/v1/collaboration-teams/:param"
+  ],
+  "apps/mobile/app/(stack)/evidence/[id].tsx": [
+   "/v1/evidence/:param",
+   "/v1/evidence/:param/artifacts/status",
+   "/v1/evidence/:param/certifications",
+   "/v1/evidence/:param/report/latest",
+   "/v1/evidence/:param/review-workspace",
+   "/v1/evidence/:param/technical-metadata",
+   "/v1/evidence/:param:param"
+  ],
+  "apps/mobile/app/(stack)/evidence-request/[id].tsx": [
+   "/v1/evidence-requests/:param"
+  ],
+  "apps/mobile/app/(stack)/evidence-requests.tsx": [
+   "/v1/evidence-requests"
+  ],
+  "apps/mobile/app/(stack)/intake-links.tsx": [
+   "/v1/workflow/intake-links",
+   "/v1/workflow/intake-links/:param/revoke"
+  ],
+  "apps/mobile/app/(stack)/invite/[token].tsx": [
+   "/v1/collaboration-team-invites/:param/accept",
+   "/v1/collaboration-team-invites/accept"
+  ],
+  "apps/mobile/app/(stack)/org-invite/[token].tsx": [
+   "/v1/org-invites/:param/accept"
+  ],
+  "apps/mobile/app/(stack)/reports.tsx": [
+   "/v1/reports/artifacts"
+  ],
+  "apps/mobile/app/(stack)/settings/security.tsx": [
+   "/v1/identity-security/*",
+   "/v1/identity-security/my-sessions",
+   "/v1/identity-security/my-sessions/:param/revoke",
+   "/v1/identity-security/my-sessions/revoke-others",
+   "/v1/identity-security/password",
+   "/v1/identity-security/security-events",
+   "/v1/identity/links",
+   "/v1/identity/mfa/*",
+   "/v1/identity/mfa/factors",
+   "/v1/identity/mfa/factors/:param",
+   "/v1/identity/mfa/recovery-codes/regenerate"
+  ],
+  "apps/mobile/app/(stack)/workspace-people.tsx": [
+   "/v1/cases"
+  ],
+  "apps/mobile/app/(tabs)/cases.tsx": [
+   "/v1/cases"
+  ],
+  "apps/mobile/app/(tabs)/evidence.tsx": [
+   "/v1/cases",
+   "/v1/evidence/:param",
+   "/v1/evidence/:param/artifacts/status",
+   "/v1/evidence/:param/report/latest",
+   "/v1/evidence/:param/verification-package",
+   "/v1/evidence/bulk",
+   "/v1/evidence/library-summary",
+   "/v1/evidence/saved-views"
+  ],
+  "apps/mobile/app/(tabs)/index.tsx": [
+   "/v1/billing/overview",
+   "/v1/cases",
+   "/v1/dashboard/command-center",
+   "/v1/dashboard/trust-summary",
+   "/v1/evidence",
+   "/v1/me/inbox",
+   "/v1/reports",
+   "/v1/workflow/intake-links"
+  ],
+  "apps/mobile/app/(tabs)/notifications.tsx": [
+   "/v1/me/inbox",
+   "/v1/me/inbox/items/:param/read",
+   "/v1/me/inbox/items/:param/{read,unread,dismiss,snooze}",
+   "/v1/me/inbox/mark-all-read"
+  ],
+  "apps/mobile/app/(tabs)/settings.tsx": [
+   "/v1/users/me"
+  ],
+  "apps/mobile/app/(tabs)/teams.tsx": [
+   "/v1/collaboration-teams"
+  ],
+  "apps/mobile/src/auth/auth-api.ts": [
+   "/v1/auth/apple",
+   "/v1/auth/email/login",
+   "/v1/auth/email/register",
+   "/v1/auth/email/resend-verification",
+   "/v1/auth/email/verify",
+   "/v1/auth/google",
+   "/v1/auth/logout",
+   "/v1/auth/me",
+   "/v1/auth/mfa/verify",
+   "/v1/auth/password-reset/confirm",
+   "/v1/auth/password-reset/request",
+   "/v1/users/legal-acceptance",
+   "/v1/users/legal-status"
+  ],
+  "apps/mobile/src/auth-context.tsx": [
+   "/v1/auth/me"
+  ],
+  "apps/mobile/src/capture/capture-draft.ts": [
+   "/v1/capture/direct-sessions",
+   "/v1/capture/sessions",
+   "/v1/capture/sessions/:param"
+  ],
+  "apps/mobile/src/capture/screen-acquisition.ts": [
+   "/v1/capture/direct-sessions/:param/continuous-complete",
+   "/v1/capture/direct-sessions/:param/screen-complete"
+  ],
+  "apps/mobile/src/DeepLinkGate.tsx": [
+   "/v1/deep-link/resolve"
+  ],
+  "apps/mobile/src/direct-capture.ts": [
+   "/v1/capture/direct-sessions",
+   "/v1/capture/direct-sessions/:param/complete",
+   "/v1/capture/direct-sessions/:param/discard",
+   "/v1/capture/direct-sessions/:param/evidence",
+   "/v1/capture/direct-sessions/:param/parts/:param/declaration",
+   "/v1/capture/mobile/ingest",
+   "/v1/evidence/:param/parts"
+  ],
+  "apps/mobile/src/product/account-privacy.ts": [
+   "/v1/identity/account-closure",
+   "/v1/identity/data-export"
+  ],
+  "apps/mobile/src/product/account-security.ts": [
+   "/v1/identity/mfa/enroll/start",
+   "/v1/identity/mfa/enroll/verify",
+   "/v1/users/me"
+  ],
+  "apps/mobile/src/product/ai-assistance.ts": [
+   "/v1/workspaces/ai-assistance-status"
+  ],
+  "apps/mobile/src/product/billing.ts": [
+   "/v1/billing/accounts",
+   "/v1/billing/accounts/:param/:param",
+   "/v1/billing/accounts/:param/:param/history",
+   "/v1/billing/accounts/:param/:param/retry-storage-cancellation",
+   "/v1/billing/overview",
+   "/v1/billing/storage-addons/cancel",
+   "/v1/billing/subscription/cancel"
+  ],
+  "apps/mobile/src/product/capture-plan.ts": [
+   "/v1/capture/intake-templates"
+  ],
+  "apps/mobile/src/product/case-workspace.ts": [
+   "/v1/cases/:param",
+   "/v1/cases/:param/comments",
+   "/v1/cases/:param/comments/:param",
+   "/v1/cases/:param/comments/:param/resolve",
+   "/v1/cases/summary"
+  ],
+  "apps/mobile/src/product/collaboration.ts": [
+   "/v1/collaboration-teams",
+   "/v1/collaboration-teams/:param",
+   "/v1/collaboration-teams/:param/archive",
+   "/v1/collaboration-teams/:param/assignments",
+   "/v1/collaboration-teams/:param/disposability",
+   "/v1/collaboration-teams/:param/members/:param",
+   "/v1/collaboration-teams/:param/unarchive",
+   "/v1/collaboration-teams/entitlement"
+  ],
+  "apps/mobile/src/product/derived-review.ts": [
+   "/v1/evidence/:param/derived-review",
+   "/v1/evidence/:param/derived-review/generate"
+  ],
+  "apps/mobile/src/product/discussion.ts": [
+   "/v1/collaboration/threads",
+   "/v1/collaboration/threads/:param/messages",
+   "/v1/collaboration/threads/:param/reopen",
+   "/v1/collaboration/threads/:param/resolve"
+  ],
+  "apps/mobile/src/product/evidence-detail.ts": [
+   "/v1/evidence/:param",
+   "/v1/evidence/:param/annotations",
+   "/v1/evidence/:param/annotations/:param",
+   "/v1/evidence/:param/archive",
+   "/v1/evidence/:param/comments",
+   "/v1/evidence/:param/comments/:param",
+   "/v1/evidence/:param/duplicates",
+   "/v1/evidence/:param/label",
+   "/v1/evidence/:param/legal-notes",
+   "/v1/evidence/:param/legal-notes/:param",
+   "/v1/evidence/:param/lock",
+   "/v1/evidence/:param/original",
+   "/v1/evidence/:param/relationships",
+   "/v1/evidence/:param/relationships/:param",
+   "/v1/evidence/:param/reports/regenerate",
+   "/v1/evidence/:param/unarchive",
+   "/v1/evidence/:param/unlock"
+  ],
+  "apps/mobile/src/product/evidence-library.ts": [
+   "/v1/evidence",
+   "/v1/evidence/saved-views/:param",
+   "/v1/evidence/saved-views/:param/default"
+  ],
+  "apps/mobile/src/product/evidence-requests.ts": [
+   "/v1/evidence-requests/:param/:param",
+   "/v1/evidence-requests/:param/assign",
+   "/v1/evidence-requests/:param/deliveries",
+   "/v1/evidence-requests/:param/events",
+   "/v1/evidence-requests/:param/responses/:param/review"
+  ],
+  "apps/mobile/src/product/external-intake.ts": [
+   "/v1/external-intake/:param"
+  ],
+  "apps/mobile/src/product/home-dashboard.ts": [
+   "/v1/dashboard/trust-summary",
+   "/v1/evidence"
+  ],
+  "apps/mobile/src/product/home-operations.ts": [
+   "/v1/dashboard/records-by-type"
+  ],
+  "apps/mobile/src/product/inbox.ts": [
+   "/v1/me/inbox/items/:param/:param",
+   "/v1/me/inbox/items/:param/{read,unread,archive,remind}"
+  ],
+  "apps/mobile/src/product/intake-links.ts": [
+   "/v1/workflow/intake-links/:param/:param",
+   "/v1/workflow/intake-links/:param/recipient-contact",
+   "/v1/workflow/intake-links/:param/send",
+   "/v1/workflow/intake-links/:param/submissions"
+  ],
+  "apps/mobile/src/product/legal.ts": [
+   "/v1/legal",
+   "/v1/legal/:param"
+  ],
+  "apps/mobile/src/product/mfa-recovery.ts": [
+   "/v1/auth/session-light",
+   "/v1/identity/mfa-admin/recovery-requests",
+   "/v1/identity/mfa/recovery-requests/:param/cancel",
+   "/v1/identity/mfa/recovery-requests/:param/resend-email",
+   "/v1/identity/mfa/recovery-requests/:param/verify-email",
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed"
+  ],
+  "apps/mobile/src/product/notification-preferences.ts": [
+   "/v1/communications/verify/*",
+   "/v1/me/notification-preferences",
+   "/v1/me/notification-schedule"
+  ],
+  "apps/mobile/src/product/operations.ts": [
+   "/v1/batch-analysis",
+   "/v1/quotas",
+   "/v1/usage-stats"
+  ],
+  "apps/mobile/src/product/organizations.ts": [
+   "/v1/me/orgs",
+   "/v1/orgs/:param",
+   "/v1/orgs/:param/audit-events",
+   "/v1/orgs/:param/closure",
+   "/v1/orgs/:param/closure/:param/cancel",
+   "/v1/orgs/:param/invites",
+   "/v1/orgs/:param/leave",
+   "/v1/orgs/:param/members",
+   "/v1/orgs/:param/transfer-ownership",
+   "/v1/orgs/:param/workspaces"
+  ],
+  "apps/mobile/src/product/platform-context.ts": [
+   "/v1/platform/context"
+  ],
+  "apps/mobile/src/product/portal.ts": [
+   "/v1/external-review/access/:param",
+   "/v1/portal/auth",
+   "/v1/portal/dashboard",
+   "/v1/portal/logout",
+   "/v1/portal/work/:param/comments",
+   "/v1/portal/work/:param/decision",
+   "/v1/portal/work/:param/view"
+  ],
+  "apps/mobile/src/product/pricing.ts": [
+   "/v1/billing/pricing"
+  ],
+  "apps/mobile/src/product/reports.ts": [
+   "/v1/evidence/:param/report/latest",
+   "/v1/reports/artifacts"
+  ],
+  "apps/mobile/src/product/reviewer-criteria.ts": [
+   "/v1/reviewer-criteria",
+   "/v1/reviewer-criteria/:param",
+   "/v1/reviewer-criteria/:param/:param",
+   "/v1/reviewer-criteria/:param/draft",
+   "/v1/reviewer-criteria/:param/usage"
+  ],
+  "apps/mobile/src/product/reviewer-workflow.ts": [
+   "/v1/evidence/:param/reviewer-workflow",
+   "/v1/evidence/:param/reviewer-workflow/events"
+  ],
+  "apps/mobile/src/product/search.ts": [
+   "/v1/search",
+   "/v1/search/suggest"
+  ],
+  "apps/mobile/src/product/spaces.ts": [
+   "/v1/platform/context/switch-workspace"
+  ],
+  "apps/mobile/src/product/trust-center.ts": [
+   "/v1/trust/articles",
+   "/v1/trust/articles/:param/versions"
+  ],
+  "apps/mobile/src/product/workspace-people.ts": [
+   "/v1/teams/:param",
+   "/v1/teams/:param/activity",
+   "/v1/teams/:param/cases",
+   "/v1/teams/:param/cases/:param",
+   "/v1/teams/:param/cases/link",
+   "/v1/teams/:param/closure",
+   "/v1/teams/:param/closure/:param/cancel",
+   "/v1/teams/:param/invites",
+   "/v1/teams/:param/invites/:param",
+   "/v1/teams/:param/invites/:param/resend",
+   "/v1/teams/:param/members",
+   "/v1/teams/:param/members/:param",
+   "/v1/teams/:param/transfer-ownership"
+  ]
+ },
+ "siteIndex": {
+  "GET /v1/evidence": [
+   "apps/mobile/app/(stack)/capture.tsx",
+   "apps/mobile/app/(stack)/case/[id].tsx",
+   "apps/mobile/app/(tabs)/index.tsx",
+   "apps/mobile/src/product/evidence-library.ts",
+   "apps/mobile/src/product/home-dashboard.ts"
+  ],
+  "GET /v1/evidence/:param/artifacts/status": [
+   "apps/mobile/app/(stack)/capture.tsx",
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/capture/sessions": [
+   "apps/mobile/app/(stack)/capture.tsx",
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "GET /v1/cases/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx",
+   "apps/mobile/src/product/case-workspace.ts"
+  ],
+  "POST /v1/cases/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/cases/:param/matter-workspace": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/cases/:param/matter-workspace": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param/matter-workspace": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param/matter-workspace": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/cases/:param/evidence/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/cases/:param/evidence/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param/evidence/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param/evidence/:param": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/cases/:param/status": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/cases/:param/status": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param/status": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param/status": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/cases/:param/available-evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/cases/:param/available-evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param/available-evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param/available-evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/cases/:param/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "POST /v1/cases/:param/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "DELETE /v1/cases/:param/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "PATCH /v1/cases/:param/evidence": [
+   "apps/mobile/app/(stack)/case/[id].tsx"
+  ],
+  "GET /v1/collaboration-teams/:param": [
+   "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/evidence/:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx",
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "POST /v1/evidence/:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "POST /v1/evidence/:param/artifacts/status": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/:param/artifacts/status": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/:param/artifacts/status": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/:param/report/latest": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx",
+   "apps/mobile/src/product/reports.ts"
+  ],
+  "POST /v1/evidence/:param/report/latest": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/:param/report/latest": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/:param/report/latest": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/:param/review-workspace": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "POST /v1/evidence/:param/review-workspace": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "PATCH /v1/evidence/:param/review-workspace": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "DELETE /v1/evidence/:param/review-workspace": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "GET /v1/evidence/:param/technical-metadata": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "POST /v1/evidence/:param/technical-metadata": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "PATCH /v1/evidence/:param/technical-metadata": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "DELETE /v1/evidence/:param/technical-metadata": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "GET /v1/evidence/:param/certifications": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "POST /v1/evidence/:param/certifications": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "PATCH /v1/evidence/:param/certifications": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "DELETE /v1/evidence/:param/certifications": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "GET /v1/evidence/:param:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "POST /v1/evidence/:param:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "PATCH /v1/evidence/:param:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "DELETE /v1/evidence/:param:param": [
+   "apps/mobile/app/(stack)/evidence/[id].tsx"
+  ],
+  "GET /v1/evidence-requests/:param": [
+   "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+  ],
+  "POST /v1/evidence-requests/:param": [
+   "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+  ],
+  "GET /v1/evidence-requests": [
+   "apps/mobile/app/(stack)/evidence-requests.tsx"
+  ],
+  "GET /v1/workflow/intake-links": [
+   "apps/mobile/app/(stack)/intake-links.tsx",
+   "apps/mobile/app/(tabs)/index.tsx"
+  ],
+  "POST /v1/workflow/intake-links": [
+   "apps/mobile/app/(stack)/intake-links.tsx"
+  ],
+  "GET /v1/workflow/intake-links/:param/revoke": [
+   "apps/mobile/app/(stack)/intake-links.tsx"
+  ],
+  "POST /v1/workflow/intake-links/:param/revoke": [
+   "apps/mobile/app/(stack)/intake-links.tsx"
+  ],
+  "GET /v1/collaboration-team-invites/:param/accept": [
+   "apps/mobile/app/(stack)/invite/[token].tsx"
+  ],
+  "POST /v1/collaboration-team-invites/:param/accept": [
+   "apps/mobile/app/(stack)/invite/[token].tsx"
+  ],
+  "GET /v1/collaboration-team-invites/accept": [
+   "apps/mobile/app/(stack)/invite/[token].tsx"
+  ],
+  "POST /v1/collaboration-team-invites/accept": [
+   "apps/mobile/app/(stack)/invite/[token].tsx"
+  ],
+  "GET /v1/org-invites/:param/accept": [
+   "apps/mobile/app/(stack)/org-invite/[token].tsx"
+  ],
+  "POST /v1/org-invites/:param/accept": [
+   "apps/mobile/app/(stack)/org-invite/[token].tsx"
+  ],
+  "GET /v1/reports/artifacts": [
+   "apps/mobile/app/(stack)/reports.tsx",
+   "apps/mobile/src/product/reports.ts"
+  ],
+  "GET /v1/identity-security/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity/mfa/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity/mfa/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity/mfa/*": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity/links": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity/links": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity/links": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity/mfa/factors": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity/mfa/factors": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity/mfa/factors": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity-security/my-sessions": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/my-sessions": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/my-sessions": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity-security/security-events": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/security-events": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/security-events": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity-security/password": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/password": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/password": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity-security/my-sessions/:param/revoke": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/my-sessions/:param/revoke": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/my-sessions/:param/revoke": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity-security/my-sessions/revoke-others": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity-security/my-sessions/revoke-others": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity-security/my-sessions/revoke-others": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity/mfa/factors/:param": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity/mfa/factors/:param": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity/mfa/factors/:param": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/identity/mfa/recovery-codes/regenerate": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "POST /v1/identity/mfa/recovery-codes/regenerate": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "DELETE /v1/identity/mfa/recovery-codes/regenerate": [
+   "apps/mobile/app/(stack)/settings/security.tsx"
+  ],
+  "GET /v1/cases": [
+   "apps/mobile/app/(stack)/workspace-people.tsx",
+   "apps/mobile/app/(tabs)/cases.tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx",
+   "apps/mobile/app/(tabs)/index.tsx"
+  ],
+  "POST /v1/cases": [
+   "apps/mobile/app/(stack)/workspace-people.tsx",
+   "apps/mobile/app/(tabs)/cases.tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/cases": [
+   "apps/mobile/app/(stack)/workspace-people.tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/cases": [
+   "apps/mobile/app/(stack)/workspace-people.tsx",
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/library-summary": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "POST /v1/evidence/library-summary": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/library-summary": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/library-summary": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/saved-views": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "POST /v1/evidence/saved-views": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/saved-views": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/saved-views": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/bulk": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "POST /v1/evidence/bulk": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/bulk": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/bulk": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/evidence/:param/verification-package": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "POST /v1/evidence/:param/verification-package": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "PATCH /v1/evidence/:param/verification-package": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "DELETE /v1/evidence/:param/verification-package": [
+   "apps/mobile/app/(tabs)/evidence.tsx"
+  ],
+  "GET /v1/dashboard/command-center": [
+   "apps/mobile/app/(tabs)/index.tsx"
+  ],
+  "GET /v1/dashboard/trust-summary": [
+   "apps/mobile/app/(tabs)/index.tsx",
+   "apps/mobile/src/product/home-dashboard.ts"
+  ],
+  "GET /v1/billing/overview": [
+   "apps/mobile/app/(tabs)/index.tsx",
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/reports": [
+   "apps/mobile/app/(tabs)/index.tsx"
+  ],
+  "GET /v1/me/inbox": [
+   "apps/mobile/app/(tabs)/index.tsx",
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "POST /v1/me/inbox": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "GET /v1/me/inbox/items/:param/read": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "POST /v1/me/inbox/items/:param/read": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "GET /v1/me/inbox/items/:param/{read,unread,dismiss,snooze}": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "POST /v1/me/inbox/items/:param/{read,unread,dismiss,snooze}": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "GET /v1/me/inbox/mark-all-read": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "POST /v1/me/inbox/mark-all-read": [
+   "apps/mobile/app/(tabs)/notifications.tsx"
+  ],
+  "GET /v1/users/me": [
+   "apps/mobile/app/(tabs)/settings.tsx",
+   "apps/mobile/src/product/account-security.ts"
+  ],
+  "PATCH /v1/users/me": [
+   "apps/mobile/app/(tabs)/settings.tsx"
+  ],
+  "GET /v1/collaboration-teams": [
+   "apps/mobile/app/(tabs)/teams.tsx",
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "POST /v1/collaboration-teams": [
+   "apps/mobile/app/(tabs)/teams.tsx"
+  ],
+  "GET /v1/auth/email/login": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/email/login": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/email/register": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/email/register": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/email/verify": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/email/verify": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/email/resend-verification": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/email/resend-verification": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/password-reset/request": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/password-reset/request": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/password-reset/confirm": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/password-reset/confirm": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/mfa/verify": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/mfa/verify": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/google": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/google": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/apple": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/apple": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/me": [
+   "apps/mobile/src/auth/auth-api.ts",
+   "apps/mobile/src/auth-context.tsx"
+  ],
+  "POST /v1/auth/me": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/auth/logout": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/auth/logout": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/users/legal-status": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/users/legal-status": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "GET /v1/users/legal-acceptance": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/users/legal-acceptance": [
+   "apps/mobile/src/auth/auth-api.ts"
+  ],
+  "POST /v1/capture/sessions": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "PATCH /v1/capture/sessions": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "DELETE /v1/capture/sessions": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "GET /v1/capture/direct-sessions": [
+   "apps/mobile/src/capture/capture-draft.ts",
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/direct-sessions": [
+   "apps/mobile/src/capture/capture-draft.ts",
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "PATCH /v1/capture/direct-sessions": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "DELETE /v1/capture/direct-sessions": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "GET /v1/capture/sessions/:param": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "POST /v1/capture/sessions/:param": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "PATCH /v1/capture/sessions/:param": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "DELETE /v1/capture/sessions/:param": [
+   "apps/mobile/src/capture/capture-draft.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/screen-complete": [
+   "apps/mobile/src/capture/screen-acquisition.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/continuous-complete": [
+   "apps/mobile/src/capture/screen-acquisition.ts"
+  ],
+  "GET /v1/deep-link/resolve": [
+   "apps/mobile/src/DeepLinkGate.tsx"
+  ],
+  "POST /v1/deep-link/resolve": [
+   "apps/mobile/src/DeepLinkGate.tsx"
+  ],
+  "GET /v1/capture/mobile/ingest": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/mobile/ingest": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/evidence": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/direct-sessions/:param/evidence": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/parts/:param/declaration": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/direct-sessions/:param/parts/:param/declaration": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/evidence/:param/parts": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/evidence/:param/parts": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/complete": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/direct-sessions/:param/complete": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/capture/direct-sessions/:param/discard": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "POST /v1/capture/direct-sessions/:param/discard": [
+   "apps/mobile/src/direct-capture.ts"
+  ],
+  "GET /v1/identity/data-export": [
+   "apps/mobile/src/product/account-privacy.ts"
+  ],
+  "GET /v1/identity/account-closure": [
+   "apps/mobile/src/product/account-privacy.ts"
+  ],
+  "GET /v1/identity/mfa/enroll/start": [
+   "apps/mobile/src/product/account-security.ts"
+  ],
+  "GET /v1/identity/mfa/enroll/verify": [
+   "apps/mobile/src/product/account-security.ts"
+  ],
+  "GET /v1/workspaces/ai-assistance-status": [
+   "apps/mobile/src/product/ai-assistance.ts"
+  ],
+  "GET /v1/billing/accounts": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/billing/subscription/cancel": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/billing/storage-addons/cancel": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/billing/accounts/:param/:param": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/billing/accounts/:param/:param/history": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/billing/accounts/:param/:param/retry-storage-cancellation": [
+   "apps/mobile/src/product/billing.ts"
+  ],
+  "GET /v1/capture/intake-templates": [
+   "apps/mobile/src/product/capture-plan.ts"
+  ],
+  "GET /v1/cases/summary": [
+   "apps/mobile/src/product/case-workspace.ts"
+  ],
+  "GET /v1/cases/:param/comments": [
+   "apps/mobile/src/product/case-workspace.ts"
+  ],
+  "GET /v1/cases/:param/comments/:param": [
+   "apps/mobile/src/product/case-workspace.ts"
+  ],
+  "GET /v1/cases/:param/comments/:param/resolve": [
+   "apps/mobile/src/product/case-workspace.ts"
+  ],
+  "GET /v1/collaboration-teams/entitlement": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/collaboration-teams/:param/assignments": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/collaboration-teams/:param/archive": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/collaboration-teams/:param/unarchive": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/collaboration-teams/:param/members/:param": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/collaboration-teams/:param/disposability": [
+   "apps/mobile/src/product/collaboration.ts"
+  ],
+  "GET /v1/evidence/:param/derived-review": [
+   "apps/mobile/src/product/derived-review.ts"
+  ],
+  "GET /v1/evidence/:param/derived-review/generate": [
+   "apps/mobile/src/product/derived-review.ts"
+  ],
+  "GET /v1/collaboration/threads": [
+   "apps/mobile/src/product/discussion.ts"
+  ],
+  "GET /v1/collaboration/threads/:param/messages": [
+   "apps/mobile/src/product/discussion.ts"
+  ],
+  "GET /v1/collaboration/threads/:param/resolve": [
+   "apps/mobile/src/product/discussion.ts"
+  ],
+  "GET /v1/collaboration/threads/:param/reopen": [
+   "apps/mobile/src/product/discussion.ts"
+  ],
+  "GET /v1/evidence/:param/comments": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/duplicates": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/reports/regenerate": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/annotations": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/legal-notes": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/comments/:param": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/annotations/:param": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/legal-notes/:param": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/lock": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/archive": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/label": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/original": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/relationships": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/relationships/:param": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/unlock": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/:param/unarchive": [
+   "apps/mobile/src/product/evidence-detail.ts"
+  ],
+  "GET /v1/evidence/saved-views/:param": [
+   "apps/mobile/src/product/evidence-library.ts"
+  ],
+  "GET /v1/evidence/saved-views/:param/default": [
+   "apps/mobile/src/product/evidence-library.ts"
+  ],
+  "GET /v1/evidence-requests/:param/:param": [
+   "apps/mobile/src/product/evidence-requests.ts"
+  ],
+  "GET /v1/evidence-requests/:param/deliveries": [
+   "apps/mobile/src/product/evidence-requests.ts"
+  ],
+  "GET /v1/evidence-requests/:param/events": [
+   "apps/mobile/src/product/evidence-requests.ts"
+  ],
+  "GET /v1/evidence-requests/:param/assign": [
+   "apps/mobile/src/product/evidence-requests.ts"
+  ],
+  "GET /v1/evidence-requests/:param/responses/:param/review": [
+   "apps/mobile/src/product/evidence-requests.ts"
+  ],
+  "GET /v1/external-intake/:param": [
+   "apps/mobile/src/product/external-intake.ts"
+  ],
+  "GET /v1/dashboard/records-by-type": [
+   "apps/mobile/src/product/home-operations.ts"
+  ],
+  "GET /v1/me/inbox/items/:param/{read,unread,archive,remind}": [
+   "apps/mobile/src/product/inbox.ts"
+  ],
+  "GET /v1/me/inbox/items/:param/:param": [
+   "apps/mobile/src/product/inbox.ts"
+  ],
+  "GET /v1/workflow/intake-links/:param/submissions": [
+   "apps/mobile/src/product/intake-links.ts"
+  ],
+  "GET /v1/workflow/intake-links/:param/send": [
+   "apps/mobile/src/product/intake-links.ts"
+  ],
+  "GET /v1/workflow/intake-links/:param/recipient-contact": [
+   "apps/mobile/src/product/intake-links.ts"
+  ],
+  "GET /v1/workflow/intake-links/:param/:param": [
+   "apps/mobile/src/product/intake-links.ts"
+  ],
+  "GET /v1/legal": [
+   "apps/mobile/src/product/legal.ts"
+  ],
+  "GET /v1/legal/:param": [
+   "apps/mobile/src/product/legal.ts"
+  ],
+  "GET /v1/identity/mfa/recovery-requests/analytics/page-viewed": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/auth/session-light": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/identity/mfa/recovery-requests/:param/verify-email": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/identity/mfa-admin/recovery-requests": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/identity/mfa/recovery-requests/:param/resend-email": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/identity/mfa/recovery-requests/:param/cancel": [
+   "apps/mobile/src/product/mfa-recovery.ts"
+  ],
+  "GET /v1/communications/verify/*": [
+   "apps/mobile/src/product/notification-preferences.ts"
+  ],
+  "GET /v1/me/notification-preferences": [
+   "apps/mobile/src/product/notification-preferences.ts"
+  ],
+  "GET /v1/me/notification-schedule": [
+   "apps/mobile/src/product/notification-preferences.ts"
+  ],
+  "GET /v1/quotas": [
+   "apps/mobile/src/product/operations.ts"
+  ],
+  "GET /v1/usage-stats": [
+   "apps/mobile/src/product/operations.ts"
+  ],
+  "GET /v1/batch-analysis": [
+   "apps/mobile/src/product/operations.ts"
+  ],
+  "GET /v1/me/orgs": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/audit-events": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/leave": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/transfer-ownership": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/closure": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/members": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/workspaces": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/invites": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/orgs/:param/closure/:param/cancel": [
+   "apps/mobile/src/product/organizations.ts"
+  ],
+  "GET /v1/platform/context": [
+   "apps/mobile/src/product/platform-context.ts"
+  ],
+  "GET /v1/portal/auth": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/portal/dashboard": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/portal/logout": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/portal/work/:param/view": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/portal/work/:param/comments": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/portal/work/:param/decision": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/external-review/access/:param": [
+   "apps/mobile/src/product/portal.ts"
+  ],
+  "GET /v1/billing/pricing": [
+   "apps/mobile/src/product/pricing.ts"
+  ],
+  "GET /v1/reviewer-criteria": [
+   "apps/mobile/src/product/reviewer-criteria.ts"
+  ],
+  "GET /v1/reviewer-criteria/:param/:param": [
+   "apps/mobile/src/product/reviewer-criteria.ts"
+  ],
+  "GET /v1/reviewer-criteria/:param/usage": [
+   "apps/mobile/src/product/reviewer-criteria.ts"
+  ],
+  "GET /v1/reviewer-criteria/:param": [
+   "apps/mobile/src/product/reviewer-criteria.ts"
+  ],
+  "GET /v1/reviewer-criteria/:param/draft": [
+   "apps/mobile/src/product/reviewer-criteria.ts"
+  ],
+  "GET /v1/evidence/:param/reviewer-workflow": [
+   "apps/mobile/src/product/reviewer-workflow.ts"
+  ],
+  "GET /v1/evidence/:param/reviewer-workflow/events": [
+   "apps/mobile/src/product/reviewer-workflow.ts"
+  ],
+  "GET /v1/search": [
+   "apps/mobile/src/product/search.ts"
+  ],
+  "GET /v1/search/suggest": [
+   "apps/mobile/src/product/search.ts"
+  ],
+  "GET /v1/platform/context/switch-workspace": [
+   "apps/mobile/src/product/spaces.ts"
+  ],
+  "GET /v1/trust/articles": [
+   "apps/mobile/src/product/trust-center.ts"
+  ],
+  "GET /v1/trust/articles/:param/versions": [
+   "apps/mobile/src/product/trust-center.ts"
+  ],
+  "GET /v1/teams/:param": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/members": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/invites": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/invites/:param": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/members/:param": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/cases": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/activity": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/transfer-ownership": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/closure": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/invites/:param/resend": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/cases/link": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/cases/:param": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ],
+  "GET /v1/teams/:param/closure/:param/cancel": [
+   "apps/mobile/src/product/workspace-people.ts"
+  ]
+ }
+}
