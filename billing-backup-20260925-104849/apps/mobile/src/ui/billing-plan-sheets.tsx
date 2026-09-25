@@ -132,7 +132,7 @@ export function ManagePlanSheet({
           </View>
         ) : null}
 
-        {/* Plan moves are offered only in private distribution by the parent screen. */}
+        {/* Plan moves are purchases/changes of a paid entitlement: pending decision. */}
         {projection.hasPlanOffers && plan.accessKind === "SUBSCRIPTION" ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>{PURCHASE_PENDING_NOTE}</ProovraText>
         ) : null}
@@ -165,7 +165,6 @@ export const PRICING_COPY = {
 export function PricingSheet({
   visible,
   onClose,
-  onDismiss,
   catalogue,
   addons,
   credit,
@@ -175,7 +174,6 @@ export function PricingSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onDismiss?: () => void;
   catalogue: PricingCatalogue | null;
   addons: StorageAddonOffer[];
   credit: EvidenceCreditOffer | null;
@@ -185,7 +183,7 @@ export function PricingSheet({
   onChoosePlan?: (plan: "PRO" | "TEAM") => void;
 }) {
   return (
-    <ProovraSheet visible={visible} title="Choose a plan" onClose={onClose} onDismiss={onDismiss}>
+    <ProovraSheet visible={visible} title={PRICING_COPY.kicker} onClose={onClose}>
       <View style={{ gap: theme.space.s3 }} testID="billing-pricing">
         <ProovraText variant="h3" weight="bold">{PRICING_COPY.title}</ProovraText>
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{PRICING_COPY.intro}</ProovraText>

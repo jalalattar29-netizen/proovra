@@ -10,7 +10,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Google from "expo-auth-session/providers/google";
-import * as AuthSession from "expo-auth-session";
 import { oauthApple, oauthGoogle, type LoginResult } from "./auth-api";
 import { toSafeUserError, type SafeError } from "../errors/safe-error";
 
@@ -92,7 +91,6 @@ export function useOAuth(opts: {
     iosClientId: iosClientId ?? UNCONFIGURED,
     androidClientId: androidClientId ?? UNCONFIGURED,
     webClientId: webClientId ?? UNCONFIGURED,
-    responseType: AuthSession.ResponseType.IdToken,
     scopes: ["openid", "email", "profile"],
   });
 

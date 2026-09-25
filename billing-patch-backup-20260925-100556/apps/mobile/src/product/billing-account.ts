@@ -112,15 +112,12 @@ export interface BillingProjection {
     derivedFromLegacyFallback: boolean;
   } | null;
   hasPlanOffers: boolean;
-  planOffers: Array<{ planKey: string }>;
   actionRequired: { severity: string; title: string; messages: string[]; reassurance: string | null } | null;
   dependentStorageCancellation: { actionAvailable: boolean; supportRequired: boolean } | null;
-  storageAddons: { offerCount: number; offers: Array<{ key: string; label: string }>; active: ActiveAddonModel[] } | null;
+  storageAddons: { offerCount: number; active: ActiveAddonModel[] } | null;
   storageAddonsLocked: { reason: string; unlockedByPlan: string | null } | null;
   actions: {
     canBuyEvidenceCredits: boolean;
-    canBuyStorageAddons: boolean;
-    canManageBilling: boolean;
     canRequestCancellation: boolean;
     contactAccountManager: boolean;
     planManagement: { label: string; mode: string; enabled: boolean };
@@ -233,10 +230,6 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
         }
       : null,
     hasPlanOffers: rows(p.planOffers).length > 0,
-    planOffers: rows(p.planOffers)
-      .map((item) => str(obj(item).planKey))
-      .filter((key): key is string => key !== null)
-      .map((planKey) => ({ planKey })),
     actionRequired: ar
       ? {
           severity: str(ar.severity) ?? "WARNING",
@@ -249,10 +242,6 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
     storageAddons: addons
       ? {
           offerCount: rows(addons.offers).length,
-          offers: rows(addons.offers).map(raw => {
-            const offer = obj(raw);
-            return { key: str(offer.key) ?? str(offer.addonKey) ?? "", label: str(offer.label) ?? str(offer.storageLabel) ?? "Storage" };
-          }).filter(offer => offer.key.length > 0),
           active: rows(addons.active)
             .map((raw): ActiveAddonModel | null => {
               const a = obj(raw);
@@ -276,8 +265,6 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
     storageAddonsLocked: locked ? { reason: str(locked.reason) ?? "", unlockedByPlan: str(locked.unlockedByPlan) } : null,
     actions: {
       canBuyEvidenceCredits: actions.canBuyEvidenceCredits === true,
-      canBuyStorageAddons: actions.canBuyStorageAddons === true || actions.canBuyStorage === true || rows(addons?.offers).length > 0,
-      canManageBilling: actions.canManageBilling === true || pm.enabled === true,
       canRequestCancellation: actions.canRequestCancellation === true,
       contactAccountManager: actions.contactAccountManager === true,
       planManagement: { label: str(pm.label) ?? "Manage plan", mode: str(pm.mode) ?? "MANAGE", enabled: pm.enabled !== false },

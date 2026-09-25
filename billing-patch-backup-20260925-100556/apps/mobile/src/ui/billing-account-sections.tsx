@@ -115,11 +115,9 @@ export function BillingActionRequired({
 export function BillingOverviewCard({
   projection,
   onManagePlan,
-  onUpgradeToTeam,
 }: {
   projection: BillingProjection;
   onManagePlan: () => void;
-  onUpgradeToTeam?: () => void;
 }) {
   const { plan } = projection;
   const periodEnd = billingDate(plan.currentPeriodEndUtc);
@@ -164,10 +162,7 @@ export function BillingOverviewCard({
           {lifecycle.label}
         </ProovraText>
       </View>
-      {onUpgradeToTeam ? (
-        <ProovraButton label="Upgrade to Team" fullWidth={false} onPress={onUpgradeToTeam} />
-      ) : null}
-      {/* The server-projected management action remains available. */}
+      {/* ONE plan action, named by the server. */}
       <ProovraButton
         label={projection.actions.planManagement.label}
         fullWidth={false}
@@ -220,12 +215,10 @@ export function BillingEvidenceCard({
   projection,
   onChoosePlan,
   onOpenReports,
-  onBuyCredits,
 }: {
   projection: BillingProjection;
   onChoosePlan: () => void;
   onOpenReports: () => void;
-  onBuyCredits?: () => void;
 }) {
   const a = projection.evidenceAdmission;
   const meter = projection.usage.evidence;
@@ -275,9 +268,7 @@ export function BillingEvidenceCard({
           <ProovraButton label="Open Reports" variant="ghost" fullWidth={false} onPress={onOpenReports} />
         </View>
       ) : null}
-      {projection.actions.canBuyEvidenceCredits && onBuyCredits ? (
-        <ProovraButton label="Buy evidence credits" variant="secondary" fullWidth={false} onPress={onBuyCredits} />
-      ) : null}
+      {/* "Buy credits" is a purchase (pending decision); "Choose a plan" opens the read-only pricing. */}
       {offered?.action === "SEE_PLANS" ? (
         <ProovraButton label="Choose a plan" variant="secondary" fullWidth={false} onPress={onChoosePlan} />
       ) : null}
@@ -325,13 +316,11 @@ export function BillingStorageCard({
   onChoosePlan,
   onCancelAddon,
   cancelBusyId,
-  onBuyStorage,
 }: {
   projection: BillingProjection;
   onChoosePlan: () => void;
   onCancelAddon: (addon: ActiveAddonModel) => void;
   cancelBusyId: string | null;
-  onBuyStorage?: () => void;
 }) {
   const meter = projection.usage.storage;
   const locked = projection.storageAddonsLocked;
@@ -363,9 +352,7 @@ export function BillingStorageCard({
       {addons.active.map((a) => (
         <AddonRow key={a.id} addon={a} busy={cancelBusyId === a.id} onCancel={() => onCancelAddon(a)} />
       ))}
-      {addons.offerCount > 0 && onBuyStorage ? (
-        <ProovraButton label="Add storage" variant="secondary" fullWidth={false} onPress={onBuyStorage} />
-      ) : null}
+      {/* Adding storage is a purchase (pending decision), so an account with none says so. */}
       {addons.active.length === 0 ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>{COPY.noExtraStorage}</ProovraText>
       ) : null}
@@ -431,4 +418,3 @@ export function BillingSupportStrip({ projection, onPress }: { projection: Billi
     </ProovraCard>
   );
 }
-

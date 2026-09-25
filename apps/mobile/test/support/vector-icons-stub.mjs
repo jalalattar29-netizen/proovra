@@ -15,4 +15,11 @@ Feather.displayName = "Feather";
 Feather.font = { feather: "feather.ttf" };
 
 export default Feather;
-export { Feather };
+const FontAwesome = ({ name, size, color, ...props }) =>
+  React.createElement("Icon", {
+    ...props, name, size, color, family: "FontAwesome"
+  });
+FontAwesome.displayName = "FontAwesome";
+FontAwesome.font = { fontawesome: "fontawesome.ttf" };
+
+export { Feather, FontAwesome };

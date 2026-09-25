@@ -152,7 +152,7 @@ export default function AuthScreen() {
         <View style={styles.oauth}>
           <ProovraButton
             label={t("signInGoogle")}
-            variant="secondary"
+            variant="google"
             loading={oauth.busy === "google"}
             disabled={busy}
             onPress={() => startOAuth("google")}
@@ -160,7 +160,7 @@ export default function AuthScreen() {
           {oauth.appleAvailable ? (
             <ProovraButton
               label={t("signInApple")}
-              variant="secondary"
+              variant="apple"
               loading={oauth.busy === "apple"}
               disabled={busy}
               onPress={() => startOAuth("apple")}

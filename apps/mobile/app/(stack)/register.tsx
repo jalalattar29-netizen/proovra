@@ -232,7 +232,7 @@ export default function RegisterScreen() {
         <View style={styles.oauth}>
           <ProovraButton
             label="Continue with Google"
-            variant="secondary"
+            variant="google"
             loading={oauth.busy === "google"}
             disabled={busy}
             onPress={() => {
@@ -243,7 +243,7 @@ export default function RegisterScreen() {
           {oauth.appleAvailable ? (
             <ProovraButton
               label="Continue with Apple"
-              variant="secondary"
+              variant="apple"
               loading={oauth.busy === "apple"}
               disabled={busy}
               onPress={() => {

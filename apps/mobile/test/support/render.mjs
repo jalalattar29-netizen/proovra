@@ -35,6 +35,7 @@ const ALIASES = {
   "expo-location": resolve(HERE, "expo-stub.mjs"),
   "expo-document-picker": resolve(HERE, "expo-stub.mjs"),
   "expo-linking": resolve(HERE, "expo-stub.mjs"),
+  "expo-web-browser": resolve(HERE, "expo-stub.mjs"),
   "expo-sharing": resolve(HERE, "expo-stub.mjs"),
   "expo-clipboard": resolve(HERE, "expo-stub.mjs"),
   "expo-apple-authentication": resolve(HERE, "expo-stub.mjs"),
@@ -55,6 +56,8 @@ const ALIASES = {
   "@expo-google-fonts/plus-jakarta-sans": resolve(HERE, "expo-stub.mjs"),
   "@expo-google-fonts/noto-sans-arabic": resolve(HERE, "expo-stub.mjs"),
   // T-09f — nav icons. Renders an "Icon" host element carrying the glyph name.
+  "react-native-svg": resolve(HERE, "svg-stub.mjs"),
+  "@expo/vector-icons/FontAwesome": resolve(HERE, "vector-icons-stub.mjs"),
   "@expo/vector-icons/Feather": resolve(HERE, "vector-icons-stub.mjs"),
   "@expo/vector-icons": resolve(HERE, "vector-icons-stub.mjs"),
 };
@@ -241,3 +244,4 @@ export async function loadWithProviders(entry) {
 export async function renderInProviders(mod, element) {
   return renderComponent(React.createElement(mod.TestProviders, null, element));
 }
+

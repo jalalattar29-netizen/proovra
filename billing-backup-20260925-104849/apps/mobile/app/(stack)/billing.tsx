@@ -18,13 +18,13 @@
  * decision (src/product/billing.ts). Prices and plans are shown read-only in
  * the pricing sheet.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
-import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
+import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
 import { ProovraSheet } from "../../src/ui/patterns";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
@@ -124,10 +124,6 @@ export default function BillingScreen() {
   const [storageOpen, setStorageOpen] = useState(false);
   const [purchase, setPurchase] = useState<PurchaseIntent | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const pendingPurchase = useRef<PurchaseIntent | null>(null);
-  const pendingBrowserUrl = useRef<string | null>(null);
-  const checkoutInFlight = useRef(false);
   const privateCheckout = externalCheckoutEnabled();
   const [manageOpen, setManageOpen] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>(null);
@@ -221,15 +217,7 @@ export default function BillingScreen() {
     return origin ? () => void Linking.openURL(`${origin}${CONTACT_SALES_PATH}`) : null;
   })();
 
-  const openPricingWebsite = useCallback(() => {
-    const origin = webOrigin();
-    if (!origin) { setNotice("Pricing website is not configured."); return; }
-    void WebBrowser.openBrowserAsync(`${origin}/pricing`).catch(() => {
-      setNotice("Could not open the pricing website. Please try again.");
-    });
-  }, []);
-
-  /** Plan selection is distinct from the public pricing website. */
+  /** CHOOSE is the plan chooser — a purchase — so it opens the read-only pricing instead. */
   const openPlanManagement = useCallback(() => {
     if (!projection) return;
     if (projection.actions.planManagement.mode === "CHOOSE") setPricingOpen(true);
@@ -240,65 +228,13 @@ export default function BillingScreen() {
     if (!privateCheckout || selected?.type !== "PERSONAL" || !projection) return;
     if (intent.kind === "CREDITS" && !projection.actions.canBuyEvidenceCredits) return;
     if (intent.kind === "STORAGE" && !projection.storageAddons?.offers.some(offer => offer.key === intent.addonKey)) return;
-    if (
-      intent.kind === "PLAN" &&
-      !projection.planOffers.some(
-        offer => offer.planKey.toUpperCase() === intent.plan
-      )
-    ) {
-      setNotice("This plan is not available for your billing account.");
-      return;
-    }
-    setPurchaseError(null);
-    setNotice(null);
-
-    if (pricingOpen || storageOpen || manageOpen) {
-      pendingPurchase.current = intent;
-      setPricingOpen(false);
-      setStorageOpen(false);
-      setManageOpen(false);
-      return;
-    }
-
+    if (intent.kind === "PLAN" && !projection.hasPlanOffers) return;
+    setPricingOpen(false);
+    setStorageOpen(false);
+    setManageOpen(false);
     setPurchase(intent);
-  }, [
-    privateCheckout,
-    selected,
-    projection,
-    pricingOpen,
-    storageOpen,
-    manageOpen
-  ]);
-
-  const finishSourceDismiss = useCallback(() => {
-    const next = pendingPurchase.current;
-    if (!next) return;
-
-    pendingPurchase.current = null;
-    setPurchase(next);
-  }, []);
-
-  const finishCheckoutDismiss = useCallback(() => {
-    const url = pendingBrowserUrl.current;
-    if (!url) return;
-
-    pendingBrowserUrl.current = null;
-
-    void WebBrowser.openBrowserAsync(url)
-      .then(() => {
-        setNotice(
-          "Payment may still be pending. Refresh billing to check its confirmed status."
-        );
-        refresh();
-      })
-      .catch((err) => {
-        console.error("[billing] Browser presentation failed", err);
-        setNotice(
-          "Could not open the payment provider. Check pending payments before retrying."
-        );
-        refresh();
-      });
-  }, [refresh]);
+    setNotice(null);
+  }, [privateCheckout, selected, projection]);
 
   const choosePlan = useCallback((plan: "PRO" | "TEAM") => {
     if (!projection || !selected || selected.type !== "PERSONAL") return;
@@ -307,23 +243,8 @@ export default function BillingScreen() {
   }, [projection, selected, offerPurchase]);
 
   const executePurchase = useCallback(async (provider: PurchaseProvider) => {
-    if (checkoutInFlight.current) return;
-
-    if (
-      !purchase ||
-      !selected ||
-      selected.type !== "PERSONAL" ||
-      !privateCheckout
-    ) {
-      setPurchaseError(
-        "Checkout is unavailable for this billing account."
-      );
-      return;
-    }
-
-    checkoutInFlight.current = true;
+    if (!purchase || !selected || selected.type !== "PERSONAL" || !privateCheckout || purchaseBusy) return;
     setPurchaseBusy(true);
-    setPurchaseError(null);
     setNotice(null);
     try {
       const request = checkoutRequest(purchase, provider, catalogue?.currency);
@@ -343,25 +264,23 @@ export default function BillingScreen() {
       if (result?.outcome === "NO_CHANGE") { setNotice("Your plan is already active."); setPurchase(null); refresh(); return; }
       if (result?.outcome === "PROVIDER_TRANSITION_IN_PROGRESS") { setNotice("Your plan change is pending provider confirmation."); setPurchase(null); refresh(); return; }
       const url = result?.approvalUrl
-        ? verifiedCheckoutUrl(result.approvalUrl)
+        ? checkoutApprovalUrl({ subscription: { links: [{ rel: "approve", href: result.approvalUrl }] } }, "paypal")
         : checkoutApprovalUrl(response, provider);
       if (url) {
-        pendingBrowserUrl.current = url;
         setPurchase(null);
+        await WebBrowser.openBrowserAsync(url);
+        setNotice("Payment may still be pending. Refresh billing to check its confirmed status.");
+        refresh();
       } else {
-        // A provider may have created a pending attempt; never silently retry it.
-        setPurchaseError(result?.outcome
-          ? `Plan change: ${result.outcome}. Refresh billing to check its confirmed status.`
-          : "No verified payment link was returned. Check payment history before trying again.");
+        setPurchase(null);
+        setNotice(result?.outcome ? `Plan change: ${result.outcome}. Refresh billing to check the confirmed status.` : "Checkout was created, but no verified approval link was returned. Check payment history before trying again.");
         refresh();
       }
     } catch (err) {
-      setPurchaseError(toSafeUserError(err, { message: "Checkout could not be started. No purchase was confirmed. Check pending payments before retrying." }).message);
-    } finally {
-      checkoutInFlight.current = false;
-      setPurchaseBusy(false);
-    }
-  }, [purchase, selected, privateCheckout, catalogue, refresh]);
+      setNotice(toSafeUserError(err, { message: "Checkout could not be started. No purchase was confirmed. Check pending payments before retrying." }).message);
+      setPurchase(null);
+    } finally { setPurchaseBusy(false); }
+  }, [purchase, selected, privateCheckout, purchaseBusy, catalogue, refresh]);
 
   /* ---------------------------------------------------------- actions */
 
@@ -509,7 +428,7 @@ export default function BillingScreen() {
         title={COPY.title}
         subtitle={COPY.subtitle}
         primaryAction={
-          pricingRelevant ? <ProovraButton label="View Pricing" fullWidth={false} onPress={openPricingWebsite} /> : undefined
+          pricingRelevant ? <ProovraButton label={COPY.viewPricing} fullWidth={false} onPress={() => setPricingOpen(true)} /> : undefined
         }
         secondaryActions={<ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />}
       />
@@ -556,20 +475,7 @@ export default function BillingScreen() {
 
               <BillingActionRequired projection={projection} onRetry={() => void retryStorageCancellation()} onSupport={() => router.push("/support")} busy={busy} />
 
-              <BillingOverviewCard
-                projection={projection}
-                onManagePlan={openPlanManagement}
-                onUpgradeToTeam={
-                  privateCheckout && selected.type === "PERSONAL" &&
-                  projection.plan.planKey === "PRO" &&
-                  projection.planOffers.some(
-                    offer => offer.planKey.toUpperCase() === "TEAM"
-                  ) &&
-                  projection.actions.planManagement.enabled &&
-                  !projection.plan.providerTransition && !projection.plan.scheduledChange
-                    ? () => choosePlan("TEAM") : undefined
-                }
-              />
+              <BillingOverviewCard projection={projection} onManagePlan={openPlanManagement} />
 
               <BillingEvidenceCard projection={projection} onChoosePlan={openPlanManagement} onOpenReports={() => router.push("/reports" as never)} onBuyCredits={privateCheckout && selected.type === "PERSONAL" && credit ? () => offerPurchase({ kind: "CREDITS" }) : undefined} />
 
@@ -628,7 +534,6 @@ export default function BillingScreen() {
       <PricingSheet
         visible={pricingOpen}
         onClose={() => setPricingOpen(false)}
-        onDismiss={finishSourceDismiss}
         catalogue={catalogue}
         addons={addonOffers}
         credit={credit}
@@ -638,12 +543,7 @@ export default function BillingScreen() {
       />
 
       {privateCheckout && selected?.type === "PERSONAL" && projection?.storageAddons?.offers.length ? (
-        <ProovraSheet
-          visible={storageOpen && !purchase}
-          title="Available storage"
-          onClose={() => setStorageOpen(false)}
-          onDismiss={finishSourceDismiss}
-        >
+        <ProovraSheet visible={storageOpen && !purchase} title="Available storage" onClose={() => setStorageOpen(false)}>
           <View style={{ gap: theme.space.s2 }}>
             {projection.storageAddons.offers.map(offer => {
               const published = addonOffers.find(a => a.key === offer.key);
@@ -652,25 +552,12 @@ export default function BillingScreen() {
           </View>
         </ProovraSheet>
       ) : null}
-      <ProovraSheet
-        visible={purchase !== null}
-        title="Choose payment method"
-        onClose={() => {
-          if (!purchaseBusy) {
-            setPurchase(null);
-            setPurchaseError(null);
-          }
-        }}
-        onDismiss={finishCheckoutDismiss}
-      >
+      <ProovraSheet visible={purchase !== null} title="Choose payment method" onClose={() => { if (!purchaseBusy) setPurchase(null); }}>
         <View style={{ gap: theme.space.s3 }}>
           <ProovraText variant="bodySm">You will complete payment with your selected provider. Access changes only after PROOVRA confirms the payment.</ProovraText>
-          {purchaseError ? (
-            <ProovraText variant="bodySm" color={theme.color.status.risk.fg} testID="billing-purchase-error">{purchaseError}</ProovraText>
-          ) : null}
           <ProovraButton label="Pay with Stripe" loading={purchaseBusy} onPress={() => void executePurchase("stripe")} />
           <ProovraButton label="Pay with PayPal" loading={purchaseBusy} onPress={() => void executePurchase("paypal")} />
-          <ProovraButton label="Cancel" variant="ghost" onPress={() => { if (!purchaseBusy) { setPurchase(null); setPurchaseError(null); } }} />
+          <ProovraButton label="Cancel" variant="ghost" onPress={() => { if (!purchaseBusy) setPurchase(null); }} />
         </View>
       </ProovraSheet>
       <ProovraConfirmSheet
@@ -731,4 +618,3 @@ export default function BillingScreen() {
     </ProovraScreen>
   );
 }
-

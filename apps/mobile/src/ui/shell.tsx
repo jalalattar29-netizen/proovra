@@ -42,6 +42,7 @@ import { storageViewFromOverview, type StorageView } from "../product/storage-wi
 import { resolveShellGate } from "../product/shell-gates";
 import { ShellGatePanel } from "./shell-gate-panel";
 import { ProovraHeader } from "./header";
+import { NativeChatAssistant } from "./native-chat-assistant";
 
 // T-05 / RC-05 — the canonical sidebar artwork, copied from the web reference
 // (apps/web/public/assets/cards/sidebar.png) which app-shell-v2.css:175 loads.
@@ -177,7 +178,7 @@ function DegradationChip({ label }: { label: string }) {
  * at its href: the destination owns the recovery state. The chip tells someone
  * BEFORE they tap that it will need setup, permission or an upgrade.
  */
-function NavRow({ item, active, onNavigate }: { item: NavItem; active: boolean; onNavigate?: () => void }) {
+function NavRow({ item, active, onNavigate, collapsed = false }: { item: NavItem; active: boolean; onNavigate?: () => void; collapsed?: boolean }) {
   const { familyForWeight, isRTL } = useLocale();
   const router = useRouter();
   const labelFor = useNavLabel();
@@ -196,6 +197,7 @@ function NavRow({ item, active, onNavigate }: { item: NavItem; active: boolean; 
       style={({ pressed }) => [
         styles.railItem,
         { flexDirection: isRTL ? "row-reverse" : "row", backgroundColor: palette.rowBg },
+        collapsed ? { justifyContent: "center", paddingHorizontal: 0 } : null,
         active ? styles.railItemActive : null,
         // The web expresses hover as --nav-hover-bg. Touch has no hover, so the
         // same affordance becomes the pressed state rather than being dropped.
@@ -205,7 +207,7 @@ function NavRow({ item, active, onNavigate }: { item: NavItem; active: boolean; 
       <View style={styles.railIcon}>
         <Feather name={item.route.icon} size={18} color={palette.icon} />
       </View>
-      <Text
+      {!collapsed ? <Text
         numberOfLines={1}
         style={[
           styles.railLabel,
@@ -213,8 +215,8 @@ function NavRow({ item, active, onNavigate }: { item: NavItem; active: boolean; 
         ]}
       >
         {label}
-      </Text>
-      {item.chip ? <DegradationChip label={item.chip} /> : null}
+      </Text> : null}
+      {!collapsed && item.chip ? <DegradationChip label={item.chip} /> : null}
     </Pressable>
   );
 }
@@ -296,7 +298,12 @@ function SidebarStorage() {
  * by the phone drawer, as the web renders ONE `<AppSidebarV2 />` in both its
  * sidebar slot and its mobile drawer (`AppShellV2.tsx:212`, `:276`).
  */
-function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onNavigate?: () => void }) {
+function RailContents({ groups, onNavigate, collapsed = false, onToggle }: {
+  groups: readonly NavGroup[];
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { familyForWeight, isRTL } = useLocale();
@@ -306,20 +313,39 @@ function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onN
           rail is collapsed and the wordmark once it expands. The native rail is
           always expanded (touch has no hover to expand it), so it shows the
           wordmark. */}
-      <View style={[styles.brand, { alignItems: isRTL ? "flex-end" : "flex-start" }]} testID="nav-brand">
-        <Image
+      <View style={[styles.brand, { alignItems: collapsed ? "center" : isRTL ? "flex-end" : "flex-start" }]} testID="nav-brand">
+        {collapsed && onToggle ? (
+          <Pressable
+            onPress={onToggle}
+            accessibilityRole="button"
+            accessibilityLabel="Expand navigation"
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <Feather name="menu" size={23} color={SIDEBAR.inkStrong} />
+          </Pressable>
+        ) : <Image
           source={LOGO_DARK}
           style={styles.brandLogo}
           resizeMode="contain"
           accessible
           accessibilityRole="image"
           accessibilityLabel="PROOVRA"
-        />
+        />}
+        {!collapsed && onToggle ? (
+          <Pressable
+            onPress={onToggle}
+            accessibilityRole="button"
+            accessibilityLabel="Collapse navigation"
+            style={{ position: "absolute", right: 4, top: 14, width: 36, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <Feather name="chevrons-left" size={18} color={SIDEBAR.inkStrong} />
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.railScroll}
+        contentContainerStyle={[styles.railScroll, collapsed ? { paddingHorizontal: 8, gap: 10 } : null]}
         showsVerticalScrollIndicator={false}
         testID="nav-rail-scroll"
       >
@@ -327,12 +353,12 @@ function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onN
           <View key={group.id} style={styles.group} testID={`nav-group-${group.id}`}>
             {/* The web draws a hairline above every group title but the first. */}
             {index > 0 ? <View style={styles.groupDivider} testID="nav-group-divider" /> : null}
-            <Text
+            {!collapsed ? <Text
               accessibilityRole="header"
               style={[styles.groupTitle, { fontFamily: familyForWeight("700"), textAlign: isRTL ? "right" : "left" }]}
             >
               {group.title.toUpperCase()}
-            </Text>
+            </Text> : null}
             <View style={styles.groupNav}>
               {group.items.map((item) => (
                 <NavRow
@@ -340,6 +366,7 @@ function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onN
                   item={item}
                   active={isActiveHref(pathname, item.route.href)}
                   onNavigate={onNavigate}
+                  collapsed={collapsed}
                 />
               ))}
             </View>
@@ -347,7 +374,7 @@ function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onN
         ))}
       </ScrollView>
 
-      <SidebarStorage />
+      {!collapsed ? <SidebarStorage /> : null}
 
       {/* `.app-sidebar-v2-help` (AppSidebarV2.tsx:741-768). The web opens the
           public support page in a new tab so the shell stays put; native has a
@@ -367,10 +394,10 @@ function RailContents({ groups, onNavigate }: { groups: readonly NavGroup[]; onN
         ]}
       >
         <Feather name="life-buoy" size={18} color={SIDEBAR.inkMuted} />
-        <View style={styles.helpText}>
+        {!collapsed ? <View style={styles.helpText}>
           <Text style={[styles.helpStrong, { fontFamily: familyForWeight("600") }]}>Need help?</Text>
           <Text style={[styles.helpSmall, { fontFamily: familyForWeight("400") }]}>Contact support</Text>
-        </View>
+        </View> : null}
       </Pressable>
     </>
   );
@@ -455,10 +482,41 @@ function ProovraNavDrawer({ visible, onClose, groups }: { visible: boolean; onCl
  * collapses to a 68px icon rail and expands on hover; touch has no hover, so
  * the native rail stays expanded — the state in which the web shows labels.
  */
-export function ProovraTabletRail({ groups }: { groups: readonly NavGroup[] }) {
+export function ProovraTabletRail({ groups, collapsed = false, onToggle, onNavigate }: {
+  groups: readonly NavGroup[];
+  collapsed?: boolean;
+  onToggle?: () => void;
+  onNavigate?: () => void;
+}) {
   return (
-    <ImageBackground source={SIDEBAR_BG} resizeMode="cover" style={styles.rail} testID="nav-rail">
-      <RailContents groups={groups} />
+    <ImageBackground
+      source={SIDEBAR_BG}
+      resizeMode="cover"
+      style={[styles.rail, { width: collapsed ? 68 : 240 }]}
+      testID="nav-rail"
+    >
+      <RailContents
+        groups={groups}
+        collapsed={collapsed}
+        onToggle={onToggle}
+        onNavigate={onNavigate}
+      />
+      {collapsed && onToggle ? (
+        <Pressable
+          onPress={onToggle}
+          accessibilityRole="button"
+          accessibilityLabel="Expand sidebar"
+          testID="nav-expand-background"
+          style={{
+            position: "absolute",
+            top: 72,
+            right: 0,
+            bottom: 0,
+            left: 0,
+          }}
+          pointerEvents="auto"
+        />
+      ) : null}
     </ImageBackground>
   );
 }
@@ -502,6 +560,7 @@ export function ProovraShell({
   const platform = usePlatformContext();
   const groups = useNavigationGroupsFor(platform.envelope);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [railExpanded, setRailExpanded] = useState(true);
 
   /*
    * T-09e — the web swaps the PAGE (not the shell) for a recovery surface when
@@ -561,8 +620,23 @@ export function ProovraShell({
                 the rail, exactly as the web grid places it (column 2, row 1). */}
             <ProovraHeader />
             {page(styles.railContent)}
+            {railExpanded ? (
+              <Pressable
+                onPress={() => setRailExpanded(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Collapse navigation and return to page"
+                testID="nav-collapse-overlay"
+                style={[StyleSheet.absoluteFill, { backgroundColor: "transparent" }]}
+              />
+            ) : null}
+            {gate.kind === "none" ? <NativeChatAssistant /> : null}
           </ShellBackdrop>
-          <ProovraTabletRail groups={groups} />
+          <ProovraTabletRail
+            groups={groups}
+            collapsed={!railExpanded}
+            onToggle={() => setRailExpanded((value) => !value)}
+            onNavigate={() => setRailExpanded(false)}
+          />
         </View>
       </SafeAreaView>
     );
@@ -577,6 +651,7 @@ export function ProovraShell({
       <ShellBackdrop>
         <ProovraHeader />
         {page(styles.bottomContent)}
+        {gate.kind === "none" ? <NativeChatAssistant /> : null}
       </ShellBackdrop>
       <ProovraBottomNav groups={groups} onOpenMenu={() => setMenuOpen(true)} />
       <ProovraNavDrawer visible={menuOpen} onClose={() => setMenuOpen(false)} groups={groups} />

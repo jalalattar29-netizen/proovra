@@ -67,17 +67,32 @@ export const PAYPAL_CUSTOM_ID_MAX_LENGTH = 127;
 /** Version tag of the compact storage add-on custom_id. */
 const STORAGE_ADDON_CUSTOM_ID_PREFIX = "sa1";
 
-const STORAGE_ADDON_KEYS: readonly prismaPkg.StorageAddonKey[] = [
-  prismaPkg.StorageAddonKey.PERSONAL_10_GB,
-  prismaPkg.StorageAddonKey.PERSONAL_50_GB,
-  prismaPkg.StorageAddonKey.PERSONAL_200_GB,
-  prismaPkg.StorageAddonKey.TEAM_100_GB,
-  prismaPkg.StorageAddonKey.TEAM_500_GB,
-  prismaPkg.StorageAddonKey.TEAM_1_TB,
-];
+/**
+ * The compact add-on codes on the wire (origin/main b9b8b54 introduced these;
+ * subscriptions already created at PayPal may carry them, so they are what is
+ * written). The full StorageAddonKey is ALSO accepted when parsing, so a
+ * subscription created with either spelling of sa1 is attributable.
+ */
+const STORAGE_ADDON_WIRE_CODES: Readonly<Record<prismaPkg.StorageAddonKey, string>> = {
+  PERSONAL_10_GB: "p10",
+  PERSONAL_50_GB: "p50",
+  PERSONAL_200_GB: "p200",
+  TEAM_100_GB: "t100",
+  TEAM_500_GB: "t500",
+  TEAM_1_TB: "t1t",
+};
+
+function storageAddonKeyFromWire(code: string): prismaPkg.StorageAddonKey | null {
+  for (const [key, wire] of Object.entries(STORAGE_ADDON_WIRE_CODES)) {
+    if (code === wire || code === key) return key as prismaPkg.StorageAddonKey;
+  }
+  return null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The storage add-on subscription custom_id: `sa1|<userId>|<teamId or ->|<addonKey>`.
+ * The storage add-on subscription custom_id: `sa1|<userId>|<teamId or ->|<addonCode>`.
  *
  * It replaces a JSON object (`{"userId":…,"teamId":…,"storageAddonKey":…,
  * "billingCycle":…,"workspacePlan":…}`) that was 147+ characters for a UUID
@@ -96,11 +111,11 @@ export function buildPayPalStorageAddonCustomId(params: {
     STORAGE_ADDON_CUSTOM_ID_PREFIX,
     params.userId.trim(),
     teamId,
-    params.addonKey,
+    STORAGE_ADDON_WIRE_CODES[params.addonKey],
   ].join("|");
-  if (value.length > PAYPAL_CUSTOM_ID_MAX_LENGTH) {
+  if (Buffer.byteLength(value, "utf8") > PAYPAL_CUSTOM_ID_MAX_LENGTH) {
     throw new Error(
-      `PayPal custom_id exceeds ${PAYPAL_CUSTOM_ID_MAX_LENGTH} characters`,
+      `PayPal custom_id exceeds ${PAYPAL_CUSTOM_ID_MAX_LENGTH} bytes`,
     );
   }
   return value;
@@ -117,11 +132,12 @@ export function parsePayPalStorageAddonCustomId(
   if (!raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) return null;
   const parts = raw.split("|");
   if (parts.length !== 4) return null;
-  const [, userIdRaw, teamIdRaw, keyRaw] = parts;
+  const [, userIdRaw, teamIdRaw, codeRaw] = parts;
   const userId = userIdRaw?.trim() ?? "";
   const teamId = teamIdRaw?.trim() ?? "";
-  const key = (keyRaw?.trim() ?? "") as prismaPkg.StorageAddonKey;
-  if (!userId || !teamId || !STORAGE_ADDON_KEYS.includes(key)) return null;
+  const key = storageAddonKeyFromWire(codeRaw?.trim() ?? "");
+  if (!UUID_RE.test(userId) || !key) return null;
+  if (teamId !== "-" && !UUID_RE.test(teamId)) return null;
   return {
     userId,
     teamId: teamId === "-" ? null : teamId,

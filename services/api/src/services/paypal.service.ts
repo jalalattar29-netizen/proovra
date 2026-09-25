@@ -218,15 +218,20 @@ export class PayPalHttpError extends Error {
   }
 }
 
-async function readPayPalError(res: Response, prefix: string): Promise<never> {
-  const text = await res.text();
+async function readPayPalError(
+  res: Response,
+  prefix: string,
+): Promise<never> {
+  const responseText = await res.text();
   const debugId = extractPayPalDebugId(res);
 
-  let message = sanitizeProviderText(text) ?? `HTTP ${res.status}`;
+  // Never the unparsed provider body: only fields read from PayPal's JSON
+  // error shape, each sanitized and bounded (origin/main b9b8b54 + details[]).
+  let message = "PayPal request failed";
   let providerErrorName: string | null = null;
   let details: PayPalErrorDetail[] = [];
   try {
-    const parsed = JSON.parse(text) as { message?: string; name?: string };
+    const parsed = JSON.parse(responseText) as { message?: string; name?: string };
     message =
       sanitizeProviderText(parsed.message) ??
       sanitizeProviderText(parsed.name) ??
@@ -234,7 +239,7 @@ async function readPayPalError(res: Response, prefix: string): Promise<never> {
     providerErrorName = sanitizeProviderText(parsed.name);
     details = parsePayPalErrorDetails(parsed);
   } catch {
-    // keep bounded raw text
+    // Do not log or expose an unparsed provider response.
   }
 
   const detailText = details.length

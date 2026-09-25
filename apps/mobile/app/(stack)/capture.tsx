@@ -21,7 +21,6 @@ import {
   ProovraText,
   ProovraButton,
   ProovraBadge,
-  ProovraListRow,
   ProovraEmptyState,
   ProovraSheet,
   ProovraConfirmSheet,
@@ -104,8 +103,6 @@ import {
   type CaptureDraftDetail,
 } from "../../src/capture/capture-draft";
 import { usePlatformContext } from "../../src/product/platform-context";
-import { formatUserDateTime } from "../../src/lib/date";
-import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 // UC-0 — every item goes through ONE server-issued direct-capture session
 // (src/direct-capture.ts): the record is reserved by the session, each file's
 // digest is declared to it, the bytes go to storage, and the server re-hashes
@@ -173,13 +170,6 @@ type CapturedItem = {
   locationIncluded?: boolean;
 };
 
-type RecentEvidenceItem = {
-  id: string;
-  type: string;
-  status: string;
-  createdAt: string;
-};
-
 export default function CaptureScreen() {
   const { t } = useLocale();
   const { addToast } = useToast();
@@ -205,7 +195,6 @@ export default function CaptureScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [recent, setRecent] = useState<RecentEvidenceItem[]>([]);
 
   const [sessionEvidenceId, setSessionEvidenceId] = useState<string | null>(null);
   const [sessionItems, setSessionItems] = useState<CapturedItem[]>([]);
@@ -473,18 +462,6 @@ hasActiveDraft: isSessionActive || isRecording,
     });
   }, []);
 
-  const refreshRecent = useCallback(async () => {
-    try {
-      const data = await apiFetch("/v1/evidence?scope=active");
-      setRecent(Array.isArray(data?.items) ? data.items : []);
-    } catch {
-      setRecent([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshRecent();
-  }, [refreshRecent]);
 
   // Report a live capture session so the deep-link gate can block unsafe
   // context switches during capture (canonical durability signal).
@@ -1543,7 +1520,6 @@ setSessionState(
       setSessionCompletingEvidence(false);
       setUploadProgress(0);
 
-      await refreshRecent();
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
       const msg = toSafeUserError(err, { message: "Failed to finish session" }).message;
@@ -1553,7 +1529,7 @@ setSessionState(
       setBusy(false);
       setSessionCompletingEvidence(false);
     }
-  }, [addToast, pollReport, refreshRecent, router, setSessionState, isRecording, recordActivity]);
+  }, [addToast, pollReport, router, setSessionState, isRecording, recordActivity]);
 
   // The camera's own controls (web CaptureCameraOverlay): which lens, and the light.
   const [facing, setFacing] = useState<"back" | "front">("back");
@@ -1594,17 +1570,14 @@ setSessionState(
   );
 
   const INTAKE_ACTIONS: ReadonlyArray<{ kind: CaptureKind; label: string; helper: string }> = [
-    { kind: "DOCUMENT", label: "Files", helper: "Photos, video, audio, PDFs" },
+    { kind: "DOCUMENT", label: "Upload Files", helper: "Choose files from your device" },
     { kind: "PHOTO", label: "Photo", helper: "Camera capture" },
     { kind: "VIDEO", label: "Video", helper: "Record clip" },
     { kind: "AUDIO", label: "Audio", helper: "Record note" },
   ];
 
   return (
-    <ProovraScreen>
-      <View style={styles.headerRow}>
-        <ProovraButton label="Back" variant="ghost" fullWidth={false} disabled={isRecording} onPress={() => router.back()} />
-      </View>
+    <ProovraScreen shell>
 
       {/* Web order: the intake rail, the drafts, then the page's own title. */}
       <CaptureIntakeRail items={plannedItems} templateSelected={template !== null} readiness={captureReadiness} />
@@ -1901,8 +1874,7 @@ setSessionState(
             </ProovraCard>
           ) : null}
 
-          {hasItems ? (
-            <CaptureSessionStatus
+          <CaptureSessionStatus
               readiness={sessionReadiness}
               busy={sessionCompletingEvidence}
               itemCount={sessionItems.length}
@@ -1913,11 +1885,9 @@ setSessionState(
               planMode={planMode}
               locationPermissionDenied={locationDenied}
             />
-          ) : null}
 
           {/* T-15 — metadata-only AI QA of the staged session (CaptureSessionPanel.tsx:283). */}
-          {hasItems ? (
-            <CaptureAiReview
+          <CaptureAiReview
               plan={template}
               useLocation={useLocation}
               planMode={planMode}
@@ -1934,7 +1904,6 @@ setSessionState(
                 locationIncluded: useLocation,
               }))}
             />
-          ) : null}
 
           {/*
             TWO ORIGINS MET IN ONE DRAFT.
@@ -1985,32 +1954,11 @@ setSessionState(
         </>
       )}
 
-      <ProovraSection title={t("recentEvidence")}>
-        {recent.length === 0 ? (
-          <ProovraText variant="bodySm" color={theme.color.ink.muted}>No evidence yet.</ProovraText>
-        ) : (
-          <ProovraCard>
-            {recent.map((item) => {
-              const status = evidenceStatusDisplay(item.status);
-              return (
-                <ProovraListRow
-                  key={item.id}
-                  title={evidenceTypeLabel(item.type)}
-                  subtitle={formatUserDateTime(item.createdAt)}
-                  onPress={() => router.push(`/evidence/${item.id}`)}
-                  trailing={<ProovraBadge tone={status.tone} label={status.label} />}
-                />
-              );
-            })}
-          </ProovraCard>
-        )}
-      </ProovraSection>
     </ProovraScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s2 },
   resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   staleNote: { marginBottom: theme.space.s3 },

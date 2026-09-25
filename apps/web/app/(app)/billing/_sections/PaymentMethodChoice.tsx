@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 /**
  * PAYMENT METHOD — the one selector every Billing purchase uses.
  *

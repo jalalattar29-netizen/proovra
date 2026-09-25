@@ -561,12 +561,12 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
 describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
   it("the sa1 custom_id fits PayPal's 127-character limit with two UUIDs and round-trips", () => {
     const id = buildPayPalStorageAddonCustomId({ userId: USER, teamId: TEAM, addonKey: "PERSONAL_200_GB" as never });
-    expect(id).toBe(`sa1|${USER}|${TEAM}|PERSONAL_200_GB`);
+    expect(id).toBe(`sa1|${USER}|${TEAM}|p200`);
     expect(id.length).toBeLessThanOrEqual(PAYPAL_CUSTOM_ID_MAX_LENGTH);
     expect(parsePayPalStorageAddonCustomId(id)).toEqual({ userId: USER, teamId: TEAM, storageAddonKey: "PERSONAL_200_GB" });
 
     const personal = buildPayPalStorageAddonCustomId({ userId: USER, addonKey: "PERSONAL_10_GB" as never });
-    expect(personal).toBe(`sa1|${USER}|-|PERSONAL_10_GB`);
+    expect(personal).toBe(`sa1|${USER}|-|p10`);
     expect(parsePayPalStorageAddonCustomId(personal)?.teamId).toBeNull();
   });
 
@@ -579,6 +579,21 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
       workspacePlan: "FREE",
     });
     expect(legacy.length).toBeGreaterThan(PAYPAL_CUSTOM_ID_MAX_LENGTH);
+  });
+
+  it("accepts both sa1 spellings in circulation: main's short codes and the full key", () => {
+    expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|-|t1t`)?.storageAddonKey).toBe("TEAM_1_TB");
+    expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|-|TEAM_1_TB`)?.storageAddonKey).toBe("TEAM_1_TB");
+    expect(parsePayPalStorageAddonCustomId(`sa1|not-a-uuid|-|p10`)).toBeNull();
+    expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|not-a-uuid|p10`)).toBeNull();
+  });
+
+  it("the webhook activates an add-on created with main's short-code custom_id", async () => {
+    setSubscription("I-SA-SHORT", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|p10` });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-SHORT" });
+    expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ownerUserId: USER, addonKey: "PERSONAL_10_GB", status: "ACTIVE" }),
+    );
   });
 
   it("rejects malformed or unknown sa1 values, and is never read as a plan", () => {

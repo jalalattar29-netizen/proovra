@@ -180,7 +180,7 @@ export default function HomeScreen() {
       apiFetch("/v1/me/inbox?pageSize=50"),
       // The SERVER's aggregate over every active record in scope.
       teamId ? apiFetch(scoped(RECORDS_BY_TYPE_PATH)) : Promise.resolve(null),
-      apiFetch("/v1/evidence?scope=active&limit=200"),
+      apiFetch("/v1/evidence?scope=active&limit=100"),
       // Latest delivery per intake link, for the Intake status card.
       teamId ? apiFetch(scoped(HOME_INTAKE_MESSAGES_PATH)) : Promise.resolve(null),
       // THE canonical workspace Operations summary: may Home say "All clear"?
@@ -193,6 +193,8 @@ export default function HomeScreen() {
     const ok = <T,>(r: PromiseSettledResult<T>, key: string): T | undefined => {
       if (r.status === "fulfilled") return r.value;
       problems[key] = toSafeUserError(r.reason);
+
+
       return undefined;
     };
 

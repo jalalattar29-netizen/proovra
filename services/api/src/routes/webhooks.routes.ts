@@ -35,6 +35,7 @@ import {
   verifyStripeSignature,
 } from "../services/stripe.service.js";
 import { verifyPayPalWebhook } from "../services/paypal.service.js";
+import { parsePayPalStorageAddonCustomId } from "../services/paypal-checkout-policy.service.js";
 // PAYPAL END-TO-END (2026-09-25) — orders, captures and subscriptions are
 // settled by ONE service shared with the authenticated return routes, from
 // PayPal's live server-side state.
@@ -135,6 +136,20 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
   }
 
   const text = raw.trim();
+
+  // Compact v1 context (`sa1|…`, origin/main b9b8b54); legacy JSON and
+  // key=value formats remain supported. ONE sa1 parser, shared with the
+  // settlement service, so the webhook and the return route cannot disagree.
+  if (text.startsWith("sa1|")) {
+    const sa1 = parsePayPalStorageAddonCustomId(text);
+    if (!sa1) return {};
+    return {
+      userId: sa1.userId,
+      teamId: sa1.teamId,
+      storageAddonKey: sa1.storageAddonKey,
+      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+    };
+  }
 
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>;

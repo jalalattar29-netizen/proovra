@@ -80,8 +80,9 @@ export function ProovraPageHeader({
   primaryAction,
   secondaryActions,
 }: ProovraPageHeaderProps) {
-  const { breakpoint } = useResponsive();
-  const inline = breakpoint !== "compact";
+  // Actions occupy their own row on all native screen sizes.
+  // Tablet content may still be narrow beside the navigation rail.
+  const inline = false;
   const actions =
     primaryAction || secondaryActions ? (
       <View style={[styles.headerActions, inline && styles.headerActionsInline]}>
@@ -416,7 +417,7 @@ export function ProovraKpiGrid({ items }: { items: ReadonlyArray<ProovraKpi> }) 
       {items.map((kpi) => {
         const tone = kpi.tone ? statusTone(kpi.tone) : null;
         const body = (
-          <ProovraCard style={[styles.kpiCard, { width: `${100 / columns}%` }]}>
+          <ProovraCard style={styles.kpiCard}>
             <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
               {kpi.label}
             </ProovraText>
@@ -442,12 +443,12 @@ export function ProovraKpiGrid({ items }: { items: ReadonlyArray<ProovraKpi> }) 
             accessibilityRole="button"
             accessibilityLabel={`${kpi.label}: ${kpi.value}`}
             accessibilityState={kpi.selected === undefined ? undefined : { selected: kpi.selected }}
-            style={[styles.kpiPressable, kpi.selected ? styles.kpiSelected : null]}
+            style={[styles.kpiPressable, { width: `${100 / columns}%` }, kpi.selected ? styles.kpiSelected : null]}
           >
             {body}
           </Pressable>
         ) : (
-          <View key={kpi.key} style={styles.kpiPressable} accessible accessibilityLabel={`${kpi.label}: ${kpi.value}`}>
+          <View key={kpi.key} style={[styles.kpiPressable, { width: `${100 / columns}%` }]} accessible accessibilityLabel={`${kpi.label}: ${kpi.value}`}>
             {body}
           </View>
         );
@@ -554,15 +555,23 @@ export function ProovraSheet({
   visible,
   title,
   onClose,
+  onDismiss,
   children,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
+  onDismiss?: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
       <View style={[styles.sheet, styles.sheetTall]}>
         <View style={styles.sheetHead}>
@@ -705,7 +714,7 @@ const styles = StyleSheet.create({
 
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -theme.space.s1 },
   kpiPressable: { paddingHorizontal: theme.space.s1, paddingBottom: theme.space.s2 },
-  kpiCard: { gap: 2 },
+  kpiCard: { gap: 2, flex: 1, minWidth: 0 },
   kpiValue: { marginVertical: 2 },
 
   detailRow: { flexDirection: "row", alignItems: "center", gap: theme.space.s3, paddingVertical: theme.space.s2 },
