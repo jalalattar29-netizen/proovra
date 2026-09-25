@@ -1,0 +1,715 @@
+{
+ "route": "/intake/[token]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/intake/[token]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/intake/[token].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 121,
+   "elements": 171,
+   "texts": 65,
+   "distinctTexts": 58,
+   "handlers": 13,
+   "conditionals": 1031,
+   "apiPaths": 6,
+   "distinctApi": 1,
+   "styleRefs": 132,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 138,
+   "elements": 163,
+   "texts": 30,
+   "distinctTexts": 24,
+   "handlers": 31,
+   "conditionals": 1040,
+   "apiPaths": 2,
+   "distinctApi": 1,
+   "styleRefs": 191,
+   "stylesheetRules": 83,
+   "themeTokens": 249,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 63,
+  "natLabelled": 27,
+  "paired": 0,
+  "roleDiff": 2,
+  "missing": 61,
+  "extraInNative": 25,
+  "webUnlabelled": 170,
+  "missingWithRolePresent": 61,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [
+    {
+     "label": "Add files",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/intake/[token]/page.tsx:1380",
+     "nat": "apps/mobile/app/(stack)/intake/[token].tsx:265"
+    },
+    {
+     "label": "Not now",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/intake/[token]/page.tsx:1606",
+     "nat": "apps/mobile/app/(stack)/intake/[token].tsx:236"
+    }
+   ],
+   "missing": [
+    {
+     "role": "INPUT",
+     "label": "The name shown with your submission",
+     "at": "apps/web/app/intake/[token]/page.tsx:1174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "P",
+     "at": "apps/web/app/intake/[token]/page.tsx:59",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA · Secure intake",
+     "at": "apps/web/app/intake/[token]/page.tsx:61",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support ID",
+     "at": "apps/web/app/intake/[token]/page.tsx:79",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Opening the secure intake link…",
+     "at": "apps/web/app/intake/[token]/page.tsx:956",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This link can&apos;t be opened",
+     "at": "apps/web/app/intake/[token]/page.tsx:991",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If you still need to submit evidence, contact the workspace that sent you this link — they can issue a new one.",
+     "at": "apps/web/app/intake/[token]/page.tsx:997",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Check the link you were sent for typos or expired characters. If the problem persists, the workspace that sent the link can issue a new one.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1002",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "For security, this link briefly limits repeated requests. Wait a moment and reload the page.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1008",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Submission completed",
+     "at": "apps/web/app/intake/[token]/page.tsx:1034",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your files have been sent securely and recorded against this request. The workspace that issued the link will review them.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1036",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing further is needed from you. You can close this window.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1040",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Already submitted",
+     "at": "apps/web/app/intake/[token]/page.tsx:1065",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This link has already been used. Your earlier submission was received and the workspace can review it.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1067",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If you need to send more files, contact the sender for a new upload link.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1071",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This link expires",
+     "at": "apps/web/app/intake/[token]/page.tsx:1100",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/intake/[token]/page.tsx:1100",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What happens with your files",
+     "at": "apps/web/app/intake/[token]/page.tsx:1149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Files you upload are sent directly to the workspace that issued this link and recorded against this request. PROOVRA stores a fingerprint of each file so it can later be shown that nothing changed after you sent it.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1151",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The terms you are accepting",
+     "at": "apps/web/app/intake/[token]/page.tsx:1163",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Display name",
+     "at": "apps/web/app/intake/[token]/page.tsx:1172",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your acknowledgement",
+     "at": "apps/web/app/intake/[token]/page.tsx:1200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "I have read and accept the terms above.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1221",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "My submission may be associated with my email address.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1234",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The sender needs this to know who responded.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1236",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept the terms above to continue.",
+     "at": "apps/web/app/intake/[token]/page.tsx:1258",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You were asked to provide",
+     "at": "apps/web/app/intake/[token]/page.tsx:1269",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Please respond by",
+     "at": "apps/web/app/intake/[token]/page.tsx:1276",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/intake/[token]/page.tsx:1276",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What this request needs",
+     "at": "apps/web/app/intake/[token]/page.tsx:1292",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Files",
+     "at": "apps/web/app/intake/[token]/page.tsx:1296",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accepted file types:",
+     "at": "apps/web/app/intake/[token]/page.tsx:1298",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/intake/[token]/page.tsx:1302",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Tap to choose — you can select more than one",
+     "at": "apps/web/app/intake/[token]/page.tsx:1382",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What this request needs",
+     "at": "apps/web/app/intake/[token]/page.tsx:1402",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required",
+     "at": "apps/web/app/intake/[token]/page.tsx:1425",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Optional",
+     "at": "apps/web/app/intake/[token]/page.tsx:1427",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/intake/[token]/page.tsx:1462",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "MB",
+     "at": "apps/web/app/intake/[token]/page.tsx:1463",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Map to step…",
+     "at": "apps/web/app/intake/[token]/page.tsx:1486",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Still needed:",
+     "at": "apps/web/app/intake/[token]/page.tsx:1502",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Share location",
+     "at": "apps/web/app/intake/[token]/page.tsx:1597",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Waiting for your browser&hellip;",
+     "at": "apps/web/app/intake/[token]/page.tsx:1612",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Location captured",
+     "at": "apps/web/app/intake/[token]/page.tsx:1616",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The workspace asked for more",
+     "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:48",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A reviewer has marked this request as needing more information. Check the checklist below for the items they still need, then upload or re-upload as required.",
+     "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "required",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Optional",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:214",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accepts:",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:246",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Location capture required",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:250",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capture fresh — do not reuse old files",
+     "at": "apps/web/components/intake/IntakeChecklist.tsx:255",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Completion",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:64",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "%",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review-ready",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:92",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required items remaining",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:107",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required:",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:147",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:147",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Optional:",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:151",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:151",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Opening your link",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:146"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This link is not open",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:149"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "About you",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:173"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "A name to be known by (optional)",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:181"
+    },
+    {
+     "role": "INPUT",
+     "label": "A name to be known by",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:182"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Your name",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:191"
+    },
+    {
+     "role": "INPUT",
+     "label": "Your name",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:192"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Your email",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:202"
+    },
+    {
+     "role": "INPUT",
+     "label": "Your email",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:203"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Continue",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:212"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Before you send anything",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:218"
+    },
+    {
+     "role": "BUTTON",
+     "label": "I understand — continue",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:231"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "What to send",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:242"
+    },
+    {
+     "role": "TEXT",
+     "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+    },
+    {
+     "role": "TEXT",
+     "label": "Add the files you were asked for.",
+     "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 642,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 2,
+  "webCompetingRules": 25,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 77,
+  "webDistinctColors": 36,
+  "natDistinctColors": 19,
+  "sharedColors": 7,
+  "webOnlyColors": 29,
+  "webOnlyColorSample": [
+   "#fff",
+   "rgba(255, 255, 255, 0.8)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(15, 23, 42, 0.05)",
+   "#fff6e5",
+   "#a86612",
+   "#334155",
+   "#eaf7f1",
+   "#167a5b",
+   "#344054",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(242, 236, 254, 0.6)",
+   "rgba(100, 116, 139, 0.5)",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "#475467",
+   "rgba(124, 58, 237, 0.32)",
+   "rgba(242, 236, 254, 0.5)",
+   "rgba(124, 58, 237, 0.3)",
+   "#15803d",
+   "#fff1f2",
+   "#b23442",
+   "#f1f5f9",
+   "rgba(255, 255, 255, 0.7)",
+   "rgba(124, 58, 237, 0.24)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "rgba(15, 23, 42, 0.06)",
+   "#ffffff",
+   "#dc2626",
+   "rgba(15, 23, 42, 0.14)",
+   "#475569"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1031,
+  "natConditionals": 1040,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 13,
+  "natHandlers": 31,
+  "webHandlerSample": [
+   "onClick=() => { void navigator.clipboard ?.writeText(id) .then(() => @apps/web/app/intake/[token]/page.tsx:81",
+   "onChange=(e) => { setPseudonym(e.target.value); if (pseudonymError) s @apps/web/app/intake/[token]/page.tsx:1174",
+   "onChange=(e) => setTermsAcknowledged(e.target.checked) @apps/web/app/intake/[token]/page.tsx:1213",
+   "onChange=(e) => setIdentityDisclosed(e.target.checked) @apps/web/app/intake/[token]/page.tsx:1226",
+   "onClick=acceptConsent @apps/web/app/intake/[token]/page.tsx:1243",
+   "onChange=async (e) => { // Snapshot the queue length ONCE before iter @apps/web/app/intake/[token]/page.tsx:1307",
+   "onClick=() => { setFileError(null); fileInputRef.current?.click(); } @apps/web/app/intake/[token]/page.tsx:1355",
+   "onChange=(e) => setPartStep(p.id, e.target.value) @apps/web/app/intake/[token]/page.tsx:1481",
+   "onShare=shareLocation @apps/web/app/intake/[token]/page.tsx:1511",
+   "onSkip=skipLocation @apps/web/app/intake/[token]/page.tsx:1511",
+   "onClick=onSubmit @apps/web/app/intake/[token]/page.tsx:1519",
+   "onClick=onShare @apps/web/app/intake/[token]/page.tsx:1591",
+   "onClick=onSkip @apps/web/app/intake/[token]/page.tsx:1600"
+  ],
+  "natHandlerSample": [
+   "onChangeText=setPseudonym @apps/mobile/app/(stack)/intake/[token].tsx:182",
+   "onChangeText=setDisplayName @apps/mobile/app/(stack)/intake/[token].tsx:192",
+   "onChangeText=setEmail @apps/mobile/app/(stack)/intake/[token].tsx:203",
+   "onPress=() => void submitIdentity() @apps/mobile/app/(stack)/intake/[token].tsx:212",
+   "onPress=() => void acceptConsent() @apps/mobile/app/(stack)/intake/[token].tsx:231",
+   "onPress=() => router.replace(\"/\") @apps/mobile/app/(stack)/intake/[token].tsx:236",
+   "onPress=() => router.push( `/intake/capture?token=${encodeURICompone @apps/mobile/app/(stack)/intake/[token].tsx:265",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 1,
+  "natApi": 1,
+  "shared": 1,
+  "onlyWeb": 0,
+  "onlyNative": 0,
+  "onlyWebList": [],
+  "onlyNativeList": [],
+  "sharedList": [
+   "/v1/external-intake/${…}"
+  ],
+  "webApiWhere": {
+   "/v1/external-intake/${…}": "apps/web/app/intake/[token]/page.tsx:896"
+  },
+  "natApiWhere": {
+   "/v1/external-intake/${…}": "apps/mobile/src/product/external-intake.ts:48"
+  }
+ }
+}

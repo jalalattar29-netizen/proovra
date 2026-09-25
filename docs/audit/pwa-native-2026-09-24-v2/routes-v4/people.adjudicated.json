@@ -1,0 +1,66 @@
+{
+ "route": "/people",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "No workspace is selected",
+   "web": "apps/web/app/(app)/people/page.tsx:105",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:471",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "COMPONENT",
+   "webLabel": "Loading your workspace…",
+   "natLabel": "This workspace",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/people/page.tsx:93",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:722",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Opening workspace people…",
+   "at": "apps/web/app/(app)/people/page.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "People",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"People\" at apps/mobile/app/(stack)/workspace-people.tsx:461 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

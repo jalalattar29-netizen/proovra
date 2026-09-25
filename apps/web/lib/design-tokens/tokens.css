@@ -83,6 +83,13 @@
   --ink-secondary: #475569;
   --ink-muted: #94A3B8;
   --ink-inverse: #F8FAFC;
+  /* Foreground ON a saturated accent fill. Distinct from --ink-inverse
+     (#F8FAFC, the near-white used on dark NEUTRAL surfaces): the primary
+     action needs true white for contrast against the violet gradient, and
+     `.app-primary-action` (app-primitives.css:197) has always used `#ffffff`
+     literally. Tokenised here so the native kit can consume the same value
+     instead of hardcoding it. */
+  --ink-on-accent: #ffffff;
 
   /* ------------------------------------------------------------------
    * BRAND ACCENT (used sparingly)

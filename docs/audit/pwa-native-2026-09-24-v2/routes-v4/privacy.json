@@ -1,0 +1,98 @@
+{
+ "route": "/privacy",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/privacy/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/legal/[slug].tsx",
+  "apps/mobile/app/(stack)/legal/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "labelled": 0,
+   "unboundExports": 0
+  },
+  "native": {
+   "files": 16,
+   "labelled": 10,
+   "unboundExports": 2
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 0,
+  "extraInNative": 10,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:108"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading document",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:117"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Browse legal documents",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:134"
+  },
+  {
+   "role": "TEXT",
+   "label": "No such document",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:128"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Legal",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:59"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:64"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading documents",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:73"
+  },
+  {
+   "role": "TEXT",
+   "label": "Acceptance",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:93"
+  }
+ ],
+ "webUnbound": [],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\legal.ts",
+   "name": "LegalBlock"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\legal.ts",
+   "name": "LegalInline"
+  }
+ ]
+}

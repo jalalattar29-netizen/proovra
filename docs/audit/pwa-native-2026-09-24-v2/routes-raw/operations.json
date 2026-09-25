@@ -1,0 +1,1373 @@
+{
+ "route": "/operations",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/page.tsx",
+ "nativeEntry": null,
+ "ledgerStatus": "(absent from ledger)",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 178,
+   "elements": 742,
+   "texts": 190,
+   "distinctTexts": 135,
+   "handlers": 127,
+   "conditionals": 1592,
+   "apiPaths": 21,
+   "distinctApi": 15,
+   "styleRefs": 467,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "zod",
+    "next/link",
+    "react-dom"
+   ]
+  },
+  "native": {
+   "files": 0,
+   "elements": 0,
+   "texts": 0,
+   "distinctTexts": 0,
+   "handlers": 0,
+   "conditionals": 0,
+   "apiPaths": 0,
+   "distinctApi": 0,
+   "styleRefs": 0,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 0,
+   "unresolvedImports": 0,
+   "external": []
+  }
+ },
+ "level4": {
+  "webLabelled": 189,
+  "natLabelled": 0,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 189,
+  "extraInNative": 0,
+  "webUnlabelled": 722,
+  "missingWithRolePresent": 0,
+  "missingWithRoleAbsent": 189,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Operations",
+     "at": "apps/web/app/(app)/operations/page.tsx:1449",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Conditions in",
+     "at": "apps/web/app/(app)/operations/page.tsx:1458",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Updated",
+     "at": "apps/web/app/(app)/operations/page.tsx:1464",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Grouped",
+     "at": "apps/web/app/(app)/operations/page.tsx:1753",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "All conditions",
+     "at": "apps/web/app/(app)/operations/page.tsx:1765",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading operational conditions…",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:44",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace operations are clear",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:63",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "There are no unresolved operational conditions requiring action in this workspace.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:65",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence library",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:70",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace overview",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:73",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No operational conditions match these filters",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:84",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "This workspace may still have unresolved work. Widen the filters to see it.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:86",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:91",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Operations isn&apos;t available for this workspace",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:134",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "could not be loaded.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:162",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Anything shown below may be incomplete.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:163",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:168",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational conditions are temporarily unavailable",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:187",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Try again",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:192",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Dismiss",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:220",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Refreshing…",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:230",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Preparing workspace operations",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:266",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "This workspace hasn&apos;t been checked for operational conditions yet. The first check is running now — this page will update when it finishes.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:268",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Refreshing operational conditions…",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:281",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:326",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "The conditions below are what could be found, not necessarily all of them. This workspace can&apos;t be reported as clear until a complete check succeeds.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:328",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Checking again won&apos;t change this — the app and its data store don&apos;t currently match, so the same checks will fail until that is corrected. Contact whoever manages this deployment.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:335",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Check again",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:343",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "The last check didn&apos;t finish.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:364",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "It started but stopped before completing, so anything below may be out of date. A new check can be started now.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:366",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Check again",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:372",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "The last check for operational conditions failed.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:417",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Anything below is from an earlier check and may be out of date.",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:419",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Try again",
+     "at": "apps/web/app/(app)/operations/_components/States.tsx:425",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Queue summary",
+     "at": "apps/web/app/(app)/operations/_components/QueueSummary.tsx:81",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:132",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "What this is",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:144",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Source",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:147",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Conditions",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:158",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Affected",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:168",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Threshold",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:178",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(critical at",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:184",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:185",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Elapsed",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:195",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Source observations",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:209",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Observed in",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:211",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "checks",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:211",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Metric freshness",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:216",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Last confirmed",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:218",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ". The most recent attempt to read this source did not complete, so the values above are the last ones observed.",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:218",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "First seen",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:225",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:229",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:229",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Last seen",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:234",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:238",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:238",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Affected records",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:249",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No individual records to show for this group.",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:259",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:281",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:287",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "owned",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:288",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:299",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Open record",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:305",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading affected records…",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:316",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "View more affected records",
+     "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:327",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:202",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:217",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:228",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:249",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "threshold",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:254",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:266",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "last confirmed",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:271",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:276",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:289",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "owned",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:291",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:296",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "last seen",
+     "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:301",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Observed in",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:195",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "checks",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:195",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:265",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:275",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:281",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "last confirmed",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:283",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:291",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational conditions in this workspace",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:326",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Select",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:332",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Severity",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:336",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Condition",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:338",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:341",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "First seen",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:345",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest activity",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:348",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:364",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:367",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:489",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "First seen",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:496",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest activity",
+     "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:502",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Views",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:94",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:98",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Shared",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:119",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Share with this workspace",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:212",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:224",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Save this view",
+     "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:235",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close condition details",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:222",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Provider",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:605",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Job",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:608",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Request",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:611",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Trace",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:614",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "What happened",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:237",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:242",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "What you can do",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:280",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Starting…",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:337",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "This runs in the background; this condition closes on its own once the record recovers.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:348",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "How much",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:402",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(at least — the read was bounded)",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:412",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(critical at",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:421",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:425",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:435",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:436",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:444",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:444",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "— the most recent check could not reach this source, so this is the last confirmed value.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:452",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "When",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:462",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:467",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:467",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:473",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:473",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Observed in",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:482",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "checks",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:482",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Ownership",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:524",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "History",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:542",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading history…",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:545",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "The history could not be loaded, so what is shown here is not the full record.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:552",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing has happened to this condition since it opened.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:557",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Older history exists beyond what is shown here.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:581",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical references",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:598",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Identifiers to quote if you contact support about this condition.",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:601",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Acknowledge",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:647",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Resolve",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:658",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Stop notifying",
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:669",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:77",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:97",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Take it",
+     "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:119",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Nobody else in this workspace can take operational work yet.",
+     "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:125",
+     "natHasRole": false
+    },
+    {
+     "role": "BOX",
+     "label": "Step-up confirmation",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:488",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:525",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Preparing your verification…",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:543",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:552",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:567",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Settings → Security",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:571",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ", then start this action again.",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:573",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:582",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:658",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm + retry",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:666",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirmed — retrying the original action…",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:674",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:696",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Start again",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "Search operational conditions",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:132",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Filter by lifecycle status",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:145",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Filter by severity",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:160",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Filter by the part of the product that produced the condition",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:177",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Filter by who owns the condition",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:195",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Sort conditions",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:209",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Filter by time commitment",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:231",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:267",
+     "natHasRole": false
+    },
+    {
+     "role": "BOX",
+     "label": "Actions for the selected conditions",
+     "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:86",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Assign the selected conditions to",
+     "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:124",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Acknowledge",
+     "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:105",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Stop notifying",
+     "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:116",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear selection",
+     "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:159",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": false
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/web/components/ui/FilterBar.tsx:256",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": false
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": false
+    }
+   ],
+   "extra": []
+  }
+ },
+ "level5": {
+  "webPropsResolved": 2185,
+  "webClassesUnresolved": 13,
+  "webNonLiteralClass": 20,
+  "webCompetingRules": 112,
+  "webDistinctUnresolvedClasses": 5,
+  "natPropsResolved": 0,
+  "natTokenUnresolved": 0,
+  "webDistinctColors": 68,
+  "natDistinctColors": 0,
+  "sharedColors": 0,
+  "webOnlyColors": 68,
+  "webOnlyColorSample": [
+   "#7c3aed",
+   "rgba(124, 58, 237, 0.10)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(124, 58, 237, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "#172033",
+   "#5f6878",
+   "#94a3b8",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "#ea580c",
+   "#475569",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(15, 23, 42, 0.06)",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(255, 255, 255, 0.70)",
+   "#667085",
+   "rgba(168, 102, 18, 0.24)",
+   "rgba(178, 52, 66, 0.24)",
+   "#344054",
+   "rgba(124, 58, 237, 0.22)",
+   "rgba(255, 255, 255, 0.6)",
+   "rgba(15, 23, 42, 0.03)",
+   "rgb(15 23 42 / 42%)",
+   "#0f172a",
+   "rgba(15, 23, 42, 0.14)"
+  ],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 1592,
+  "natConditionals": 0,
+  "webStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ],
+  "natStateRoles": []
+ },
+ "level7": {
+  "webHandlers": 127,
+  "natHandlers": 0,
+  "webHandlerSample": [
+   "onClick=refresh @apps/web/app/(app)/operations/page.tsx:1472",
+   "onDismiss=() => setMutationError(null) @apps/web/app/(app)/operations/page.tsx:1556",
+   "onRetry=refresh @apps/web/app/(app)/operations/page.tsx:1563",
+   "onRetry=checkAgain @apps/web/app/(app)/operations/page.tsx:1613",
+   "onRetry=checkAgain @apps/web/app/(app)/operations/page.tsx:1618",
+   "onRetry=checkAgain @apps/web/app/(app)/operations/page.tsx:1620",
+   "onRetry=refresh @apps/web/app/(app)/operations/page.tsx:1664",
+   "onSelect=selectMetric @apps/web/app/(app)/operations/page.tsx:1676",
+   "onApply=applyView @apps/web/app/(app)/operations/page.tsx:1684",
+   "onSave=(input) => void saveView(input) @apps/web/app/(app)/operations/page.tsx:1684",
+   "onRename=(view, name) => void renameView(view, name) @apps/web/app/(app)/operations/page.tsx:1684",
+   "onDelete=(view) => void deleteView(view) @apps/web/app/(app)/operations/page.tsx:1684",
+   "onChange=patchFilters @apps/web/app/(app)/operations/page.tsx:1698",
+   "onClear=clearFilters @apps/web/app/(app)/operations/page.tsx:1698",
+   "onClick=() => { setGrouped(true); setOpenId(null); } @apps/web/app/(app)/operations/page.tsx:1743",
+   "onClick=() => { setGrouped(false); setOpenGroupKey(null); } @apps/web/app/(app)/operations/page.tsx:1755",
+   "onAcknowledge=() => void runBulk(\"BULK_ACKNOWLEDGE_INCIDENTS\") @apps/web/app/(app)/operations/page.tsx:1769",
+   "onSuppress=() => void runBulk(\"BULK_SUPPRESS_INCIDENTS\") @apps/web/app/(app)/operations/page.tsx:1769",
+   "onClear=() => { setMarkedIds(new Set()); setBulkOutcome(null); } @apps/web/app/(app)/operations/page.tsx:1769",
+   "onAssign=(assigneeUserId) => void runBulk(\"BULK_ASSIGN_INCIDENTS\", {  @apps/web/app/(app)/operations/page.tsx:1769",
+   "onClear=clearFilters @apps/web/app/(app)/operations/page.tsx:1817",
+   "onOpen=setOpenGroupKey @apps/web/app/(app)/operations/page.tsx:1825",
+   "onClick=loadMore @apps/web/app/(app)/operations/page.tsx:1853",
+   "onLoadMore=() => openGroupKey ? loadAffected(openGroupKey, affectedCurs @apps/web/app/(app)/operations/page.tsx:1888",
+   "onClose=() => setOpenGroupKey(null) @apps/web/app/(app)/operations/page.tsx:1888",
+   "onClose=() => setOpenId(null) @apps/web/app/(app)/operations/page.tsx:1910",
+   "onAcknowledge=() => void runTransition(openRow.id, \"ack\") @apps/web/app/(app)/operations/page.tsx:1910",
+   "onResolve=() => void runTransition(openRow.id, \"resolve\") @apps/web/app/(app)/operations/page.tsx:1910",
+   "onSuppress=() => void runTransition(openRow.id, \"suppress\") @apps/web/app/(app)/operations/page.tsx:1910",
+   "onAssign=(userId) => void assign(openRow.id, userId) @apps/web/app/(app)/operations/page.tsx:1910",
+   "onRemediate=(actionId) => void remediate(actionId) @apps/web/app/(app)/operations/page.tsx:1910",
+   "onClick=onClear @apps/web/app/(app)/operations/_components/States.tsx:90",
+   "onClick=onRetry @apps/web/app/(app)/operations/_components/States.tsx:167",
+   "onClick=onRetry @apps/web/app/(app)/operations/_components/States.tsx:191",
+   "onClick=onDismiss @apps/web/app/(app)/operations/_components/States.tsx:219",
+   "onClick=onRetry @apps/web/app/(app)/operations/_components/States.tsx:342",
+   "onClick=onRetry @apps/web/app/(app)/operations/_components/States.tsx:371",
+   "onClick=onRetry @apps/web/app/(app)/operations/_components/States.tsx:424",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=() => onSelect(key) @apps/web/app/(app)/operations/_components/QueueSummary.tsx:90",
+   "onClick=onClose @apps/web/app/(app)/operations/_components/GroupInspector.tsx:105",
+   "onClick=(e) => e.stopPropagation() @apps/web/app/(app)/operations/_components/GroupInspector.tsx:110",
+   "onClick=onClose @apps/web/app/(app)/operations/_components/GroupInspector.tsx:132",
+   "onClick=onLoadMore @apps/web/app/(app)/operations/_components/GroupInspector.tsx:321",
+   "onClick=() => onOpen(g.groupKey) @apps/web/app/(app)/operations/_components/GroupSurface.tsx:130",
+   "onChange=() => handlers.onToggleMark(row.id) @apps/web/app/(app)/operations/_components/IncidentSurface.tsx:384",
+   "onClick=() => handlers.onOpen(row.id) @apps/web/app/(app)/operations/_components/IncidentSurface.tsx:402",
+   "onChange=() => handlers.onToggleMark(row.id) @apps/web/app/(app)/operations/_components/IncidentSurface.tsx:459",
+   "onClick=() => handlers.onOpen(row.id) @apps/web/app/(app)/operations/_components/IncidentSurface.tsx:477",
+   "onClick=() => setOpen((v) => !v) @apps/web/components/app-primitives/AppRowMenu.tsx:171",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppRowMenu.tsx:171",
+   "onPointerDownOutside=() => setOpen(false) @apps/web/components/app-primitives/AppRowMenu.tsx:190",
+   "onKeyDown=onMenuKeyDown @apps/web/components/app-primitives/AppRowMenu.tsx:202",
+   "onClick=() => { // The menu closes FIRST so a slow handler can never @apps/web/components/app-primitives/AppRowMenu.tsx:216",
+   "onClick=() => onApply(view) @apps/web/app/(app)/operations/_components/SavedViews.tsx:105",
+   "onSubmit=(e) => { e.preventDefault(); const trimmed = name.trim(); if @apps/web/app/(app)/operations/_components/SavedViews.tsx:169",
+   "onChange=(e) => setName(e.target.value) @apps/web/app/(app)/operations/_components/SavedViews.tsx:183",
+   "onKeyDown=(e) => { // Escape abandons the naming without saving. Witho @apps/web/app/(app)/operations/_components/SavedViews.tsx:183",
+   "onChange=(e) => setShared(e.target.checked) @apps/web/app/(app)/operations/_components/SavedViews.tsx:206",
+   "onClick=close @apps/web/app/(app)/operations/_components/SavedViews.tsx:223"
+  ],
+  "natHandlerSample": []
+ },
+ "level8": {
+  "webApi": 15,
+  "natApi": 0,
+  "shared": 0,
+  "onlyWeb": 15,
+  "onlyNative": 0,
+  "onlyWebList": [
+   "/v1/ops/incident-groups?${…}",
+   "/v1/ops/incident-groups/${…}",
+   "/v1/ops/summary?teamId=${…}",
+   "/v1/ops/incidents?${…}",
+   "/v1/ops/assignable-operators?teamId=${…}",
+   "/v1/ops/incidents/${…}",
+   "/v1/ops/saved-views?teamId=${…}",
+   "/v1/ops/saved-views",
+   "/v1/ops/saved-views/${…}",
+   "/v1/ops/workspace-reconcile",
+   "/v1/ops/bulk-actions",
+   "/v1/identity-security/step-up/start",
+   "/v1/identity-security/step-up/check",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [],
+  "sharedList": [],
+  "webApiWhere": {
+   "/v1/ops/incident-groups?${…}": "apps/web/app/(app)/operations/page.tsx:434",
+   "/v1/ops/incident-groups/${…}": "apps/web/app/(app)/operations/page.tsx:486",
+   "/v1/ops/summary?teamId=${…}": "apps/web/app/(app)/operations/page.tsx:987",
+   "/v1/ops/incidents?${…}": "apps/web/app/(app)/operations/page.tsx:887",
+   "/v1/ops/assignable-operators?teamId=${…}": "apps/web/app/(app)/operations/page.tsx:691",
+   "/v1/ops/incidents/${…}": "apps/web/app/(app)/operations/page.tsx:1228",
+   "/v1/ops/saved-views?teamId=${…}": "apps/web/app/(app)/operations/page.tsx:755",
+   "/v1/ops/saved-views": "apps/web/app/(app)/operations/page.tsx:775",
+   "/v1/ops/saved-views/${…}": "apps/web/app/(app)/operations/page.tsx:864",
+   "/v1/ops/workspace-reconcile": "apps/web/app/(app)/operations/page.tsx:953",
+   "/v1/ops/bulk-actions": "apps/web/app/(app)/operations/page.tsx:1291",
+   "/v1/identity-security/step-up/start": "apps/web/components/identity-security/StepUpModal.tsx:226",
+   "/v1/identity-security/step-up/check": "apps/web/components/identity-security/StepUpModal.tsx:323",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {}
+ }
+}

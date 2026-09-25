@@ -1,0 +1,448 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "total": 28,
+ "verdicts": {
+  "NO_EFFECT_DETECTED": 23,
+  "RESOLVED_TO_EFFECT": 5
+ },
+ "rows": [
+  {
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 1069,
+   "prop": "onClick",
+   "expr": "() => { sessionItems .filter( (item) => !item.uploading && item.uploadProgress < 100 ) .forEach((item) => removeSessionI",
+   "effects": [],
+   "trail": [
+    {
+     "id": "sessionItems.filter",
+     "declaredIn": "apps/web/app/(app)/capture/page.tsx",
+     "line": 463,
+     "via": "same-file"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 483,
+   "prop": "onAttached",
+   "expr": "async ({ succeeded, failed }) => { // Phase CASES-ATTACH-PICKER-MULTI — partial-success // aware toast. Close only when ",
+   "effects": [
+    "FEEDBACK"
+   ],
+   "trail": [
+    {
+     "id": "async",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "RESOLVED_TO_EFFECT"
+  },
+  {
+   "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+   "line": 1373,
+   "prop": "onClick",
+   "expr": "() => links.onUnlink({ linkId: it.linkId as string, title: it.title || \"Untitled evidence\", })",
+   "effects": [],
+   "trail": [
+    {
+     "id": "links.onUnlink",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+   "line": 756,
+   "prop": "onClick",
+   "expr": "(e) => (e.target as HTMLInputElement).select()",
+   "effects": [
+    "DOM_FOCUS"
+   ],
+   "trail": [
+    {
+     "id": "select",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "RESOLVED_TO_EFFECT"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 1241,
+   "prop": "onClick",
+   "expr": "() => void downloadReport()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "downloadReport",
+     "declaredIn": "apps/web/app/(app)/evidence/[id]/page.tsx",
+     "line": 985,
+     "via": "same-file"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 1261,
+   "prop": "onClick",
+   "expr": "() => void downloadVerificationPackage()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "downloadVerificationPackage",
+     "declaredIn": "apps/web/app/(app)/evidence/[id]/page.tsx",
+     "line": 986,
+     "via": "same-file"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadReport",
+   "expr": "() => void downloadReport()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "downloadReport",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadVerificationPackage",
+   "expr": "() => void downloadVerificationPackage()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "downloadVerificationPackage",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 239,
+   "prop": "onRefreshEvents",
+   "expr": "() => void loadWorkflowEvents()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "loadWorkflowEvents",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 250,
+   "prop": "onRemoveCase",
+   "expr": "workspace.relationships.caseId ? () => void removeCase() : null",
+   "effects": [],
+   "trail": [
+    {
+     "id": "removeCase",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 270,
+   "prop": "onChanged",
+   "expr": "() => void loadWorkflowEvents()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "loadWorkflowEvents",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 482,
+   "prop": "onClick",
+   "expr": "() => void restoreTrash()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "restoreTrash",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+   "line": 184,
+   "prop": "onClick",
+   "expr": "() => { // D-3 closure — destructive relationship removal // routed through ConfirmActionModal. The DELETE // endpoint i",
+   "effects": [],
+   "trail": [],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+   "line": 468,
+   "prop": "onClick",
+   "expr": "() => void loadWorkspace()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "loadWorkspace",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+   "line": 146,
+   "prop": "onOpenOriginal",
+   "expr": "() => void openOriginal()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "openOriginal",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+   "line": 146,
+   "prop": "onDownloadOriginal",
+   "expr": "() => void downloadOriginal()",
+   "effects": [],
+   "trail": [
+    {
+     "id": "downloadOriginal",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "line": 465,
+   "prop": "onClick",
+   "expr": "(e) => (e.target as HTMLInputElement).select()",
+   "effects": [
+    "DOM_FOCUS"
+   ],
+   "trail": [
+    {
+     "id": "select",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "RESOLVED_TO_EFFECT"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "line": 472,
+   "prop": "onClick",
+   "expr": "() => { navigator.clipboard?.writeText(reveal.url).catch(() => {}); }",
+   "effects": [
+    "CLIPBOARD"
+   ],
+   "trail": [
+    {
+     "id": "writeText",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "RESOLVED_TO_EFFECT"
+  },
+  {
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 166,
+   "prop": "onChange",
+   "expr": "(slug) => { const purpose = findRequestPurpose(slug); onPatch({ purposeSlug: slug, // A purpose change re-seeds the reco",
+   "effects": [],
+   "trail": [
+    {
+     "id": "findRequestPurpose",
+     "declaredIn": null,
+     "via": "unresolved"
+    },
+    {
+     "id": "onPatch",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 516,
+   "prop": "onChange",
+   "expr": "(e) => { const raw = e.target.value; onPatch({ maxFiles: raw === \"\" ? \"\" : Number(raw) }); }",
+   "effects": [],
+   "trail": [
+    {
+     "id": "onPatch",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 563,
+   "prop": "onToggle",
+   "expr": "(value, next) => { const set = new Set(state.acceptedKinds); if (next) set.add(value); else set.delete(value); onPatch({",
+   "effects": [],
+   "trail": [
+    {
+     "id": "set.add",
+     "declaredIn": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+     "line": 569,
+     "via": "same-file"
+    },
+    {
+     "id": "set.delete",
+     "declaredIn": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+     "line": 569,
+     "via": "same-file"
+    },
+    {
+     "id": "onPatch",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx",
+   "line": 191,
+   "prop": "onFocus",
+   "expr": "(e) => e.currentTarget.select()",
+   "effects": [
+    "DOM_FOCUS"
+   ],
+   "trail": [
+    {
+     "id": "currentTarget.select",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "RESOLVED_TO_EFFECT"
+  },
+  {
+   "file": "apps/web/app/intake/[token]/page.tsx",
+   "line": 1307,
+   "prop": "onChange",
+   "expr": "async (e) => { // Snapshot the queue length ONCE before iterating. React // state does not update synchronously across a",
+   "effects": [],
+   "trail": [
+    {
+     "id": "async",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 384,
+   "prop": "onChange",
+   "expr": "() => handlers.onToggleMark(row.id)",
+   "effects": [],
+   "trail": [
+    {
+     "id": "handlers.onToggleMark",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 402,
+   "prop": "onClick",
+   "expr": "() => handlers.onOpen(row.id)",
+   "effects": [],
+   "trail": [
+    {
+     "id": "handlers.onOpen",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 459,
+   "prop": "onChange",
+   "expr": "() => handlers.onToggleMark(row.id)",
+   "effects": [],
+   "trail": [
+    {
+     "id": "handlers.onToggleMark",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 477,
+   "prop": "onClick",
+   "expr": "() => handlers.onOpen(row.id)",
+   "effects": [],
+   "trail": [
+    {
+     "id": "handlers.onOpen",
+     "declaredIn": null,
+     "via": "unresolved"
+    }
+   ],
+   "verdict": "NO_EFFECT_DETECTED"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/_components/SavedViews.tsx",
+   "line": 183,
+   "prop": "onKeyDown",
+   "expr": "(e) => { // Escape abandons the naming without saving. Without it the // only way out of the form is to name something y",
+   "effects": [],
+   "trail": [],
+   "verdict": "NO_EFFECT_DETECTED"
+  }
+ ]
+}

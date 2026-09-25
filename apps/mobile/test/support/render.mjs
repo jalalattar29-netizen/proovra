@@ -35,6 +35,8 @@ const ALIASES = {
   "expo-location": resolve(HERE, "expo-stub.mjs"),
   "expo-document-picker": resolve(HERE, "expo-stub.mjs"),
   "expo-linking": resolve(HERE, "expo-stub.mjs"),
+  "expo-sharing": resolve(HERE, "expo-stub.mjs"),
+  "expo-clipboard": resolve(HERE, "expo-stub.mjs"),
   "expo-apple-authentication": resolve(HERE, "expo-stub.mjs"),
   "expo-auth-session": resolve(HERE, "expo-stub.mjs"),
   "expo-auth-session/providers/google": resolve(HERE, "expo-stub.mjs"),
@@ -42,6 +44,19 @@ const ALIASES = {
   "expo-secure-store": resolve(HERE, "expo-stub.mjs"),
   "expo-constants": resolve(HERE, "expo-stub.mjs"),
   "@sentry/react-native": resolve(HERE, "expo-stub.mjs"),
+  // T-04 — font registration. The real packages ship .ttf binaries and a
+  // native module; neither is loadable under Node. The stub returns a
+  // deterministic loaded=true so render tests exercise the POST-font-load
+  // tree, which is the only state a user ever sees.
+  "expo-font": resolve(HERE, "expo-stub.mjs"),
+  // T-07 — LinearGradient is a host component; the RN stub renders it with its
+  // children so a render test can still find the button label behind it.
+  "expo-linear-gradient": resolve(HERE, "react-native-stub.mjs"),
+  "@expo-google-fonts/plus-jakarta-sans": resolve(HERE, "expo-stub.mjs"),
+  "@expo-google-fonts/noto-sans-arabic": resolve(HERE, "expo-stub.mjs"),
+  // T-09f — nav icons. Renders an "Icon" host element carrying the glyph name.
+  "@expo/vector-icons/Feather": resolve(HERE, "vector-icons-stub.mjs"),
+  "@expo/vector-icons": resolve(HERE, "vector-icons-stub.mjs"),
 };
 
 /**
@@ -79,7 +94,7 @@ export async function loadModule(entry, extraExports = []) {
     platform: "neutral",
     target: "node20",
     jsx: "automatic",
-    loader: { ".ts": "ts", ".tsx": "tsx", ".js": "js", ".jsx": "jsx", ".png": "dataurl" },
+    loader: { ".ts": "ts", ".tsx": "tsx", ".js": "js", ".jsx": "jsx", ".png": "dataurl", ".ttf": "dataurl", ".jpg": "dataurl", ".svg": "dataurl" },
     alias: ALIASES,
     external: ["react", "react/jsx-runtime", "react-test-renderer"],
     logLevel: "silent",
@@ -88,7 +103,14 @@ export async function loadModule(entry, extraExports = []) {
   // cannot resolve the bare specifier "react", and `react` must stay external
   // so the component and the renderer share one React instance.
   await mkdir(CACHE_DIR, { recursive: true });
-  const file = join(CACHE_DIR, createHash("sha1").update(entry + extraExports.join("|")).digest("hex") + ".mjs");
+  // PER PROCESS. `node --test` runs files in parallel processes; a name keyed on
+  // the entry alone let two files bundling the same screen overwrite each
+  // other's module mid-import (seen as `M.calls` undefined, or a whole suite
+  // failing in 1ms under `npm test` while passing alone).
+  const file = join(
+    CACHE_DIR,
+    `${createHash("sha1").update(entry + extraExports.join("|")).digest("hex")}-${process.pid}.mjs`,
+  );
   await writeFile(file, result.outputFiles[0].text, "utf8");
   return import(`${pathToFileURL(file).href}?v=${Date.now()}`);
 }

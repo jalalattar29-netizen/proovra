@@ -1,0 +1,57 @@
+{
+ "route": "/auth/callback/ui",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Sign-in failed",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:342",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to sign in",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:353",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Authentication",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:394",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Signing you in…",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:398",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Please wait while we securely complete your sign-in.",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:402",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

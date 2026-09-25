@@ -1,0 +1,919 @@
+{
+ "route": "/collaboration-teams",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/collaboration-teams/page.tsx",
+ "nativeEntry": "apps/mobile/app/(tabs)/teams.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 163,
+   "elements": 436,
+   "texts": 95,
+   "distinctTexts": 80,
+   "handlers": 66,
+   "conditionals": 1320,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 292,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 5,
+   "unresolvedImports": 0,
+   "external": [
+    "next/link",
+    "next/navigation",
+    "react",
+    "react-dom",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 140,
+   "elements": 153,
+   "texts": 24,
+   "distinctTexts": 20,
+   "handlers": 33,
+   "conditionals": 1110,
+   "apiPaths": 7,
+   "distinctApi": 4,
+   "styleRefs": 182,
+   "stylesheetRules": 84,
+   "themeTokens": 243,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 94,
+  "natLabelled": 22,
+  "paired": 2,
+  "roleDiff": 4,
+  "missing": 88,
+  "extraInNative": 14,
+  "webUnlabelled": 414,
+  "missingWithRolePresent": 82,
+  "missingWithRoleAbsent": 6,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Type",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/collaboration-teams/page.tsx:817",
+     "nat": "apps/mobile/app/(tabs)/teams.tsx:161"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/collaboration-teams/page.tsx:1426",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/collaboration-teams/page.tsx:1607",
+     "nat": "apps/mobile/app/(tabs)/teams.tsx:176"
+    },
+    {
+     "label": "Type",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "nat": "apps/mobile/app/(tabs)/teams.tsx:161"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Filter teams",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:719",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Which teams to show",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:738",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Filter by status",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:750",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Filter by team type",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:758",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Sort teams",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:766",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "Search teams by name or description",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:783",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "No open work",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:919",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Nothing overdue",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:928",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "No high priority work",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:937",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g. Claim Investigations",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1526",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "What does this team work on?",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1541",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Team template",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1560",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Collaboration Teams",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:375",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organise workspace members into operational teams for cases, evidence, assignments, reviews and workload. Teams group members who already have access — they do not grant it.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:385",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage members &amp; access",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:392",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upgrade plan",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:409",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:445",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open work",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:519",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "across",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unassigned",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:538",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "held by a Team, not by a person",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:540",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Needs attention",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:554",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "overdue ·",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:556",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "high priority",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:556",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "People carrying work",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:567",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Showing every Team in this workspace. You can see them because you administer this workspace; you are not a member of the ones without a role below, and opening one does not join it.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:584",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:812",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:816",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Members",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:818",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open work",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:819",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overdue",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:820",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "High / urgent",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:825",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your role",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:826",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Last activity",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:827",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:828",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:919",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:928",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:938",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:946",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:960",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1090",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add people",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1114",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Settings",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1122",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upgrade plan",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1166",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan-restricted — read-only membership",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Existing Teams and their data remain accessible.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1199",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upgrade plan",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1202",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Teams give you shared assignments, member invites, and collaborative review on cases and evidence. Upgrade to create one.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1236",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upgrade plan",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1254",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No teams yet",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1266",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A team is worth creating once more than one person is working the same cases: it gives that work one place to be assigned and discussed.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1268",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1280",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No teams yet",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1312",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A team is worth creating once more than one person is working the same cases: it gives that work one place to be assigned and discussed.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1314",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1323",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No teams match the current filters",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1333",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archived teams are excluded unless the status filter includes them — an archived team still exists, and still holds its history.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1335",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Show all teams",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1344",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Couldn&apos;t load Teams",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1403",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Error",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1405",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request id:",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1422",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create a team",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1515",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A team groups people who already have access to this workspace, so you can assign work to them and keep the discussion together.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1518",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Name",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1525",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Description (optional)",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1540",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Template",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1553",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A label for what this team works on. It changes nothing about permissions or behaviour — it helps you find the team later.",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1571",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request id:",
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1598",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "plan ·",
+     "at": "apps/web/components/billing/PlanLimitBadge.tsx:138",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upgrade",
+     "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "SECTION",
+     "label": "Collaboration",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:129"
+    },
+    {
+     "role": "LIST",
+     "label": "People in this workspace",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:136"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Group name",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:152"
+    },
+    {
+     "role": "INPUT",
+     "label": "Group name",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:153"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create group",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:170"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create a group",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:183"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading collaboration groups",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:196"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Collaboration isn’t available here",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:198"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No collaboration groups yet",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:205"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Load more",
+     "at": "apps/mobile/app/(tabs)/teams.tsx:227"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 1227,
+  "webClassesUnresolved": 2,
+  "webNonLiteralClass": 15,
+  "webCompetingRules": 68,
+  "webDistinctUnresolvedClasses": 2,
+  "natPropsResolved": 232,
+  "natTokenUnresolved": 74,
+  "webDistinctColors": 59,
+  "natDistinctColors": 19,
+  "sharedColors": 5,
+  "webOnlyColors": 54,
+  "webOnlyColorSample": [
+   "rgba(124, 58, 237, 0.10)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(124, 58, 237, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "#172033",
+   "#5f6878",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.6)",
+   "rgba(15, 23, 42, 0.03)",
+   "rgba(15, 23, 42, 0.08)",
+   "#344054",
+   "#667085",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "#8793a6",
+   "rgba(255, 255, 255, 0.68)",
+   "#beb4ff",
+   "rgba(124, 58, 237, 0.12)",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(248, 250, 253, 0.7)",
+   "rgba(15, 23, 42, 0.07)",
+   "rgba(124, 58, 237, 0.22)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "rgba(15, 23, 42, 0.05)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.06)",
+   "#475569"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1320,
+  "natConditionals": 1110,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 66,
+  "natHandlers": 33,
+  "webHandlerSample": [
+   "onClick=() => setCreateOpen(true) @apps/web/app/(app)/collaboration-teams/page.tsx:428",
+   "onRetry=() => void refresh() @apps/web/app/(app)/collaboration-teams/page.tsx:458",
+   "onCreate=() => setCreateOpen(true) @apps/web/app/(app)/collaboration-teams/page.tsx:469",
+   "onSearch=setSearch @apps/web/app/(app)/collaboration-teams/page.tsx:589",
+   "onStatusFilter=setStatusFilter @apps/web/app/(app)/collaboration-teams/page.tsx:589",
+   "onScope=canGovern ? setScope : undefined @apps/web/app/(app)/collaboration-teams/page.tsx:589",
+   "onTypeFilter=setTypeFilter @apps/web/app/(app)/collaboration-teams/page.tsx:589",
+   "onSort=setSortKey @apps/web/app/(app)/collaboration-teams/page.tsx:589",
+   "onReset=() => { setSearch(\"\"); setStatusFilter(\"ALL\"); setTypeFilter @apps/web/app/(app)/collaboration-teams/page.tsx:617",
+   "onCreate=() => setCreateOpen(true) @apps/web/app/(app)/collaboration-teams/page.tsx:617",
+   "onClick=() => void refresh({ cursor: nextCursor, append: true }) @apps/web/app/(app)/collaboration-teams/page.tsx:627",
+   "onClose=() => setCreateOpen(false) @apps/web/app/(app)/collaboration-teams/page.tsx:644",
+   "onCreated=(id) => { setCreateOpen(false); addToast(\"Team created.\", \"s @apps/web/app/(app)/collaboration-teams/page.tsx:644",
+   "onChange=onScope @apps/web/app/(app)/collaboration-teams/page.tsx:738",
+   "onChange=onStatusFilter @apps/web/app/(app)/collaboration-teams/page.tsx:750",
+   "onChange=onTypeFilter @apps/web/app/(app)/collaboration-teams/page.tsx:758",
+   "onChange=onSort @apps/web/app/(app)/collaboration-teams/page.tsx:766",
+   "onChange=(e) => onSearch(e.target.value) @apps/web/app/(app)/collaboration-teams/page.tsx:783",
+   "onOpenChange=setMenuOpen @apps/web/app/(app)/collaboration-teams/page.tsx:962",
+   "onClick=() => onOpenChange(!open) @apps/web/app/(app)/collaboration-teams/page.tsx:1046",
+   "onClick=onCreate @apps/web/app/(app)/collaboration-teams/page.tsx:1271",
+   "onClick=onCreate @apps/web/app/(app)/collaboration-teams/page.tsx:1317",
+   "onClick=onReset @apps/web/app/(app)/collaboration-teams/page.tsx:1338",
+   "onClick=onRetry @apps/web/app/(app)/collaboration-teams/page.tsx:1425",
+   "onClick=(e) => { if (e.target === e.currentTarget) onClose(); } @apps/web/app/(app)/collaboration-teams/page.tsx:1493",
+   "onSubmit=onSubmit @apps/web/app/(app)/collaboration-teams/page.tsx:1512",
+   "onChange=(e) => setName(e.target.value) @apps/web/app/(app)/collaboration-teams/page.tsx:1526",
+   "onChange=(e) => setDescription(e.target.value) @apps/web/app/(app)/collaboration-teams/page.tsx:1541",
+   "onChange=setTeamType @apps/web/app/(app)/collaboration-teams/page.tsx:1560",
+   "onClick=onClose @apps/web/app/(app)/collaboration-teams/page.tsx:1606",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.push(\"/(stack)/workspace-people\") @apps/mobile/app/(tabs)/teams.tsx:136",
+   "onChangeText=setNewName @apps/mobile/app/(tabs)/teams.tsx:153",
+   "onChange=setNewType @apps/mobile/app/(tabs)/teams.tsx:161",
+   "onPress=() => void create() @apps/mobile/app/(tabs)/teams.tsx:170",
+   "onPress=() => { setCreating(false); setNewName(\"\"); } @apps/mobile/app/(tabs)/teams.tsx:176",
+   "onPress=() => setCreating(true) @apps/mobile/app/(tabs)/teams.tsx:183",
+   "onRetry=() => void load(null, []) @apps/mobile/app/(tabs)/teams.tsx:203",
+   "onPress=() => router.push(`/collaboration-team/${team.id}`) @apps/mobile/app/(tabs)/teams.tsx:215",
+   "onPress=() => void load(cursor, teams) @apps/mobile/app/(tabs)/teams.tsx:227",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 4,
+  "natApi": 4,
+  "shared": 1,
+  "onlyWeb": 3,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace",
+   "/v1/collaboration-team-invites/accept"
+  ],
+  "onlyNativeList": [
+   "/v1/collaboration-teams/entitlement",
+   "/v1/collaboration-teams/${…}"
+  ],
+  "sharedList": [
+   "/v1/collaboration-teams"
+  ],
+  "webApiWhere": {
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/collaboration-teams": "apps/web/lib/api/collaboration-teams.ts:277",
+   "/v1/collaboration-team-invites/accept": "apps/web/lib/api/collaboration-teams.ts:716"
+  },
+  "natApiWhere": {
+   "/v1/collaboration-teams?cursor=${…}": "apps/mobile/app/(tabs)/teams.tsx:67",
+   "/v1/collaboration-teams": "apps/mobile/src/product/collaboration.ts:159",
+   "/v1/collaboration-teams/entitlement": "apps/mobile/src/product/collaboration.ts:157",
+   "/v1/collaboration-teams/${…}": "apps/mobile/src/product/collaboration.ts:503"
+  }
+ }
+}

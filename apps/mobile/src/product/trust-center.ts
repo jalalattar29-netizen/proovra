@@ -80,7 +80,10 @@ export function parseTrustArticles(payload: unknown): TrustSectionState {
         body: str(a.body) ?? "",
         version: int(a.version),
         updatedAtIso: str(a.updatedAtUtc) ?? str(a.updatedAt),
-        status: str(a.status) ?? "PUBLISHED",
+        // The server names this `state` (trust-center.service.ts). Reading `status`
+        // found nothing and defaulted to PUBLISHED, so a DRAFT or DEPRECATED
+        // article passed the filter below as published trust content.
+        status: str(a.state) ?? str(a.status) ?? "PUBLISHED",
       };
     })
     // A DRAFT or DEPRECATED article is not the published trust position, and a
@@ -167,3 +170,20 @@ export function parseTrustArticleVersions(payload: unknown): TrustArticleVersion
 export function isPublishedVersion(version: TrustArticleVersion): boolean {
   return version.publishedAtIso !== null;
 }
+
+/**
+ * T-14 — the public Trust page's seven-step flow (app/trust/page.tsx TRUST_FLOW),
+ * verbatim: how trust context travels through the evidence workflow.
+ */
+export const TRUST_FLOW_TITLE = "How trust context travels through the evidence workflow.";
+export const TRUST_FLOW_INTRO =
+  "Trust in PROOVRA is not a single claim. It is a set of recorded context that follows evidence from intake to review, reporting, governance, and external inspection.";
+export const TRUST_FLOW: ReadonlyArray<{ title: string; body: string }> = [
+  { title: "Capture / Intake", body: "Evidence enters through upload, capture, intake links, or external submission." },
+  { title: "Evidence Record", body: "The submitted material is organized around a structured record." },
+  { title: "Integrity & Custody Context", body: "Hashes, metadata, custody events, signature context, and timestamp / anchoring context where enabled are recorded." },
+  { title: "Verification Materials", body: "The platform can generate reports, packages, or verification surfaces from recorded materials." },
+  { title: "Review & Reporting", body: "Internal or external reviewers inspect the recorded context and limitations." },
+  { title: "Governance & Access", body: "Workspaces, roles, cases, audit logs, retention concepts, and legal hold concepts help govern handling." },
+  { title: "External Inspection", body: "Recipients may inspect selected materials through reports, packages, or verification URLs depending on configuration." },
+];

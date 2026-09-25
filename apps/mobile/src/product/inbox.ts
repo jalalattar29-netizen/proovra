@@ -11,6 +11,12 @@
 export interface InboxItem {
   itemKey: string;
   title: string;
+  /** History lifecycle — each a real timestamp from the server, never inferred. */
+  dismissedAt?: string | null;
+  resolvedAt?: string | null;
+  sourceClearedAt?: string | null;
+  /** The server's answer to "may this reader archive it"; absent means yes (legacy envelopes). */
+  canDismiss?: boolean;
   href?: string | null;
   occurredAt: string;
   category?: string | null;
@@ -45,6 +51,37 @@ export function resolveInboxUnread(data: unknown): number | null {
 }
 
 /**
+ * T-09d / RC-10 — the HEADER BELL's count.
+ *
+ * `services/api/src/routes/me-inbox.routes.ts:1376-1386` states the contract
+ * outright: `/v1/me/inbox`, `/v1/me/inbox/summary` and `mark-all-read` share
+ * ONE aggregation, so "the badge, the page, and bulk actions can never disagree
+ * on authorization, category scope, or read state". `/summary` is the cached
+ * variant intended for the bell, which is why the header reads it instead of
+ * pulling a 50-item page just to count.
+ *
+ * The count is parsed with the SAME resolver the page uses, so a server shape
+ * change moves both together rather than leaving the badge on a stale field —
+ * the bug this module's own header documents.
+ */
+export const INBOX_SUMMARY_PATH = "/v1/me/inbox/summary";
+
+/** Parse the bell count. `null` means "unknown", never "zero". */
+export function resolveInboxSummaryUnread(data: unknown): number | null {
+  return resolveInboxUnread(data);
+}
+
+/**
+ * How the badge renders a count. The web caps the label rather than letting a
+ * four-digit number stretch the chrome; `null` renders NO badge at all,
+ * because an unknown count must not be shown as a confident zero.
+ */
+export function inboxBadgeLabel(unread: number | null): string | null {
+  if (unread === null || unread <= 0) return null;
+  return unread > 99 ? "99+" : String(unread);
+}
+
+/**
  * Map an inbox item's href to a native route, or null when native has no
  * destination for it (the row is shown but doesn't dead-link). The server still
  * authorizes the destination's data on navigation.
@@ -54,6 +91,13 @@ export function resolveInboxRoute(href: string | null | undefined): string | nul
   if (href.startsWith("/evidence/")) return href;
   if (href.startsWith("/case/")) return href;
   if (href.startsWith("/cases/")) return href.replace("/cases/", "/case/");
+  // The other hrefs me-inbox.routes.ts emits that have a native destination.
+  // Anything else (reviewer-ops, security-center, communications) has none,
+  // and the row renders without an Open control rather than dead-linking.
+  if (href.startsWith("/evidence-requests/")) return href.replace("/evidence-requests/", "/evidence-request/");
+  if (href === "/organizations" || href.startsWith("/organizations/")) return href;
+  if (href === "/settings/security") return href;
+  if (href === "/intake-links" || href.startsWith("/intake-links?")) return "/intake-links";
   return null;
 }
 
@@ -79,7 +123,21 @@ export function resolveInboxRoute(href: string | null | undefined): string | nul
  * constant — so asking for the legacy name bought nothing and kept a legacy
  * surface alive.
  */
-export type InboxItemAction = "read" | "unread" | "archive" | "remind";
+export type InboxItemAction = "read" | "unread" | "archive" | "unarchive" | "remind";
+
+/** The inbox read for the active or the ARCHIVED half (the web's `lifecycle=archived`). */
+export function buildInboxListPath(archived: boolean): string {
+  return `/v1/me/inbox?pageSize=50${archived ? "&lifecycle=archived" : ""}`;
+}
+
+/** The web's history chips: "No longer active <date>" and "Archived <date>". */
+export function inboxHistoryChips(item: InboxItem, formatDate: (iso: string) => string): string[] {
+  const out: string[] = [];
+  const cleared = item.sourceClearedAt ?? item.resolvedAt ?? null;
+  if (item.resolvedAt && cleared) out.push(`No longer active ${formatDate(cleared)}`);
+  if (item.dismissedAt) out.push(`Archived ${formatDate(item.dismissedAt)}`);
+  return out;
+}
 
 export function inboxItemActionPath(itemKey: string, action: InboxItemAction): string {
   return `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`;

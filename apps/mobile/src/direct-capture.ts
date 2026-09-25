@@ -108,6 +108,16 @@ export async function uploadDirectCaptureItem(
     durationMs?: number;
     originalFilename?: string;
     source: DirectCaptureItemSource;
+    /*
+     * The operator's plan fields. `CreatePartBody` (evidence.routes.ts:374)
+     * has always accepted them and the web sends them (orchestration :776);
+     * without them a role, note, mapping or source typed on the phone was lost
+     * at the moment the record was made.
+     */
+    privateRole?: string | null;
+    privateNote?: string | null;
+    checklistStepId?: string | null;
+    sourceLabel?: string | null;
   },
 ): Promise<{ partIndex: number; sha256Hex: string }> {
   // The integrity layer returns the hex digest directly — it no longer round-
@@ -136,6 +146,11 @@ export async function uploadDirectCaptureItem(
       originalFileName: item.originalFilename ?? undefined,
       checksumSha256Base64: integrity.checksumSha256Base64,
       contentMd5Base64: integrity.contentMd5Base64,
+      // The schema takes min(1) strings, so an empty value is omitted, not sent.
+      privateRole: item.privateRole?.trim() || undefined,
+      privateNote: item.privateNote?.trim() || undefined,
+      checklistStepId: item.checklistStepId?.trim() || undefined,
+      sourceLabel: item.sourceLabel?.trim() || undefined,
     }),
   });
 

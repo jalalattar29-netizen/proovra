@@ -1,0 +1,221 @@
+{
+ "route": "/operations/batch-analysis",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "label": "No Batch Jobs",
+   "webRole": "STATE_EMPTY",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:600",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:346",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Batch Name",
+   "webRole": "TEXT",
+   "natRole": "INPUT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:457",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:386",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Description (optional)",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:477",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:395",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Export CSV",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:749",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:149",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Analyze multiple evidence items",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g., Q1 2026 Review",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:459",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add notes about this batch",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:479",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Batch name",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:386"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g.\nabc-123\ndef-456\nghi-789",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:499",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create batch jobs, monitor progress, review outcomes, and export result sets for larger evidence workloads.",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "+ New Batch Job",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:216",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence IDs (one per line)",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create & Start Batch",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:513",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Progress",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:652",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Processed",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:679",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Failed",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:701",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Pending",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:723",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:759",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

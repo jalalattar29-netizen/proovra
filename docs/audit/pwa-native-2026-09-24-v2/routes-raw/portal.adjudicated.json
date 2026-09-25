@@ -1,0 +1,70 @@
+{
+ "route": "/portal",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "INPUT",
+   "label": "Paste your token",
+   "at": "apps/web/app/portal/page.tsx:113",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA External Reviewer Portal",
+   "at": "apps/web/app/portal/page.tsx:100",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the invitation token you were sent. Your activity in the portal is audited. PROOVRA records what you observe and decide; it does not assert authenticity of content.",
+   "at": "apps/web/app/portal/page.tsx:103",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation token",
+   "at": "apps/web/app/portal/page.tsx:111",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Use a different invitation",
+   "at": "apps/web/app/portal/page.tsx:169",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

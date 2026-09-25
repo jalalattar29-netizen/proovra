@@ -7,11 +7,11 @@
  * (`governance.policy.read`) — so a VIEWER can learn what governs them
  * without being granted `intelligence.read`.
  *
- * TRANSPARENCY IS NOT AUTHORITY. There are no switches here, and no disabled
- * ones either: a greyed-out toggle invites a tap and then refuses it, which is
- * a worse answer than a sentence naming who decides. Changing the policy is an
- * administration action the product keeps behind
- * `intelligence.policy.manage`.
+ * TRANSPARENCY IS NOT AUTHORITY — and T-15 kept that line: switches appear ONLY
+ * where the web shows them (personal assistance, organization governance) and
+ * only when the SERVER returned the editable policy (src/ui/ai-policy-editor).
+ * A member refused the policy read still gets this read-only answer, never a
+ * greyed-out toggle that invites a tap and then refuses it.
  */
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
@@ -36,23 +36,39 @@ import {
 import { usePlatformContext } from "../../../src/product/platform-context";
 import {
   aiFeatureStateDisplay,
-  aiManagedByCopy,
-  aiProcessingLines,
   aiStatusDisplay,
+  aiStatusDetail,
   buildAiAssistanceStatusPath,
   parseAiAssistanceSettings,
   type AiAssistanceSettings,
+  resolveAiManagedBy,
+  aiManagedByLabel,
+  aiProcessingRows,
+  AI_ADVISORY_NOTICE,
+  AI_NOT_INCLUDED_COPY,
 } from "../../../src/product/ai-assistance";
+import { deriveAiSettingsMode } from "../../../src/product/ai-policy";
+import { AiPolicyEditor } from "../../../src/ui/ai-policy-editor";
 
 type Phase = "loading" | "ready" | "error" | "unavailable";
 
 export default function AiSettingsScreen() {
+  const [editorShown, setEditorShown] = useState(false);
   const router = useRouter();
-  const { context } = usePlatformContext();
+  const { context, envelope } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
   const workspaceKind = context?.activeSpaceType ?? null;
 
   const [phase, setPhase] = useState<Phase>("loading");
+  // The web's deriveAiSettingsMode inputs, from the same envelope.
+  const env = (envelope ?? {}) as { planFeatures?: Record<string, unknown>; capabilities?: Record<string, unknown> };
+  const allowance = env.planFeatures?.["aiAssistanceMonthlyOperations"];
+  const settingsManage = env.capabilities?.["SETTINGS_MANAGE"];
+  const aiMode = deriveAiSettingsMode({
+    workspaceKind: workspaceKind === "ORGANIZATION" ? "ORGANIZATION" : "PERSONAL",
+    monthlyAllowance: typeof allowance === "number" ? allowance : null,
+    canManageWorkspaceAiPolicy: typeof settingsManage === "boolean" ? settingsManage : null,
+  });
   const [error, setError] = useState<SafeError | null>(null);
   const [settings, setSettings] = useState<AiAssistanceSettings | null>(null);
 
@@ -81,7 +97,7 @@ export default function AiSettingsScreen() {
 
   if (!teamId) {
     return (
-      <ProovraScreen scroll={false}>
+      <ProovraScreen shell scroll={false}>
         <ProovraEmptyState
           title="No workspace selected"
           message="Open a workspace to see how AI is configured in it."
@@ -92,14 +108,14 @@ export default function AiSettingsScreen() {
   }
   if (phase === "loading") {
     return (
-      <ProovraScreen scroll={false}>
+      <ProovraScreen shell scroll={false}>
         <ProovraLoadingState label="Loading AI settings" />
       </ProovraScreen>
     );
   }
   if (phase === "unavailable") {
     return (
-      <ProovraScreen scroll={false}>
+      <ProovraScreen shell scroll={false}>
         <ProovraEmptyState
           title="Not available"
           message="This workspace does not make its AI configuration available to you."
@@ -110,7 +126,7 @@ export default function AiSettingsScreen() {
   }
   if (phase === "error" && error) {
     return (
-      <ProovraScreen scroll={false}>
+      <ProovraScreen shell scroll={false}>
         <ProovraErrorState message={error.message} onRetry={load} />
       </ProovraScreen>
     );
@@ -118,71 +134,119 @@ export default function AiSettingsScreen() {
 
   const s = settings!;
   const status = aiStatusDisplay(s.status);
+  const managedBy = resolveAiManagedBy({
+    status: s.status,
+    workspaceKind,
+    canManage: typeof settingsManage === "boolean" ? settingsManage : null,
+  });
 
   return (
-    <ProovraScreen>
+    <ProovraScreen shell>
       <View style={{ flexDirection: "row", marginTop: theme.space.s2 }}>
         <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
       </View>
       <ProovraPageHeader
         title="AI & assistance"
-        subtitle="What AI does in this workspace, and who decides it"
+        subtitle="Whether AI assistance is available in this workspace, what it may be used for, and the allowance your plan or agreement provides."
       />
 
+      {/* The effective answer first (the web's AiStatusRow), before any switch. */}
       <ProovraPageSection title="AI assistance">
-        <ProovraCard style={{ gap: theme.space.s2 }}>
+        <ProovraCard style={{ gap: theme.space.s2 }} testID="ai-status">
           <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
             <ProovraText variant="body" weight="semibold">
               In this workspace
             </ProovraText>
             <ProovraBadge tone={status.tone} label={status.label} />
           </View>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {AI_ADVISORY_NOTICE}
+          </ProovraText>
           <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            {status.detail}
-          </ProovraText>
-          {/*
-            Who decides, rather than a disabled control. A personal workspace
-            has no administrator other than its owner, and "ask your
-            administrator" there sends somebody looking for a person who does
-            not exist.
-          */}
-          <ProovraText variant="label" color={theme.color.ink.muted}>
-            {aiManagedByCopy(workspaceKind)}
+            {aiStatusDetail(s.status, s.enabled, status.detail)}
           </ProovraText>
         </ProovraCard>
       </ProovraPageSection>
 
-      <ProovraPageSection title="AI features">
-        {s.features.length === 0 ? (
-          <ProovraText variant="bodySm" color={theme.color.ink.muted}>
-            This workspace lists no AI capabilities.
-          </ProovraText>
-        ) : (
-          <ProovraCard>
-            {s.features.map((f) => {
-              const state = aiFeatureStateDisplay(f.state);
-              return (
-                <ProovraListRow
-                  key={f.id}
-                  title={f.label}
-                  subtitle={f.description || undefined}
-                  trailing={<ProovraBadge tone={state.tone} label={state.label} />}
-                />
-              );
-            })}
-          </ProovraCard>
-        )}
-      </ProovraPageSection>
-
-      <ProovraPageSection title="How AI uses your evidence">
-        <ProovraCard style={{ gap: theme.space.s2 }}>
-          {aiProcessingLines(s.processing).map((line) => (
-            <ProovraText key={line} variant="bodySm" color={theme.color.ink.secondary}>
-              {line}
-            </ProovraText>
-          ))}
+      {aiMode === "personal-not-included" ? (
+        // FREE: an honest, control-free surface with the way forward (AiSection :309).
+        <ProovraCard style={{ gap: theme.space.s2 }} testID="ai-not-included">
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{AI_NOT_INCLUDED_COPY}</ProovraText>
+          <ProovraButton label="See plans" variant="secondary" fullWidth={false} onPress={() => router.push("/(stack)/billing")} />
         </ProovraCard>
-      </ProovraPageSection>
+      ) : (
+        <>
+          {teamId ? <AiPolicyEditor teamId={teamId} mode={aiMode} onVisibility={setEditorShown} /> : null}
+
+          {/* The member-safe read-only view (AiReadOnlyView) — rendered when the
+              editor is not, never beside it. */}
+          {!editorShown ? (
+            <>
+              <ProovraPageSection title="AI features">
+                {s.features.length === 0 ? (
+                  <ProovraText variant="bodySm" color={theme.color.ink.muted}>
+                    This workspace lists no AI capabilities.
+                  </ProovraText>
+                ) : (
+                  <ProovraCard>
+                    {s.features.map((f) => {
+                      const state = aiFeatureStateDisplay(f.state);
+                      return (
+                        <ProovraListRow
+                          key={f.id}
+                          title={f.label}
+                          subtitle={f.description || undefined}
+                          trailing={<ProovraBadge tone={state.tone} label={state.label} />}
+                        />
+                      );
+                    })}
+                  </ProovraCard>
+                )}
+              </ProovraPageSection>
+
+              <ProovraPageSection title="How AI uses your data">
+                <ProovraCard style={{ gap: theme.space.s2 }} testID="ai-data">
+                  {aiProcessingRows(s.processing).map((row) => (
+                    <View key={row.name} style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s3 }}>
+                      <ProovraText variant="label" color={theme.color.ink.secondary}>{row.name}</ProovraText>
+                      <ProovraText variant="label" weight="semibold" style={{ flexShrink: 1, textAlign: "right" }}>{row.value}</ProovraText>
+                    </View>
+                  ))}
+                  <ProovraButton
+                    label="View AI Use Policy →"
+                    variant="ghost"
+                    fullWidth={false}
+                    onPress={() => router.push("/legal/ai-use-policy")}
+                  />
+                </ProovraCard>
+              </ProovraPageSection>
+
+              {/*
+                Who decides, rather than a disabled control. Never claims an
+                organization-level lock PROOVRA does not have: the policy row is
+                keyed by workspace.
+              */}
+              <ProovraPageSection title="Workspace AI policy">
+                <ProovraCard style={{ gap: theme.space.s2 }} testID="ai-governance">
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s3 }}>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>Effective state</ProovraText>
+                    <ProovraBadge tone={status.tone} label={status.label} />
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s3 }}>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>Managed by</ProovraText>
+                    <ProovraText variant="label" weight="semibold">{aiManagedByLabel(managedBy)}</ProovraText>
+                  </View>
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    You can see this policy but cannot change it. Ask a workspace administrator if it needs to be different.
+                  </ProovraText>
+                </ProovraCard>
+              </ProovraPageSection>
+            </>
+          ) : null}
+        </>
+      )}
     </ProovraScreen>
   );
 }
+
+

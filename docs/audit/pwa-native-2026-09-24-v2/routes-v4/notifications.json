@@ -1,0 +1,499 @@
+{
+ "route": "/notifications",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/notifications/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(tabs)/notifications.tsx",
+  "apps/mobile/app/(stack)/settings/notifications.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 34,
+   "labelled": 37,
+   "unboundExports": 6
+  },
+  "native": {
+   "files": 27,
+   "labelled": 25,
+   "unboundExports": 6
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 1,
+  "unpaired": 36,
+  "extraInNative": 22,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Notifications",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/(app)/inbox/page.tsx:1253",
+   "nat": "apps/mobile/app/(tabs)/notifications.tsx:156"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Notification summary",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1300",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Notification filters and sorting",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1414",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Filters",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1479",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Active filters",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1624",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "You're all caught up",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1744",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Some sources could not be read, so this may not be everything.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1366",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived notifications are not available in this environment yet.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1381",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Filters",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1469",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1501",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1513",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1566",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1585",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Done",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1593",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sort",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1602",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear all",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1654",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Some sources were capped:",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1690",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". Open the relevant console for the full list.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1698",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading inbox…",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1708",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn’t load inbox.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1716",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1734",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No archived notifications.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1781",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archiving a notification files it here and takes it out of your active list.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1783",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No notifications match these filters.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1790",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Try changing or clearing the active filters.",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1793",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1805",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No longer active",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1916",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1924",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reminder set for",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1930",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1964",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Mark as unread",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1978",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Mark as read",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1991",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Unarchive",
+   "at": "apps/web/app/(app)/inbox/page.tsx:2008",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archive",
+   "at": "apps/web/app/(app)/inbox/page.tsx:2022",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "LIST",
+   "label": "Notification preferences",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:165"
+  },
+  {
+   "role": "TAB",
+   "label": "Show",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:170"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Clear filter",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:190"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:224"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Later",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:237"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Remind me later",
+   "at": "apps/mobile/app/(tabs)/notifications.tsx:249"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline — showing the latest available data.",
+   "at": "apps/mobile/src/ui/shell.tsx:109"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:173"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Resolving workspace",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:177"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading preferences",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:180"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No notification categories are published.",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:188"
+  },
+  {
+   "role": "BADGE",
+   "label": "Always on",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:218"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Quiet hours",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:258"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading quiet hours",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:259"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Quiet hours are not available here.",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:263"
+  },
+  {
+   "role": "INPUT",
+   "label": "Pause email during quiet hours",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:292"
+  },
+  {
+   "role": "TEXT",
+   "label": "Pause email during quiet hours",
+   "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextPersonalSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextOrganization"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextActiveSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "CapabilityKey"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\inbox.ts",
+   "name": "InboxItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\inbox.ts",
+   "name": "InboxItemAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\notification-preferences.ts",
+   "name": "NotificationSchedule"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

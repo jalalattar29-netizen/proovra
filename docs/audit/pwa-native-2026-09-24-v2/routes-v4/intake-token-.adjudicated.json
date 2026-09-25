@@ -1,0 +1,620 @@
+{
+ "route": "/intake/[token]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "webLabel": "Add files",
+   "natLabel": "Add the files you were asked for.",
+   "score": 0.5,
+   "web": "apps/web/app/intake/[token]/page.tsx:1380",
+   "nat": "apps/mobile/app/(stack)/intake/[token].tsx:246",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "label": "Not now",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/intake/[token]/page.tsx:1606",
+   "nat": "apps/mobile/app/(stack)/intake/[token].tsx:236",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "INPUT",
+   "label": "The name shown with your submission",
+   "at": "apps/web/app/intake/[token]/page.tsx:1174",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Your name",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:192"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Your name\" at apps/mobile/app/(stack)/intake/[token].tsx:192 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Opening the secure intake link…",
+   "at": "apps/web/app/intake/[token]/page.tsx:956",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This link can&apos;t be opened",
+   "at": "apps/web/app/intake/[token]/page.tsx:991",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "If you still need to submit evidence, contact the workspace that sent you this link — they can issue a new one.",
+   "at": "apps/web/app/intake/[token]/page.tsx:997",
+   "natHasRole": true,
+   "bestScore": 0.12,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.12)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check the link you were sent for typos or expired characters. If the problem persists, the workspace that sent the link can issue a new one.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1002",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "For security, this link briefly limits repeated requests. Wait a moment and reload the page.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1008",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Submission completed",
+   "at": "apps/web/app/intake/[token]/page.tsx:1034",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your files have been sent securely and recorded against this request. The workspace that issued the link will review them.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1036",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing further is needed from you. You can close this window.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1040",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Already submitted",
+   "at": "apps/web/app/intake/[token]/page.tsx:1065",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This link has already been used. Your earlier submission was received and the workspace can review it.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1067",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "If you need to send more files, contact the sender for a new upload link.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1071",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This link expires",
+   "at": "apps/web/app/intake/[token]/page.tsx:1100",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What happens with your files",
+   "at": "apps/web/app/intake/[token]/page.tsx:1149",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Files you upload are sent directly to the workspace that issued this link and recorded against this request. PROOVRA stores a fingerprint of each file so it can later be shown that nothing changed after you sent it.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1151",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.18)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The terms you are accepting",
+   "at": "apps/web/app/intake/[token]/page.tsx:1163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Display name",
+   "at": "apps/web/app/intake/[token]/page.tsx:1172",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your acknowledgement",
+   "at": "apps/web/app/intake/[token]/page.tsx:1200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "I have read and accept the terms above.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "My submission may be associated with my email address.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1234",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The sender needs this to know who responded.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1236",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept the terms above to continue.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1258",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You were asked to provide",
+   "at": "apps/web/app/intake/[token]/page.tsx:1269",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Add the files you were asked for.\" at apps/mobile/app/(stack)/intake/[token].tsx:246 scores 0.4 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Please respond by",
+   "at": "apps/web/app/intake/[token]/page.tsx:1276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this request needs",
+   "at": "apps/web/app/intake/[token]/page.tsx:1292",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Files",
+   "at": "apps/web/app/intake/[token]/page.tsx:1296",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepted file types:",
+   "at": "apps/web/app/intake/[token]/page.tsx:1298",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Tap to choose — you can select more than one",
+   "at": "apps/web/app/intake/[token]/page.tsx:1382",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this request needs",
+   "at": "apps/web/app/intake/[token]/page.tsx:1402",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/app/intake/[token]/page.tsx:1425",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional",
+   "at": "apps/web/app/intake/[token]/page.tsx:1427",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "MB",
+   "at": "apps/web/app/intake/[token]/page.tsx:1463",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Map to step…",
+   "at": "apps/web/app/intake/[token]/page.tsx:1486",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Still needed:",
+   "at": "apps/web/app/intake/[token]/page.tsx:1502",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA · Secure intake",
+   "at": "apps/web/app/intake/[token]/page.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support ID",
+   "at": "apps/web/app/intake/[token]/page.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Share location",
+   "at": "apps/web/app/intake/[token]/page.tsx:1597",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Waiting for your browser&hellip;",
+   "at": "apps/web/app/intake/[token]/page.tsx:1612",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Location captured",
+   "at": "apps/web/app/intake/[token]/page.tsx:1616",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The workspace asked for more",
+   "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:48",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "A reviewer has marked this request as needing more information. Check the checklist below for the items they still need, then upload or re-upload as required.",
+   "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:214",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepts:",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:246",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Location capture required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:250",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture fresh — do not reuse old files",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:255",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Completion",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:64",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review-ready",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:92",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required items remaining",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:107",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required:",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:147",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional:",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  }
+ ]
+}

@@ -1,0 +1,270 @@
+{
+ "route": "/operations/quotas",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "Monitor platform usage and",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:200",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "/",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "used ·",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "remaining",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "% used",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:194",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review analysis activity, cost metrics, quota consumption, and active service usage from one dashboard.",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:206",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Current Quotas",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:428",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Quotas reset on",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:460",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cost Overview",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:486",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Total Cost",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:499",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This Month",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:519",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Active Services",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:546",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active API Keys",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:559",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active Batch Jobs",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:579",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Types Analyzed",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:610",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/ui-legacy.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no TABLE element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

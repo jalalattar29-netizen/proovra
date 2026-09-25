@@ -1,0 +1,438 @@
+{
+ "route": "/settings/reviewer-criteria",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "SELECT",
+   "label": "Compare from version",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:199",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "SELECT",
+   "label": "Compare to version",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:203",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "INPUT",
+   "label": "Draft version title",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:451",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "What the reviewer should inspect",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:455",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "What the reviewer should inspect",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:515",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select a workspace.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:79",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Human-authored, versioned criteria that guide reviewers. Published versions are immutable; the Reviewer Copilot may explain criteria but never authors, edits, or publishes them.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:89",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:96",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No criteria sets yet. Create the first one to standardize your reviews.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:99",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Publish v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:117",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Duplicate as v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:123",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Retire",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:128",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Latest: v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:137",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:137",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Version history is unavailable.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:186",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading history…",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:187",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Compare",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:198",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "from…",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:200",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:201",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "to…",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:204",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:205",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→ v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Title: “",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "” → “",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "”",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "v",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:223",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:223",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "created",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:227",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Used in",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Copilot run(s) across",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "review(s) by",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "reviewer(s)",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Not used by any Copilot run yet.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:235",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading draft…",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:422",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Edit conflict:",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:429",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "this criteria set was changed by someone else",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:429",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "since you loaded it. Your changes were NOT saved.",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:430",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reload latest version",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:433",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Overwrite with my changes",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:440",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(&quot;Added/Changed&quot; = in your editor; &quot;Removed&quot; = only in the server version.)",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:446",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:459",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Add criterion",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:463",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "New criteria set (draft)",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:507",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:519",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Add criterion",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:523",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

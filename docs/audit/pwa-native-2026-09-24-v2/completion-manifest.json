@@ -1,0 +1,3287 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "generatedFrom": [
+  "03-deep-extract.mjs",
+  "05-style-index.mjs",
+  "06-compare.mjs",
+  "07-adjudicate-routes.mjs"
+ ],
+ "routeCount": 64,
+ "dispositions": {
+  "ALIAS_REDIRECT": 8,
+  "COMPARED": 54,
+  "NO_NATIVE_SCREEN": 2
+ },
+ "verdictTotals": {
+  "COPY_OR_COMPOSITION_DIFF": 3820,
+  "PRESENT_ELSEWHERE_IN_APP": 1379,
+  "ROLE_ABSENT_ON_SCREEN": 101,
+  "NOT_APPLICABLE_SHELL": 153,
+  "EXTRACTOR_ARTIFACT": 15,
+  "SUBSUMED_BY_MISSING_SCREEN": 231
+ },
+ "apiGaps": [
+  {
+   "endpoint": "/v1/platform/context/switch-workspace",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/billing",
+    "/capture",
+    "/cases",
+    "/cases/[id]",
+    "/collaboration-teams",
+    "/collaboration-teams/[teamId]",
+    "/collaboration-teams/invites/[token]/accept",
+    "/evidence",
+    "/evidence-requests/[id]",
+    "/evidence/[id]",
+    "/home",
+    "/inbox",
+    "/intake-links",
+    "/notifications",
+    "/operations",
+    "/operations/batch-analysis",
+    "/operations/health",
+    "/operations/quotas",
+    "/org-invites/[token]/accept",
+    "/organizations",
+    "/organizations/[id]",
+    "/people",
+    "/reports",
+    "/search",
+    "/settings",
+    "/settings/legal/[slug]",
+    "/settings/reviewer-criteria",
+    "/teams/[id]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "n": 33
+  },
+  {
+   "endpoint": "/v1/platform/context",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/billing",
+    "/cases/[id]",
+    "/collaboration-teams",
+    "/collaboration-teams/[teamId]",
+    "/collaboration-teams/invites/[token]/accept",
+    "/evidence",
+    "/evidence-requests/[id]",
+    "/operations",
+    "/operations/batch-analysis",
+    "/operations/health",
+    "/operations/quotas",
+    "/organizations",
+    "/organizations/[id]",
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "n": 19
+  },
+  {
+   "endpoint": "/v1/users/cookie-consent",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/verify-email",
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/login",
+    "/operations/batch-analysis",
+    "/operations/quotas",
+    "/organizations/[id]",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/settings",
+    "/share/[id]",
+    "/support",
+    "/teams/[id]",
+    "/trust",
+    "/verify",
+    "/verify/[token]"
+   ],
+   "n": 18
+  },
+  {
+   "endpoint": "/v1/users/me",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/verify-email",
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/login",
+    "/operations/batch-analysis",
+    "/operations/quotas",
+    "/organizations/[id]",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]",
+    "/support",
+    "/teams/[id]",
+    "/trust",
+    "/verify",
+    "/verify/[token]"
+   ],
+   "n": 17
+  },
+  {
+   "endpoint": "/v1/auth/me",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/operations/batch-analysis",
+    "/operations/quotas",
+    "/organizations/[id]",
+    "/pricing",
+    "/support",
+    "/trust",
+    "/verify",
+    "/verify/[token]"
+   ],
+   "n": 10
+  },
+  {
+   "endpoint": "/v1/collaboration-team-invites/accept",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]",
+    "/collaboration-teams",
+    "/collaboration-teams/[teamId]",
+    "/evidence/[id]"
+   ],
+   "n": 4
+  },
+  {
+   "endpoint": "/v1/teams/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]",
+    "/evidence/[id]",
+    "/operations/health"
+   ],
+   "n": 4
+  },
+  {
+   "endpoint": "/v1/portal/sso/start/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/portal",
+    "/portal/[token]",
+    "/portal/[token]/work/[workflowId]",
+    "/portal/accept/[grantId]"
+   ],
+   "n": 4
+  },
+  {
+   "endpoint": "/v1/portal/activity",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/portal",
+    "/portal/[token]",
+    "/portal/[token]/work/[workflowId]",
+    "/portal/accept/[grantId]"
+   ],
+   "n": 4
+  },
+  {
+   "endpoint": "/v1/trust/subprocessors/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/subprocessors"
+   ],
+   "n": 4
+  },
+  {
+   "endpoint": "/v1/evidence/claim",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/auth/verify-email",
+    "/login",
+    "/register"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/collaboration-teams",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]",
+    "/collaboration-teams/invites/[token]/accept",
+    "/evidence/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/evidence/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]",
+    "/home"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/step-up/start",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/home",
+    "/operations"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/step-up/check",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/home",
+    "/operations"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity/links/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity/password",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/contact-factors",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/contact-factors/enroll/start",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/contact-factors/enroll/verify",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/identity-security/contact-factors/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 3
+  },
+  {
+   "endpoint": "/v1/governance/immutable-storage-checks?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa-admin/recovery-requests/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/evidence-requests/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/dashboard/org-health?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/reviewer/routing-recommendations?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/security-center/access-anomalies?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence-requests/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/me/presence/here?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/me/presence/heartbeat",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/cases/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/evidence-requests/[id]",
+    "/evidence/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/governance/export-eligibility?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/reports"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/runtime/status",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/home"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/ops/incidents?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/home"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/reviewer-ops/escalations?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]",
+    "/home"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/communications/messages/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home",
+    "/intake-links"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/ops/summary?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home",
+    "/operations"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/ops/bulk-actions",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home",
+    "/operations"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/links",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa/factors",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity-security/my-sessions",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity-security/password",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa/enroll/start",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa/enroll/verify",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa/factors/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa/recovery-codes/regenerate",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity-security/my-sessions/revoke-others",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity-security/my-sessions/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity-security/security-events?limit=50",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/platform/rbac/matrix",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings",
+    "/teams/[id]"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/workspaces/ai-policy?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings",
+    "/trust-center/ai-disclosure"
+   ],
+   "n": 2
+  },
+  {
+   "endpoint": "/v1/identity/mfa-admin/recovery-requests/detail/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/auth/mfa-challenge"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/teams",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/auth/mfa-challenge"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/subscription/plan",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/credits/checkout/stripe",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/credits/checkout/paypal",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/storage-addons/checkout/stripe",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/storage-addons/checkout/paypal",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/checkout/stripe",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/checkout/paypal",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/billing"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/uploads/sessions",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/capture"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/uploads/sessions/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/capture"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/upload-telemetry",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/capture"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workflow/templates",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/capture"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ai/capture/analyze-session",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/capture"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/cases/matter-queue?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/cases/bulk",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ai/case/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/saved-views?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/intake-templates?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/saved-views/custom?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/worklist?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/saved-views/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/siu/saved-views",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/cases",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/cases?eligibleForEvidenceId=${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/external-intake/:token/* (POST)",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/external-review/access/:token/*",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/media-intelligence/signals/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/collaboration/threads?teamId=${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/collaboration/catalogs",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/collaboration/threads/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ai/evidence/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/review-operations/evidence/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/provenance/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/intelligence/evidence/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/investigation/cross-evidence?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/governance/evidence/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/evidence-requests?teamId=${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/evidence-requests",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workflow/intake-links/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/communications/messages?purpose=INTAKE_LINK",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/workflows?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/causality/chains?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/workflows/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/causality/chains/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/home"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workflow/templates?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/intake-links"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workflow/intake-links/sender-identity?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/intake-links"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/communications/messages?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/intake-links"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/teams/invites/lookup",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/invite/[token]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/teams/invites/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/invite/[token]"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/incident-groups?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/incident-groups/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/incidents?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/assignable-operators?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/incidents/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/saved-views?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/saved-views",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/saved-views/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/ops/workspace-reconcile",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/batch-analysis/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/org-invites/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/organizations"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/portal/auth",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/portal"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/portal/logout",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/portal"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/portal/dashboard",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/portal"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/portal/work/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/portal"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/auth/email/availability?email=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/register"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/reports",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/reports"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/saved-views?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/semantic/status?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/diagnostics?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/reconcile",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/relationships/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/saved-views",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/saved-views/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/semantic/backfill",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/search/audit?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/search"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/accounts",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/billing/accounts/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/identity/data-export/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/identity/account-closure/${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/users/cookie-consent/latest",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workspaces/ai-usage?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/workspaces/ai-policy",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/communications/verify/start",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/communications/verify/check",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/communications/preferences",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/me/inbox?pageSize=1",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/orgs/${…}",
+   "kind": "NOT_ON_THIS_SCREEN",
+   "routes": [
+    "/settings"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/trust/status",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/trust-center/status"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/trust/subprocessors",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/trust-center/subprocessors"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/trust/subprocessors/seed",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/trust-center/subprocessors"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/teams/workspace-admin?teamId=${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/workspaces"
+   ],
+   "n": 1
+  },
+  {
+   "endpoint": "/v1/audit/tenant?${…}",
+   "kind": "ABSENT_FROM_APP",
+   "routes": [
+    "/workspaces"
+   ],
+   "n": 1
+  }
+ ],
+ "routes": [
+  {
+   "route": "/abuse-reporting",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/legal/abuse-reporting",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 20,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 37,
+   "webApi": 0,
+   "natApi": 2,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/abuse-reporting.md"
+  },
+  {
+   "route": "/auth",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/login",
+   "webFiles": 1,
+   "natFiles": 144,
+   "webLabelled": 0,
+   "natLabelled": 24,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 33,
+   "webApi": 0,
+   "natApi": 13,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/auth.md"
+  },
+  {
+   "route": "/auth/callback/ui",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 135,
+   "natFiles": 144,
+   "webLabelled": 19,
+   "natLabelled": 24,
+   "paired": 2,
+   "missing": 17,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 10,
+    "PRESENT_ELSEWHERE_IN_APP": 6,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 21,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 20,
+   "webCssUnresolved": 102,
+   "webNonLiteralClass": 9,
+   "webHandlers": 29,
+   "natHandlers": 33,
+   "webApi": 4,
+   "natApi": 13,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/auth-callback-ui.md"
+  },
+  {
+   "route": "/auth/mfa-challenge",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 130,
+   "natFiles": 146,
+   "webLabelled": 46,
+   "natLabelled": 21,
+   "paired": 2,
+   "missing": 41,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "PRESENT_ELSEWHERE_IN_APP": 11,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 16,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 15,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 9,
+   "webHandlers": 42,
+   "natHandlers": 32,
+   "webApi": 7,
+   "natApi": 17,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/auth-mfa-challenge.md"
+  },
+  {
+   "route": "/auth/mfa-recovery/verify",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 2,
+   "natFiles": 137,
+   "webLabelled": 11,
+   "natLabelled": 14,
+   "paired": 1,
+   "missing": 8,
+   "roleAbsent": 0,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 4,
+    "COPY_OR_COMPOSITION_DIFF": 4
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 26,
+   "webApi": 3,
+   "natApi": 4,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/auth-mfa-recovery-verify.md"
+  },
+  {
+   "route": "/auth/verify-email",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 141,
+   "natFiles": 143,
+   "webLabelled": 45,
+   "natLabelled": 14,
+   "paired": 2,
+   "missing": 41,
+   "roleAbsent": 1,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 10,
+    "COPY_OR_COMPOSITION_DIFF": 21,
+    "NOT_APPLICABLE_SHELL": 9,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 24,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 23,
+   "webCssUnresolved": 151,
+   "webNonLiteralClass": 21,
+   "webHandlers": 55,
+   "natHandlers": 25,
+   "webApi": 8,
+   "natApi": 13,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/auth-verify-email.md"
+  },
+  {
+   "route": "/billing",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 179,
+   "natFiles": 141,
+   "webLabelled": 109,
+   "natLabelled": 26,
+   "paired": 6,
+   "missing": 97,
+   "roleAbsent": 4,
+   "verdicts": {
+    "ROLE_ABSENT_ON_SCREEN": 4,
+    "COPY_OR_COMPOSITION_DIFF": 67,
+    "PRESENT_ELSEWHERE_IN_APP": 26
+   },
+   "webColors": 58,
+   "natColors": 19,
+   "sharedColors": 8,
+   "webOnlyColors": 50,
+   "webCssUnresolved": 2,
+   "webNonLiteralClass": 20,
+   "webHandlers": 98,
+   "natHandlers": 32,
+   "webApi": 14,
+   "natApi": 6,
+   "apiOnlyWeb": 10,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/billing.md"
+  },
+  {
+   "route": "/capture",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 207,
+   "natFiles": 161,
+   "webLabelled": 242,
+   "natLabelled": 102,
+   "paired": 10,
+   "missing": 227,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 169,
+    "PRESENT_ELSEWHERE_IN_APP": 57,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 175,
+   "natColors": 21,
+   "sharedColors": 12,
+   "webOnlyColors": 163,
+   "webCssUnresolved": 33,
+   "webNonLiteralClass": 38,
+   "webHandlers": 111,
+   "natHandlers": 85,
+   "webApi": 14,
+   "natApi": 9,
+   "apiOnlyWeb": 7,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/capture.md"
+  },
+  {
+   "route": "/cases",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 172,
+   "natFiles": 144,
+   "webLabelled": 105,
+   "natLabelled": 18,
+   "paired": 4,
+   "missing": 96,
+   "roleAbsent": 3,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 57,
+    "ROLE_ABSENT_ON_SCREEN": 3,
+    "PRESENT_ELSEWHERE_IN_APP": 35,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 66,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 59,
+   "webCssUnresolved": 24,
+   "webNonLiteralClass": 19,
+   "webHandlers": 99,
+   "natHandlers": 33,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/cases.md"
+  },
+  {
+   "route": "/cases/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 193,
+   "natFiles": 141,
+   "webLabelled": 505,
+   "natLabelled": 38,
+   "paired": 5,
+   "missing": 488,
+   "roleAbsent": 6,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 359,
+    "PRESENT_ELSEWHERE_IN_APP": 121,
+    "ROLE_ABSENT_ON_SCREEN": 6,
+    "EXTRACTOR_ARTIFACT": 2
+   },
+   "webColors": 80,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 73,
+   "webCssUnresolved": 35,
+   "webNonLiteralClass": 22,
+   "webHandlers": 180,
+   "natHandlers": 47,
+   "webApi": 23,
+   "natApi": 3,
+   "apiOnlyWeb": 22,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/cases-id-.md"
+  },
+  {
+   "route": "/collaboration-teams",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 163,
+   "natFiles": 140,
+   "webLabelled": 94,
+   "natLabelled": 22,
+   "paired": 2,
+   "missing": 88,
+   "roleAbsent": 6,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 61,
+    "ROLE_ABSENT_ON_SCREEN": 6,
+    "PRESENT_ELSEWHERE_IN_APP": 20,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 59,
+   "natColors": 19,
+   "sharedColors": 5,
+   "webOnlyColors": 54,
+   "webCssUnresolved": 2,
+   "webNonLiteralClass": 15,
+   "webHandlers": 66,
+   "natHandlers": 33,
+   "webApi": 4,
+   "natApi": 4,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/collaboration-teams.md"
+  },
+  {
+   "route": "/collaboration-teams/[teamId]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 174,
+   "natFiles": 145,
+   "webLabelled": 230,
+   "natLabelled": 61,
+   "paired": 9,
+   "missing": 186,
+   "roleAbsent": 8,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 54,
+    "ROLE_ABSENT_ON_SCREEN": 8,
+    "COPY_OR_COMPOSITION_DIFF": 123,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 79,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 72,
+   "webCssUnresolved": 18,
+   "webNonLiteralClass": 16,
+   "webHandlers": 146,
+   "natHandlers": 64,
+   "webApi": 4,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/collaboration-teams-teamId-.md"
+  },
+  {
+   "route": "/collaboration-teams/[teamId]/collaboration",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 1,
+   "natFiles": 145,
+   "webLabelled": 1,
+   "natLabelled": 61,
+   "paired": 0,
+   "missing": 1,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 1
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 64,
+   "webApi": 0,
+   "natApi": 5,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/collaboration-teams-teamId-collaboration.md"
+  },
+  {
+   "route": "/collaboration-teams/invites/[token]/accept",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 154,
+   "natFiles": 138,
+   "webLabelled": 40,
+   "natLabelled": 16,
+   "paired": 2,
+   "missing": 38,
+   "roleAbsent": 3,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 28,
+    "PRESENT_ELSEWHERE_IN_APP": 7,
+    "ROLE_ABSENT_ON_SCREEN": 3
+   },
+   "webColors": 25,
+   "natColors": 19,
+   "sharedColors": 3,
+   "webOnlyColors": 22,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 10,
+   "webHandlers": 31,
+   "natHandlers": 28,
+   "webApi": 4,
+   "natApi": 1,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/collaboration-teams-invites-token-accept.md"
+  },
+  {
+   "route": "/data-retention",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/legal/data-retention",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 20,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 37,
+   "webApi": 0,
+   "natApi": 2,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/data-retention.md"
+  },
+  {
+   "route": "/evidence",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 182,
+   "natFiles": 141,
+   "webLabelled": 108,
+   "natLabelled": 67,
+   "paired": 8,
+   "missing": 85,
+   "roleAbsent": 3,
+   "verdicts": {
+    "ROLE_ABSENT_ON_SCREEN": 3,
+    "COPY_OR_COMPOSITION_DIFF": 58,
+    "PRESENT_ELSEWHERE_IN_APP": 24
+   },
+   "webColors": 86,
+   "natColors": 20,
+   "sharedColors": 9,
+   "webOnlyColors": 77,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 18,
+   "webHandlers": 126,
+   "natHandlers": 80,
+   "webApi": 10,
+   "natApi": 7,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/evidence.md"
+  },
+  {
+   "route": "/evidence-requests/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 161,
+   "natFiles": 141,
+   "webLabelled": 122,
+   "natLabelled": 33,
+   "paired": 2,
+   "missing": 118,
+   "roleAbsent": 2,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 89,
+    "PRESENT_ELSEWHERE_IN_APP": 27,
+    "ROLE_ABSENT_ON_SCREEN": 2
+   },
+   "webColors": 25,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 18,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 6,
+   "webHandlers": 46,
+   "natHandlers": 38,
+   "webApi": 11,
+   "natApi": 1,
+   "apiOnlyWeb": 10,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/evidence-requests-id-.md"
+  },
+  {
+   "route": "/evidence/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 262,
+   "natFiles": 152,
+   "webLabelled": 750,
+   "natLabelled": 110,
+   "paired": 9,
+   "missing": 702,
+   "roleAbsent": 14,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 179,
+    "COPY_OR_COMPOSITION_DIFF": 507,
+    "ROLE_ABSENT_ON_SCREEN": 14,
+    "EXTRACTOR_ARTIFACT": 2
+   },
+   "webColors": 104,
+   "natColors": 19,
+   "sharedColors": 9,
+   "webOnlyColors": 95,
+   "webCssUnresolved": 13,
+   "webNonLiteralClass": 27,
+   "webHandlers": 341,
+   "natHandlers": 85,
+   "webApi": 34,
+   "natApi": 5,
+   "apiOnlyWeb": 32,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/evidence-id-.md"
+  },
+  {
+   "route": "/forgot-password",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/login?forgot=1",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 20,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 28,
+   "webApi": 0,
+   "natApi": 13,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/forgot-password.md"
+  },
+  {
+   "route": "/home",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 202,
+   "natFiles": 147,
+   "webLabelled": 588,
+   "natLabelled": 26,
+   "paired": 6,
+   "missing": 572,
+   "roleAbsent": 5,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 422,
+    "PRESENT_ELSEWHERE_IN_APP": 145,
+    "ROLE_ABSENT_ON_SCREEN": 5
+   },
+   "webColors": 64,
+   "natColors": 20,
+   "sharedColors": 13,
+   "webOnlyColors": 51,
+   "webCssUnresolved": 3,
+   "webNonLiteralClass": 15,
+   "webHandlers": 89,
+   "natHandlers": 32,
+   "webApi": 25,
+   "natApi": 12,
+   "apiOnlyWeb": 15,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/home.md"
+  },
+  {
+   "route": "/inbox",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 166,
+   "natFiles": 146,
+   "webLabelled": 54,
+   "natLabelled": 30,
+   "paired": 3,
+   "missing": 49,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "PRESENT_ELSEWHERE_IN_APP": 19,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 55,
+   "natColors": 19,
+   "sharedColors": 10,
+   "webOnlyColors": 45,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 19,
+   "webHandlers": 66,
+   "natHandlers": 44,
+   "webApi": 5,
+   "natApi": 9,
+   "apiOnlyWeb": 1,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/inbox.md"
+  },
+  {
+   "route": "/intake-links",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 184,
+   "natFiles": 146,
+   "webLabelled": 190,
+   "natLabelled": 26,
+   "paired": 4,
+   "missing": 181,
+   "roleAbsent": 3,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 119,
+    "PRESENT_ELSEWHERE_IN_APP": 59,
+    "ROLE_ABSENT_ON_SCREEN": 3
+   },
+   "webColors": 81,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 74,
+   "webCssUnresolved": 8,
+   "webNonLiteralClass": 17,
+   "webHandlers": 122,
+   "natHandlers": 34,
+   "webApi": 9,
+   "natApi": 4,
+   "apiOnlyWeb": 5,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/intake-links.md"
+  },
+  {
+   "route": "/intake/[token]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 121,
+   "natFiles": 138,
+   "webLabelled": 63,
+   "natLabelled": 27,
+   "paired": 0,
+   "missing": 61,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 50,
+    "PRESENT_ELSEWHERE_IN_APP": 11
+   },
+   "webColors": 36,
+   "natColors": 19,
+   "sharedColors": 7,
+   "webOnlyColors": 29,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 2,
+   "webHandlers": 13,
+   "natHandlers": 31,
+   "webApi": 1,
+   "natApi": 1,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/intake-token-.md"
+  },
+  {
+   "route": "/intake/[token]/capture",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 1,
+   "natFiles": 138,
+   "webLabelled": 4,
+   "natLabelled": 20,
+   "paired": 0,
+   "missing": 4,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 4
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 28,
+   "webApi": 0,
+   "natApi": 1,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/intake-token-capture.md"
+  },
+  {
+   "route": "/invite/[token]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 143,
+   "natFiles": 138,
+   "webLabelled": 35,
+   "natLabelled": 16,
+   "paired": 2,
+   "missing": 33,
+   "roleAbsent": 1,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 10,
+    "EXTRACTOR_ARTIFACT": 1,
+    "COPY_OR_COMPOSITION_DIFF": 12,
+    "ROLE_ABSENT_ON_SCREEN": 1,
+    "NOT_APPLICABLE_SHELL": 9
+   },
+   "webColors": 25,
+   "natColors": 19,
+   "sharedColors": 4,
+   "webOnlyColors": 21,
+   "webCssUnresolved": 101,
+   "webNonLiteralClass": 21,
+   "webHandlers": 43,
+   "natHandlers": 28,
+   "webApi": 6,
+   "natApi": 1,
+   "apiOnlyWeb": 6,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/invite-token-.md"
+  },
+  {
+   "route": "/legal/[slug]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 146,
+   "natFiles": 139,
+   "webLabelled": 34,
+   "natLabelled": 18,
+   "paired": 2,
+   "missing": 32,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 11,
+    "NOT_APPLICABLE_SHELL": 16,
+    "PRESENT_ELSEWHERE_IN_APP": 4,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 20,
+   "natColors": 20,
+   "sharedColors": 3,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 279,
+   "webNonLiteralClass": 24,
+   "webHandlers": 42,
+   "natHandlers": 37,
+   "webApi": 4,
+   "natApi": 2,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/legal-slug-.md"
+  },
+  {
+   "route": "/login",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 148,
+   "natFiles": 144,
+   "webLabelled": 68,
+   "natLabelled": 24,
+   "paired": 6,
+   "missing": 57,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 25,
+    "PRESENT_ELSEWHERE_IN_APP": 9,
+    "NOT_APPLICABLE_SHELL": 22,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 43,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 42,
+   "webCssUnresolved": 222,
+   "webNonLiteralClass": 21,
+   "webHandlers": 61,
+   "natHandlers": 33,
+   "webApi": 11,
+   "natApi": 13,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/login.md"
+  },
+  {
+   "route": "/notifications",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 167,
+   "natFiles": 146,
+   "webLabelled": 54,
+   "natLabelled": 30,
+   "paired": 3,
+   "missing": 49,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "PRESENT_ELSEWHERE_IN_APP": 19,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 55,
+   "natColors": 19,
+   "sharedColors": 10,
+   "webOnlyColors": 45,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 19,
+   "webHandlers": 66,
+   "natHandlers": 44,
+   "webApi": 5,
+   "natApi": 9,
+   "apiOnlyWeb": 1,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/notifications.md"
+  },
+  {
+   "route": "/operations",
+   "disposition": "NO_NATIVE_SCREEN",
+   "redirectTo": null,
+   "webFiles": 178,
+   "natFiles": 0,
+   "webLabelled": 189,
+   "natLabelled": 0,
+   "paired": 0,
+   "missing": 189,
+   "roleAbsent": 189,
+   "verdicts": {
+    "SUBSUMED_BY_MISSING_SCREEN": 189
+   },
+   "webColors": 68,
+   "natColors": 0,
+   "sharedColors": 0,
+   "webOnlyColors": 68,
+   "webCssUnresolved": 13,
+   "webNonLiteralClass": 20,
+   "webHandlers": 127,
+   "natHandlers": 0,
+   "webApi": 15,
+   "natApi": 0,
+   "apiOnlyWeb": 15,
+   "ledgerStatus": "(absent from ledger)",
+   "borderline": false,
+   "register": "routes/operations.md"
+  },
+  {
+   "route": "/operations/batch-analysis",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 161,
+   "natFiles": 140,
+   "webLabelled": 39,
+   "natLabelled": 31,
+   "paired": 2,
+   "missing": 33,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 22,
+    "PRESENT_ELSEWHERE_IN_APP": 10,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 16,
+   "natColors": 20,
+   "sharedColors": 2,
+   "webOnlyColors": 14,
+   "webCssUnresolved": 106,
+   "webNonLiteralClass": 10,
+   "webHandlers": 38,
+   "natHandlers": 41,
+   "webApi": 8,
+   "natApi": 5,
+   "apiOnlyWeb": 7,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/operations-batch-analysis.md"
+  },
+  {
+   "route": "/operations/health",
+   "disposition": "NO_NATIVE_SCREEN",
+   "redirectTo": null,
+   "webFiles": 157,
+   "natFiles": 0,
+   "webLabelled": 42,
+   "natLabelled": 0,
+   "paired": 0,
+   "missing": 42,
+   "roleAbsent": 42,
+   "verdicts": {
+    "SUBSUMED_BY_MISSING_SCREEN": 42
+   },
+   "webColors": 28,
+   "natColors": 0,
+   "sharedColors": 0,
+   "webOnlyColors": 28,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 5,
+   "webHandlers": 17,
+   "natHandlers": 0,
+   "webApi": 3,
+   "natApi": 0,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "(absent from ledger)",
+   "borderline": false,
+   "register": "routes/operations-health.md"
+  },
+  {
+   "route": "/operations/quotas",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 161,
+   "natFiles": 137,
+   "webLabelled": 35,
+   "natLabelled": 19,
+   "paired": 2,
+   "missing": 33,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 24,
+    "PRESENT_ELSEWHERE_IN_APP": 8,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 16,
+   "natColors": 20,
+   "sharedColors": 2,
+   "webOnlyColors": 14,
+   "webCssUnresolved": 125,
+   "webNonLiteralClass": 10,
+   "webHandlers": 30,
+   "natHandlers": 27,
+   "webApi": 8,
+   "natApi": 3,
+   "apiOnlyWeb": 6,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/operations-quotas.md"
+  },
+  {
+   "route": "/org-invites/[token]/accept",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 145,
+   "natFiles": 143,
+   "webLabelled": 18,
+   "natLabelled": 21,
+   "paired": 0,
+   "missing": 18,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 15,
+    "PRESENT_ELSEWHERE_IN_APP": 3
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 4,
+   "natHandlers": 30,
+   "webApi": 3,
+   "natApi": 3,
+   "apiOnlyWeb": 1,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/org-invites-token-accept.md"
+  },
+  {
+   "route": "/organizations",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 146,
+   "natFiles": 138,
+   "webLabelled": 46,
+   "natLabelled": 14,
+   "paired": 1,
+   "missing": 44,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 33,
+    "PRESENT_ELSEWHERE_IN_APP": 11
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 1,
+   "webHandlers": 14,
+   "natHandlers": 27,
+   "webApi": 4,
+   "natApi": 2,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/organizations.md"
+  },
+  {
+   "route": "/organizations/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 172,
+   "natFiles": 143,
+   "webLabelled": 217,
+   "natLabelled": 45,
+   "paired": 6,
+   "missing": 204,
+   "roleAbsent": 5,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 135,
+    "PRESENT_ELSEWHERE_IN_APP": 63,
+    "ROLE_ABSENT_ON_SCREEN": 5,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 18,
+   "webHandlers": 99,
+   "natHandlers": 51,
+   "webApi": 24,
+   "natApi": 2,
+   "apiOnlyWeb": 23,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/organizations-id-.md"
+  },
+  {
+   "route": "/people",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 146,
+   "natFiles": 147,
+   "webLabelled": 11,
+   "natLabelled": 64,
+   "paired": 1,
+   "missing": 10,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 10
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 2,
+   "natHandlers": 68,
+   "webApi": 2,
+   "natApi": 4,
+   "apiOnlyWeb": 1,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/people.md"
+  },
+  {
+   "route": "/portal",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 121,
+   "natFiles": 134,
+   "webLabelled": 8,
+   "natLabelled": 15,
+   "paired": 0,
+   "missing": 8,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 8
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 8,
+   "natHandlers": 26,
+   "webApi": 6,
+   "natApi": 0,
+   "apiOnlyWeb": 6,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/portal.md"
+  },
+  {
+   "route": "/portal/[token]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 123,
+   "natFiles": 139,
+   "webLabelled": 18,
+   "natLabelled": 20,
+   "paired": 0,
+   "missing": 18,
+   "roleAbsent": 0,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 7,
+    "COPY_OR_COMPOSITION_DIFF": 11
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 11,
+   "natHandlers": 28,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/portal-token-.md"
+  },
+  {
+   "route": "/portal/[token]/work/[workflowId]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 124,
+   "natFiles": 139,
+   "webLabelled": 28,
+   "natLabelled": 24,
+   "paired": 0,
+   "missing": 28,
+   "roleAbsent": 0,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 9,
+    "COPY_OR_COMPOSITION_DIFF": 19
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 23,
+   "natHandlers": 32,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/portal-token-work-workflowId-.md"
+  },
+  {
+   "route": "/portal/accept/[grantId]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 122,
+   "natFiles": 138,
+   "webLabelled": 16,
+   "natLabelled": 15,
+   "paired": 0,
+   "missing": 16,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 15,
+    "PRESENT_ELSEWHERE_IN_APP": 1
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 1,
+   "webHandlers": 10,
+   "natHandlers": 25,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/portal-accept-grantId-.md"
+  },
+  {
+   "route": "/pricing",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 143,
+   "natFiles": 141,
+   "webLabelled": 59,
+   "natLabelled": 26,
+   "paired": 2,
+   "missing": 57,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "PRESENT_ELSEWHERE_IN_APP": 11,
+    "ROLE_ABSENT_ON_SCREEN": 1,
+    "NOT_APPLICABLE_SHELL": 16
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 553,
+   "webNonLiteralClass": 33,
+   "webHandlers": 42,
+   "natHandlers": 32,
+   "webApi": 5,
+   "natApi": 6,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/pricing.md"
+  },
+  {
+   "route": "/privacy",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/legal/privacy",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 20,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 37,
+   "webApi": 0,
+   "natApi": 2,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/privacy.md"
+  },
+  {
+   "route": "/register",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 147,
+   "natFiles": 140,
+   "webLabelled": 68,
+   "natLabelled": 27,
+   "paired": 4,
+   "missing": 60,
+   "roleAbsent": 3,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 19,
+    "ROLE_ABSENT_ON_SCREEN": 3,
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "NOT_APPLICABLE_SHELL": 9
+   },
+   "webColors": 42,
+   "natColors": 20,
+   "sharedColors": 1,
+   "webOnlyColors": 41,
+   "webCssUnresolved": 200,
+   "webNonLiteralClass": 21,
+   "webHandlers": 61,
+   "natHandlers": 31,
+   "webApi": 11,
+   "natApi": 13,
+   "apiOnlyWeb": 5,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/register.md"
+  },
+  {
+   "route": "/reports",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 171,
+   "natFiles": 144,
+   "webLabelled": 61,
+   "natLabelled": 17,
+   "paired": 2,
+   "missing": 58,
+   "roleAbsent": 5,
+   "verdicts": {
+    "ROLE_ABSENT_ON_SCREEN": 5,
+    "COPY_OR_COMPOSITION_DIFF": 30,
+    "PRESENT_ELSEWHERE_IN_APP": 23
+   },
+   "webColors": 51,
+   "natColors": 19,
+   "sharedColors": 6,
+   "webOnlyColors": 45,
+   "webCssUnresolved": 3,
+   "webNonLiteralClass": 20,
+   "webHandlers": 57,
+   "natHandlers": 31,
+   "webApi": 7,
+   "natApi": 4,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/reports.md"
+  },
+  {
+   "route": "/reset-password",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 140,
+   "natFiles": 140,
+   "webLabelled": 44,
+   "natLabelled": 18,
+   "paired": 3,
+   "missing": 40,
+   "roleAbsent": 1,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 10,
+    "COPY_OR_COMPOSITION_DIFF": 20,
+    "NOT_APPLICABLE_SHELL": 9,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 24,
+   "natColors": 20,
+   "sharedColors": 1,
+   "webOnlyColors": 23,
+   "webCssUnresolved": 175,
+   "webNonLiteralClass": 21,
+   "webHandlers": 56,
+   "natHandlers": 27,
+   "webApi": 5,
+   "natApi": 13,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/reset-password.md"
+  },
+  {
+   "route": "/search",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 156,
+   "natFiles": 145,
+   "webLabelled": 146,
+   "natLabelled": 20,
+   "paired": 2,
+   "missing": 137,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 93,
+    "PRESENT_ELSEWHERE_IN_APP": 43,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 54,
+   "natColors": 19,
+   "sharedColors": 5,
+   "webOnlyColors": 49,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 9,
+   "webHandlers": 71,
+   "natHandlers": 32,
+   "webApi": 13,
+   "natApi": 4,
+   "apiOnlyWeb": 10,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/search.md"
+  },
+  {
+   "route": "/settings",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 199,
+   "natFiles": 164,
+   "webLabelled": 390,
+   "natLabelled": 150,
+   "paired": 6,
+   "missing": 347,
+   "roleAbsent": 2,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 83,
+    "COPY_OR_COMPOSITION_DIFF": 261,
+    "EXTRACTOR_ARTIFACT": 1,
+    "ROLE_ABSENT_ON_SCREEN": 2
+   },
+   "webColors": 47,
+   "natColors": 20,
+   "sharedColors": 8,
+   "webOnlyColors": 39,
+   "webCssUnresolved": 54,
+   "webNonLiteralClass": 22,
+   "webHandlers": 156,
+   "natHandlers": 114,
+   "webApi": 46,
+   "natApi": 37,
+   "apiOnlyWeb": 23,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/settings.md"
+  },
+  {
+   "route": "/settings/legal/[slug]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 152,
+   "natFiles": 139,
+   "webLabelled": 21,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 21,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 18,
+    "PRESENT_ELSEWHERE_IN_APP": 3
+   },
+   "webColors": 4,
+   "natColors": 20,
+   "sharedColors": 1,
+   "webOnlyColors": 3,
+   "webCssUnresolved": 175,
+   "webNonLiteralClass": 7,
+   "webHandlers": 4,
+   "natHandlers": 37,
+   "webApi": 2,
+   "natApi": 2,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/settings-legal-slug-.md"
+  },
+  {
+   "route": "/settings/reviewer-criteria",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 146,
+   "natFiles": 145,
+   "webLabelled": 62,
+   "natLabelled": 45,
+   "paired": 4,
+   "missing": 54,
+   "roleAbsent": 2,
+   "verdicts": {
+    "ROLE_ABSENT_ON_SCREEN": 2,
+    "COPY_OR_COMPOSITION_DIFF": 46,
+    "PRESENT_ELSEWHERE_IN_APP": 6
+   },
+   "webColors": 15,
+   "natColors": 19,
+   "sharedColors": 3,
+   "webOnlyColors": 12,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 3,
+   "webHandlers": 31,
+   "natHandlers": 55,
+   "webApi": 5,
+   "natApi": 5,
+   "apiOnlyWeb": 1,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/settings-reviewer-criteria.md"
+  },
+  {
+   "route": "/share/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 139,
+   "natFiles": 152,
+   "webLabelled": 40,
+   "natLabelled": 110,
+   "paired": 2,
+   "missing": 38,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 16,
+    "PRESENT_ELSEWHERE_IN_APP": 5,
+    "NOT_APPLICABLE_SHELL": 16,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 251,
+   "webNonLiteralClass": 21,
+   "webHandlers": 42,
+   "natHandlers": 85,
+   "webApi": 4,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/share-id-.md"
+  },
+  {
+   "route": "/subprocessors",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/legal/subprocessors",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 20,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 37,
+   "webApi": 0,
+   "natApi": 2,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/subprocessors.md"
+  },
+  {
+   "route": "/support",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 139,
+   "natFiles": 139,
+   "webLabelled": 96,
+   "natLabelled": 17,
+   "paired": 2,
+   "missing": 93,
+   "roleAbsent": 1,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 10,
+    "COPY_OR_COMPOSITION_DIFF": 66,
+    "NOT_APPLICABLE_SHELL": 16,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 804,
+   "webNonLiteralClass": 22,
+   "webHandlers": 42,
+   "natHandlers": 30,
+   "webApi": 4,
+   "natApi": 2,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/support.md"
+  },
+  {
+   "route": "/teams/[id]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 182,
+   "natFiles": 147,
+   "webLabelled": 280,
+   "natLabelled": 64,
+   "paired": 7,
+   "missing": 249,
+   "roleAbsent": 5,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 183,
+    "ROLE_ABSENT_ON_SCREEN": 5,
+    "PRESENT_ELSEWHERE_IN_APP": 60,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 66,
+   "natColors": 19,
+   "sharedColors": 6,
+   "webOnlyColors": 60,
+   "webCssUnresolved": 35,
+   "webNonLiteralClass": 21,
+   "webHandlers": 152,
+   "natHandlers": 68,
+   "webApi": 26,
+   "natApi": 4,
+   "apiOnlyWeb": 22,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/teams-id-.md"
+  },
+  {
+   "route": "/terms",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/legal/terms",
+   "webFiles": 1,
+   "natFiles": 139,
+   "webLabelled": 0,
+   "natLabelled": 18,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 20,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 37,
+   "webApi": 0,
+   "natApi": 2,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/terms.md"
+  },
+  {
+   "route": "/trust",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 146,
+   "natFiles": 144,
+   "webLabelled": 72,
+   "natLabelled": 22,
+   "paired": 2,
+   "missing": 67,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 46,
+    "PRESENT_ELSEWHERE_IN_APP": 5,
+    "NOT_APPLICABLE_SHELL": 15,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 598,
+   "webNonLiteralClass": 30,
+   "webHandlers": 42,
+   "natHandlers": 29,
+   "webApi": 7,
+   "natApi": 5,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust.md"
+  },
+  {
+   "route": "/trust-center",
+   "disposition": "ALIAS_REDIRECT",
+   "redirectTo": "/trust",
+   "webFiles": 1,
+   "natFiles": 144,
+   "webLabelled": 0,
+   "natLabelled": 22,
+   "paired": 0,
+   "missing": 0,
+   "roleAbsent": 0,
+   "verdicts": {},
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 0,
+   "webNonLiteralClass": 0,
+   "webHandlers": 0,
+   "natHandlers": 29,
+   "webApi": 0,
+   "natApi": 5,
+   "apiOnlyWeb": 0,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center.md"
+  },
+  {
+   "route": "/trust-center/ai-disclosure",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 153,
+   "natFiles": 144,
+   "webLabelled": 49,
+   "natLabelled": 22,
+   "paired": 0,
+   "missing": 48,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 35,
+    "PRESENT_ELSEWHERE_IN_APP": 13
+   },
+   "webColors": 7,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 7,
+   "webCssUnresolved": 135,
+   "webNonLiteralClass": 11,
+   "webHandlers": 8,
+   "natHandlers": 29,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center-ai-disclosure.md"
+  },
+  {
+   "route": "/trust-center/methodology",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 152,
+   "natFiles": 144,
+   "webLabelled": 40,
+   "natLabelled": 22,
+   "paired": 0,
+   "missing": 39,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 32,
+    "PRESENT_ELSEWHERE_IN_APP": 7
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 158,
+   "webNonLiteralClass": 9,
+   "webHandlers": 8,
+   "natHandlers": 29,
+   "webApi": 5,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center-methodology.md"
+  },
+  {
+   "route": "/trust-center/security",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 152,
+   "natFiles": 144,
+   "webLabelled": 35,
+   "natLabelled": 22,
+   "paired": 0,
+   "missing": 34,
+   "roleAbsent": 0,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 27,
+    "PRESENT_ELSEWHERE_IN_APP": 7
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 135,
+   "webNonLiteralClass": 9,
+   "webHandlers": 8,
+   "natHandlers": 29,
+   "webApi": 5,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center-security.md"
+  },
+  {
+   "route": "/trust-center/status",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 148,
+   "natFiles": 144,
+   "webLabelled": 49,
+   "natLabelled": 22,
+   "paired": 1,
+   "missing": 48,
+   "roleAbsent": 0,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 16,
+    "COPY_OR_COMPOSITION_DIFF": 31,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 0,
+   "natColors": 19,
+   "sharedColors": 0,
+   "webOnlyColors": 0,
+   "webCssUnresolved": 122,
+   "webNonLiteralClass": 6,
+   "webHandlers": 6,
+   "natHandlers": 29,
+   "webApi": 3,
+   "natApi": 5,
+   "apiOnlyWeb": 3,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center-status.md"
+  },
+  {
+   "route": "/trust-center/subprocessors",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 150,
+   "natFiles": 144,
+   "webLabelled": 44,
+   "natLabelled": 22,
+   "paired": 0,
+   "missing": 43,
+   "roleAbsent": 0,
+   "verdicts": {
+    "PRESENT_ELSEWHERE_IN_APP": 13,
+    "COPY_OR_COMPOSITION_DIFF": 29,
+    "EXTRACTOR_ARTIFACT": 1
+   },
+   "webColors": 4,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 3,
+   "webCssUnresolved": 130,
+   "webNonLiteralClass": 9,
+   "webHandlers": 10,
+   "natHandlers": 29,
+   "webApi": 6,
+   "natApi": 5,
+   "apiOnlyWeb": 5,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/trust-center-subprocessors.md"
+  },
+  {
+   "route": "/verify",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 147,
+   "natFiles": 146,
+   "webLabelled": 59,
+   "natLabelled": 24,
+   "paired": 2,
+   "missing": 57,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 32,
+    "PRESENT_ELSEWHERE_IN_APP": 8,
+    "NOT_APPLICABLE_SHELL": 16,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 18,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 17,
+   "webCssUnresolved": 500,
+   "webNonLiteralClass": 27,
+   "webHandlers": 46,
+   "natHandlers": 29,
+   "webApi": 4,
+   "natApi": 3,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/verify.md"
+  },
+  {
+   "route": "/verify/[token]",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 147,
+   "natFiles": 146,
+   "webLabelled": 175,
+   "natLabelled": 24,
+   "paired": 4,
+   "missing": 170,
+   "roleAbsent": 3,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 145,
+    "ROLE_ABSENT_ON_SCREEN": 3,
+    "PRESENT_ELSEWHERE_IN_APP": 22
+   },
+   "webColors": 16,
+   "natColors": 19,
+   "sharedColors": 1,
+   "webOnlyColors": 15,
+   "webCssUnresolved": 1,
+   "webNonLiteralClass": 9,
+   "webHandlers": 47,
+   "natHandlers": 29,
+   "webApi": 7,
+   "natApi": 3,
+   "apiOnlyWeb": 4,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": false,
+   "register": "routes/verify-token-.md"
+  },
+  {
+   "route": "/workspaces",
+   "disposition": "COMPARED",
+   "redirectTo": null,
+   "webFiles": 153,
+   "natFiles": 143,
+   "webLabelled": 127,
+   "natLabelled": 23,
+   "paired": 0,
+   "missing": 125,
+   "roleAbsent": 1,
+   "verdicts": {
+    "COPY_OR_COMPOSITION_DIFF": 76,
+    "PRESENT_ELSEWHERE_IN_APP": 46,
+    "EXTRACTOR_ARTIFACT": 2,
+    "ROLE_ABSENT_ON_SCREEN": 1
+   },
+   "webColors": 15,
+   "natColors": 19,
+   "sharedColors": 3,
+   "webOnlyColors": 12,
+   "webCssUnresolved": 159,
+   "webNonLiteralClass": 2,
+   "webHandlers": 9,
+   "natHandlers": 35,
+   "webApi": 4,
+   "natApi": 3,
+   "apiOnlyWeb": 2,
+   "ledgerStatus": "CODE_PARITY",
+   "borderline": true,
+   "register": "routes/workspaces.md"
+  }
+ ]
+}

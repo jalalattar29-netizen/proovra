@@ -36,6 +36,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const MOBILE_ROOT = resolve(HERE, "..");
 export const WEB_APP_DIR = resolve(MOBILE_ROOT, "../web/app");
 const REGISTRY_TS = resolve(MOBILE_ROOT, "../web/lib/navigation/routeRegistry.ts");
+const TIERS_TS = resolve(MOBILE_ROOT, "../web/lib/surface/tiers.ts");
 
 /** Domains whose surfaces are enterprise/operator consoles, not normal-user product. */
 const ENTERPRISE_DOMAINS = new Set(["GOVERNANCE", "REVIEW_OPERATIONS", "OPS"]);
@@ -54,6 +55,40 @@ const MARKETING_MODULES = [
   "components/use-case-data",
   "../../components/use-case",
 ];
+
+/* ------------------------------------------------------------------ surface tiers */
+
+/**
+ * T-21 / RC-22 — THE WEB'S VISIBILITY AUTHORITY IS `lib/surface/tiers.ts`.
+ *
+ * Its own header: "This module is the SINGLE SOURCE OF TRUTH for which
+ * surfaces are visible / accessible to which audience." The domain heuristic
+ * below (ENTERPRISE_DOMAINS) predates it and disagrees with it on routes the
+ * web deliberately moved: `/operations` is `OPS` in the registry but
+ * `{ tier: "CORE", directAccessPolicy: "allow" }` in tiers.ts — "tenant
+ * Operations — shared unresolved workspace work". Inferring "enterprise" from
+ * the domain kept the CORE Operations queue out of native scope (RC-12), and
+ * the guard that forbids linking to reserved surfaces then forbade the fix.
+ *
+ * So an EXPLICIT CORE + allow rule in tiers.ts outranks the domain heuristic.
+ * It outranks nothing else: an ENTERPRISE_ONLY_ROUTE_IDS entry, an
+ * organization-only space and platform-admin still decide first, because
+ * those are the registry speaking about the route itself.
+ */
+let tierLookup = null;
+
+export async function loadSurfaceTiers() {
+  const src = readFileSync(TIERS_TS, "utf8");
+  const js = ts.transpileModule(src, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, verbatimModuleSyntax: false },
+  }).outputText;
+  const mod = await import(`data:text/javascript,${encodeURIComponent(js)}`);
+  if (typeof mod.findSurfaceTierRule !== "function") {
+    throw new Error("findSurfaceTierRule did not load — the web surface-tier authority moved or changed shape");
+  }
+  tierLookup = mod.findSurfaceTierRule;
+  return mod.findSurfaceTierRule;
+}
 
 /* ------------------------------------------------------------------ registry */
 
@@ -329,6 +364,13 @@ export function classify(route, enterpriseIds) {
   if (route.requiredActiveSpace === "ORGANIZATION_ONLY") {
     return { classification: "ENTERPRISE_ONLY", evidence: `routeRegistry ${route.id}.requiredActiveSpace = ORGANIZATION_ONLY` };
   }
+  const tierRule = tierLookup && typeof route.href === "string" ? tierLookup(route.href.split("?")[0]) : null;
+  if (tierRule && tierRule.tier === "CORE" && tierRule.directAccessPolicy === "allow") {
+    return {
+      classification: "NATIVE_REQUIRED",
+      evidence: `lib/surface/tiers.ts ${tierRule.pathPrefix} = CORE/allow ("${tierRule.reason}") outranks routeRegistry ${route.id}.domain = ${route.domain}`,
+    };
+  }
   if (ENTERPRISE_DOMAINS.has(route.domain)) {
     return { classification: "ENTERPRISE_ONLY", evidence: `routeRegistry ${route.id}.domain = ${route.domain}` };
   }
@@ -342,6 +384,7 @@ export function classify(route, enterpriseIds) {
 
 export async function buildManifest() {
   const { registry, enterpriseIds } = await loadRegistry();
+  await loadSurfaceTiers();
   const routes = discoverWebRoutes();
 
   /*

@@ -45,6 +45,8 @@ export interface SignInMethod {
   label: string;
   /** Present for a linked OAuth identity. */
   linkedAtIso: string | null;
+  /** The link row id — what `DELETE /v1/identity/links/:id` addresses. Null for password / legacy pairs. */
+  linkId: string | null;
   /**
    * Whether removing this method is allowed. The server refuses the removal of
    * the LAST usable method independently; this only decides whether native
@@ -77,6 +79,7 @@ export function parseSignInMethods(payload: unknown): SignInMethods {
       provider: "PASSWORD",
       label: PROVIDER_LABEL.PASSWORD,
       linkedAtIso: null,
+      linkId: null,
       removable: false, // the password is removed by the account, not from here
     });
   }
@@ -88,8 +91,9 @@ export function parseSignInMethods(payload: unknown): SignInMethods {
       provider,
       label: PROVIDER_LABEL[provider],
       linkedAtIso: str(l.linkedAtUtc),
-      // Never offer to remove the only way in.
-      removable: usableMethods > 1,
+      linkId: str(l.id),
+      // Never offer to remove the only way in — and never without an id to address.
+      removable: usableMethods > 1 && str(l.id) !== null,
     });
   }
   const legacy = str(o.legacyProvider);
@@ -99,6 +103,7 @@ export function parseSignInMethods(payload: unknown): SignInMethods {
         provider: legacy,
         label: PROVIDER_LABEL[legacy],
         linkedAtIso: null,
+        linkId: null,
         // A legacy pair with no link row is surfaced READ-ONLY by the server.
         removable: false,
       });
@@ -106,6 +111,68 @@ export function parseSignInMethods(payload: unknown): SignInMethods {
   }
   return { methods, passwordConfigured, usableMethods };
 }
+
+/* --------------------------------------------- link / unlink (T-15) */
+//
+// POST   /v1/identity/links/:provider   { idToken, stepUp? }  — add Google/Apple
+// DELETE /v1/identity/links/:linkId     { stepUp? }           — remove one
+//
+// Both are step-up guarded (re-auth), exactly as on the web
+// (PersonalSecuritySections.tsx:721-880). The server refuses removing the
+// last usable method (`last_login_method_protected`) and linking an identity
+// another account holds (`identity_already_linked`); both refusals carry a
+// message the web shows verbatim, and so does native.
+
+export type LinkableProvider = "GOOGLE" | "APPLE";
+
+/** Providers not yet linked — the ones a Connect control may be offered for. */
+export function linkableProviders(m: SignInMethods): LinkableProvider[] {
+  const linked = new Set(m.methods.map((x) => x.provider));
+  return (["GOOGLE", "APPLE"] as const).filter((p) => !linked.has(p));
+}
+
+export function buildIdentityLinkPath(provider: "google" | "apple"): string {
+  return `/v1/identity/links/${provider}`;
+}
+export function buildIdentityUnlinkPath(linkId: string): string {
+  return `/v1/identity/links/${encodeURIComponent(linkId)}`;
+}
+
+const SERVER_WORDED_LINK_CODES = new Set(["last_login_method_protected", "identity_already_linked"]);
+
+/** The refusal to show: the server's own words for the two named refusals, else the fallback. */
+export function identityLinkRefusal(err: unknown, fallback: string): string | null {
+  const body = (err as { body?: unknown } | null)?.body;
+  const e = obj(obj(body).error);
+  const code = str(e.code) ?? str((err as { code?: unknown } | null)?.code);
+  if (code && SERVER_WORDED_LINK_CODES.has(code)) return str(e.message) ?? fallback;
+  return null;
+}
+
+/**
+ * T-15 — ADD a first password to a Google/Apple-only account
+ * (POST /v1/identity/password { newPassword, stepUp? }; web
+ * PersonalSecuritySections.tsx:825-853). An account with no password has
+ * nothing to CHANGE: the change form asked for a current password that does
+ * not exist, so it could never succeed.
+ */
+export const ADD_PASSWORD_PATH = "/v1/identity/password";
+export const ADD_PASSWORD_COPY = {
+  title: "Add a password",
+  description: "This account signs in with Google or Apple only. Adding a password gives it a second way in.",
+  label: "New password (12+ chars, upper- and lower-case, a number)",
+  action: "Add password",
+  added: "Password added. You can now sign in with email and password.",
+  failed: "Could not add a password.",
+} as const;
+
+export const IDENTITY_LINK_COPY = {
+  linkFailed: "Could not connect this login method.",
+  unlinkFailed: "Could not disconnect this method.",
+  unlinkConsequence: "You will no longer be able to sign in with this method. At least one other usable login method must remain.",
+  connected: (provider: "google" | "apple") => `${provider === "google" ? "Google" : "Apple"} connected.`,
+  disconnected: "Login method disconnected.",
+} as const;
 
 /**
  * The one-line account-security headline.
@@ -178,8 +245,13 @@ export function mfaFactorTone(status: string): ProovraStatusTone {
 export interface AccountSession {
   id: string;
   isCurrent: boolean;
-  /** "Chrome on macOS · 203.0.113.x · GB" — whatever the server disclosed. */
+  /** "Chrome on macOS" — the UA preview, described (never the raw string). */
   deviceLabel: string;
+  /** A human country name, or null when none is reliable ("Location unavailable"). */
+  location: string | null;
+  /** The raw previews the server disclosed — Technical details only. */
+  uaPreview: string | null;
+  ipPreview: string | null;
   lastSeenAtIso: string | null;
   issuedAtIso: string | null;
   expiresAtIso: string | null;
@@ -201,13 +273,16 @@ export function parseSessions(payload: unknown): SessionInventory {
     const ua = str(s.uaPreview);
     const ip = str(s.ipPreview);
     const country = str(s.countryCode);
-    // The server deliberately sends PREVIEWS, not full UA/IP strings. Join what
-    // it disclosed rather than reconstructing anything it withheld.
-    const deviceLabel = [ua, ip, country].filter(Boolean).join(" · ") || "Unrecognised device";
+    // WEB PARITY (sessionPresentation.ts): the device is named from the UA
+    // preview ("Firefox on Windows"); the raw preview and the masked IP are
+    // forensic detail, kept for the per-session Technical details disclosure.
     return {
       id: str(s.id) ?? "",
       isCurrent: bool(s.isCurrent),
-      deviceLabel,
+      deviceLabel: describeUserAgent(ua),
+      location: presentLocation(country, ip),
+      uaPreview: ua,
+      ipPreview: ip,
       lastSeenAtIso: str(s.lastSeenAtUtc),
       issuedAtIso: str(s.issuedAtUtc),
       expiresAtIso: str(s.expiresAtUtc),
@@ -233,6 +308,8 @@ export interface SecurityEvent {
   atIso: string | null;
   tone: ProovraStatusTone;
   detail: string | null;
+  /** T-14 — the web "Technical details" disclosure: the exact event key and raw facts, never removed. */
+  technical: string[];
 }
 
 /**
@@ -265,19 +342,50 @@ export function humanizeEventType(value: string): string {
     .join(" ");
 }
 
-export function parseSecurityEvents(payload: unknown): SecurityEvent[] {
+/**
+ * GET /v1/identity-security/security-events sends each row as
+ * `{ id, action, severity, outcome, occurredAtUtc, ipPreview, … }`
+ * (identity-security.routes.ts). The parser read `eventType`/`type`, so every
+ * row read "Security event". `action` is a dotted key ("auth.google_login");
+ * its words come from the SHARED vocabulary (@proovra/shared
+ * presentSecurityEvent / presentOutcome), which the screen passes in so this
+ * module stays free of package imports. The legacy upper-case keys still map.
+ */
+export interface SecurityEventPresenter {
+  title: (action: string) => { title: string; description?: string };
+  outcome: (outcome: string | null | undefined) => string | null;
+}
+const FALLBACK_PRESENTER: SecurityEventPresenter = {
+  title: (action) => ({ title: action ? humanizeEventType(action.includes(".") ? action.slice(action.lastIndexOf(".") + 1) : action) : "Security event" }),
+  outcome: () => null,
+};
+
+export function parseSecurityEvents(payload: unknown, presenter: SecurityEventPresenter = FALLBACK_PRESENTER): SecurityEvent[] {
   const o = obj(payload);
   const list = rows(o.events).length > 0 ? rows(o.events) : rows(o.items);
   return list.map((raw, i) => {
     const e = obj(raw);
-    const type = str(e.eventType) ?? str(e.type) ?? "";
-    const known = EVENT_LABEL[type];
+    const action = str(e.action) ?? str(e.eventType) ?? str(e.type) ?? "";
+    const legacy = EVENT_LABEL[action];
+    const outcome = str(e.outcome);
+    const severity = (str(e.severity) ?? "").toLowerCase();
+    const failed = outcome === "failure" || outcome === "blocked";
+    const tone: ProovraStatusTone =
+      legacy?.tone ?? (failed || severity === "critical" || severity === "high" ? "risk" : severity === "warning" ? "pending" : "neutral");
+    const outcomeWord = presenter.outcome(outcome);
     return {
-      id: str(e.id) ?? `${type}-${i}`,
-      label: known?.label ?? (type ? humanizeEventType(type) : "Security event"),
-      tone: known?.tone ?? "neutral",
-      atIso: str(e.atUtc) ?? str(e.createdAt) ?? str(e.occurredAtUtc),
-      detail: str(e.ipPreview) ?? str(e.detail) ?? null,
+      id: str(e.id) ?? `${action}-${i}`,
+      label: legacy?.label ?? presenter.title(action).title,
+      tone,
+      atIso: str(e.occurredAtUtc) ?? str(e.atUtc) ?? str(e.createdAt),
+      detail: [outcomeWord, str(e.ipPreview) ?? str(e.detail)].filter(Boolean).join(" · ") || null,
+      technical: [
+        action ? `Event key: ${action}` : null,
+        outcome ? `Outcome: ${outcome}` : null,
+        str(e.severity) ? `Severity: ${str(e.severity)}` : null,
+        str(e.ipPreview) ? `IP: ${str(e.ipPreview)}` : null,
+        str(e.resourceType) ? `Resource: ${str(e.resourceType)}` : null,
+      ].filter((x): x is string => x !== null),
     };
   });
 }
@@ -449,3 +557,215 @@ export function enrollFailureMessage(failure: EnrollFailure): string {
       return "The code could not be verified.";
   }
 }
+
+/* ===================================================================== */
+/* WEB PARITY (Settings › Security) — PersonalSecuritySections.tsx       */
+/* ===================================================================== */
+
+/* ------------------------------------------ session presentation (web) */
+//
+// Ported from apps/web/lib/security/sessionPresentation.ts. A raw user-agent
+// preview is never primary content: it becomes "Chrome on Windows". The raw
+// preview and the masked IP stay available behind "Technical details".
+
+const UA_BROWSERS: ReadonlyArray<{ re: RegExp; label: string }> = [
+  // Order matters — Edge/Opera UAs also contain "Chrome"; Chrome contains "Safari".
+  { re: /Edg(?:e|A|iOS)?\//i, label: "Edge" },
+  { re: /OPR\/|Opera/i, label: "Opera" },
+  { re: /SamsungBrowser\//i, label: "Samsung Internet" },
+  { re: /Firefox\/|FxiOS\//i, label: "Firefox" },
+  { re: /CriOS\//i, label: "Chrome" },
+  { re: /Chrome\//i, label: "Chrome" },
+  { re: /Safari\//i, label: "Safari" },
+];
+
+const UA_PLATFORMS: ReadonlyArray<{ re: RegExp; label: string }> = [
+  { re: /iPhone/i, label: "iPhone" },
+  { re: /iPad/i, label: "iPad" },
+  { re: /Android/i, label: "Android" },
+  { re: /Windows/i, label: "Windows" },
+  { re: /Macintosh|Mac OS X/i, label: "macOS" },
+  { re: /CrOS/i, label: "ChromeOS" },
+  { re: /Linux/i, label: "Linux" },
+];
+
+/** "Chrome on Windows" / "Safari on iPhone". Unknown → "Unknown device". Never the raw UA. */
+export function describeUserAgent(ua: string | null | undefined): string {
+  if (!ua || ua.trim().length === 0) return "Unknown device";
+  const browser = UA_BROWSERS.find((b) => b.re.test(ua))?.label ?? null;
+  const platform = UA_PLATFORMS.find((p) => p.re.test(ua))?.label ?? null;
+  if (browser && platform) return `${browser} on ${platform}`;
+  if (browser) return browser;
+  if (platform) return `Browser on ${platform}`;
+  return "Unknown device";
+}
+
+/** RFC1918 / loopback / link-local on the masked preview. */
+export function isPrivateNetworkIp(ip: string | null | undefined): boolean {
+  if (!ip) return false;
+  const v = ip.trim();
+  if (v.startsWith("10.") || v.startsWith("192.168.") || v.startsWith("127.")) return true;
+  if (v.startsWith("169.254.")) return true;
+  const m = v.match(/^172\.(\d{1,3})\./);
+  if (m) {
+    const second = Number(m[1]);
+    if (second >= 16 && second <= 31) return true;
+  }
+  const lower = v.toLowerCase();
+  return v === "::1" || lower.startsWith("fc") || lower.startsWith("fd");
+}
+
+type RegionNames = new (locales: string[], options: { type: string }) => { of: (code: string) => string | undefined };
+
+/**
+ * A human country name, or null when no RELIABLE location exists (missing or
+ * placeholder code, or a private/container network address). The screen then
+ * says "Location unavailable" — never "??".
+ */
+export function presentLocation(
+  countryCode: string | null | undefined,
+  ipPreview: string | null | undefined,
+): string | null {
+  const code = (countryCode ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return null;
+  if (isPrivateNetworkIp(ipPreview)) return null;
+  try {
+    const DisplayNames = (Intl as unknown as { DisplayNames?: RegionNames }).DisplayNames;
+    if (!DisplayNames) return null;
+    const name = new DisplayNames(["en"], { type: "region" }).of(code);
+    if (!name || name === code) return null;
+    return name;
+  } catch {
+    return null;
+  }
+}
+
+/** The web's session list: current first, then the latest others up to three, then "Show N more". */
+export const SESSIONS_FIRST = 3;
+export function visibleSessions(
+  inventory: SessionInventory,
+  expanded: boolean,
+): { current: AccountSession[]; others: AccountSession[]; hiddenCount: number } {
+  const current = inventory.sessions.filter((s) => s.isCurrent);
+  const allOthers = inventory.sessions.filter((s) => !s.isCurrent);
+  const room = Math.max(0, SESSIONS_FIRST - current.length);
+  const others = expanded ? allOthers : allOthers.slice(0, room);
+  return { current, others, hiddenCount: Math.max(0, allOthers.length - room) };
+}
+
+/* ------------------------------------------------ sign-in rows (web) */
+//
+// Ported from apps/web/lib/security/loginMethodsSummary.ts: one row per method
+// — Email & password, Google, Apple — each with its status, its last use, and
+// the ONE action the web offers for it. The last usable method never offers an
+// enabled disconnect; the server's `last_login_method_protected` guard is
+// mirrored rather than provoked.
+
+export interface SignInRow {
+  key: "password" | "google" | "apple";
+  label: string;
+  status: "configured" | "connected" | "not_connected";
+  statusLabel: string;
+  lastUsedAtIso: string | null;
+  linkId: string | null;
+  action: "add_password" | "connect" | "disconnect" | "none";
+  disconnectBlocked: boolean;
+  blockedReason: string | null;
+}
+
+export function presentSignInRows(payload: unknown): SignInRow[] {
+  const o = obj(payload);
+  const passwordConfigured = bool(o.passwordConfigured);
+  const legacy = str(o.legacyProvider);
+  const links = rows(o.links).map((raw) => {
+    const l = obj(raw);
+    return { id: str(l.id), provider: str(l.provider), lastUsedAtUtc: str(l.lastUsedAtUtc) };
+  });
+  let usable = num(o.usableMethods);
+  if (!(usable > 0)) {
+    const providers = new Set(links.map((l) => l.provider).filter(Boolean));
+    if (legacy) providers.add(legacy);
+    usable = providers.size + (passwordConfigured ? 1 : 0);
+  }
+  const providerRow = (key: "google" | "apple", provider: "GOOGLE" | "APPLE"): SignInRow => {
+    const label = PROVIDER_LABEL[provider];
+    const link = links.find((l) => l.provider === provider) ?? null;
+    const connected = link !== null || legacy === provider;
+    if (!connected) {
+      return { key, label, status: "not_connected", statusLabel: "Not connected", lastUsedAtIso: null, linkId: null, action: "connect", disconnectBlocked: false, blockedReason: null };
+    }
+    const lastUsable = usable <= 1;
+    const blocked = lastUsable || link === null || link.id === null;
+    return {
+      key,
+      label,
+      status: "connected",
+      statusLabel: "Connected",
+      lastUsedAtIso: link?.lastUsedAtUtc ?? null,
+      linkId: link?.id ?? null,
+      action: "disconnect",
+      disconnectBlocked: blocked,
+      blockedReason: blocked
+        ? lastUsable
+          ? `Add another login method before disconnecting ${label}.`
+          : "This is your original sign-in method. Add a password or another provider first."
+        : null,
+    };
+  };
+  return [
+    {
+      key: "password",
+      label: "Email & password",
+      status: passwordConfigured ? "configured" : "not_connected",
+      statusLabel: passwordConfigured ? "Configured" : "Not configured",
+      lastUsedAtIso: null,
+      linkId: null,
+      action: passwordConfigured ? "none" : "add_password",
+      disconnectBlocked: false,
+      blockedReason: null,
+    },
+    providerRow("google", "GOOGLE"),
+    providerRow("apple", "APPLE"),
+  ];
+}
+
+/** "Google · Password" — the web summary strip's "Login method". */
+export function summarizeSignInMethods(payload: unknown): string {
+  const o = obj(payload);
+  const providers = new Set<string>();
+  for (const raw of rows(o.links)) {
+    const p = str(obj(raw).provider);
+    if (p) providers.add(p);
+  }
+  const legacy = str(o.legacyProvider);
+  if (legacy) providers.add(legacy);
+  const parts: string[] = [];
+  if (providers.has("GOOGLE")) parts.push("Google");
+  if (providers.has("APPLE")) parts.push("Apple");
+  if (bool(o.passwordConfigured)) parts.push("Password");
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+/* ---------------------------------------------- password change (web) */
+
+export const PASSWORD_CHANGE_ERRORS: Readonly<Record<string, string>> = {
+  rate_limited: "Too many attempts. Please wait a minute before trying again.",
+  current_password_invalid: "The current password is incorrect.",
+  sso_user_password_unsupported: "Your account signs in through an identity provider. Change your password there.",
+  no_password_set: "No password is set on this account. Use the password reset flow to create one.",
+  same_as_current: "Your new password must be different from your current password.",
+  weak_new_password: "Use at least 12 characters with upper- and lower-case letters and a number.",
+};
+
+/** POST /v1/identity-security/password answers `{ ok, revokedOtherSessions }` (identity-security.routes.ts:1071). */
+export function passwordChangedMessage(revokeOthers: boolean, payload: unknown): string {
+  if (!revokeOthers) return "Password updated.";
+  return `Password updated. ${num(obj(payload).revokedOtherSessions)} other session(s) signed out.`;
+}
+
+/* ------------------------------------------------ security events (web) */
+
+/** The web renders the latest three, then "View more (N older)" in pages of eight. */
+export const EVENTS_FIRST = 3;
+export const EVENTS_PAGE = 8;
+export const SECURITY_EVENTS_PATH = "/v1/identity-security/security-events?limit=50";

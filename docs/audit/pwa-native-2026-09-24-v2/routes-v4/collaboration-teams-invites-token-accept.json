@@ -1,0 +1,281 @@
+{
+ "route": "/collaboration-teams/invites/[token]/accept",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/invite/[token].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 23,
+   "labelled": 23,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 16,
+   "labelled": 8,
+   "unboundExports": 2
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 23,
+  "extraInNative": 8,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "CARD",
+   "label": "Accepting your invite…",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "You're in!",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:254",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "You are already a member of this Team.",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:265",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Sign in to accept this invite",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:335",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Join the workspace first",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:354",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Too many attempts",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:369",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "This team is at capacity for the owner's plan",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:397",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "LINK",
+   "label": "Owner can upgrade to add more seats",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:405",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "This invitation is unavailable",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:432",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "LINK",
+   "label": "View billing and upgrade options",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:440",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Couldn't accept this invite",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:461",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open the team",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:280",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:347",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Workspaces",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View billing",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:412",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:418",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View billing",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:446",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:452",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:469",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request id:",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:604",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_EMPTY",
+   "label": "Invitation unavailable",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:92"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Go to app",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:95"
+  },
+  {
+   "role": "SECTION",
+   "label": "Join collaboration group",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:106"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Accept invitation",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:110"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Not now",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:111"
+  },
+  {
+   "role": "TEXT",
+   "label": "You’ve been invited to join a collaboration group.",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:108"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  }
+ ]
+}

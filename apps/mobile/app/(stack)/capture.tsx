@@ -1,11 +1,8 @@
 import {
-  Image,
   Linking,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View
 } from "react-native";
@@ -27,21 +24,50 @@ import {
   ProovraListRow,
   ProovraEmptyState,
   ProovraSheet,
-  ProovraFormField,
-  ProovraInput,
+  ProovraConfirmSheet,
 } from "../../src/ui";
 import { useLocale } from "../../src/locale-context";
 import { useToast } from "../../src/toast-context";
 import {
-  CapturePlanSections,
+  CaptureIntakeRail,
+  CaptureReadinessPanel,
+  CaptureSuggestionsPanel,
   useIntakeTemplates,
 } from "../../src/ui/capture-plan-sections";
+import { CaptureIntakeStructure, CaptureRequirements } from "../../src/ui/capture-requirements";
+import { CaptureHero } from "../../src/ui/capture-intro";
+import { CaptureDraftReattachNotice, CaptureDraftsBanner } from "../../src/ui/capture-drafts";
 import {
-  roleForStep,
+  CaptureFinalReadiness,
+  CaptureFinishHeading,
+  CaptureMaterialsBoard,
+  CaptureOperationalSummary,
+  type DraftSaveState,
+} from "../../src/ui/capture-materials";
+import { CaptureAiReview } from "../../src/ui/capture-ai-review";
+import { CaptureSessionStatus } from "../../src/ui/capture-session-status";
+import { CaptureActivityDisclosure } from "../../src/ui/capture-activity";
+import {
+  appendCaptureActivity,
+  FINALIZATION_STARTED,
+  LOCATION_RECORDED,
+  LOCATION_UNAVAILABLE,
+  removedActivity,
+  stagedActivity,
+  type CaptureActivityEvent,
+  type CaptureActivityInput,
+} from "../../src/product/capture-activity";
+import {
+  DEFAULT_TEMPLATE_ID,
+  assignRequiredStep,
+  buildSessionReadiness,
+  computeCaptureReadiness,
+  formatCaptureSessionId,
+  type CapturePlanMode,
   type CollectionPlanTemplate,
   type PlannedItem,
 } from "../../src/product/capture-plan";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../src/api";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
@@ -72,7 +98,10 @@ import {
   updateCaptureDraft,
   discardCaptureDraft,
   deriveBatchEvidenceType,
+  listCaptureDrafts,
   primaryItem,
+  readCaptureDraft,
+  type CaptureDraftDetail,
 } from "../../src/capture/capture-draft";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { formatUserDateTime } from "../../src/lib/date";
@@ -134,6 +163,13 @@ type CapturedItem = {
   role?: string | null;
   privateNote?: string | null;
   itemSourceLabel?: string | null;
+  /**
+   * The operator's "Source (optional)" words (web capture/page.tsx:1332),
+   * sent as EvidencePart.sourceLabel at finalize. Distinct from
+   * `itemSourceLabel`, which carries the acquisition ORIGIN the mixed-origin
+   * guard reads — free text there would defeat that guard.
+   */
+  sourceNote?: string | null;
   locationIncluded?: boolean;
 };
 
@@ -181,9 +217,45 @@ export default function CaptureScreen() {
   // The collection plan. The catalogue is the SERVER's; nothing is seeded here.
   const templates = useIntakeTemplates();
   const [template, setTemplate] = useState<CollectionPlanTemplate | null>(null);
-  const [planningItem, setPlanningItem] = useState<CapturedItem | null>(null);
   const templateRef = useRef<CollectionPlanTemplate | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
+  /** The operator chose (or un-chose) a plan, or a resume named one: no default applies. */
+  const planChosenRef = useRef(false);
+  /** A plan id a resumed draft named, applied once the catalogue has loaded. */
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  // Web "Intake structure": Guided (CHECKLIST_REQUIRED) or Flexible.
+  const [planMode, setPlanMode] = useState<CapturePlanMode>("FLEXIBLE");
+  const planModeRef = useRef<CapturePlanMode>("FLEXIBLE");
+  planModeRef.current = planMode;
+  const useLocationRef = useRef(false);
+  useLocationRef.current = useLocation;
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  // Web "Unfinished capture sessions" (useCaptureDraftList): the server DRAFTs.
+  const [serverDrafts, setServerDrafts] = useState<CaptureDraftDetail[]>([]);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [draftBusyId, setDraftBusyId] = useState<string | null>(null);
+  const [resumedDraft, setResumedDraft] = useState<CaptureDraftDetail | null>(null);
+  const [reattachDismissed, setReattachDismissed] = useState(false);
+
+  const selectTemplate = useCallback((t: CollectionPlanTemplate | null) => {
+    planChosenRef.current = true;
+    setTemplate(t);
+  }, []);
+
+  // The web opens on its canonical default plan (general-evidence-record) and
+  // always has one; the default applies only until the operator chooses.
+  useEffect(() => {
+    if (!templates) return;
+    if (pendingTemplateId) {
+      setTemplate(templates.find((t) => t.id === pendingTemplateId) ?? null);
+      setPendingTemplateId(null);
+      return;
+    }
+    if (planChosenRef.current) return;
+    const fallback = templates.find((t) => t.id === DEFAULT_TEMPLATE_ID);
+    if (fallback) setTemplate(fallback);
+  }, [templates, pendingTemplateId]);
 
   /**
    * The staged session, in the shape the plan reads.
@@ -207,9 +279,51 @@ export default function CaptureScreen() {
     duplicateStatus: null,
   }));
 
+  // T-14 — the web session readiness; its blockers gate Finish exactly as the web's finishDisabled.
+  const sessionReadiness = buildSessionReadiness({
+    items: sessionItems.map((i) => ({ id: i.id, mimeType: i.mimeType, checklistStepId: i.checklistStepId ?? null })),
+    plan: template,
+    useLocation,
+    planMode,
+  });
+  const captureReadiness = computeCaptureReadiness(plannedItems);
+  const stepItemCounts: Record<string, number> = {};
+  for (const i of sessionItems) {
+    if (i.checklistStepId) stepItemCounts[i.checklistStepId] = (stepItemCounts[i.checklistStepId] ?? 0) + 1;
+  }
+  // A plan change drops mappings to steps the new plan does not have (web capture/page.tsx:296).
+  useEffect(() => {
+    const valid = new Set(template?.steps.map((s) => s.id) ?? []);
+    const cur = sessionItemsRef.current;
+    if (cur.some((i) => i.checklistStepId && !valid.has(i.checklistStepId))) {
+      const next = cur.map((i) => (i.checklistStepId && !valid.has(i.checklistStepId) ? { ...i, checklistStepId: null } : i));
+      sessionItemsRef.current = next;
+      setSessionItems(next);
+    }
+  }, [template]);
+  // The web labels a session by the local date it started; it starts with the first staged item.
+  const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
+  useEffect(() => {
+    if (sessionItems.length === 0) setSessionStartedAt(null);
+    else setSessionStartedAt((prev) => prev ?? new Date());
+  }, [sessionItems.length]);
+  // T-14 — the session's local activity log (web CaptureActivityDisclosure). A new session starts a new log.
+  const [activity, setActivity] = useState<CaptureActivityEvent[]>([]);
+  const recordActivity = useCallback((input: CaptureActivityInput) => setActivity((prev) => appendCaptureActivity(prev, input)), []);
+  useEffect(() => {
+    if (sessionItems.length === 0) setActivity([]);
+  }, [sessionItems.length]);
+
+  /*
+   * Through the REF as well as state. `persistSession` and Finish both read
+   * `sessionItemsRef`; updating only state meant a role, note or mapping set
+   * here never reached the draft PATCH or the part created at finalize.
+   */
   const applyPlan = useCallback(
     (itemId: string, patch: Partial<CapturedItem>) => {
-      setSessionItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i)));
+      const next = sessionItemsRef.current.map((i) => (i.id === itemId ? { ...i, ...patch } : i));
+      sessionItemsRef.current = next;
+      setSessionItems(next);
     },
     [],
   );
@@ -310,6 +424,7 @@ hasActiveDraft: isSessionActive || isRecording,
     if (items.length === 0) return;
 
     if (draft) {
+      setDraftSaveState("saving");
       void updateCaptureDraft(draft, {
         items: items.map((it) => ({
           clientItemId: it.id,
@@ -330,7 +445,11 @@ hasActiveDraft: isSessionActive || isRecording,
         // null clears a plan the operator un-chose; undefined would leave a
         // stale one recorded on the session.
         templateId: templateRef.current?.id ?? null,
-      }).catch(() => undefined);
+        planMode: planModeRef.current,
+        useLocation: useLocationRef.current,
+      })
+        .then(() => setDraftSaveState("saved"))
+        .catch(() => setDraftSaveState("error"));
     }
 
     const session = captureSessionRef.current;
@@ -338,6 +457,7 @@ hasActiveDraft: isSessionActive || isRecording,
       captureSessionId: session?.captureSessionId ?? draft ?? "",
       expiresAtUtc: session?.expiresAtUtc ?? "",
       evidenceId: sessionEvidenceIdRef.current ?? draft ?? "",
+      draftId: draft,
       type: deriveBatchEvidenceType(items.map((i) => i.mimeType)),
       items: items.map((it) => ({
         id: it.id,
@@ -380,9 +500,10 @@ hasActiveDraft: isSessionActive || isRecording,
   // M5 — persist on every meaningful session change (items added/removed, upload
   // state advanced). Captures the latest per-item `uploaded` flags so a resumed
   // completion never re-uploads an item already sealed at storage.
+  // The plan, mode and location choice are draft metadata too (web scheduleSave).
   useEffect(() => {
     if (isSessionActive) persistSession();
-  }, [sessionItems, sessionEvidenceId, isSessionActive, persistSession]);
+  }, [sessionItems, sessionEvidenceId, isSessionActive, persistSession, template, planMode, useLocation]);
 
   // M5 — on mount, recover an interrupted session. Resumable → offer Resume/
   // Discard; stale/expired → auto-clear and inform (it can't be completed).
@@ -434,17 +555,42 @@ hasActiveDraft: isSessionActive || isRecording,
           });
         }
         const dropped = persisted.items.length - kept.length;
-        captureSessionRef.current = {
-          captureSessionId: persisted.captureSessionId,
-          expiresAtUtc: persisted.expiresAtUtc,
-        };
-        sessionEvidenceIdRef.current = persisted.evidenceId;
+        /*
+         * A session that never reached finalize has NO direct session and NO
+         * reservation: the local record stores the DRAFT id in both slots
+         * (persistSession: `session?.captureSessionId ?? draft`). Restoring
+         * that id as a direct session made Finish skip open + reserve and
+         * declare parts against an id the acquisition routes do not know.
+         */
+        const draftOnly = persisted.captureSessionId === persisted.evidenceId;
+        const draftId = persisted.draftId ?? (draftOnly ? persisted.captureSessionId : null);
+        draftIdRef.current = draftId;
+        if (draftId) {
+          // The draft holds what the local record does not: the plan, the
+          // mode, the location choice and each item's role, note and mapping.
+          const detail = await readCaptureDraft(draftId);
+          if (detail && detail.status === "DRAFT") {
+            planChosenRef.current = true;
+            setPendingTemplateId(detail.templateId);
+            if (detail.planMode) setPlanMode(detail.planMode);
+            setUseLocation(detail.useLocation);
+            const byId = new Map(detail.items.map((i) => [i.clientItemId, i]));
+            for (let k = 0; k < kept.length; k += 1) {
+              const snap = byId.get(kept[k].id);
+              if (snap) kept[k] = { ...kept[k], checklistStepId: snap.checklistStepId, role: snap.role, privateNote: snap.privateNote };
+            }
+          }
+        }
+        captureSessionRef.current = draftOnly
+          ? null
+          : { captureSessionId: persisted.captureSessionId, expiresAtUtc: persisted.expiresAtUtc };
+        sessionEvidenceIdRef.current = draftOnly ? null : persisted.evidenceId;
         // A resumed screen acquisition must seal through ITS route. Without
         // this a continuous recording resumed after a restart would complete
         // as a frame capture and lose the completeness that says whether it
         // was interrupted.
         acquisitionRef.current = persisted.acquisition ?? null;
-        setSessionEvidenceId(persisted.evidenceId);
+        setSessionEvidenceId(sessionEvidenceIdRef.current);
         const idx = CAPTURE_TYPES.indexOf(persisted.type);
         if (idx >= 0) setActiveIndex(idx);
         setSessionState(kept);
@@ -453,8 +599,8 @@ hasActiveDraft: isSessionActive || isRecording,
           // Nothing recoverable — clear and start fresh.
           sessionEvidenceIdRef.current = null;
           captureSessionRef.current = null;
-        acquisitionRef.current = null;
           acquisitionRef.current = null;
+          draftIdRef.current = null;
           setSessionEvidenceId(null);
           await clearCaptureSession();
           addToast("The interrupted capture could not be recovered", "warning");
@@ -470,6 +616,75 @@ hasActiveDraft: isSessionActive || isRecording,
     [setSessionState, addToast],
   );
 
+  // The operator's unfinished DRAFTs on the server (web useCaptureDraftList). A read.
+  const refreshDrafts = useCallback(async () => {
+    try {
+      setServerDrafts(await listCaptureDrafts());
+    } catch {
+      setServerDrafts([]);
+    }
+  }, []);
+  useEffect(() => {
+    void refreshDrafts();
+  }, [refreshDrafts]);
+
+  /**
+   * RESUME A SERVER DRAFT — apply everything it persists, then say what is left.
+   *
+   * The web resume (capture/page.tsx:338-375): template, plan mode, location.
+   * The bytes never left the device that staged them, so the files themselves
+   * have to be added again; the re-attach notice lists them by name and
+   * mapping. This session ADOPTS the draft, so staging updates it and Finish
+   * closes it, instead of opening a second draft beside it.
+   */
+  const resumeServerDraft = useCallback(
+    async (draft: CaptureDraftDetail) => {
+      setDraftBusyId(draft.id);
+      try {
+        const detail = await readCaptureDraft(draft.id);
+        if (!detail || detail.status !== "DRAFT") {
+          addToast("Draft could not be restored.", "error");
+          return;
+        }
+        planChosenRef.current = true;
+        setPendingTemplateId(detail.templateId);
+        if (detail.planMode) setPlanMode(detail.planMode);
+        setUseLocation(detail.useLocation);
+        draftIdRef.current = detail.id;
+        setResumedDraft(detail);
+        setReattachDismissed(false);
+        setDraftsOpen(false);
+        const pending = detail.items.length;
+        addToast(
+          pending > 0 ? `Draft restored. Re-attach ${pending} file${pending === 1 ? "" : "s"} before Review & Sign.` : "Draft restored.",
+          "success",
+        );
+      } finally {
+        setDraftBusyId(null);
+      }
+    },
+    [addToast],
+  );
+
+  const deleteServerDraft = useCallback(
+    async (draft: CaptureDraftDetail) => {
+      setDraftBusyId(draft.id);
+      try {
+        await discardCaptureDraft(draft.id);
+        if (draftIdRef.current === draft.id) {
+          draftIdRef.current = null;
+          setResumedDraft(null);
+        }
+        setServerDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+      } catch (err) {
+        addToast(toSafeUserError(err, { message: "The draft could not be deleted." }).message, "error");
+      } finally {
+        setDraftBusyId(null);
+      }
+    },
+    [addToast],
+  );
+
   /**
    * Discarding a RECOVERED session has the same server obligation as discarding
    * a live one: the reservation it restored was made before the interruption
@@ -479,7 +694,15 @@ hasActiveDraft: isSessionActive || isRecording,
   const discardRecovered = useCallback(async () => {
     const recovered = resumable;
     setResumable(null);
-    if (recovered?.captureSessionId) {
+    // A session that never reached finalize holds only a DRAFT (both slots
+    // carry its id); discarding it is a draft transition, not a direct one.
+    const draftOnly = !!recovered && recovered.captureSessionId === recovered.evidenceId;
+    const draftId = recovered?.draftId ?? (draftOnly ? recovered?.captureSessionId ?? null : null);
+    if (draftId) {
+      await discardCaptureDraft(draftId).catch(() => undefined);
+      setServerDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    }
+    if (recovered?.captureSessionId && !draftOnly) {
       await discardDirectCaptureSession({
         captureSessionId: recovered.captureSessionId,
         expiresAtUtc: recovered.expiresAtUtc,
@@ -600,9 +823,16 @@ hasActiveDraft: isSessionActive || isRecording,
 
   const getGps = useCallback(async () => {
     if (!useLocation) return undefined;
+    // A plan that REQUIRES location cannot finish without it (web orchestration :611-625).
+    const locationRequired = templateRef.current?.locationRequirement === "required";
 
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
+      recordActivity(LOCATION_UNAVAILABLE);
+      setLocationDenied(true);
+      if (locationRequired) {
+        throw new Error("Location metadata is required by the selected plan, but device location was not granted.");
+      }
       addToast("Location permission denied. Continuing without GPS.", "warning");
       return undefined;
     }
@@ -612,16 +842,23 @@ hasActiveDraft: isSessionActive || isRecording,
         accuracy: Location.Accuracy.Balanced
       });
 
+      recordActivity(LOCATION_RECORDED);
+      setLocationDenied(false);
       return {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
         accuracyMeters: pos.coords.accuracy ?? undefined
       };
     } catch {
+      recordActivity(LOCATION_UNAVAILABLE);
+      setLocationDenied(true);
+      if (locationRequired) {
+        throw new Error("Location metadata is required by the selected plan. Enable location and grant permission before finishing.");
+      }
       addToast("Could not get location. Continuing without GPS.", "warning");
       return undefined;
     }
-  }, [useLocation, addToast]);
+  }, [useLocation, addToast, recordActivity]);
 
   /**
    * Open the CANONICAL capture draft on the first staged item.
@@ -644,6 +881,7 @@ hasActiveDraft: isSessionActive || isRecording,
         teamId,
         useLocation,
         templateId: templateRef.current?.id ?? null,
+        planMode: planModeRef.current,
       });
       draftIdRef.current = draft.id;
       return draft.id;
@@ -699,11 +937,19 @@ hasActiveDraft: isSessionActive || isRecording,
           uploadProgress: 0,
           uploading: false,
           uploaded: false,
-          error: null
+          error: null,
+          // Guided mode maps an incoming item onto the open required step it fits.
+          checklistStepId: assignRequiredStep({
+            planMode: planModeRef.current,
+            plan: templateRef.current,
+            stagedStepIds: sessionItemsRef.current.map((i) => i.checklistStepId),
+            mimeType: input.mimeType,
+          }),
         };
 
         const nextItems = [...sessionItemsRef.current, nextItem];
         setSessionState(nextItems);
+        recordActivity(stagedActivity(input));
 
         addToast(
           `${nextItems.length} item${nextItems.length === 1 ? "" : "s"} added`,
@@ -717,13 +963,14 @@ hasActiveDraft: isSessionActive || isRecording,
         setInfo(null);
       }
     },
-    [ensureDraft, setSessionState, addToast]
+    [ensureDraft, setSessionState, addToast, recordActivity]
   );
 
   const removeFromSession = useCallback(
     (itemId: string) => {
       if (sessionCompletingEvidence || isRecording) return;
 
+      recordActivity(removedActivity(sessionItemsRef.current.find((item) => item.id === itemId)?.originalFilename));
       const filtered = sessionItemsRef.current
         .filter((item) => item.id !== itemId)
         .map((item, index) => ({
@@ -754,7 +1001,7 @@ hasActiveDraft: isSessionActive || isRecording,
 
       addToast("Item removed", "info");
     },
-    [sessionCompletingEvidence, isRecording, setSessionState, addToast]
+    [sessionCompletingEvidence, isRecording, setSessionState, addToast, recordActivity]
   );
 
   /**
@@ -816,7 +1063,7 @@ hasActiveDraft: isSessionActive || isRecording,
     addToast("Session discarded", "info");
   }, [sessionCompletingEvidence, isRecording, discarding, setSessionState, addToast]);
 
-  const ensureCameraReady = useCallback(async () => {
+  const ensureCameraReady = useCallback(async (kind: CaptureKind) => {
     setShowSettingsLink(false);
 
     const camGranted = cameraPermission?.granted ?? false;
@@ -830,7 +1077,7 @@ hasActiveDraft: isSessionActive || isRecording,
       }
     }
 
-    if (activeType === "VIDEO") {
+    if (kind === "VIDEO") {
       const micGranted = micPermission?.granted ?? false;
       if (!micGranted) {
         const res = await requestMicPermission();
@@ -845,7 +1092,6 @@ hasActiveDraft: isSessionActive || isRecording,
 
     return true;
   }, [
-    activeType,
     cameraPermission?.granted,
     micPermission?.granted,
     requestCameraPermission,
@@ -853,47 +1099,48 @@ hasActiveDraft: isSessionActive || isRecording,
     addToast
   ]);
 
-  const openPickerOrCamera = useCallback(async () => {
+  const openPickerOrCamera = useCallback(async (kind: CaptureKind = activeTypeRef.current) => {
     setError(null);
     setInfo(null);
 
     try {
-      if (activeType === "DOCUMENT") {
+      if (kind === "DOCUMENT") {
+        // Web "Files — Photos, video, audio, PDFs": several at once, one item each.
         const result = await DocumentPicker.getDocumentAsync({
           copyToCacheDirectory: true,
-          multiple: false,
+          multiple: true,
           type: "*/*"
         });
 
-        if (result.canceled || !result.assets?.[0]) {
+        if (result.canceled || !result.assets?.length) {
           return;
         }
 
-        const file = result.assets[0];
-        const fileInfo = await FileSystem.getInfoAsync(file.uri);
-
-        await addCapturedItemToSession({
-          uri: file.uri,
-          mimeType: file.mimeType ?? "application/octet-stream",
-          sizeBytes: file.size ?? (fileInfo.exists ? fileInfo.size : undefined),
-          originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`),
-          source: "FILE_PICKER"
-        });
+        for (const file of result.assets) {
+          const fileInfo = await FileSystem.getInfoAsync(file.uri);
+          await addCapturedItemToSession({
+            uri: file.uri,
+            mimeType: file.mimeType ?? "application/octet-stream",
+            sizeBytes: file.size ?? (fileInfo.exists ? fileInfo.size : undefined),
+            originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`),
+            source: "FILE_PICKER"
+          });
+        }
 
         return;
       }
 
-      const ready = await ensureCameraReady();
+      const ready = await ensureCameraReady(kind);
       if (!ready) return;
 
       setCameraOpen(true);
-      addToast(`${activeType.toLowerCase()} camera ready`, "info");
+      addToast(`${kind.toLowerCase()} camera ready`, "info");
     } catch (err) {
       const msg = toSafeUserError(err, { message: "Failed to open picker/camera" }).message;
       setError(msg);
       addToast(msg, "error");
     }
-  }, [activeType, addCapturedItemToSession, ensureCameraReady, getFilename, addToast]);
+  }, [addCapturedItemToSession, ensureCameraReady, getFilename, addToast]);
 
   const handleTakePhoto = useCallback(async () => {
     if (!cameraRef.current || busy || sessionCompletingEvidence) return;
@@ -1037,6 +1284,21 @@ hasActiveDraft: isSessionActive || isRecording,
     addToast,
   ]);
 
+  // The stopped recording awaiting Add to Session / Discard (web audioRecorderState "preview_ready").
+  const [audioPending, setAudioPending] = useState<{
+    uri: string;
+    durationMs?: number;
+    sizeBytes?: number;
+    originalFilename: string;
+  } | null>(null);
+
+  const addAudioToSession = useCallback(async () => {
+    const rec = audioPending;
+    if (!rec) return;
+    setAudioPending(null);
+    await addCapturedItemToSession({ ...rec, mimeType: "audio/mp4", source: "UNKNOWN" });
+  }, [audioPending, addCapturedItemToSession]);
+
   const handleStopAudioRecording = useCallback(async () => {
 if (!isRecording || busy) return;
 
@@ -1073,13 +1335,12 @@ if (!isRecording || busy) return;
 
       const fileInfo = await FileSystem.getInfoAsync(uri);
 
-      await addCapturedItemToSession({
+      // Web recorder: Stop leaves a recording READY; the operator adds or discards it.
+      setAudioPending({
         uri,
-        mimeType: "audio/mp4",
         durationMs,
         sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
         originalFilename: getFilename(uri, `audio-${Date.now()}.m4a`),
-        source: "UNKNOWN",
       });
 
       setInfo(null);
@@ -1149,6 +1410,7 @@ if (!isRecording || busy) return;
     setError(null);
     setInfo("Preserving evidence...");
     setUploadProgress(0);
+    recordActivity(FINALIZATION_STARTED);
 
     let captureSession = captureSessionRef.current;
     let evidenceId = sessionEvidenceIdRef.current;
@@ -1204,7 +1466,11 @@ if (!isRecording || busy) return;
           mimeType: item.mimeType,
           durationMs: item.durationMs,
           originalFilename: item.originalFilename,
-          source: item.source
+          source: item.source,
+          privateRole: item.role,
+          privateNote: item.privateNote,
+          checklistStepId: item.checklistStepId,
+          sourceLabel: item.sourceNote,
         });
 
 setSessionState(
@@ -1287,18 +1553,52 @@ setSessionState(
       setBusy(false);
       setSessionCompletingEvidence(false);
     }
-  }, [addToast, pollReport, refreshRecent, router, setSessionState, isRecording]);
+  }, [addToast, pollReport, refreshRecent, router, setSessionState, isRecording, recordActivity]);
 
-  const sessionCountLabel = useMemo(() => {
-    const count = sessionItems.length;
-    return `${count} item${count === 1 ? "" : "s"} added`;
-  }, [sessionItems.length]);
+  // The camera's own controls (web CaptureCameraOverlay): which lens, and the light.
+  const [facing, setFacing] = useState<"back" | "front">("back");
+  const [flashOn, setFlashOn] = useState(false);
 
-  const totalDurationText = useMemo(() => {
-    const totalMs = sessionItems.reduce((sum, item) => sum + (item.durationMs ?? 0), 0);
-    if (!totalMs) return null;
-    return `${(totalMs / 1000).toFixed(1)}s total`;
-  }, [sessionItems]);
+  const formatRecordingTime = (seconds: number) =>
+    `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
+  /**
+   * WEB INTAKE ACTIONS (CaptureDropzone): Files, Photo, Video, Audio.
+   *
+   * Switching source mid-session is allowed: staging into the canonical draft
+   * derives the record's type from what was actually staged at finalize — a
+   * uniform session keeps its kind, a mixed one is DOCUMENT, exactly as the
+   * web derives it. The web's "Folder" action has no phone equivalent: the
+   * system document picker cannot select a directory.
+   */
+  const runIntakeAction = (kind: CaptureKind) => {
+    if (isRecording) {
+      addToast("Stop the current recording before changing type", "warning");
+      return;
+    }
+    setActiveIndex(CAPTURE_TYPES.indexOf(kind));
+    setCameraOpen(false);
+    setError(null);
+    setInfo(null);
+    setShowSettingsLink(false);
+    if (kind !== "AUDIO") void openPickerOrCamera(kind);
+  };
+
+  const totalBytes = sessionItems.reduce((sum, i) => sum + (i.sizeBytes ?? 0), 0);
+  const hasItems = sessionItems.length > 0;
+  const visibleDrafts = serverDrafts.filter(
+    (d) =>
+      d.id !== draftIdRef.current &&
+      d.id !== resumable?.draftId &&
+      !(resumable && resumable.captureSessionId === resumable.evidenceId && d.id === resumable.captureSessionId),
+  );
+
+  const INTAKE_ACTIONS: ReadonlyArray<{ kind: CaptureKind; label: string; helper: string }> = [
+    { kind: "DOCUMENT", label: "Files", helper: "Photos, video, audio, PDFs" },
+    { kind: "PHOTO", label: "Photo", helper: "Camera capture" },
+    { kind: "VIDEO", label: "Video", helper: "Record clip" },
+    { kind: "AUDIO", label: "Audio", helper: "Record note" },
+  ];
 
   return (
     <ProovraScreen>
@@ -1306,88 +1606,119 @@ setSessionState(
         <ProovraButton label="Back" variant="ghost" fullWidth={false} disabled={isRecording} onPress={() => router.back()} />
       </View>
 
-      <ProovraSection title={t("capture")}>
-        {resumable ? (
-          <ProovraCard style={styles.resumeCard} testID="capture-resume-banner">
-            <ProovraText variant="h3" weight="semibold">Resume your capture?</ProovraText>
-            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-              An unfinished capture with {resumable.items.length} item{resumable.items.length === 1 ? "" : "s"} was recovered. Resume to finish it, or discard it.
-            </ProovraText>
-            <View style={styles.resumeActions}>
-              <ProovraButton label="Resume" loading={resuming} onPress={() => void resumeSession(resumable)} />
-              <ProovraButton label="Discard" variant="danger" disabled={resuming} onPress={() => void discardRecovered()} />
-            </View>
-          </ProovraCard>
-        ) : null}
-        {staleRecovered ? (
-          <ProovraText variant="bodySm" color={theme.color.ink.muted} style={styles.staleNote}>
-            An earlier unfinished capture expired and was cleared. Start a new capture below.
+      {/* Web order: the intake rail, the drafts, then the page's own title. */}
+      <CaptureIntakeRail items={plannedItems} templateSelected={template !== null} readiness={captureReadiness} />
+
+      {resumable ? (
+        <ProovraCard style={styles.resumeCard} testID="capture-resume-banner">
+          <ProovraText variant="h3" weight="semibold">Resume your capture?</ProovraText>
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+            An unfinished capture with {resumable.items.length} item{resumable.items.length === 1 ? "" : "s"} was recovered. Resume to finish it, or discard it.
           </ProovraText>
-        ) : null}
-        {personalSpaceBlocked ? (
-          <View testID="personal-space-blocked">
-            <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} />
+          <View style={styles.resumeActions}>
+            <ProovraButton label="Resume" loading={resuming} onPress={() => void resumeSession(resumable)} />
+            <ProovraButton label="Discard" variant="danger" disabled={resuming} onPress={() => void discardRecovered()} />
           </View>
-        ) : (
-          <>
-            <View style={styles.typeRow}>
-              {[t("photo"), t("video"), "Audio", t("document")].map((label, index) => {
-                const active = index === activeIndex;
+        </ProovraCard>
+      ) : null}
+      {staleRecovered ? (
+        <ProovraText variant="bodySm" color={theme.color.ink.muted} style={styles.staleNote}>
+          An earlier unfinished capture expired and was cleared. Start a new capture below.
+        </ProovraText>
+      ) : null}
+      {!hasItems && !personalSpaceBlocked ? (
+        <CaptureDraftsBanner
+          drafts={visibleDrafts}
+          open={draftsOpen}
+          onOpen={() => setDraftsOpen(true)}
+          onClose={() => setDraftsOpen(false)}
+          onResume={(d) => void resumeServerDraft(d)}
+          onDelete={(d) => void deleteServerDraft(d)}
+          busyId={draftBusyId}
+        />
+      ) : null}
+
+      <CaptureHero />
+
+      {personalSpaceBlocked ? (
+        <View testID="personal-space-blocked">
+          <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} />
+        </View>
+      ) : (
+        <>
+          <CaptureReadinessPanel readiness={captureReadiness} itemCount={sessionItems.length} />
+          {hasItems ? <CaptureSuggestionsPanel readiness={captureReadiness} /> : null}
+
+          <View style={styles.block}>
+            <CaptureIntakeStructure
+              planMode={planMode}
+              onPlanMode={setPlanMode}
+              useLocation={useLocation}
+              onUseLocation={setUseLocation}
+              busy={sessionCompletingEvidence}
+              hasSessionItems={hasItems}
+            />
+          </View>
+
+          <View style={styles.block}>
+            <CaptureRequirements
+              templates={templates}
+              plan={template}
+              onSelectPlan={selectTemplate}
+              readiness={sessionReadiness}
+              stepItemCounts={stepItemCounts}
+              busy={sessionCompletingEvidence}
+              hasSessionItems={hasItems}
+            />
+          </View>
+
+          {resumedDraft && !reattachDismissed && !hasItems ? (
+            <CaptureDraftReattachNotice detail={resumedDraft} plan={template} onDismiss={() => setReattachDismissed(true)} />
+          ) : null}
+
+          {/* Web CaptureDropzone — "Evidence capture · Add source files". */}
+          <ProovraCard style={styles.block} testID="capture-intake-actions">
+            <View style={styles.dropHead}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <ProovraText variant="label" weight="bold" color={theme.color.ink.muted} style={styles.upper}>Evidence capture</ProovraText>
+                <ProovraText variant="h3" weight="semibold">Add source files</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>Upload, capture, or record materials for this session.</ProovraText>
+              </View>
+              <ProovraBadge label={hasItems ? "Session in progress" : "Ready for intake"} tone={hasItems ? "pending" : "neutral"} />
+            </View>
+            <View style={styles.actionGrid} accessibilityLabel="Evidence intake actions">
+              {INTAKE_ACTIONS.map((a, idx) => {
+                const active = activeType === a.kind && (a.kind === "AUDIO" || cameraOpen);
                 return (
                   <Pressable
-                    key={label}
+                    key={a.kind}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => {
-                      if (isRecording) {
-                        addToast("Stop the current recording before changing type", "warning");
-                        return;
-                      }
-                      /*
-                       * Switching source mid-session is now allowed.
-                       *
-                       * It was refused because UC-0 fixed the Evidence
-                       * record's type when the FIRST item was staged, so a
-                       * second kind could not be attached. Staging into the
-                       * canonical draft removes that constraint: the type is
-                       * derived from what was actually staged, at finalize —
-                       * a uniform session keeps its kind, a mixed one is
-                       * DOCUMENT, exactly as the web derives it.
-                       */
-                      setActiveIndex(index);
-                      setCameraOpen(false);
-                      setError(null);
-                      setInfo(null);
-                      setShowSettingsLink(false);
-                    }}
-                    style={[styles.typeChip, { borderColor: active ? theme.color.accent.a500 : theme.color.border.default, backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card }]}
+                    accessibilityLabel={a.label}
+                    accessibilityState={{ selected: active, disabled: sessionCompletingEvidence }}
+                    disabled={sessionCompletingEvidence}
+                    onPress={() => runIntakeAction(a.kind)}
+                    style={[
+                      styles.actionTile,
+                      idx === 0 ? styles.actionTilePrimary : null,
+                      active ? styles.actionTileActive : null,
+                    ]}
                   >
-                    <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>{label}</ProovraText>
+                    <ProovraText variant="bodySm" weight="semibold" color={idx === 0 ? theme.color.accent.a600 : theme.color.ink.primary}>{a.label}</ProovraText>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>{a.helper}</ProovraText>
                   </Pressable>
                 );
               })}
             </View>
-
-            <View style={styles.toggleRow}>
-              <ProovraText variant="body">Include location metadata</ProovraText>
-              <Switch value={useLocation} onValueChange={setUseLocation} accessibilityLabel="Include location metadata" />
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              Mapping, integrity checks, and readiness warnings update as soon as materials are staged.
+            </ProovraText>
 
             {/*
-             * NATIVE ACQUISITION SOURCES (UC-2 / UC-3 / UC-5).
-             *
-             * These used to sit in Home's hero as "Direct Screen Capture" /
-             * "Continuous Screen Capture" buttons, which made the landing page
-             * a list of platform capabilities rather than the canonical
-             * PROOVRA Home. They are SOURCES — a way of recording something —
-             * so they belong beside the photo/video/audio/document chooser,
-             * which is where a user decides how to capture.
-             *
-             * They open their own screens because each drives a protected
-             * native engine (ReplayKit on iOS, MediaProjection on Android)
-             * with its own permission ceremony and its own session. Making
-             * them a fifth chip here would promise they behave like the other
-             * four, and they do not yet — that convergence is a separate,
-             * larger piece of work recorded in the ledger.
+             * NATIVE ACQUISITION SOURCES (UC-2 / UC-3 / UC-5). They open their
+             * own screens because each drives a protected native engine
+             * (ReplayKit on iOS, MediaProjection on Android) with its own
+             * permission ceremony; what they acquire comes back here to be
+             * reviewed and finished by the one Finish & Sign.
              */}
             <View style={styles.sourcesBlock}>
               <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
@@ -1409,12 +1740,22 @@ setSessionState(
                   />
                 </>
               ) : (
-                <ProovraButton
-                  label="Screen capture"
-                  variant="secondary"
-                  disabled={isSessionActive || isRecording}
-                  onPress={() => router.push("/continuous-capture")}
-                />
+                /*
+                 * T-19 / RC-19 — iOS has no single-shot screen capture: ReplayKit
+                 * records through Apple's system broadcast, which is the
+                 * CONTINUOUS flow, and the control is named for the flow it opens.
+                 */
+                <>
+                  <ProovraButton
+                    label="Continuous screen capture"
+                    variant="secondary"
+                    disabled={isSessionActive || isRecording}
+                    onPress={() => router.push("/continuous-capture")}
+                  />
+                  <ProovraText variant="label" color={theme.color.ink.muted}>
+                    On iPhone and iPad, screen capture records continuously through Apple's screen broadcast until you stop it.
+                  </ProovraText>
+                </>
               )}
               {isSessionActive || isRecording ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>
@@ -1422,237 +1763,227 @@ setSessionState(
                 </ProovraText>
               ) : null}
             </View>
-            </View>
+          </ProovraCard>
 
-            {activeType === "AUDIO" ? (
-              <ProovraCard style={styles.audioCard}>
-                <ProovraText variant="h3" weight="semibold">Microphone Capture</ProovraText>
-                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                  {isRecording
-                    ? `Recording ${recordSeconds}s`
-                    : "Record audio evidence with this device microphone. The recording is added to the current evidence session after you stop it."}
-                </ProovraText>
-                <ProovraButton
-                  label={isRecording ? "Stop Audio Recording" : "Start Audio Recording"}
-                  variant={isRecording ? "danger" : "primary"}
-loading={busy}
-disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
-                  onPress={isRecording ? handleStopAudioRecording : handleStartAudioRecording}
-                />
-              </ProovraCard>
-            ) : cameraOpen && activeType !== "DOCUMENT" ? (
-              <ProovraCard style={styles.cameraCard}>
-                <View>
-                  <CameraView ref={cameraRef} style={styles.cameraPreview} />
-                  <View style={styles.overlayTopLeft}><Text style={styles.overlayBadge}>Auto-add mode</Text></View>
-                  <View style={styles.overlayTopRight}><Text style={styles.counterBadge}>{sessionItems.length}</Text></View>
-                </View>
-                <View style={styles.cameraControls}>
-                  {activeType === "PHOTO" ? (
-                    <>
-                      <ProovraText variant="label" color={theme.color.ink.muted} center>Take photos continuously. Each shot is added automatically.</ProovraText>
-                      <ProovraButton label="Capture Photo" loading={busy || sessionCreatingEvidence} disabled={sessionCompletingEvidence} onPress={handleTakePhoto} />
-                    </>
-                  ) : (
-                    <>
-                      <ProovraText variant="label" color={theme.color.ink.muted} center>{isRecording ? `Recording ${recordSeconds}s` : "Record video. It will be auto-added to the session."}</ProovraText>
-                      <ProovraButton label={isRecording ? "Stop Recording" : "Start Recording"} variant={isRecording ? "danger" : "primary"} disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence} onPress={isRecording ? handleStopRecording : handleStartRecording} />
-                    </>
-                  )}
-                  <ProovraButton label="Close Camera" variant="ghost" disabled={isRecording} onPress={() => setCameraOpen(false)} />
-                </View>
-              </ProovraCard>
-            ) : (
-              <ProovraButton label={activeType === "DOCUMENT" ? "Pick Document" : "Open Camera"} onPress={openPickerOrCamera} />
-            )}
-
-            <ProovraText variant="bodySm" color={theme.color.ink.secondary} style={styles.previewLine}>
-              {isSessionActive
-                ? `Session active • ${sessionCountLabel}${totalDurationText ? ` • ${totalDurationText}` : ""}`
-                : "No active capture session"}
-            </ProovraText>
-
-            {sessionItems.length > 0 ? (
-              <CapturePlanSections
-                items={plannedItems}
-                templates={templates}
-                template={template}
-                onSelectTemplate={setTemplate}
-              />
-            ) : null}
-
-            {sessionItems.length > 0 ? (
-              <ProovraCard style={styles.sessionCard}>
-                <ProovraText variant="h3" weight="semibold">Capture Session</ProovraText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
-                  {sessionItems.map((item, index) => {
-                    const isImage = item.mimeType.startsWith("image/");
-                    const isVideo = item.mimeType.startsWith("video/");
-                    const isAudio = item.mimeType.startsWith("audio/");
-                    return (
-                      <View key={item.id} style={styles.thumbCard}>
-                        <View style={styles.thumbPreview}>
-                          {isImage ? (
-                            <Image source={{ uri: item.uri }} style={styles.thumbImage} />
-                          ) : (
-                            <View style={styles.thumbFallback}><Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : isAudio ? "AUDIO" : "DOC"}</Text></View>
-                          )}
-                          <View style={styles.thumbIndexBadge}><Text style={styles.thumbIndexText}>{index + 1}</Text></View>
-                        </View>
-                        <ProovraText variant="label" numberOfLines={1} style={styles.thumbLabel}>{item.originalFilename || `Item ${index + 1}`}</ProovraText>
-                        <ProovraText variant="label" color={theme.color.ink.muted}>{item.uploading ? `${item.uploadProgress}%` : item.uploaded ? "Uploaded" : "Ready"}</ProovraText>
-                        {/*
-                          What this item IS, and why it was captured. The plan
-                          reads both; without them a template is headings.
-                        */}
-                        <ProovraText variant="label" color={theme.color.ink.muted} numberOfLines={1}>
-                          {item.role ?? "No role set"}
-                        </ProovraText>
-                        <Pressable
-                          onPress={() => {
-                            setNoteDraft(item.privateNote ?? "");
-                            setPlanningItem(item);
-                          }}
-                          disabled={sessionCompletingEvidence || isRecording}
-                          style={styles.removePill}
-                        >
-                          <Text style={styles.removePillText}>Describe</Text>
-                        </Pressable>
-                        <Pressable onPress={() => removeFromSession(item.id)} disabled={sessionCompletingEvidence || isRecording} style={styles.removePill}>
-                          <Text style={styles.removePillText}>Remove</Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-                <View style={styles.sessionActions}>
-                  {activeType === "DOCUMENT" ? (
-                    <ProovraButton label="Add Another Document" variant="secondary" disabled={sessionCompletingEvidence || isRecording} onPress={openPickerOrCamera} />
-                  ) : activeType === "AUDIO" ? (
-                    <ProovraButton
-                      label="Record Another Audio"
-                      variant="secondary"
-                      disabled={sessionCompletingEvidence || sessionCreatingEvidence || isRecording || busy}
-                      onPress={handleStartAudioRecording}
-                    />
-                  ) : !cameraOpen ? (
-                    <ProovraButton
-                      label={activeType === "PHOTO" ? "Open Camera for More Photos" : "Open Camera for More Videos"}
-                      variant="secondary"
-                      disabled={sessionCompletingEvidence || isRecording}
-                      onPress={openPickerOrCamera}
-                    />
-                  ) : null}
-                  <ProovraButton
-                    label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
-                    loading={sessionCompletingEvidence}
-                    disabled={sessionCreatingEvidence || isRecording}
-                    onPress={completeSession}
-                  />
-                  <ProovraButton label={discarding ? "Discarding…" : "Discard Session"} variant="danger" disabled={sessionCompletingEvidence || isRecording || discarding} onPress={() => void discardSession()} />
-                </View>
-              </ProovraCard>
-            ) : null}
-
-            {/*
-              TWO ORIGINS MET IN ONE DRAFT.
-              A statement with a next step, not a silent refusal. The guard
-              that decides this existed in `screen-acquisition.ts` and
-              reached no screen, so the product used to seal the mixed draft
-              under ONE origin — a photo recorded as a screen capture.
-              Nothing staged is discarded by either action here.
-            */}
-            <ProovraSheet
-              visible={mixedOrigin !== null}
-              title={mixedOrigin?.title ?? ""}
-              onClose={() => setMixedOrigin(null)}
-            >
+          {activeType === "AUDIO" ? (
+            /* Web "Audio Recorder" card: Start Recording / Stop / Discard / Add to Session. */
+            <ProovraCard style={styles.audioCard} testID="capture-audio-recorder">
+              <View style={styles.dropHead}>
+                <ProovraText variant="h3" weight="semibold">Audio Recorder</ProovraText>
+                {!isRecording ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close audio recorder"
+                    hitSlop={8}
+                    onPress={() => {
+                      setAudioPending(null);
+                      setActiveIndex(CAPTURE_TYPES.indexOf("DOCUMENT"));
+                    }}
+                  >
+                    <ProovraText variant="h3" color={theme.color.ink.muted}>×</ProovraText>
+                  </Pressable>
+                ) : null}
+              </View>
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                {mixedOrigin?.message ?? ""}
+                {isRecording
+                  ? `Recording ${formatRecordingTime(recordSeconds)}`
+                  : audioPending
+                    ? `Recording ready${audioPending.durationMs ? ` · ${formatRecordingTime(Math.round(audioPending.durationMs / 1000))}` : ""}. Add it to the session or discard it.`
+                    : "Record audio evidence with this device microphone. Stop, then add the recording to the current evidence session."}
               </ProovraText>
-              <ProovraButton
-                label={mixedOrigin?.finishLabel ?? "Finish this capture first"}
-                onPress={() => {
-                  setMixedOrigin(null);
-                  void completeSession();
-                }}
-              />
-              <ProovraButton
-                label={mixedOrigin?.cancelLabel ?? "Not now"}
-                variant="ghost"
-                onPress={() => setMixedOrigin(null)}
-              />
-            </ProovraSheet>
-
-            <ProovraSheet
-              visible={planningItem !== null}
-              title={planningItem?.originalFilename ?? "This item"}
-              onClose={() => setPlanningItem(null)}
-            >
-              {template && template.steps.length > 0 ? (
-                <>
-                  <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-                    What is this item?
-                  </ProovraText>
-                  {template.steps.map((step) => (
-                    <ProovraListRow
-                      key={step.id}
-                      title={step.title}
-                      subtitle={step.description || undefined}
-                      onPress={() => {
-                        if (!planningItem) return;
-                        // The ROLE string is what readiness reads first: a
-                        // template whose step ids do not follow primary_*
-                        // would otherwise never satisfy the criterion.
-                        applyPlan(planningItem.id, {
-                          checklistStepId: step.id,
-                          role: roleForStep(step),
-                        });
-                        setPlanningItem((cur) =>
-                          cur ? { ...cur, checklistStepId: step.id, role: roleForStep(step) } : cur,
-                        );
-                      }}
-                      trailing={
-                        planningItem?.checklistStepId === step.id ? (
-                          <ProovraBadge label="Chosen" tone="verified" />
-                        ) : undefined
-                      }
-                    />
-                  ))}
-                </>
-              ) : (
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Choose a collection plan to give items a role.
-                </ProovraText>
-              )}
-
-              <ProovraFormField label="Context note">
-                <ProovraInput
-                  value={noteDraft}
-                  onChangeText={setNoteDraft}
-                  placeholder="Why this was captured, in your words"
-                  autoCapitalize="sentences"
-                  multiline
-                  accessibilityLabel="Context note"
+              <View style={styles.audioActions}>
+                <ProovraButton
+                  label="Start Recording"
+                  fullWidth={false}
+                  loading={busy && !isRecording}
+                  disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy || isRecording || !!audioPending}
+                  onPress={handleStartAudioRecording}
                 />
-              </ProovraFormField>
-              <ProovraButton
-                label="Save"
-                onPress={() => {
-                  if (planningItem) {
-                    applyPlan(planningItem.id, { privateNote: noteDraft.trim() || null });
-                  }
-                  setPlanningItem(null);
-                }}
-              />
-            </ProovraSheet>
+                <ProovraButton label="Stop" variant="secondary" fullWidth={false} disabled={!isRecording} onPress={handleStopAudioRecording} />
+                <ProovraButton label="Discard" variant="secondary" fullWidth={false} disabled={isRecording || !audioPending} onPress={() => setAudioPending(null)} />
+                <ProovraButton label="Add to Session" fullWidth={false} disabled={!audioPending || sessionCompletingEvidence} onPress={() => void addAudioToSession()} />
+              </View>
+            </ProovraCard>
+          ) : cameraOpen && activeType !== "DOCUMENT" ? (
+            /* Web CaptureCameraOverlay. */
+            <ProovraCard style={styles.cameraCard} testID="capture-camera">
+              <View>
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.cameraPreview}
+                  facing={facing}
+                  mode={activeType === "VIDEO" ? "video" : "picture"}
+                  flash={flashOn ? "on" : "off"}
+                />
+                <View style={styles.overlayTopLeft}>
+                  <Text style={styles.overlayBadge}>
+                    {activeType === "PHOTO" ? "Capture Photo" : isRecording ? `REC ${formatRecordingTime(recordSeconds)}` : "Record Video"}
+                  </Text>
+                </View>
+                <View style={styles.overlayTopRight}>
+                  <Text style={styles.counterBadge}>{`${sessionItems.length} added`}</Text>
+                </View>
+              </View>
+              <View style={styles.cameraControls}>
+                <ProovraText variant="label" color={theme.color.ink.muted} center>
+                  {activeType === "PHOTO"
+                    ? "Capture repeatedly to add multiple photos into one evidence record."
+                    : isRecording
+                      ? `Recording… ${formatRecordingTime(recordSeconds)}`
+                      : "Record a clip, it will be auto-added to the same evidence session."}
+                </ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.secondary} center>
+                  {facing === "back" ? "Rear camera" : "Front camera"}
+                </ProovraText>
+                {activeType === "PHOTO" ? (
+                  <ProovraButton label="Add to Evidence Session" loading={busy || sessionCreatingEvidence} disabled={sessionCompletingEvidence} onPress={handleTakePhoto} />
+                ) : (
+                  <ProovraButton
+                    label={isRecording ? "Stop & Add" : "Record"}
+                    variant={isRecording ? "danger" : "primary"}
+                    disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                  />
+                )}
+                <View style={styles.audioActions}>
+                  {activeType === "PHOTO" ? (
+                    <ProovraButton label={flashOn ? "Flash on" : "Flash"} accessibilityLabel="Flash" variant="secondary" fullWidth={false} disabled={busy} onPress={() => setFlashOn((v) => !v)} />
+                  ) : null}
+                  <ProovraButton label="Flip" variant="secondary" fullWidth={false} disabled={busy || isRecording} onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))} />
+                  <ProovraButton label="Close" accessibilityLabel="Close camera" variant="ghost" fullWidth={false} disabled={isRecording || busy} onPress={() => setCameraOpen(false)} />
+                </View>
+              </View>
+            </ProovraCard>
+          ) : null}
 
-            {error ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
-            {info ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{info}</ProovraText> : null}
-            {showSettingsLink ? <ProovraButton label="Open Settings" variant="secondary" onPress={() => Linking.openSettings()} /> : null}
-          </>
-        )}
-      </ProovraSection>
+          {hasItems ? (
+            <CaptureMaterialsBoard
+              items={sessionItems}
+              plan={template}
+              planMode={planMode}
+              readiness={sessionReadiness}
+              busy={sessionCompletingEvidence}
+              locked={isRecording}
+              draftSaveState={draftSaveState}
+              hasDraft={!!draftIdRef.current}
+              onClearMappings={() => setSessionState(sessionItemsRef.current.map((i) => ({ ...i, checklistStepId: null })))}
+              onRemovePending={() =>
+                sessionItemsRef.current.filter((i) => !i.uploaded && !i.uploading).forEach((i) => removeFromSession(i.id))
+              }
+              onRemove={removeFromSession}
+              onMap={(id, patch) => applyPlan(id, patch)}
+              onUpdate={(id, patch) => applyPlan(id, patch)}
+            />
+          ) : null}
+
+          <CaptureOperationalSummary readiness={captureReadiness} itemCount={sessionItems.length} />
+
+          {hasItems ? <CaptureActivityDisclosure events={activity} /> : null}
+
+          {hasItems ? (
+            <ProovraCard style={styles.sessionCard} testID="capture-finish">
+              <CaptureFinalReadiness readiness={sessionReadiness} busy={sessionCompletingEvidence} />
+              <CaptureFinishHeading busy={sessionCompletingEvidence} progress={uploadProgress} />
+              <View style={styles.sessionActions} accessibilityLabel="Session final actions">
+                <ProovraButton
+                  label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
+                  loading={sessionCompletingEvidence}
+                  disabled={sessionCreatingEvidence || isRecording || !sessionReadiness.canFinalize}
+                  onPress={completeSession}
+                />
+                <ProovraButton
+                  label={discarding ? "Clearing…" : "Clear Session"}
+                  variant="secondary"
+                  disabled={sessionCompletingEvidence || isRecording || discarding}
+                  onPress={() => setClearConfirmOpen(true)}
+                />
+              </View>
+            </ProovraCard>
+          ) : null}
+
+          {hasItems ? (
+            <CaptureSessionStatus
+              readiness={sessionReadiness}
+              busy={sessionCompletingEvidence}
+              itemCount={sessionItems.length}
+              sessionId={formatCaptureSessionId(sessionStartedAt ?? new Date())}
+              plan={template}
+              totalBytes={totalBytes}
+              useLocation={useLocation}
+              planMode={planMode}
+              locationPermissionDenied={locationDenied}
+            />
+          ) : null}
+
+          {/* T-15 — metadata-only AI QA of the staged session (CaptureSessionPanel.tsx:283). */}
+          {hasItems ? (
+            <CaptureAiReview
+              plan={template}
+              useLocation={useLocation}
+              planMode={planMode}
+              recommended={sessionReadiness.aiRecommendedReview}
+              items={sessionItems.map((i) => ({
+                id: i.id,
+                fileName: i.originalFilename ?? i.id,
+                mimeType: i.mimeType,
+                sizeBytes: i.sizeBytes ?? 0,
+                checklistStepId: i.checklistStepId ?? null,
+                role: i.role ?? null,
+                sourceLabel: i.sourceNote ?? null,
+                // The session-wide switch IS each item's location signal, as the plan reads it.
+                locationIncluded: useLocation,
+              }))}
+            />
+          ) : null}
+
+          {/*
+            TWO ORIGINS MET IN ONE DRAFT.
+            A statement with a next step, not a silent refusal. Nothing staged
+            is discarded by either action here.
+          */}
+          <ProovraSheet
+            visible={mixedOrigin !== null}
+            title={mixedOrigin?.title ?? ""}
+            onClose={() => setMixedOrigin(null)}
+          >
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {mixedOrigin?.message ?? ""}
+            </ProovraText>
+            <ProovraButton
+              label={mixedOrigin?.finishLabel ?? "Finish this capture first"}
+              onPress={() => {
+                setMixedOrigin(null);
+                void completeSession();
+              }}
+            />
+            <ProovraButton
+              label={mixedOrigin?.cancelLabel ?? "Not now"}
+              variant="ghost"
+              onPress={() => setMixedOrigin(null)}
+            />
+          </ProovraSheet>
+
+          {/* Web "Clear this evidence session?" — Clear is a server transition (discardSession). */}
+          <ProovraConfirmSheet
+            visible={clearConfirmOpen}
+            title="Clear this evidence session?"
+            consequence="This will remove all staged materials, mapping, private notes, and local review progress. No evidence record has been created yet."
+            cancelLabel="Keep Session"
+            confirmLabel="Clear Session"
+            tone="danger"
+            busy={discarding}
+            onCancel={() => setClearConfirmOpen(false)}
+            onConfirm={() => {
+              setClearConfirmOpen(false);
+              void discardSession();
+            }}
+          />
+
+          {error ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
+          {info ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{info}</ProovraText> : null}
+          {showSettingsLink ? <ProovraButton label="Open Settings" variant="secondary" onPress={() => Linking.openSettings()} /> : null}
+        </>
+      )}
 
       <ProovraSection title={t("recentEvidence")}>
         {recent.length === 0 ? (
@@ -1666,6 +1997,7 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
                   key={item.id}
                   title={evidenceTypeLabel(item.type)}
                   subtitle={formatUserDateTime(item.createdAt)}
+                  onPress={() => router.push(`/evidence/${item.id}`)}
                   trailing={<ProovraBadge tone={status.tone} label={status.label} />}
                 />
               );
@@ -1678,45 +2010,36 @@ disabled={sessionCompletingEvidence || sessionCreatingEvidence || busy}
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: "row", marginTop: theme.space.s2 },
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s2 },
   resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   staleNote: { marginBottom: theme.space.s3 },
-  typeRow: { flexDirection: "row", gap: theme.space.s2, marginBottom: theme.space.s3 },
-  sourcesBlock: { gap: theme.space.s2, marginTop: theme.space.s3, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
-  typeChip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 40, borderRadius: theme.radius.pill, borderWidth: 1 },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: theme.color.surface.card,
-    borderRadius: theme.radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+  block: { marginBottom: theme.space.s3 },
+  upper: { textTransform: "uppercase", letterSpacing: 0.4 },
+  dropHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: theme.space.s2 },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginVertical: theme.space.s3 },
+  actionTile: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    borderWidth: 1,
     borderColor: theme.color.border.default,
-    paddingHorizontal: theme.space.s3,
-    paddingVertical: theme.space.s3,
-    marginBottom: theme.space.s3,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.color.surface.card,
+    padding: theme.space.s3,
+    gap: 2,
   },
+  actionTilePrimary: { borderColor: theme.color.accent.a500, backgroundColor: theme.color.accent.a050 },
+  actionTileActive: { borderColor: theme.color.accent.a600, borderWidth: 2 },
+  sourcesBlock: { gap: theme.space.s2, marginTop: theme.space.s3, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   cameraCard: { padding: 0, overflow: "hidden", marginBottom: theme.space.s3 },
   audioCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
+  audioActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
   cameraPreview: { height: 380, width: "100%" },
   overlayTopLeft: { position: "absolute", top: 12, left: 12 },
   overlayTopRight: { position: "absolute", top: 12, right: 12 },
   overlayBadge: { backgroundColor: "rgba(15,23,42,0.78)", color: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, fontSize: 12, fontWeight: "700", overflow: "hidden" },
-  counterBadge: { minWidth: 34, height: 34, borderRadius: 17, backgroundColor: theme.color.semantic.success, color: "#FFFFFF", textAlign: "center", fontSize: 14, fontWeight: "800", overflow: "hidden", paddingTop: 7 },
+  counterBadge: { backgroundColor: theme.color.semantic.success, color: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, fontSize: 12, fontWeight: "800", overflow: "hidden" },
   cameraControls: { padding: theme.space.s3, gap: theme.space.s2 },
-  previewLine: { marginBottom: theme.space.s3 },
   sessionCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
-  thumbStrip: { gap: 12, paddingVertical: 8 },
-  thumbCard: { width: 120, backgroundColor: theme.color.surface.muted, borderRadius: theme.radius.md, padding: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.border.subtle },
-  thumbPreview: { width: "100%", height: 90, borderRadius: theme.radius.sm, overflow: "hidden", backgroundColor: theme.color.surface.muted, position: "relative" },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
-  thumbFallbackText: { color: theme.color.ink.secondary, fontWeight: "800", fontSize: 12 },
-  thumbIndexBadge: { position: "absolute", top: 6, right: 6, backgroundColor: "rgba(15,23,42,0.82)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill },
-  thumbIndexText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
-  thumbLabel: { marginTop: 8 },
-  removePill: { marginTop: 8, backgroundColor: theme.color.status.risk.solid, paddingVertical: 6, borderRadius: theme.radius.pill, alignItems: "center" },
-  removePillText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   sessionActions: { marginTop: 8, gap: theme.space.s2 },
 });

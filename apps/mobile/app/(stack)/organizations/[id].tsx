@@ -31,6 +31,8 @@ import { apiFetch } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { useToast } from "../../../src/toast-context";
 import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
+import { OrgSettings } from "../../../src/ui/org-settings";
+import { OrgWorkspaceLifecycleControls } from "../../../src/ui/org-workspace-lifecycle";
 import { withStepUp } from "../../../src/product/step-up";
 import {
   buildClosureBody,
@@ -41,7 +43,7 @@ import {
   parseClosureState,
   type ClosureState,
 } from "../../../src/product/closure";
-import { formatUserDateTime } from "../../../src/lib/date";
+import { formatUserDate, formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -52,7 +54,6 @@ import {
   ProovraListRow,
   ProovraPageHeader,
   ProovraPageSection,
-  ProovraDetailRows,
   ProovraLoadingState,
   ProovraErrorState,
   ProovraEmpty,
@@ -84,7 +85,42 @@ import {
   type OrgDetail,
   type OrgMember,
   type OrgWorkspace,
+  orgPlanLabel,
+  orgWorkspaceBillingStatusLabel,
+  canEditOrgSettings,
+  buildOrgInvitesPath,
+  orgRoleTally,
+  orgBillingTileSummary,
+  orgAuditCountLabel,
+  orgClosureStatusLabel,
+  parseOrgWorkspacesCanSeeBilling,
+  parseOrgPendingInviteTotal,
+  ORG_DETAIL_COPY as COPY,
 } from "../../../src/product/organizations";
+
+/** One of the web's four overview tiles (organizations/[id]/page.tsx OverviewTile). */
+function OverviewTile({
+  title,
+  primary,
+  secondary,
+  footer,
+}: {
+  title: string;
+  primary: string;
+  secondary: string;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <ProovraCard testID={`org-tile-${title.toLowerCase()}`} style={{ flexGrow: 1, flexBasis: 150, gap: 4 }}>
+      <ProovraText variant="label" weight="bold" color={theme.color.ink.muted}>
+        {title.toUpperCase()}
+      </ProovraText>
+      <ProovraText variant="h3" weight="semibold">{primary}</ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.secondary}>{secondary}</ProovraText>
+      {footer ?? null}
+    </ProovraCard>
+  );
+}
 
 type State =
   | { phase: "loading" }
@@ -100,6 +136,11 @@ export default function OrganizationDetailScreen() {
   const [state, setState] = useState<State>({ phase: "loading" });
   const [members, setMembers] = useState<OrgMember[] | null>(null);
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[] | null>(null);
+  const [workspacesFailure, setWorkspacesFailure] = useState<string | null>(null);
+  const [canSeeBilling, setCanSeeBilling] = useState(false);
+  // GET /v1/orgs/:id/invites — ORG_ADMIN+; null for everyone else.
+  const [pendingTotal, setPendingTotal] = useState<number | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [audit, setAudit] = useState<OrgAuditEvent[] | null>(null);
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
   const [closure, setClosure] = useState<ClosureState | null>(null);
@@ -114,6 +155,39 @@ export default function OrganizationDetailScreen() {
   const [closing, setClosing] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [cancellingClosure, setCancellingClosure] = useState(false);
+
+  // A silent re-read after a settings save: the form stays mounted with its confirmation.
+  const reloadOrg = useCallback(async () => {
+    if (!id) return;
+    try {
+      const org = parseOrgDetail(await apiFetch(buildOrgPath(id)));
+      if (org) setState({ phase: "loaded", org });
+    } catch {
+      // The save succeeded; a failed re-read leaves the last good header in place.
+    }
+  }, [id]);
+
+  // The workspace list alone, re-read in place: a suspend/resume announcement
+  // lives inside the list and must survive the refresh it triggers.
+  const loadWorkspaces = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await apiFetch(buildOrgWorkspacesPath(id));
+      setWorkspaces(parseOrgWorkspaces(data));
+      setCanSeeBilling(parseOrgWorkspacesCanSeeBilling(data));
+      setWorkspacesFailure(null);
+    } catch (err) {
+      setWorkspaces(null);
+      // The list is MEMBER-readable (organizations.routes.ts:588), so a
+      // failure is not "visible to administrators" — that claim sent
+      // members looking for a permission they already had.
+      setWorkspacesFailure(
+        (err as { statusCode?: number })?.statusCode === 403
+          ? "You don’t have access to the workspace list."
+          : toSafeUserError(err).message || "The workspace list could not be loaded.",
+      );
+    }
+  }, [id]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -138,13 +212,15 @@ export default function OrganizationDetailScreen() {
       apiFetch(buildOrgMembersPath(id))
         .then((d) => setMembers(parseOrgMembers(d)))
         .catch(() => setMembers(null)),
-      apiFetch(buildOrgWorkspacesPath(id))
-        .then((d) => setWorkspaces(parseOrgWorkspaces(d)))
-        .catch(() => setWorkspaces(null)),
+      loadWorkspaces(),
       // ORG_AUDITOR and above. A caller below that rank gets a refusal here
       // and a null feed, which the section states as a visibility fact rather
       // than as an error the page could retry out of.
-      apiFetch(buildOrgAuditPath(id, { take: 25 }))
+      // The web's pending-invite figure for the Governance tile (ORG_ADMIN+).
+      apiFetch(buildOrgInvitesPath(id))
+        .then((d) => setPendingTotal(parseOrgPendingInviteTotal(d)))
+        .catch(() => setPendingTotal(null)),
+      apiFetch(buildOrgAuditPath(id, { take: 50 }))
         .then((d) => {
           const page = parseOrgAuditPage(d);
           setAudit(page.events);
@@ -157,13 +233,13 @@ export default function OrganizationDetailScreen() {
         .then((d) => setClosure(parseClosureState(d)))
         .catch(() => setClosure(null)),
     ]);
-  }, [id]);
+  }, [id, loadWorkspaces]);
 
   const loadMoreAudit = useCallback(async () => {
     if (!id || !auditCursor) return;
     try {
       const page = parseOrgAuditPage(
-        await apiFetch(buildOrgAuditPath(id, { take: 25, cursor: auditCursor })),
+        await apiFetch(buildOrgAuditPath(id, { take: 50, cursor: auditCursor })),
       );
       setAudit((prev) => [...(prev ?? []), ...page.events]);
       setAuditCursor(page.nextCursor);
@@ -195,7 +271,7 @@ export default function OrganizationDetailScreen() {
     if (!id) return;
     setLeaving(false);
     setBusy(true);
-    setNotice(null);
+    setLeaveError(null);
     await stepUp.start(
       async (proof) => {
         await apiFetch(buildOrgLeavePath(id), {
@@ -203,12 +279,14 @@ export default function OrganizationDetailScreen() {
           body: JSON.stringify(withStepUp({}, proof)),
         });
         addToast("You have left this organization.", "success");
-        router.back();
+        // The web returns to the list (router.replace("/organizations")).
+        router.replace("/organizations");
       },
-      (err) => fail(err, "Could not leave this organization."),
+      // 409 OWNERSHIP_TRANSFER_REQUIRED carries the server's own sentence.
+      (err) => setLeaveError(orgLifecycleFailureMessage(err, toSafeUserError(err, { message: COPY.leaveFailed }).message)),
     );
     setBusy(false);
-  }, [id, stepUp, addToast, router, fail]);
+  }, [id, stepUp, addToast, router]);
 
   const transfer = useCallback(async () => {
     const target = transferTarget;
@@ -276,15 +354,63 @@ export default function OrganizationDetailScreen() {
     void load();
   }, [load]);
 
+  const loadedOrg = state.phase === "loaded" ? state.org : null;
+  const pendingCount = pendingTotal ?? loadedOrg?.pendingInviteCount ?? null;
+  const roleTally = members === null ? null : orgRoleTally(members);
+  const lastAuditAt = audit && audit.length > 0 ? audit[0]?.occurredAtIso ?? null : null;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
   return (
-    <ProovraScreen testID="organization-detail">
+    <ProovraScreen shell testID="organization-detail">
       <ProovraPageHeader
-        title={state.phase === "loaded" ? (state.org.name ?? "Organization") : "Organization"}
-        eyebrow="Governance"
+        title={loadedOrg ? (loadedOrg.name ?? "Organization") : "Organization"}
+        eyebrow={COPY.eyebrow}
+        subtitle={COPY.subtitle}
+        contextStrip={
+          loadedOrg ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>
+              {loadedOrg.callerRole ? (
+                <ProovraBadge label={`Your role · ${orgRoleLabel(loadedOrg.callerRole)}`} tone="governance" />
+              ) : null}
+              {loadedOrg.status ? (
+                <ProovraBadge label={loadedOrg.status} tone={orgStatusTone(loadedOrg.status)} />
+              ) : null}
+              {loadedOrg.verificationState ? (
+                <ProovraBadge label={loadedOrg.verificationState} tone={orgStatusTone(loadedOrg.verificationState)} />
+              ) : null}
+              {loadedOrg.memberCount !== null && loadedOrg.workspaceCount !== null ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {`${plural(loadedOrg.memberCount, "member")} · ${plural(loadedOrg.workspaceCount, "workspace")}`}
+                </ProovraText>
+              ) : null}
+              {loadedOrg.legalName || loadedOrg.legalEmail ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {[loadedOrg.legalName ? `Legal: ${loadedOrg.legalName}` : null, loadedOrg.legalEmail].filter(Boolean).join(" · ")}
+                </ProovraText>
+              ) : null}
+            </View>
+          ) : undefined
+        }
         secondaryActions={
-          <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+          <>
+            <ProovraButton label={COPY.allOrgs} variant="ghost" fullWidth={false} onPress={() => router.replace("/organizations")} />
+            {loadedOrg ? (
+              <ProovraButton label={COPY.workspaceAdmin} variant="secondary" fullWidth={false} onPress={() => router.push("/spaces")} />
+            ) : null}
+            {/* Leave — hidden for the owner, who must transfer or close first
+                (the server enforces the same guard regardless). */}
+            {loadedOrg && !isOrgOwner(loadedOrg) ? (
+              <ProovraButton label={COPY.leave} variant="ghost" fullWidth={false} loading={busy} onPress={() => setLeaving(true)} />
+            ) : null}
+          </>
         }
       />
+
+      {leaveError ? (
+        <ProovraCard testID="org-leave-error">
+          <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{leaveError}</ProovraText>
+        </ProovraCard>
+      ) : null}
 
       {state.phase === "loading" ? <ProovraLoadingState label="Loading organization" /> : null}
       {state.phase === "failed" ? (
@@ -300,38 +426,91 @@ export default function OrganizationDetailScreen() {
 
       {state.phase === "loaded" ? (
         <>
-          <ProovraCard>
-            <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap" }}>
-              {state.org.status ? (
-                <ProovraBadge label={state.org.status} tone={orgStatusTone(state.org.status)} />
-              ) : null}
-              {state.org.verificationState ? (
-                <ProovraBadge
-                  label={state.org.verificationState}
-                  tone={orgStatusTone(state.org.verificationState)}
-                />
-              ) : null}
-            </View>
-            <ProovraDetailRows
-              rows={[
-                { label: "Legal name", value: state.org.legalName ?? "—" },
-                { label: "Legal contact", value: state.org.legalEmail ?? "—" },
-                { label: "Timezone", value: state.org.timezone ?? "—" },
-                {
-                  label: "Created",
-                  value: state.org.createdAtIso ? formatUserDateTime(state.org.createdAtIso) : "—",
-                },
-                {
-                  label: "Verified",
-                  value: state.org.verifiedAtIso
-                    ? formatUserDateTime(state.org.verifiedAtIso)
-                    : "Not verified",
-                },
-              ]}
-            />
-          </ProovraCard>
+          {/* The web's owner onboarding (organizations/[id]/page.tsx:636): only for an
+              owner who is still the organization's only member. */}
+          {isOrgOwner(state.org) && state.org.memberCount === 1 ? (
+            <ProovraCard testID="org-onboarding">
+              <ProovraText variant="h3" weight="semibold">You just created this organization — next steps</ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                Three governance steps that turn a single-owner org into a real collaborative tenant. Each one is wired to a real audited endpoint.
+              </ProovraText>
+              <ProovraText variant="bodySm">
+                1. Invite the first member. Open Members in the organization admin console, pick a role, and share the invite token URL. Each invitation is recorded in the audit timeline.
+              </ProovraText>
+              <ProovraText variant="bodySm">
+                2. Set legal metadata. Fill name, legal name, and legal email in the Settings panel below so audit timeline events and exports carry your org’s identity. Each change is recorded in the audit timeline.
+              </ProovraText>
+              <ProovraText variant="bodySm">
+                3. Bind a workspace. Workspaces are where evidence and cases live; the binding shows up in this org’s Workspaces panel below.
+              </ProovraText>
+              <ProovraButton label="Workspace administration" variant="secondary" fullWidth={false} onPress={() => router.push("/spaces")} />
+            </ProovraCard>
+          ) : null}
 
-          <ProovraPageSection title="Members">
+          {/* The web's four overview tiles (organizations/[id]/page.tsx "org-overview"). */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }} testID="org-overview">
+            <OverviewTile
+              title="Governance"
+              primary={state.org.memberCount !== null ? plural(state.org.memberCount, "member") : "—"}
+              secondary={pendingCount === null ? "Pending invites are visible to organization admins." : plural(pendingCount, "pending invite")}
+              footer={
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {roleTally ?? "Role distribution is not available."}
+                </ProovraText>
+              }
+            />
+            <OverviewTile
+              title="Workspaces"
+              primary={state.org.workspaceCount !== null ? String(state.org.workspaceCount) : "—"}
+              secondary={
+                workspaces && workspaces.length > 0
+                  ? workspaces.slice(0, 3).map((w) => w.name).join(", ")
+                  : "No workspaces bound to this organization yet."
+              }
+              footer={
+                <ProovraButton label="Open in Workspace administration →" variant="ghost" fullWidth={false} onPress={() => router.push("/spaces")} />
+              }
+            />
+            <OverviewTile
+              title="Billing"
+              primary={canSeeBilling && workspaces && workspaces.length > 0 ? orgBillingTileSummary(workspaces) : "Workspace-scoped"}
+              secondary={
+                canSeeBilling
+                  ? "Per-workspace plan + seat usage shown below. Org-level billing unification is on the Phase 2.7X roadmap; for now the workspace is the billing unit."
+                  : "Org-level billing unification is on the Phase 2.7X roadmap. Today, plan / seats / addons are managed per workspace. Visibility requires ORG_ADMIN+ or ORG_BILLING_ADMIN."
+              }
+              footer={<ProovraButton label="Open billing →" variant="ghost" fullWidth={false} onPress={() => router.push("/billing")} />}
+            />
+            <OverviewTile
+              title="Audit"
+              primary={audit ? orgAuditCountLabel(audit.length, auditCursor !== null) : "Auditor-only"}
+              secondary={
+                lastAuditAt
+                  ? `Latest ${formatUserDateTime(lastAuditAt)}`
+                  : audit
+                    ? "No events recorded yet."
+                    : COPY.auditorOnly
+              }
+            />
+          </View>
+
+          {/* T-14 — identity metadata (organizations/[id]/page.tsx Settings card). */}
+          <OrgSettings orgId={String(id)} org={state.org} onSaved={reloadOrg} />
+
+          <ProovraPageSection title={COPY.membersTitle} description={COPY.membersSubtitle}>
+            {state.org.memberCount !== null ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {[
+                  plural(state.org.memberCount, "member"),
+                  pendingCount !== null ? plural(pendingCount, "pending invite") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </ProovraText>
+            ) : null}
+            {roleTally && members && members.length > 0 ? (
+              <ProovraText variant="label" color={theme.color.ink.muted}>{roleTally}</ProovraText>
+            ) : null}
             {members === null ? (
               <ProovraEmpty
                 presence="inline"
@@ -346,43 +525,67 @@ export default function OrganizationDetailScreen() {
                     key={m.id}
                     title={m.displayName}
                     subtitle={m.email ?? undefined}
-                    trailing={
-                      <ProovraText variant="label" color={theme.color.ink.muted}>
-                        {orgRoleLabel(m.role)}
-                      </ProovraText>
-                    }
+                    trailing={<ProovraBadge label={orgRoleLabel(m.role)} tone="neutral" />}
                   />
                 ))}
               </ProovraCard>
             )}
           </ProovraPageSection>
 
-          <ProovraPageSection title="Workspaces">
+          <ProovraPageSection
+            title="Workspaces"
+            description={COPY.workspacesSubtitle}
+            actions={<ProovraButton label={COPY.workspaceAdmin} variant="secondary" fullWidth={false} onPress={() => router.push("/spaces")} />}
+          >
             {workspaces === null ? (
+              <ProovraEmpty presence="inline" title={workspacesFailure ?? "The workspace list could not be loaded."} />
+            ) : workspaces.length === 0 ? (
               <ProovraEmpty
                 presence="inline"
-                title="Workspaces are visible to organization administrators."
+                title={COPY.workspacesEmptyTitle}
+                purpose={COPY.workspacesEmptyPurpose}
+                action={<ProovraButton label={COPY.openWorkspaceAdmin} variant="secondary" fullWidth={false} onPress={() => router.push("/spaces")} />}
               />
-            ) : workspaces.length === 0 ? (
-              <ProovraEmpty presence="inline" title="This organization has no workspaces." />
             ) : (
               <ProovraCard>
                 {workspaces.map((w) => (
-                  <ProovraListRow
-                    key={w.id}
-                    title={w.name}
-                    subtitle={
-                      w.memberCount === null
-                        ? undefined
-                        : `${w.memberCount} member${w.memberCount === 1 ? "" : "s"}`
-                    }
-                  />
+                  <View key={w.id} style={{ gap: 4, paddingVertical: theme.space.s2 }} testID={`org-workspace-${w.id}`}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s1 }}>
+                      <ProovraText variant="bodySm" weight="semibold">{w.name}</ProovraText>
+                      {w.isPersonal ? <ProovraBadge label="personal" tone="neutral" /> : null}
+                      {w.billing ? <ProovraBadge label={orgPlanLabel(w.billing.plan)} tone="governance" /> : null}
+                      {w.billing ? (
+                        <ProovraBadge label={orgWorkspaceBillingStatusLabel(w.billing.status)} tone={w.billing.status === "ACTIVE" ? "verified" : "pending"} />
+                      ) : null}
+                      {w.billing?.overSeatLimit ? <ProovraBadge label="OVER SEAT LIMIT" tone="risk" /> : null}
+                    </View>
+                    <ProovraText variant="label" color={theme.color.ink.muted}>
+                      {[
+                        w.createdAtIso ? `Created ${formatUserDate(w.createdAtIso)}` : null,
+                        w.billing && w.billing.includedSeats !== null
+                          ? `${w.billing.includedSeats} included seat${w.billing.includedSeats === 1 ? "" : "s"}`
+                          : null,
+                        w.memberCount === null ? null : `${w.memberCount} member${w.memberCount === 1 ? "" : "s"}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </ProovraText>
+                    {/* Reversible org-workspace suspension (web OrgWorkspaceLifecycleControls). */}
+                    <OrgWorkspaceLifecycleControls
+                      orgId={String(id)}
+                      workspaceId={w.id}
+                      workspaceName={w.name}
+                      isPersonal={w.isPersonal}
+                      canManage={canEditOrgSettings(state.org)}
+                      onChanged={loadWorkspaces}
+                    />
+                  </View>
                 ))}
               </ProovraCard>
             )}
           </ProovraPageSection>
 
-          <ProovraPageSection title="Audit timeline">
+          <ProovraPageSection title="Audit timeline" description={COPY.auditSubtitle}>
             {audit === null ? (
               // Auditor and above. A caller below that rank is not seeing a
               // failure, they are seeing the limit of their role.
@@ -394,6 +597,9 @@ export default function OrganizationDetailScreen() {
               <ProovraEmpty presence="inline" title="No events have been recorded yet." />
             ) : (
               <>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {`${orgAuditCountLabel(audit.length, auditCursor !== null)}${lastAuditAt ? ` · latest ${formatUserDateTime(lastAuditAt)}` : ""}`}
+                </ProovraText>
                 <ProovraCard>
                   {audit.map((e) => (
                     <View key={e.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
@@ -423,82 +629,118 @@ export default function OrganizationDetailScreen() {
             )}
           </ProovraPageSection>
 
-          <ProovraPageSection title="This organization and you">
-            {notice ? (
+          {/* The web's "Scope — what lives where" explainer (organizations/[id]/page.tsx:1170). */}
+          <ProovraPageSection title="Scope — what lives where">
+            <ProovraCard testID="org-scope">
               <ProovraText variant="label" color={theme.color.ink.secondary}>
-                {notice}
+                The platform uses three tenancy scopes. Each one owns a specific category of operational data and a specific category of identity.
               </ProovraText>
-            ) : null}
+              <ProovraText variant="bodySm" weight="semibold">Personal Space</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Private to you. Your own evidence, drafts, and integrations. Never shared. Lives outside any organization.
+              </ProovraText>
+              <ProovraText variant="bodySm" weight="semibold">Organization (you are here)</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Governance + identity tenant. Members, roles, invites, audit timeline, legal metadata. Does NOT grant workspace data access on its own.
+              </ProovraText>
+              <ProovraText variant="bodySm" weight="semibold">Workspace (a.k.a. Team)</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Operational tenant. Evidence, cases, reviewer queues, retention policy, plan + seats. Each workspace is bound to exactly one organization. Workspace-level RBAC is independent of organization role.
+              </ProovraText>
+            </ProovraCard>
+          </ProovraPageSection>
 
-            {/*
-              Leaving is offered to anyone who is NOT the owner — an owner must
-              transfer first, and the server says so in its own words if they
-              try. Nothing here decides that on the server's behalf.
-            */}
-            {!isOrgOwner(state.org) ? (
-              <ProovraButton
-                label="Leave this organization"
-                variant="ghost"
-                loading={busy}
-                onPress={() => setLeaving(true)}
-              />
-            ) : null}
+          {/* The web's danger-zone card (organizations/[id]/page.tsx "org-danger-zone"). */}
+          <ProovraPageSection title={COPY.lifecycleTitle} description={COPY.lifecycleSubtitle}>
+            <ProovraCard testID="org-lifecycle" style={{ gap: theme.space.s3 }}>
+              {notice ? (
+                <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                  {notice}
+                </ProovraText>
+              ) : null}
 
-            {isOrgOwner(state.org) ? (
-              <>
-                <ProovraButton
-                  label="Transfer ownership"
-                  variant="ghost"
-                  loading={busy}
-                  onPress={() => setTransferring(true)}
-                />
+              {!isOrgOwner(state.org) ? (
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{COPY.ownerOnlyNote}</ProovraText>
+              ) : (
+                <>
+                  <View style={{ gap: theme.space.s1 }}>
+                    <ProovraText variant="bodySm" weight="semibold">Transfer ownership.</ProovraText>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>{COPY.transferLead}</ProovraText>
+                    {members !== null && transferTargets(members).length === 0 ? (
+                      <ProovraText variant="label" color={theme.color.ink.secondary}>{COPY.transferNoTargets}</ProovraText>
+                    ) : (
+                      <ProovraButton
+                        label="Transfer ownership"
+                        variant="secondary"
+                        fullWidth={false}
+                        loading={busy}
+                        onPress={() => setTransferring(true)}
+                      />
+                    )}
+                  </View>
 
-                {closure && hasOpenClosure(closure) ? (
-                  <ProovraCard>
-                    <ProovraText variant="body" weight="semibold">
-                      Closure requested
-                    </ProovraText>
+                  <View style={{ gap: theme.space.s1 }}>
+                    <ProovraText variant="bodySm" weight="semibold">Close organization.</ProovraText>
                     <ProovraText variant="label" color={theme.color.ink.secondary}>
-                      {closure.effectiveAtIso
-                        ? `This organization is scheduled to close on ${formatUserDateTime(closure.effectiveAtIso)}. It can be cancelled until then.`
-                        : "A closure request is open and can still be cancelled."}
+                      {closure?.coolingOffDays !== null && closure?.coolingOffDays !== undefined
+                        ? COPY.closureLead(closure.coolingOffDays)
+                        : "Archives the organization after a cancellation window. Workspace access and machine credentials are revoked; evidence is never deleted by closure — it stays governed by retention and legal-hold rules."}
                     </ProovraText>
-                    <ProovraButton
-                      label="Cancel the closure request"
-                      loading={busy}
-                      onPress={() => setCancellingClosure(true)}
-                    />
-                  </ProovraCard>
-                ) : null}
 
-                {closure && !hasOpenClosure(closure) && closure.blockers.length > 0 ? (
-                  <ProovraCard>
-                    <ProovraText variant="label" weight="semibold">
-                      Closure is blocked
-                    </ProovraText>
-                    {/*
-                      The server wrote these sentences. Restating them here
-                      would put the client in the business of explaining a
-                      refusal it did not make.
-                    */}
-                    {closure.blockers.map((b) => (
-                      <ProovraText key={b.code} variant="label" color={theme.color.ink.muted}>
-                        {b.count !== null ? `${b.message} (${b.count})` : b.message}
-                      </ProovraText>
-                    ))}
-                  </ProovraCard>
-                ) : null}
+                    {closure && hasOpenClosure(closure) ? (
+                      <View style={{ gap: theme.space.s1 }} testID="org-closure-open">
+                        <ProovraText variant="body" weight="semibold">
+                          Closure requested
+                        </ProovraText>
+                        {closure.requestStatus ? (
+                          <ProovraBadge label={orgClosureStatusLabel(closure.requestStatus)} tone="pending" />
+                        ) : null}
+                        <ProovraText variant="label" color={theme.color.ink.secondary}>
+                          {closure.effectiveAtIso
+                            ? `This organization is scheduled to close on ${formatUserDateTime(closure.effectiveAtIso)}. It can be cancelled until then.`
+                            : "A closure request is open and can still be cancelled."}
+                        </ProovraText>
+                        <ProovraButton
+                          label="Cancel the closure request"
+                          variant="secondary"
+                          fullWidth={false}
+                          loading={busy}
+                          onPress={() => setCancellingClosure(true)}
+                        />
+                      </View>
+                    ) : null}
 
-                {closure && canRequestClosure(closure) ? (
-                  <ProovraButton
-                    label="Close this organization"
-                    variant="ghost"
-                    loading={busy}
-                    onPress={() => setClosing(true)}
-                  />
-                ) : null}
-              </>
-            ) : null}
+                    {closure && !hasOpenClosure(closure) && closure.blockers.length > 0 ? (
+                      <View style={{ gap: 2 }}>
+                        <ProovraText variant="label" weight="semibold">
+                          Closure is blocked
+                        </ProovraText>
+                        {/*
+                          The server wrote these sentences. Restating them here
+                          would put the client in the business of explaining a
+                          refusal it did not make.
+                        */}
+                        {closure.blockers.map((b) => (
+                          <ProovraText key={b.code} variant="label" color={theme.color.ink.muted}>
+                            {b.count !== null ? `• ${b.message} (${b.count})` : `• ${b.message}`}
+                          </ProovraText>
+                        ))}
+                      </View>
+                    ) : null}
+
+                    {closure && canRequestClosure(closure) ? (
+                      <ProovraButton
+                        label="Close this organization…"
+                        variant="secondary"
+                        fullWidth={false}
+                        loading={busy}
+                        onPress={() => setClosing(true)}
+                      />
+                    ) : null}
+                  </View>
+                </>
+              )}
+            </ProovraCard>
 
             {/*
               Members and invitations live in the organization admin console,
@@ -515,9 +757,9 @@ export default function OrganizationDetailScreen() {
 
           <ProovraConfirmSheet
             visible={leaving}
-            title="Leave this organization?"
-            consequence="You lose organization-level access immediately. Workspace access is separate and is not changed by this."
-            confirmLabel="Leave"
+            title={`Leave ${state.org.name ?? "this organization"}?`}
+            consequence={COPY.leaveConsequence}
+            confirmLabel={COPY.leave}
             tone="danger"
             busy={busy}
             onConfirm={() => void leave()}
@@ -555,8 +797,8 @@ export default function OrganizationDetailScreen() {
 
           <ProovraConfirmSheet
             visible={transferTarget !== null}
-            title={transferTarget ? `Make ${transferTarget.displayName} the owner?` : ""}
-            consequence="They become the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited."
+            title={`Transfer ownership of ${state.org.name ?? "this organization"}?`}
+            consequence={`${transferTarget?.displayName ?? "The selected member"} becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.`}
             confirmLabel="Transfer ownership"
             tone="danger"
             busy={busy}
@@ -575,6 +817,9 @@ export default function OrganizationDetailScreen() {
                 : "Closure does not happen immediately; it can be cancelled during a cooling-off period."}
             </ProovraText>
 
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {closure?.confirmationPhrase ? `Type ${closure.confirmationPhrase} to confirm.` : "Type the confirmation phrase to confirm."}
+            </ProovraText>
             <ProovraFormField label="Type the confirmation phrase">
               <ProovraInput
                 value={phrase}
@@ -600,6 +845,15 @@ export default function OrganizationDetailScreen() {
               loading={busy}
               disabled={closure === null || !closurePhraseMatches(closure, phrase)}
               onPress={() => void requestClosure()}
+            />
+            <ProovraButton
+              label={COPY.keep}
+              variant="ghost"
+              disabled={busy}
+              onPress={() => {
+                setClosing(false);
+                setPhrase("");
+              }}
             />
           </ProovraSheet>
 
@@ -628,3 +882,4 @@ export default function OrganizationDetailScreen() {
     </ProovraScreen>
   );
 }
+

@@ -1,0 +1,594 @@
+{
+ "route": "/auth/verify-email",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/verify-email/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/verify-email.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 141,
+   "elements": 257,
+   "texts": 45,
+   "distinctTexts": 43,
+   "handlers": 55,
+   "conditionals": 1081,
+   "apiPaths": 8,
+   "distinctApi": 8,
+   "styleRefs": 201,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "lucide-react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 143,
+   "elements": 142,
+   "texts": 14,
+   "distinctTexts": 11,
+   "handlers": 25,
+   "conditionals": 1057,
+   "apiPaths": 14,
+   "distinctApi": 13,
+   "styleRefs": 179,
+   "stylesheetRules": 85,
+   "themeTokens": 244,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-apple-authentication",
+    "expo-auth-session/providers/google",
+    "expo-auth-session",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 45,
+  "natLabelled": 14,
+  "paired": 2,
+  "roleDiff": 2,
+  "missing": 41,
+  "extraInNative": 8,
+  "webUnlabelled": 237,
+  "missingWithRolePresent": 40,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Back to sign in",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/auth/verify-email/page.tsx:300",
+     "nat": "apps/mobile/app/(stack)/verify-email.tsx:46"
+    },
+    {
+     "label": "Verifying your email",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/auth/verify-email/page.tsx:308",
+     "nat": "apps/mobile/app/(stack)/verify-email.tsx:38"
+    }
+   ],
+   "missing": [
+    {
+     "role": "COMPONENT",
+     "label": "Verifying",
+     "at": "apps/web/app/auth/verify-email/page.tsx:307",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Verified",
+     "at": "apps/web/app/auth/verify-email/page.tsx:317",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Missing token",
+     "at": "apps/web/app/auth/verify-email/page.tsx:333",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "you@example.com",
+     "at": "apps/web/app/auth/verify-email/page.tsx:366",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Link expired",
+     "at": "apps/web/app/auth/verify-email/page.tsx:405",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Email sent",
+     "at": "apps/web/app/auth/verify-email/page.tsx:424",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Retry needed",
+     "at": "apps/web/app/auth/verify-email/page.tsx:451",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "One moment while we confirm the verification link.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:309",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Email verified",
+     "at": "apps/web/app/auth/verify-email/page.tsx:318",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your account has been successfully verified. You&rsquo;ll land in your PROOVRA workspace in a moment.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:320",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Continue to PROOVRA",
+     "at": "apps/web/app/auth/verify-email/page.tsx:324",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verification link not recognised",
+     "at": "apps/web/app/auth/verify-email/page.tsx:334",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open the verification link directly from your email. If you no longer have it, you can request a new one from the sign-in page.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:336",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Email address",
+     "at": "apps/web/app/auth/verify-email/page.tsx:364",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verification link invalid or expired",
+     "at": "apps/web/app/auth/verify-email/page.tsx:406",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This link has already been used or has expired. Enter your email and we&rsquo;ll send a fresh verification email.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:408",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Check your inbox",
+     "at": "apps/web/app/auth/verify-email/page.tsx:425",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If an account exists for that address and still needs verification, we&rsquo;ve sent a fresh link. Verification links expire after 24&nbsp;hours.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:427",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We couldn&rsquo;t send the email",
+     "at": "apps/web/app/auth/verify-email/page.tsx:452",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Please wait a moment and try again. If the issue persists, contact support.",
+     "at": "apps/web/app/auth/verify-email/page.tsx:454",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Primary",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Mobile",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Select language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Confirming your account",
+     "at": "apps/mobile/app/(stack)/verify-email.tsx:41"
+    },
+    {
+     "role": "TEXT",
+     "label": "Open the verification link on the device where you are signing in.",
+     "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 255,
+  "webClassesUnresolved": 151,
+  "webNonLiteralClass": 21,
+  "webCompetingRules": 13,
+  "webDistinctUnresolvedClasses": 97,
+  "natPropsResolved": 233,
+  "natTokenUnresolved": 74,
+  "webDistinctColors": 24,
+  "natDistinctColors": 19,
+  "sharedColors": 1,
+  "webOnlyColors": 23,
+  "webOnlyColorSample": [
+   "rgba(62, 96, 99, 0.96)",
+   "rgba(24, 43, 48, 0.98)",
+   "#eef3f1",
+   "rgba(79, 112, 107, 0.28)",
+   "rgba(20, 48, 52, 0.16)",
+   "#45656a",
+   "rgba(15, 23, 42, 0.035)",
+   "rgba(255, 255, 255, 0.28)",
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)",
+   "#f1f4f9"
+  ],
+  "sharedColorSample": [
+   "#7c3aed"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1081,
+  "natConditionals": 1057,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 55,
+  "natHandlers": 25,
+  "webHandlerSample": [
+   "onContinue=() => router.push(\"/home\") @apps/web/app/auth/verify-email/page.tsx:210",
+   "onResend=onResend @apps/web/app/auth/verify-email/page.tsx:216",
+   "onEmailChange=setResendEmail @apps/web/app/auth/verify-email/page.tsx:216",
+   "onResend=onResend @apps/web/app/auth/verify-email/page.tsx:223",
+   "onEmailChange=setResendEmail @apps/web/app/auth/verify-email/page.tsx:223",
+   "onClick=onClick @apps/web/app/auth/verify-email/page.tsx:274",
+   "onClick=onContinue @apps/web/app/auth/verify-email/page.tsx:324",
+   "onChange=(e) => onEmailChange(e.target.value) @apps/web/app/auth/verify-email/page.tsx:366",
+   "onClick=onResend @apps/web/app/auth/verify-email/page.tsx:383",
+   "onEmailChange=onEmailChange @apps/web/app/auth/verify-email/page.tsx:411",
+   "onResend=onResend @apps/web/app/auth/verify-email/page.tsx:411",
+   "onEmailChange=onEmailChange @apps/web/app/auth/verify-email/page.tsx:457",
+   "onResend=onResend @apps/web/app/auth/verify-email/page.tsx:457",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:249",
+   "onMouseEnter=() => setOpenDropdown(group.label) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onMouseLeave=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:309",
+   "onClick=() => setMobileOpen(true) @apps/web/components/marketing/MarketingHeader.tsx:376",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:389",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:401",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:419",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:436",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:459",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:466",
+   "onClick=() => setOpen((v) => !v) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "onClick=() => select(l.code) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:106",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.replace(\"/(stack)/auth\") @apps/mobile/app/(stack)/verify-email.tsx:46",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 8,
+  "natApi": 13,
+  "shared": 4,
+  "onlyWeb": 4,
+  "onlyNative": 9,
+  "onlyWebList": [
+   "/v1/evidence/claim",
+   "/v1/users/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/email/login",
+   "/v1/auth/email/register",
+   "/v1/auth/password-reset/request",
+   "/v1/auth/password-reset/confirm",
+   "/v1/auth/mfa/verify",
+   "/v1/auth/google",
+   "/v1/auth/apple",
+   "/v1/auth/logout",
+   "/v1/users/legal-status"
+  ],
+  "sharedList": [
+   "/v1/auth/email/verify",
+   "/v1/users/legal-acceptance",
+   "/v1/auth/email/resend-verification",
+   "/v1/auth/me"
+  ],
+  "webApiWhere": {
+   "/v1/auth/email/verify": "apps/web/app/auth/verify-email/page.tsx:94",
+   "/v1/users/legal-acceptance": "apps/web/app/auth/verify-email/page.tsx:113",
+   "/v1/evidence/claim": "apps/web/app/auth/verify-email/page.tsx:131",
+   "/v1/auth/email/resend-verification": "apps/web/app/auth/verify-email/page.tsx:163",
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/auth/email/login": "apps/mobile/src/auth/auth-api.ts:44",
+   "/v1/auth/email/register": "apps/mobile/src/auth/auth-api.ts:61",
+   "/v1/auth/email/verify": "apps/mobile/src/auth/auth-api.ts:69",
+   "/v1/auth/email/resend-verification": "apps/mobile/src/auth/auth-api.ts:77",
+   "/v1/auth/password-reset/request": "apps/mobile/src/auth/auth-api.ts:84",
+   "/v1/auth/password-reset/confirm": "apps/mobile/src/auth/auth-api.ts:91",
+   "/v1/auth/mfa/verify": "apps/mobile/src/auth/auth-api.ts:103",
+   "/v1/auth/google": "apps/mobile/src/auth/auth-api.ts:113",
+   "/v1/auth/apple": "apps/mobile/src/auth/auth-api.ts:117",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88",
+   "/v1/auth/logout": "apps/mobile/src/auth/auth-api.ts:129",
+   "/v1/users/legal-status": "apps/mobile/src/auth/auth-api.ts:144",
+   "/v1/users/legal-acceptance": "apps/mobile/src/auth/auth-api.ts:155"
+  }
+ }
+}

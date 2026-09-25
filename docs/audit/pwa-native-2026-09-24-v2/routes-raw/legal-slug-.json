@@ -1,0 +1,520 @@
+{
+ "route": "/legal/[slug]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/legal/[slug]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 146,
+   "elements": 306,
+   "texts": 34,
+   "distinctTexts": 31,
+   "handlers": 42,
+   "conditionals": 1130,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 258,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "next/headers",
+    "next/navigation",
+    "next/link",
+    "react",
+    "lucide-react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 139,
+   "elements": 177,
+   "texts": 19,
+   "distinctTexts": 15,
+   "handlers": 37,
+   "conditionals": 1033,
+   "apiPaths": 2,
+   "distinctApi": 2,
+   "styleRefs": 217,
+   "stylesheetRules": 83,
+   "themeTokens": 269,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 34,
+  "natLabelled": 18,
+  "paired": 2,
+  "roleDiff": 0,
+  "missing": 32,
+  "extraInNative": 14,
+  "webUnlabelled": 293,
+  "missingWithRolePresent": 31,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "←",
+     "at": "apps/web/app/legal/[slug]/page.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Back to Trust Center",
+     "at": "apps/web/app/legal/[slug]/page.tsx:78",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/legal/legal-content.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/legal/legal-content.tsx:204",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Primary",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Mobile",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Select language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "©",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". All rights reserved.",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Privacy Policy",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Terms of Service",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Security",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust Center",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:108"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading document",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:117"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Browse legal documents",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:134"
+    },
+    {
+     "role": "TEXT",
+     "label": "No such document",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:128"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Legal",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:59"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:64"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading documents",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:73"
+    },
+    {
+     "role": "TEXT",
+     "label": "Acceptance",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:93"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 279,
+  "webClassesUnresolved": 279,
+  "webNonLiteralClass": 24,
+  "webCompetingRules": 12,
+  "webDistinctUnresolvedClasses": 155,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 81,
+  "webDistinctColors": 20,
+  "natDistinctColors": 20,
+  "sharedColors": 3,
+  "webOnlyColors": 17,
+  "webOnlyColorSample": [
+   "#e2e8f0",
+   "rgba(15, 23, 42, 0.04)",
+   "#cbd5e1",
+   "rgba(15, 23, 42, 0.035)",
+   "rgba(255, 255, 255, 0.28)",
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)"
+  ],
+  "sharedColorSample": [
+   "#ffffff",
+   "#7c3aed",
+   "#f1f4f9"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1130,
+  "natConditionals": 1033,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 42,
+  "natHandlers": 37,
+  "webHandlerSample": [
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:249",
+   "onMouseEnter=() => setOpenDropdown(group.label) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onMouseLeave=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:309",
+   "onClick=() => setMobileOpen(true) @apps/web/components/marketing/MarketingHeader.tsx:376",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:389",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:401",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:419",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:436",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:459",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:466",
+   "onClick=() => setOpen((v) => !v) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "onClick=() => select(l.code) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:106",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/legal/[slug].tsx:108",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/legal/[slug].tsx:120",
+   "onPress=() => router.replace(\"/legal\") @apps/mobile/app/(stack)/legal/[slug].tsx:134",
+   "onInternalLink=followInternalLink @apps/mobile/app/(stack)/legal/[slug].tsx:149",
+   "onPress=() => { if (span.external) { void Linking.openURL(span.href) @apps/mobile/src/ui/legal-document.tsx:59",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:113",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:158",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:202",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:211",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:220",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/legal/index.tsx:64",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/legal/index.tsx:76",
+   "onPress=() => router.push(`/legal/${doc.slug}`) @apps/mobile/app/(stack)/legal/index.tsx:85"
+  ]
+ },
+ "level8": {
+  "webApi": 4,
+  "natApi": 2,
+  "shared": 0,
+  "onlyWeb": 4,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/users/me",
+   "/v1/auth/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/legal",
+   "/v1/legal/${…}"
+  ],
+  "sharedList": [],
+  "webApiWhere": {
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/legal": "apps/mobile/src/product/legal.ts:43",
+   "/v1/legal/${…}": "apps/mobile/src/product/legal.ts:47"
+  }
+ }
+}

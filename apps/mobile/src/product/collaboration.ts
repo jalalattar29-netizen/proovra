@@ -19,8 +19,13 @@ export interface CollaborationTeamRow {
   memberCount?: number | null;
   pendingInviteCount?: number | null;
   openAssignmentCount?: number | null;
+  overdueAssignmentCount?: number | null;
+  highPriorityAssignmentCount?: number | null;
   viewerRole?: string | null;
   status?: string | null;
+  /** T-12 — needed by the type filter and the activity sort. */
+  teamType?: string | null;
+  lastActivityAt?: string | null;
 }
 
 function num(v: unknown): number {
@@ -39,13 +44,62 @@ export function parseCollaborationNextCursor(data: unknown): string | null {
   return typeof d["nextCursor"] === "string" ? (d["nextCursor"] as string) : null;
 }
 
-/** "3 members · 1 pending invite" — omits the pending clause when zero. */
+/**
+ * "3 members · 5 open · 2 overdue · 1 high" — the web table's Members / Open
+ * work / Overdue / High-urgent columns, as clauses that appear only when
+ * non-zero (a phone row has no columns to leave blank).
+ *
+ * "Pending invites" is NOT a clause any more: the web dropped that column
+ * (collaboration-teams/page.tsx:906) because it counted RETIRED
+ * CollaborationTeamInvite rows — structurally zero since the writer was
+ * removed, and misread as workspace invitations otherwise.
+ */
 export function collaborationTeamSubtitle(row: CollaborationTeamRow): string {
   const members = num(row.memberCount);
-  const pending = num(row.pendingInviteCount);
+  const open = num(row.openAssignmentCount);
+  const overdue = num(row.overdueAssignmentCount);
+  const high = num(row.highPriorityAssignmentCount);
   const parts = [`${members} member${members === 1 ? "" : "s"}`];
-  if (pending > 0) parts.push(`${pending} pending invite${pending === 1 ? "" : "s"}`);
+  if (open > 0) parts.push(`${open} open`);
+  if (overdue > 0) parts.push(`${overdue} overdue`);
+  if (high > 0) parts.push(`${high} high`);
   return parts.join(" · ");
+}
+
+/**
+ * The workspace ROLLUP band (collaboration-teams/page.tsx:492): present only on
+ * a workspace-scoped response; a participation-scoped one carries null and the
+ * band is hidden. Every number is the server's.
+ */
+export interface CollaborationRollupCard {
+  key: "open" | "unassigned" | "attention" | "people";
+  label: string;
+  value: number;
+  meta: string;
+  tone: "info" | "governance" | "pending" | "risk";
+}
+export function parseCollaborationRollup(data: unknown): CollaborationRollupCard[] | null {
+  const raw = o(data)["rollup"];
+  if (!raw || typeof raw !== "object") return null;
+  const groups = o(o(data)["rollup"])["groups"] as Record<string, unknown> | undefined ?? {};
+  const work = o(o(o(data)["rollup"])["work"]);
+  const load = o(o(o(data)["rollup"])["workload"]);
+  const busiest = load["busiest"] ? o(load["busiest"]) : null;
+  const g = o(groups);
+  const active = num(g["active"]);
+  const overdue = num(work["overdue"]);
+  return [
+    { key: "open", label: "Open work", value: num(work["open"]), meta: `across ${num(g["withOpenWork"])} of ${active} ${active === 1 ? "Team" : "Teams"}`, tone: "info" },
+    { key: "unassigned", label: "Unassigned", value: num(work["unassigned"]), meta: "held by a Team, not by a person", tone: "governance" },
+    { key: "attention", label: "Needs attention", value: num(work["attention"]), meta: `${overdue} overdue · ${num(work["highPriority"])} high priority`, tone: overdue > 0 ? "risk" : "pending" },
+    {
+      key: "people",
+      label: "People carrying work",
+      value: num(load["people"]),
+      meta: busiest ? `heaviest load ${num(busiest["open"])} open` : "nothing assigned to an individual",
+      tone: "info",
+    },
+  ];
 }
 
 /** Human role label for the viewer's role chip, or null when they have none. */
@@ -57,10 +111,14 @@ export function collaborationRoleLabel(role: string | null | undefined): string 
 
 export interface CollaborationMember {
   id: string;
+  /** The PERSON — what an assignment names as its assignee. */
+  userId: string | null;
   role: string;
   status: string;
   displayName: string;
   email: string | null;
+  /** `joinedAt` (collaboration-team.service.ts:1073 / :2496). */
+  joinedAtIso?: string | null;
 }
 
 export interface CollaborationInvite {
@@ -80,6 +138,18 @@ export interface CollaborationTeamDetail {
   pendingInviteCount: number;
   members: CollaborationMember[];
   invites: CollaborationInvite[];
+  /**
+   * The team's template. It was never read, so the Settings form started from
+   * "GENERAL" and saving a rename silently re-typed every non-GENERAL team.
+   */
+  teamType: string;
+  updatedAtIso: string | null;
+  /** How many members the detail embeds; above it the roster is paged (web MembersTab :308). */
+  memberPreviewLimit: number;
+  /** Open work the team holds (`assignmentCount`), the Work tab's count. */
+  assignmentCount: number;
+  /** True when the viewer is here as a workspace governor, not a member (top-level on the reply). */
+  viaWorkspaceGovernance: boolean;
 }
 
 function o(v: unknown): Record<string, unknown> {
@@ -106,10 +176,16 @@ export function parseCollaborationTeamDetail(data: unknown): CollaborationTeamDe
     const user = o(m["user"]);
     members.push({
       id: mid,
+      userId: s(m["userId"]),
       role: s(m["role"]) ?? "",
       status: s(m["status"]) ?? "",
-      displayName: s(user["displayName"]) ?? s(user["email"]) ?? "Member",
+      displayName:
+        s(user["displayName"]) ??
+        ([s(user["firstName"]), s(user["lastName"])].filter(Boolean).join(" ") || null) ??
+        s(user["email"]) ??
+        "Member",
       email: s(user["email"]),
+      joinedAtIso: s(m["joinedAt"]),
     });
   }
   const invites: CollaborationInvite[] = [];
@@ -134,6 +210,11 @@ export function parseCollaborationTeamDetail(data: unknown): CollaborationTeamDe
     pendingInviteCount: nOr0(team["pendingInviteCount"]),
     members,
     invites,
+    teamType: s(team["teamType"]) ?? "GENERAL",
+    updatedAtIso: s(team["updatedAt"]),
+    memberPreviewLimit: nOr0(team["memberPreviewLimit"]) || 25,
+    assignmentCount: nOr0(team["assignmentCount"]),
+    viaWorkspaceGovernance: o(data)["viaWorkspaceGovernance"] === true,
   };
 }
 
@@ -158,6 +239,85 @@ export const COLLABORATION_ENTITLEMENT_PATH = "/v1/collaboration-teams/entitleme
 
 export const COLLABORATION_TEAMS_PATH = "/v1/collaboration-teams";
 
+/* ------------------------------------------------ list filters (T-12) */
+
+/**
+ * The web list's four filters (collaboration-teams/page.tsx:699-766). SCOPE and
+ * ARCHIVED go to the server (`scope=all` is granted only to governors; the
+ * server says which view came back); status, type and sort apply to the page
+ * in hand, exactly as the web applies them.
+ */
+export type TeamsScope = "PARTICIPATING" | "ALL";
+export type TeamsStatusFilter = "ALL" | "ACTIVE" | "ARCHIVED";
+export type TeamsSort = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC" | "MEMBERS_DESC";
+
+export const TEAMS_SCOPE_OPTIONS: ReadonlyArray<{ value: TeamsScope; label: string }> = [
+  { value: "ALL", label: "All workspace teams" },
+  { value: "PARTICIPATING", label: "My teams" },
+];
+export const TEAMS_STATUS_OPTIONS: ReadonlyArray<{ value: TeamsStatusFilter; label: string }> = [
+  { value: "ALL", label: "All statuses" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "ARCHIVED", label: "Archived" },
+];
+export const TEAM_TYPE_LABELS: Readonly<Record<string, string>> = {
+  GENERAL: "General",
+  INVESTIGATION: "Investigation",
+  LEGAL: "Legal",
+  REVIEW: "Review",
+  COMPLIANCE: "Compliance",
+};
+export const TEAMS_SORT_OPTIONS: ReadonlyArray<{ value: TeamsSort; label: string }> = [
+  { value: "ACTIVITY_DESC", label: "Last activity (newest)" },
+  { value: "ACTIVITY_ASC", label: "Last activity (oldest)" },
+  { value: "NAME_ASC", label: "Name (A–Z)" },
+  { value: "MEMBERS_DESC", label: "Most members" },
+];
+
+export function buildCollaborationTeamsPath(opts: {
+  scope?: TeamsScope;
+  includeArchived?: boolean;
+  q?: string | null;
+  cursor?: string | null;
+  limit?: number;
+}): string {
+  const qs = new URLSearchParams();
+  if (opts.scope === "ALL") qs.set("scope", "all");
+  if (opts.includeArchived) qs.set("includeArchived", "true");
+  if (opts.q && opts.q.trim()) qs.set("q", opts.q.trim());
+  if (opts.cursor) qs.set("cursor", opts.cursor);
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const suffix = qs.toString();
+  return suffix ? `/v1/collaboration-teams?${suffix}` : "/v1/collaboration-teams";
+}
+
+/** Does the response grant the workspace-wide view? (`canGovernWorkspace`). */
+export function parseCanGovernWorkspace(data: unknown): boolean {
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  return d["canGovernWorkspace"] === true;
+}
+
+/** Status + type filter and sort over the page in hand (the web's visibleTeams). */
+export function visibleTeams(
+  teams: readonly CollaborationTeamRow[],
+  f: { status: TeamsStatusFilter; type: string; sort: TeamsSort },
+): CollaborationTeamRow[] {
+  const at = (t: CollaborationTeamRow) => (t.lastActivityAt ? Date.parse(t.lastActivityAt) || 0 : 0);
+  const out = teams.filter(
+    (t) => (f.status === "ALL" || t.status === f.status) && (f.type === "ALL" || t.teamType === f.type),
+  );
+  switch (f.sort) {
+    case "ACTIVITY_ASC":
+      return out.sort((a, b) => at(a) - at(b));
+    case "NAME_ASC":
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    case "MEMBERS_DESC":
+      return out.sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0));
+    default:
+      return out.sort((a, b) => at(b) - at(a));
+  }
+}
+
 // The team types were a hand copy of the shared tuple, with nothing able to
 // catch a drift. They are generated now, from the same source the API enum is
 // built from. Re-exported so every existing import keeps working.
@@ -172,11 +332,21 @@ export interface CollaborationEntitlement {
   exceededDimensions: string[];
   /** True when the plan does not include collaboration at all. */
   planLocked: boolean;
+  /** The workspace plan the limit belongs to (web PlanLimitBadge planLabel). */
+  plan: string | null;
+  /**
+   * WCR-12 — a restriction is not a lock. A downgraded or lapsed workspace
+   * keeps its groups READABLE and loses growth (`mutationsAllowed`,
+   * collaboration-entitlement.service.ts:226). Absent means allowed.
+   */
+  mutationsAllowed: boolean;
 }
 
 export function parseCollaborationEntitlement(payload: unknown): CollaborationEntitlement {
   const e = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
-  const teams = (e.teams && typeof e.teams === "object" ? e.teams : {}) as Record<string, unknown>;
+  // The server names the group allowance `collaborationTeams` (collaboration-entitlement.service.ts).
+  // This read `teams`, which is never sent, so used/limit were always unknown.
+  const teams = (e.collaborationTeams && typeof e.collaborationTeams === "object" ? e.collaborationTeams : {}) as Record<string, unknown>;
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
   const exceeded = Array.isArray(e.exceededDimensions)
@@ -191,8 +361,57 @@ export function parseCollaborationEntitlement(payload: unknown): CollaborationEn
     exceededDimensions: exceeded,
     // A plan that does not include collaboration publishes no limit at all,
     // which is different from a limit that has been reached.
-    planLocked: e.planLocked === true,
+    // The server says `featureIncluded` (limit > 0); `planLocked` was never sent.
+    planLocked: e.featureIncluded === false,
+    plan: typeof e.plan === "string" && e.plan.length > 0 ? e.plan : null,
+    mutationsAllowed: e.mutationsAllowed !== false,
   };
+}
+
+/** The web's single plan-locked sentence (lib/feedback/team-entitlement-copy.ts:19). */
+export const TEAMS_PLAN_LOCKED_COPY = "Teams are available on Pro, Team, and Enterprise plans.";
+
+/**
+ * The web's TEAM_LIMIT_REACHED message from the refusal's `details`
+ * (`limit` + `plan`), or null when no usable limit was sent — numbers are
+ * never fabricated (team-entitlement-copy.ts:28).
+ */
+export function formatTeamLimitReachedMessage(details: unknown): string | null {
+  const d = (details && typeof details === "object" ? details : {}) as Record<string, unknown>;
+  const limit = typeof d.limit === "number" && Number.isFinite(d.limit) ? d.limit : null;
+  if (limit === null) return null;
+  const raw = typeof d.plan === "string" ? d.plan.trim() : "";
+  const plan = raw ? `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()} plan` : "plan";
+  return `Your ${plan} includes up to ${limit} Team${limit === 1 ? "" : "s"}. Upgrade to create another Team.`;
+}
+
+/** The web's template hints (collaboration-teams/page.tsx:1626). */
+export function teamTypeHint(t: string): string {
+  switch (t) {
+    case "GENERAL":
+      return "Flexible team for any work";
+    case "INVESTIGATION":
+      return "Reconstruction & timeline work";
+    case "LEGAL":
+      return "Matter & disclosure";
+    case "REVIEW":
+      return "Reviewer ops & QC";
+    case "COMPLIANCE":
+      return "Governance & audit";
+    default:
+      return "";
+  }
+}
+
+/** POST /v1/collaboration-teams → 201 { team: { id } } (collaboration-teams.routes.ts:497). */
+export function parseCreatedTeamId(payload: unknown): string | null {
+  const team = o(o(payload)["team"]);
+  return typeof team["id"] === "string" && team["id"] ? (team["id"] as string) : null;
+}
+
+/** The GRANTED list scope (`scope` on GET /v1/collaboration-teams, collaboration-team.service.ts:751). */
+export function parseGrantedScope(data: unknown): TeamsScope {
+  return o(data)["scope"] === "ALL" ? "ALL" : "PARTICIPATING";
 }
 
 /**
@@ -206,16 +425,20 @@ export function createDisabledReason(
   entitlement: CollaborationEntitlement,
 ): string | null {
   if (entitlement.canCreate) return null;
-  if (entitlement.planLocked) return "Collaboration groups are not included in this plan.";
-  if (entitlement.exceededDimensions.includes("COLLABORATION_TEAMS")) {
-    return entitlement.teamsLimit === null
-      ? "This workspace has reached its collaboration group limit."
-      : `This workspace is using all ${entitlement.teamsLimit} of its collaboration groups.`;
+  // The web's three states (collaboration-teams/page.tsx:197) — locked,
+  // restricted, at capacity — send a customer to different places.
+  if (entitlement.planLocked) return TEAMS_PLAN_LOCKED_COPY;
+  if (!entitlement.mutationsAllowed) {
+    return "This workspace's billing needs attention before new Teams can be created.";
   }
   if (entitlement.exceededDimensions.includes("WORKSPACE_SEATS")) {
     return "This workspace is over its seat allowance.";
   }
-  return "Creating a collaboration group is not available here.";
+  if (entitlement.teamsLimit !== null) {
+    const max = entitlement.teamsLimit;
+    return `Your ${entitlement.plan ? `${entitlement.plan} ` : ""}plan allows up to ${max} active Team${max === 1 ? "" : "s"}. Upgrade to add more.`;
+  }
+  return "Creating a Team is not available here.";
 }
 
 export function isValidTeamName(name: string): boolean {
@@ -548,14 +771,30 @@ export interface TeamDisposability {
   blockers: string[];
 }
 
+const BLOCKER_NOUN: Readonly<Record<string, [string, string]>> = {
+  assignments: ["assignment", "assignments"],
+  discussion: ["discussion comment", "discussion comments"],
+  accessReviews: ["access review", "access reviews"],
+  guests: ["guest", "guests"],
+  activity: ["activity entry", "activity entries"],
+};
+function blockerSentence(kind: string | null, count: unknown): string | null {
+  if (!kind || typeof count !== "number" || count <= 0) return null;
+  const noun = BLOCKER_NOUN[kind];
+  return noun ? `${count} ${count === 1 ? noun[0] : noun[1]}` : `${count} ${kind}`;
+}
+
 export function parseTeamDisposability(payload: unknown): TeamDisposability {
   const d = obj(obj(payload).disposition ?? payload);
   return {
     // Absent means NOT disposable. A default of "yes" on a permanent delete
     // would be the client deciding a destructive question the server owns.
     disposable: d.disposable === true,
+    // Each blocker is `{ kind, count }` (collaboration-team.service.ts). Read as a
+    // string or `.message`, every one was dropped, so the "cannot be deleted"
+    // card never showed and the reason was never given.
     blockers: rows(d.blockers)
-      .map((b) => (typeof b === "string" ? b : str(obj(b).message) ?? str(obj(b).code)))
+      .map((b) => (typeof b === "string" ? b : blockerSentence(str(obj(b).kind), obj(b).count) ?? str(obj(b).message) ?? str(obj(b).code)))
       .filter((b): b is string => b !== null),
   };
 }
@@ -617,4 +856,227 @@ export function teamActivityLabel(eventType: string): string {
 /** Only a LEAD administers the group; the web gates the whole tab on it. */
 export function canAdministerTeam(role: string | null | undefined): boolean {
   return (role ?? "").toUpperCase() === "LEAD";
+}
+
+// ---------------------------------------------------------------------------
+// Add existing workspace members to a group (T-12 — MembersTab.tsx:765-1066)
+// ---------------------------------------------------------------------------
+
+/** `collaborationTeamMembers.limit` from the entitlement envelope, or null when unknown. */
+export function parseTeamMemberLimit(payload: unknown): number | null {
+  const m = o(o(payload)["collaborationTeamMembers"]);
+  const limit = m["limit"];
+  return typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? limit : null;
+}
+
+/** The web's `atCapacity`: only when the limit is KNOWN — an unknown limit never blocks. */
+export function teamAtCapacity(activeMemberCount: number, limit: number | null): boolean {
+  return limit !== null && activeMemberCount >= limit;
+}
+
+export function buildEligibleMembersPath(teamId: string, q: string, limit = 25): string {
+  return `/v1/collaboration-teams/${encodeURIComponent(teamId)}/eligible-members?limit=${limit}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}`;
+}
+
+export interface EligibleMember {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  workspaceRole: string;
+}
+
+export function parseEligibleMembers(payload: unknown): EligibleMember[] {
+  const out: EligibleMember[] = [];
+  const list = o(payload)["members"];
+  for (const raw of Array.isArray(list) ? list : []) {
+    const m = o(raw);
+    const userId = s(m["userId"]);
+    if (!userId) continue;
+    out.push({
+      userId,
+      displayName: s(m["displayName"]) ?? s(m["email"]) ?? "Unnamed member",
+      email: s(m["email"]),
+      workspaceRole: s(m["workspaceRole"]) ?? "",
+    });
+  }
+  return out;
+}
+
+export function buildTeamMembersAddPath(teamId: string): string {
+  return `/v1/collaboration-teams/${encodeURIComponent(teamId)}/members`;
+}
+export function buildTeamMembersBulkPath(teamId: string): string {
+  return `/v1/collaboration-teams/${encodeURIComponent(teamId)}/members/bulk`;
+}
+
+export interface BulkAddResult {
+  added: string[];
+  failed: Array<{ userId: string; reason: string }>;
+}
+export function parseBulkAddResult(payload: unknown): BulkAddResult {
+  const d = o(payload);
+  const added = Array.isArray(d["added"]) ? (d["added"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const failed: BulkAddResult["failed"] = [];
+  for (const raw of Array.isArray(d["failed"]) ? (d["failed"] as unknown[]) : []) {
+    const f = o(raw);
+    const userId = s(f["userId"]);
+    if (userId) failed.push({ userId, reason: s(f["reason"]) ?? "add_failed" });
+  }
+  return { added, failed };
+}
+
+/**
+ * The web's outcome copy. Partial success is REPORTED, not rounded: both the
+ * people who were added and the people who were not are facts the operator
+ * needs, and the failures stay selected so they can see who did not make it.
+ */
+export function bulkAddOutcome(r: BulkAddResult): { message: string; tone: "success" | "info" | "error"; close: boolean } {
+  if (r.failed.length === 0) return { message: `Added ${r.added.length} people to this team.`, tone: "success", close: true };
+  return {
+    message: `Added ${r.added.length}. ${r.failed.length} could not be added — the team may be at its member limit.`,
+    tone: r.added.length > 0 ? "info" : "error",
+    close: false,
+  };
+}
+
+export function addSubmitLabel(selected: number): string {
+  return selected > 1 ? `Add ${selected} to team` : "Add to team";
+}
+
+// ---------------------------------------------------------------------------
+// GROUP DISCUSSION — /v1/collaboration-teams/:teamId/comments (web DiscussionTab).
+//
+// THE DEFECT THIS REPLACES: the native group screen mounted the EVIDENCE-anchored
+// thread system (/v1/collaboration/threads?teamId=…) with a collaboration-group
+// id. Those routes authorise a WORKSPACE membership, so the list always answered
+// 404 (rendered "open to reviewers") and messages were fetched without the
+// required teamId. A group conversation is the comments system, as on the web.
+// ---------------------------------------------------------------------------
+export function buildTeamCommentsPath(teamId: string): string {
+  return `${buildCollaborationTeamPath(teamId)}/comments`;
+}
+export function buildTeamCommentPath(teamId: string, commentId: string): string {
+  return `${buildTeamCommentsPath(teamId)}/${encodeURIComponent(commentId)}`;
+}
+
+export interface TeamComment {
+  id: string;
+  authorUserId: string;
+  body: string;
+  edited: boolean;
+  createdAt: string | null;
+}
+export interface TeamCommentPage {
+  items: TeamComment[];
+  /** authorUserId → display name, from the server's own directory. */
+  names: Record<string, string>;
+}
+
+export function parseTeamComments(payload: unknown): TeamCommentPage {
+  const d = o(payload);
+  const items: TeamComment[] = [];
+  for (const raw of Array.isArray(d["items"]) ? (d["items"] as unknown[]) : []) {
+    const c = o(raw);
+    const id = s(c["id"]);
+    const author = s(c["authorUserId"]);
+    if (!id || !author) continue;
+    items.push({ id, authorUserId: author, body: typeof c["body"] === "string" ? (c["body"] as string) : "", edited: c["status"] === "EDITED", createdAt: s(c["createdAt"]) });
+  }
+  const names: Record<string, string> = {};
+  const dir = o(d["directory"]);
+  for (const key of Object.keys(dir)) {
+    const name = s(o(dir[key])["displayName"]);
+    if (name) names[key] = name;
+  }
+  return { items, names };
+}
+
+/** The server's comment-moderation authority and whether the viewer is here only by workspace governance. */
+export function parseTeamDiscussionAccess(data: unknown): { canModerate: boolean; viaWorkspaceGovernance: boolean } {
+  const env = o(data);
+  return {
+    canModerate: o(o(env["team"])["viewerCapabilities"])["canModerateComments"] === true,
+    viaWorkspaceGovernance: env["viaWorkspaceGovernance"] === true,
+  };
+}
+
+export const TEAM_COMMENT_MAX = 4000;
+export const TEAM_DISCUSSION_COPY = {
+  title: "Discussion",
+  visibility: "Comments are visible to active team members only. Mention teammates with @name.",
+  placeholder: "Write a comment for the team…",
+  post: "Post comment",
+  posting: "Posting…",
+  empty: "No comments yet",
+  emptyBody: "Start the conversation with your team.",
+  governanceTitle: "Discussion is for members of this team",
+  governanceBody: "You are viewing this team as a workspace administrator. Joining the team is what grants a place in its conversation.",
+  unknownAuthor: "Team member",
+  updated: "Comment updated.",
+  deleted: "Comment deleted.",
+  loadFailed: "The team's comments could not be loaded.",
+} as const;
+
+// ---------------------------------------------------------------------------
+// CREATE ASSIGNMENT (T-14 — web CreateAssignmentModal.tsx)
+//   GET  /v1/collaboration-teams/:id/assignable-targets?type=&q=  → { targets[] }
+//   POST /v1/collaboration-teams/:id/assignments
+//        { targetType, targetId, assigneeUserId|null, priority, dueAtUtc|null, note|null }
+// ---------------------------------------------------------------------------
+export type AssignmentTargetType = "CASE" | "EVIDENCE" | "REVIEW";
+export type AssignmentPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export const ASSIGNMENT_TARGET_OPTIONS: ReadonlyArray<{ value: AssignmentTargetType; label: string }> = [
+  { value: "CASE", label: "Case" },
+  { value: "EVIDENCE", label: "Evidence" },
+  { value: "REVIEW", label: "Evidence review" },
+];
+export const ASSIGNMENT_PRIORITY_OPTIONS: ReadonlyArray<{ value: AssignmentPriority; label: string }> = [
+  { value: "LOW", label: "Low" },
+  { value: "NORMAL", label: "Normal" },
+  { value: "HIGH", label: "High" },
+  { value: "URGENT", label: "Urgent" },
+];
+export const ASSIGNEE_TEAM_LEVEL_LABEL = "Team-level (no specific assignee)";
+
+export function buildAssignableTargetsPath(teamId: string, type: AssignmentTargetType, search: string): string {
+  const q = search.trim();
+  return `${buildCollaborationTeamPath(teamId)}/assignable-targets?type=${type}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+}
+export function buildCreateAssignmentPath(teamId: string): string {
+  return `${buildCollaborationTeamPath(teamId)}/assignments`;
+}
+
+export interface AssignableTarget {
+  id: string;
+  label: string;
+  sublabel: string | null;
+}
+export function parseAssignableTargets(payload: unknown): AssignableTarget[] {
+  const list = o(payload)["targets"];
+  const out: AssignableTarget[] = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    const x = o(raw);
+    const id = s(x["id"]);
+    if (!id) continue;
+    out.push({ id, label: s(x["label"]) ?? id.slice(0, 8), sublabel: s(x["sublabel"]) });
+  }
+  return out;
+}
+
+export function buildCreateAssignmentBody(input: {
+  targetType: AssignmentTargetType;
+  targetId: string;
+  assigneeUserId: string | null;
+  priority: AssignmentPriority;
+  dueAtUtc: string | null;
+  note: string;
+}) {
+  return {
+    targetType: input.targetType,
+    targetId: input.targetId,
+    assigneeUserId: input.assigneeUserId || null,
+    priority: input.priority,
+    dueAtUtc: input.dueAtUtc,
+    note: input.note.trim() ? input.note.trim() : null,
+  };
 }

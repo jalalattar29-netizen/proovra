@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**79 bindings — OK 79, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**170 bindings — OK 170, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -32,85 +32,176 @@ top level of it.
 
 | Verdict | Parser | Route | Route sends | Parser reads |
 |---|---|---|---|---|
+| OK | `parseTenantAuditPage` | `GET /v1/audit/tenant` | items, nextCursorId | items, nextCursorId |
 | OK | `parseSessionProbe` | `GET /v1/auth/session-light` | authenticated | authenticated |
 | OK | `parseBatchJobs` | `GET /v1/batch-analysis` | data | data |
+| OK | `parseBillingAccounts` | `GET /v1/billing/accounts` | accounts | accounts |
+| OK | `parseBillingProjection` | `GET /v1/billing/accounts/:type/:id` | <SPREAD>, account, actionRequired, actions, collaboration, plan, usage | account, actionRequired, actions, collaboration, contract, dependentStorageCancellation,… |
 | OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | count, items | items |
-| OK | `parseBillingOverview` | `GET /v1/billing/overview` | entitlement, storageAddons, summary, workspaces | summary, workspaces |
+| OK | `parseBillingOverview` | `GET /v1/billing/overview` | entitlement, storageAddons, summary, workspaces | storageAddons, summary, workspaces |
 | OK | `parsePricingCatalogue` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | currency, enterprise |
 | OK | `parseStorageAddons` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | storageAddons |
 | OK | `parseEvidenceCreditOffer` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | payg |
 | OK | `parseIntakeTemplates` | `GET /v1/capture/intake-templates` | templates | templates |
+| OK | `parseEligibleCases` | `GET /v1/cases` | items | items |
 | OK | `parseWorkspaceCases` | `GET /v1/cases` | items | items |
+| OK | `parseAttachCandidates` | `GET /v1/cases/:id/available-evidence` | items | items |
+| OK | `parseCaseEvidenceRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseNotes` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseAssignments` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | assignments |
-| OK | `parseCaseViewer` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | disabledReasons, viewer |
-| OK | `parseCasesSummary` | `GET /v1/cases/summary` | generatedAt, sections, workspace | data, sections, status |
+| OK | `parseCaseViewer` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | disabledReasons, userId, viewer |
+| OK | `parseCaseDeliverableRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
+| OK | `parseCaseCopilotEvidence` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
+| OK | `parseMatterQueue` | `GET /v1/cases/matter-queue` | generatedAt, items, total, workspace | generatedAt, items, total |
 | OK | `parseCollaborationTeams` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | teams |
+| OK | `parseCanGovernWorkspace` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | canGovernWorkspace |
+| OK | `parseGrantedScope` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | scope |
+| OK | `parseCollaborationRollup` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | active, attention, busiest, highPriority, open, overdue, people, rollup, unassigned, wit… |
 | OK | `parseCollaborationNextCursor` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | nextCursor |
-| OK | `parseCollaborationTeamDetail` | `GET /v1/collaboration-teams/:teamId` | team, viaWorkspaceGovernance | activeMemberCount, description, id, invites, members, name, pendingInviteCount, status, … |
+| OK | `parseCollaborationTeamDetail` | `GET /v1/collaboration-teams/:teamId` | team, viaWorkspaceGovernance | activeMemberCount, assignmentCount, description, id, invites, memberPreviewLimit, member… |
+| OK | `parseTeamDiscussionAccess` | `GET /v1/collaboration-teams/:teamId` | team, viaWorkspaceGovernance | team, viaWorkspaceGovernance |
 | OK | `parseTeamActivity` | `GET /v1/collaboration-teams/:teamId/activity` | items, nextCursor | items, nextCursor |
+| OK | `parseAssignableTargets` | `GET /v1/collaboration-teams/:teamId/assignable-targets` | targets | targets |
 | OK | `parseAssignmentPage` | `GET /v1/collaboration-teams/:teamId/assignments` | assignments, nextCursor, total | assignments, nextCursor, total |
+| OK | `parseTeamComments` | `GET /v1/collaboration-teams/:teamId/comments` | directory, items | directory, items |
 | OK | `parseTeamDisposability` | `GET /v1/collaboration-teams/:teamId/disposability` | disposition | blockers, disposable, disposition |
-| OK | `parseCollaborationEntitlement` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | canCreateCollaborationTeam, canInviteWorkspaceMember, exceededDimensions, planLocked, te… |
-| OK | `parseDiscussionThreads` | `GET /v1/collaboration/threads` | threads | threads |
-| OK | `parseDiscussionMessages` | `GET /v1/collaboration/threads/:id/messages` | messages | messages |
+| OK | `parseEligibleMembers` | `GET /v1/collaboration-teams/:teamId/eligible-members` | members, nextCursor | members |
+| OK | `parseResponsibilityMembers` | `GET /v1/collaboration-teams/:teamId/members` | members, nextCursor, totalActive | members |
+| OK | `parseTeamMemberLimit` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | collaborationTeamMembers, limit |
+| OK | `parseCollaborationEntitlement` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | canCreateCollaborationTeam, canInviteWorkspaceMember, collaborationTeams, exceededDimens… |
+| OK | `parseTeamResponsibility` | `GET /v1/collaboration-teams/responsibility` | assignments | assignments |
+| OK | `parseCatalogThreadKinds` | `GET /v1/collaboration/catalogs` | participantRoles, threadKinds, threadStatuses, threadVisibilities | threadKinds |
+| OK | `parseEvidenceThreads` | `GET /v1/collaboration/threads` | threads | threads |
+| OK | `parseThreadDetail` | `GET /v1/collaboration/threads/:id` | escalationReason, resolutionNote, thread | escalationReason, resolutionNote, thread |
+| OK | `parseEvidenceThreadMessages` | `GET /v1/collaboration/threads/:id/messages` | messages | messages |
+| OK | `parseDeliveryMessages` | `GET /v1/communications/messages` | messages | messages |
 | OK | `parseEvidencePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
 | OK | `parseEvidenceRequestList` | `GET /v1/evidence-requests` | requests | map, requests |
-| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | deliverables, instructions, priority, recipientLabel, request, responses |
+| OK | `parseLinkedRequests` | `GET /v1/evidence-requests` | requests | requests |
+| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | assignedReviewerUserId, deliverables, instructions, priority, recipientLabel, recipientM… |
 | OK | `parseRequestDeliveries` | `GET /v1/evidence-requests/:id/deliveries` | deliveries | deliveries, items, map |
 | OK | `parseRequestEvents` | `GET /v1/evidence-requests/:id/events` | events | events, items, map |
 | OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId | evidenceId, keyframeBytesUrls, projection, status |
+| OK | `parseMediaIntelligence` | `GET /v1/evidence/:evidenceId/media-intelligence` | catalog, evidenceId, latestRun, signals | catalog, latestRun, signals |
 | OK | `parseEvidenceLifecycle` | `GET /v1/evidence/:id` | evidence | evidence, lifecycle |
+| OK | `parseAiCategorization` | `GET /v1/evidence/:id/ai-categorization` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
 | OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | items | items |
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
+| OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
 | OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, evidenceId, key, kind, lastAccessedAtUtc, lastAcc… | publicUrl, url |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | bucket, evidenceId, generatedAtUtc, key, reviewerSnapshot, snapshots, storage, url, vers… | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
-| OK | `parseSavedViews` | `GET /v1/evidence/saved-views` | items | items |
+| OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, evidenceId, generatedAtUtc, key, message, packageType, state, storage, tru… | url |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, request, session | link, request, session |
+| OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
+| OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |
+| OK | `parseRecoveryDetail` | `GET /v1/identity/mfa-admin/recovery-requests/detail/:requestId` | detail, error | detail, emailResendCount, emailVerified, expiresAt, id, status |
 | OK | `parseLegalIndex` | `GET /v1/legal` | documents, locale | documents |
 | OK | `parseLegalDocument` | `GET /v1/legal/:slug` | <SPREAD>, acceptance | acceptance, content, lastUpdated, locale, slug, title |
+| OK | `parseInboxEnvelope` | `GET /v1/me/inbox` | anyTruncated, caller, completeness, degraded, degradedSources, generatedAt, historyAvail… | anyTruncated, completeness, historyAvailable, items, metricSummary, pagination, scopeSum… |
 | OK | `parsePreferences` | `GET /v1/me/notification-preferences` | canManageOrgPolicy, catalog, emailLockedTypes, isPersonalWorkspace, lockedTypes, minimum… | canManageOrgPolicy, catalog, emailLockedTypes, isPersonalWorkspace, lockedTypes, minimum… |
 | OK | `parseSchedule` | `GET /v1/me/notification-schedule` | schedule | length, quietCriticalOverride, quietEndMinute, quietHoursEnabled, quietStartMinute, sche… |
 | OK | `parseMyOrgs` | `GET /v1/me/orgs` | orgs, summary | orgs |
 | OK | `parseMyOrgsTotal` | `GET /v1/me/orgs` | orgs, summary | summary |
-| OK | `parseOrgDetail` | `GET /v1/orgs/:id` | address, adminSurfaces, billingOwnerUserId, callerRole, createdAt, legalEmail, legalName… | callerRole, createdAt, id, legalEmail, legalName, name, organization, status, timezone, … |
+| OK | `parseOperators` | `GET /v1/ops/assignable-operators` | operators, selfUserId | operators, selfUserId |
+| OK | `parseGroups` | `GET /v1/ops/incident-groups` | completeness, conservation, groups, sla, totals | groups, totals |
+| OK | `parseAffected` | `GET /v1/ops/incident-groups/:groupKey/affected` | completeness, groupKey, pagination, records | pagination, records |
+| OK | `parseIncidentsPage` | `GET /v1/ops/incidents` | completeness, incidents, pagination, sla | completeness, incidents, pagination, sla |
+| OK | `parseIncidentDetail` | `GET /v1/ops/incidents/:id` | incident, remediation | incident, remediation |
+| OK | `parseOpsSavedViews` | `GET /v1/ops/saved-views` | views | views |
+| OK | `parseSummary` | `GET /v1/ops/summary` | summary, workspace | summary, workspace |
+| OK | `parseOrgDetail` | `GET /v1/orgs/:id` | address, adminSurfaces, billingOwnerUserId, callerRole, createdAt, legalEmail, legalName… | address, callerRole, createdAt, id, legalEmail, legalName, logoUrl, memberCount, name, o… |
 | OK | `parseOrgAuditPage` | `GET /v1/orgs/:id/audit-events` | events, organizationId, summary | events, nextCursor, summary |
 | OK | `parseClosureState` | `GET /v1/orgs/:id/closure` | blockers, confirmationPhrase, coolingOffDays, request | blockers, confirmationPhrase, coolingOffDays, request |
+| OK | `parseOrgPendingInviteTotal` | `GET /v1/orgs/:id/invites` | invites, organizationId, summary | summary |
 | OK | `parseOrgMembers` | `GET /v1/orgs/:id/members` | members, organizationId, summary | members |
 | OK | `parseOrgWorkspaces` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | teams, workspaces |
+| OK | `parseOrgWorkspacesCanSeeBilling` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | callerCanSeeBilling |
+| OK | `parseRbacMatrix` | `GET /v1/platform/rbac/matrix` | categories, generatedAt, roles, version | categories, roles, version |
 | OK | `parsePortalDashboard` | `GET /v1/portal/dashboard` | portal | assigned, length, limitations, portal, reviewer, scope |
 | OK | `parsePortalComments` | `GET /v1/portal/work/:workflowId/comments` | comments | comments |
+| OK | `parsePortalRecordedDecision` | `GET /v1/portal/work/:workflowId/decisions` | decisions | decisions |
+| OK | `parseProvenanceChain` | `GET /v1/provenance/:evidenceId` | chain | chain |
 | OK | `parseQuotas` | `GET /v1/quotas` | data | data, length |
-| OK | `parseArtifacts` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | items, nextCursor, sections, status, total |
+| OK | `parseUserScopedReports` | `GET /v1/reports` | items, nextCursor | items, nextCursor |
+| OK | `parseUserScopedReports` | `GET /v1/reports` | items, nextCursor | items, nextCursor |
 | OK | `parseReportsSummary` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | data, sections, status |
+| OK | `parseArtifacts` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | items, nextCursor, sections, status, total |
+| OK | `parseGeneratedAt` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | generatedAt |
 | OK | `parseCriteriaSets` | `GET /v1/reviewer-criteria` | sets | criteriaSets, sets |
 | OK | `parseDraftState` | `GET /v1/reviewer-criteria/:setId` | set | set, updatedAt, versions |
+| OK | `parseCriteriaVersionHistory` | `GET /v1/reviewer-criteria/:setId` | set | set |
 | OK | `parseCriteriaUsage` | `GET /v1/reviewer-criteria/:setId/usage` | usage, usageAvailable | usage |
-| OK | `parseSearchResponse` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | nextCursor, rows, total |
-| OK | `parseSearchRuntime` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | fallbackReason, modeUsed, semanticAvailable |
-| OK | `parseSuggestions` | `GET /v1/search/suggest` | suggestions | items, suggestions |
+| OK | `parseRuntimeStatus` | `GET /v1/runtime/status` | status | status |
+| OK | `parseSearchResponse` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | filteredByGovernance, filteredByVisibility, nextCursor, rows, totalReturned |
+| OK | `parseSearchModeUsed` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | modeUsed |
+| OK | `parseSearchAudit` | `GET /v1/search/audit` | nextBeforeUtc, rows | nextBeforeUtc, rows |
+| OK | `parseSearchReadiness` | `GET /v1/search/diagnostics` | evidence, health, index, queryProbe, readiness, runtime, workspace | readiness |
+| OK | `parseSearchDiagnosticsContext` | `GET /v1/search/diagnostics` | evidence, health, index, queryProbe, readiness, runtime, workspace | queryProbe, workspace |
+| OK | `parseSearchRelationships` | `GET /v1/search/relationships/:evidenceId` | relationships | relationships |
+| OK | `parseSavedViews` | `GET /v1/search/saved-views` | views | views |
+| OK | `parseSuggestionRows` | `GET /v1/search/suggest` | suggestions | suggestions |
+| OK | `parseRecoveryWorkspaces` | `GET /v1/teams` | items, teams | teams |
+| OK | `parseWorkspaceOverview` | `GET /v1/teams/:id` | <SPREAD>, address, billingOwnerUserId, canManageMembers, canManageWorkspace, currentUser… | canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, memberPage, me… |
+| OK | `parseExternalCollaborators` | `GET /v1/teams/:id/access-review` | externalCollaborators, members, pendingInvites, summary, teamId | externalCollaborators |
 | OK | `parseWorkspaceActivity` | `GET /v1/teams/:id/activity` | activities | activities |
 | OK | `parseWorkspaceCases` | `GET /v1/teams/:id/cases` | items | items |
 | OK | `parseClosureState` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | blockers, confirmationPhrase, coolingOffDays, request |
+| OK | `parseMembersLosingAccess` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | membersLosingAccess |
+| OK | `parseRequestBlockers` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | request |
 | OK | `parseWorkspaceInvites` | `GET /v1/teams/:id/invites` | invites | invites |
 | OK | `parseWorkspaceMembers` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
+| OK | `parseTransferCandidates` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
+| OK | `parseRemovalImpact` | `GET /v1/teams/:id/members/:memberId/removal-impact` | eligibleTransferTargets, impact, member | eligibleTransferTargets, impact |
+| OK | `parseAlerts` | `GET /v1/teams/:workspaceId/operations/alerts` | counts, evaluatedAtUtc, items, scope, workspaceId | evaluatedAtUtc, items |
+| OK | `parseHealth` | `GET /v1/teams/:workspaceId/operations/health` | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, scope, state, unresolvedIncident… | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, state, unresolvedIncidents |
 | OK | `parseAiAssistanceSettings` | `GET /v1/teams/ai-assistance-status` | available, enabled, features, processing, status | available, enabled, features, processing, status |
+| OK | `parseAiCapabilities` | `GET /v1/teams/ai-policy` | assistance, capabilities, hasExplicitPolicy, lastModifiedAtUtc, lastModifiedByUserId, po… | capabilities |
+| OK | `parseAiPolicyEnvelope` | `GET /v1/teams/ai-policy` | assistance, capabilities, hasExplicitPolicy, lastModifiedAtUtc, lastModifiedByUserId, po… | hasExplicitPolicy, lastModifiedAtUtc, policy, version |
+| OK | `parseAiUsage` | `GET /v1/teams/ai-usage` | allowance, blockedProhibitedClaims, copilotRuns, daily, dayUtc, ledgerAvailable, monthUt… | allowance, monthUtc |
 | OK | `parseTrustArticles` | `GET /v1/trust/articles` | articles, degraded, reason | articles, degraded, denial, reason |
 | OK | `parseTrustArticleVersions` | `GET /v1/trust/articles/:id/versions` | versions | versions |
+| OK | `parseTrustStatus` | `GET /v1/trust/status` | degraded, reason, status | degraded, reason, status |
+| OK | `parseSubprocessorRegistry` | `GET /v1/trust/subprocessors` | degraded, reason, subprocessors | degraded, reason, subprocessors |
+| OK | `parseSubprocessorVersions` | `GET /v1/trust/subprocessors/:id/versions` | versions | versions |
 | OK | `parseUsageStats` | `GET /v1/usage-stats` | data | costBreakdown, dailyAnalyses, data |
+| OK | `parseUsageExtras` | `GET /v1/usage-stats` | data | activeApiKeys, activeBatches, costBreakdown, data, topEvidenceTypes |
+| OK | `parseCookieConsent` | `GET /v1/users/cookie-consent/latest` | record | analytics, consentVersion, createdAt, length, marketing, necessary, preferences, record |
+| OK | `parseLegalAcceptances` | `GET /v1/users/legal-acceptance` | items | items |
+| OK | `parseLegalStatusView` | `GET /v1/users/legal-status` | acceptedVersions, missingPolicies, ok, requiredVersions, requiresReacceptance | acceptedVersions, missingPolicies, requiredVersions, requiresReacceptance |
 | OK | `parseIntakeLinks` | `GET /v1/workflow/intake-links` | items, links | items |
 | OK | `parseIntakeSubmissions` | `GET /v1/workflow/intake-links/:id/submissions` | link, sessions, totals | sessions |
+| OK | `parseSenderIdentity` | `GET /v1/workflow/intake-links/sender-identity` | email, sms | email, sms |
+| OK | `parsePurposes` | `GET /v1/workflow/templates` | templates | find, templates |
+| OK | `parseAiResult` | `POST /v1/ai/capture/analyze-session` | data | data, flags, legalDisclaimer, status, suggestions, summary, warnings |
+| OK | `parseCopilotRun` | `POST /v1/ai/case/:caseId/copilot` | advisoryBoundary, data, runId, status | data, serverActions |
+| OK | `parseCopilotRun` | `POST /v1/ai/evidence/:evidenceId/copilot` | advisoryBoundary, data, runId, serverActions, status | data, serverActions |
+| OK | `parseCreatedTeamId` | `POST /v1/collaboration-teams` | team | id, team |
+| OK | `parseBulkAddResult` | `POST /v1/collaboration-teams/:teamId/members/bulk` | added, failed | added, failed |
+| OK | `parseSavedPreference` | `POST /v1/communications/preferences` | preference | preference, preferredChannel, smsOptOut, updatedAt, whatsappOptOut |
+| OK | `parseVerifyCheck` | `POST /v1/communications/verify/check` | status, verificationId | status, verificationId |
+| OK | `parseVerifyStart` | `POST /v1/communications/verify/start` | attempt, status | attempt, status |
+| OK | `parseRequestMoreResult` | `POST /v1/evidence-requests/:id/responses/:responseId/request-more` | communicationMessageId, newIntakeLinkId, rawToken, response | communicationMessageId, rawToken |
+| OK | `parseSendResult` | `POST /v1/evidence-requests/:id/send` | intakeUrl, rawToken, request, warning | intakeUrl, warning |
+| OK | `parseRunAccepted` | `POST /v1/evidence/:evidenceId/media-intelligence/run` | evidenceId, jobId, mode, queued, reason, runId, signalsByType, signalsEmitted | queued, runId |
+| OK | `parseAiCategorization` | `POST /v1/evidence/:id/ai-categorization/run` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
-| OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, uploadUrl, url |
+| OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, upload |
+| OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
+| OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | challenge, destinationMask, method | challenge, destinationMask, method |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |
+| OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/recovery-codes/regenerate` | recoveryCodes | recoveryCodes |
 | OK | `parseOrgInviteAccept` | `POST /v1/org-invites/:token/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |
+| OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/:token/accept` | alreadyMember, role, workspaceId | alreadyMember |
+| OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |
+| OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, warning | delivery, link, rawToken |
 | OK | `parseRevealedContact` | `POST /v1/workflow/intake-links/:id/recipient-contact` | recipientContact | recipientContact, recipientEmail, recipientPhone |
+| OK | `parseAiPolicyEnvelope` | `PUT /v1/teams/ai-policy` | hasExplicitPolicy, policy, version | hasExplicitPolicy, lastModifiedAtUtc, policy, version |
 
 ## What the verdicts mean
 

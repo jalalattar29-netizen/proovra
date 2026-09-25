@@ -1,0 +1,152 @@
+{
+ "route": "/org-invites/[token]/accept",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "We couldn't accept this invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:277",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept organization invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:189",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization. Redirecting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:259",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

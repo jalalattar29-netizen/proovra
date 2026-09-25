@@ -142,11 +142,14 @@ export default function ScreenCaptureScreen() {
         partCount: staged.frameCount,
         sizeBytes: staged.sizeBytes,
       });
-      await openCaptureDraft({ items: [item] }).catch(() => undefined);
+      // Its id travels with the durable record, so Capture closes THIS draft at
+      // finalize instead of leaving it listed as unfinished.
+      const draft = await openCaptureDraft({ items: [item] }).catch(() => null);
 
       // The durable record the canonical surface resumes. Its parts are
       // already uploaded, so finalize seals without re-uploading them.
       await saveCaptureSession({
+        draftId: draft?.id ?? null,
         captureSessionId: staged.session.captureSessionId,
         expiresAtUtc: staged.session.expiresAtUtc,
         evidenceId: staged.evidenceId,

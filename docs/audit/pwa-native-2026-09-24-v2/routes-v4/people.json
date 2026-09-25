@@ -1,0 +1,428 @@
+{
+ "route": "/people",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/people/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/workspace-people.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 16,
+   "labelled": 6,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 26,
+   "labelled": 58,
+   "unboundExports": 10
+  }
+ },
+ "pairing": {
+  "exact": 1,
+  "copyDiffers": 1,
+  "roleDiffers": 0,
+  "unpaired": 4,
+  "extraInNative": 56,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [
+  {
+   "role": "COMPONENT",
+   "label": "No workspace is selected",
+   "web": "apps/web/app/(app)/people/page.tsx:105",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:471",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraEmpty"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "COMPONENT",
+   "webLabel": "Loading your workspace…",
+   "natLabel": "This workspace",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/people/page.tsx:93",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:722",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraPageSection"
+  }
+ ],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "Opening workspace people…",
+   "at": "apps/web/app/(app)/people/page.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "People",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "People",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:466"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading people",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:478"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Rename workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:504"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Members",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:516"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No members are listed.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:518"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load more",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:553"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Invite someone",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:563"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Email address",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:571"
+  },
+  {
+   "role": "INPUT",
+   "label": "Email address to invite",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:572"
+  },
+  {
+   "role": "TAB",
+   "label": "Role",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:581"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Send invitation",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:587"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pending invitations",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:597"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Invitations are managed by workspace admins.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:601"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No invitations are outstanding.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:606"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Resend",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:625"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Revoke",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:632"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Linked cases",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:646"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Linked cases are visible to workspace members.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:648"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No cases are linked to this workspace yet.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:653"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Unlink",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:670"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Link a case",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:683"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Activity",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:692"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspace activity is visible to workspace members.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:694"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has happened here yet.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:699"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Transfer ownership",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:723"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel the closure request",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:740"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close this workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:762"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Transfer ownership",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:774"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "There is no other active member to transfer ownership to.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:784"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Close this workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Type the confirmation phrase",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:825"
+  },
+  {
+   "role": "INPUT",
+   "label": "Closure confirmation phrase",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:826"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Request closure",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:840"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Cancel the closure request?",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:848"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Confirm it is you",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:859"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Link a case",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:895"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading your cases",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:897"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "There is no case to link.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:899"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Rename this workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:911"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspace name",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:916"
+  },
+  {
+   "role": "INPUT",
+   "label": "Workspace name",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:917"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:924"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Revoke this invitation?",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:943"
+  },
+  {
+   "role": "TEXT",
+   "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure requested",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:733"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure is blocked",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:751"
+  },
+  {
+   "role": "TEXT",
+   "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Confirm",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:89"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceOverview"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceMember"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceInvite"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceCase"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceActivity"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpChallenge"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpProof"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\closure.ts",
+   "name": "ClosureState"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

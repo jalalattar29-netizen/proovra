@@ -1,0 +1,4582 @@
+{
+ "route": "/home",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:555",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:574",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:590",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Report production",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:735",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reports ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:737",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Packages ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:738",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pending",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:739",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:740",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "More actions",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:902",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Public verification links",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1028",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Not published",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1057",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Suspended",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1058",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "CARD",
+   "label": "Verification summary",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1343",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Team work",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1704",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Awaiting review",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1710",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reports today",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1711",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Members",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1712",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pending invites",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1713",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Start your first evidence workflow",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1766",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:190",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry scheduled",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:330",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open delivery →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:351",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "with evidence gaps",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "blocked",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:385",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "unlinked record",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:391",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "not reviewed",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:396",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No active matters yet. Group related evidence into a case to track a matter end-to-end.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:404",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Create case",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:411",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "E",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "· R",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "· P",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "· V",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal hold",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:455",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open matter →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:469",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "View all",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:482",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:482",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Request evidence securely from a client, witness, source, or contributor — with delivery tracking and a review queue. Available on Pro and Team.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:558",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "See plans",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:566",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Request evidence securely from a client, witness, source, or contributor — then track delivery and review what comes back.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:576",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Create intake link",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:584",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "· expires",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:623",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:639",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Not yet sent",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:645",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:656",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "View intake →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:670",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:751",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:754",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No reports generated yet — the counts above update as production runs.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:764",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Report",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:784",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:786",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No package",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:789",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open reports →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:805",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:898",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "⋯",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:918",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify page",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:981",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification links appear once you publish a record — letting anyone independently confirm your evidence.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1031",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "verification page",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1054",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "live",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1054",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Publish verification",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1066",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recently published",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1074",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Live",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1119",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verify →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1122",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "View all links →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1134",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No evidence captured yet — these are the integrity signals each record will earn once captured.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1346",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1389",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture first evidence",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1411",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1417",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity appears when evidence is captured, reports are generated, or intake submissions are received.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1501",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1587",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Storage details will appear once your billing is set up.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1611",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "% used",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1634",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Room for ≈",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1667",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "more record",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1667",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "at your current average size.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1668",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage plan →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1677",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "View storage →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1683",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture your first record or create a case to get started.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1768",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Workspace views",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:117",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SECTION",
+   "label": "Verification & production",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:208",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has SECTION elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SECTION",
+   "label": "Workspace analytics",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:238",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has SECTION elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace health and the priorities ranked by severity.",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:169",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recent work",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:173",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The latest evidence you captured and the matters in progress.",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:175",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SELECT",
+   "label": "Activity period",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:752",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "BOX",
+   "label": "Records or preserved files",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1051",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "👋",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:181",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Here&apos;s what&apos;s happening across your digital evidence operations today.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:184",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Also:",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:253",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What needs attention",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:558",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking…",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:580",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reading this workspace's operational status.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:583",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "All clear",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:614",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No workspace priorities need attention right now.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:617",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "+",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "lower-priority item",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "tracked",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence activity",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:726",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence (",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:763",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:763",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reports (",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:767",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:767",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity appears here as evidence is captured and reports are generated.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:778",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recent evidence",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:890",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "All evidence →",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:892",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your newest records appear here after the first capture.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:897",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:913",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:925",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Records",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1078",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preserved files",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1101",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/ui-legacy.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no TABLE element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Priority sections for this persona",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:402",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace — capacity board not applicable",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:985",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Capacity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:995",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No active reviewer load",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1008",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No reviewer with active assignments",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1012",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Routing recommendations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1084",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Graph read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1136",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No graph topology yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1149",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Graph empty — no incidents or workflows to project",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1150",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Top root causes",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1189",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Health read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1241",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No health snapshot yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1253",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Organizational health snapshot not yet computed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1254",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Forecast read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1331",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No risk forecasts based on current signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1338",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No deterministic risk signals firing",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1342",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Org intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1403",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Relationship intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1497",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No relationship clusters detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1508",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No evidence relationship clusters",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1512",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1564",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Cross-case intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1574",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No cross-case signals firing",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1585",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No cross-case patterns detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1589",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Deep integrity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1642",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No deep integrity signals require review",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1653",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No deep integrity anomalies detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1657",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "TSA timestamp intelligence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1700",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "NOTICE",
+   "label": "Security rollup",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1782",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no NOTICE element at all — the control is absent here"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No security anomalies detected · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1796",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No suspicious activity in the last 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1800",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Telemetry read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1942",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "NOTICE",
+   "label": "Reviewer reconcile",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1972",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no NOTICE element at all — the control is absent here"
+  },
+  {
+   "role": "NOTICE",
+   "label": "Worker/queue telemetry",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1977",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no NOTICE element at all — the control is absent here"
+  },
+  {
+   "role": "BOX",
+   "label": "Worker heartbeats",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2032",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No worker heartbeats yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2046",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Queue snapshots",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2118",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No queue telemetry yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2132",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2253",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Coordination read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2260",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No coordination signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2272",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No unresolved coordination items",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2274",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reconstructed timeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2326",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No reconstructed events · 14d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2337",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Reconstructed timeline empty",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2341",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Routing read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2476",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No actionable items in the routing queue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2487",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Routing queue clear · no operator action required",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2491",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Investigation read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2598",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No active investigations under risk",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2609",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No investigations flagged",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2613",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2713",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workload read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2720",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queue congestion read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2829",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Custody/integrity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2884",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No integrity signals require review",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2895",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No integrity anomalies detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2899",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Security watch rollup degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2959",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No high-severity security events · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2970",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No suspicious access activity in the last 24 hours",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2974",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operational pressure read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3183",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No operational pressure detected · workspace healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Case operations read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3307",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Cases with evidence gaps",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3328",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Unreviewed evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3333",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence without case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3338",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No investigations underway",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3345",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3448",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer orchestration read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3458",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Queue depth",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3479",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3484",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "CARD",
+   "label": "Due in 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3490",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Unassigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3495",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "CARD",
+   "label": "Open escalations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3500",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Inactive reviewers",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3506",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No reviewer assignments active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3524",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pipeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3615",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pipeline visibility",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3626",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Created",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3629",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Uploading",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3630",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Uploaded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3635",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Signed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3636",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reported",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3637",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Ready",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3642",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queued",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3643",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3644",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Ready",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3653",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queued",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3654",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Blocked",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3655",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3660",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Published",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3669",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Unpublished",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3670",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Suspended",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3671",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3726",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Governance read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3736",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence-level holds",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3762",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Case-level holds",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3767",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Retention candidates",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3772",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Pending destruction",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3777",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "CARD",
+   "label": "Active policies",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3782",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Policy conflicts",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3787",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Blocked exports",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3793",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Lifecycle events · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3799",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Throughput read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3829",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspace throughput",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3840",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence created · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3845",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence created · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3850",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Finalized · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3855",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Reports generated · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3860",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Packages generated · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3865",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "CARD",
+   "label": "Workspace activity · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3870",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has CARD elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Timeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3896",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No recent operational events · 14d window",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3907",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Operational heartbeat — no recent events in the last 14 days",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3911",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Audit readiness read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3983",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Audit readiness · no blockers detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4005",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recent evidence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4051",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No recent evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4058",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No evidence captured yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4059",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recent evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4069",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Root-cause causality chains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4111",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Active operational workflows",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4206",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Available operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4295",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Cross-system correlations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4335",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Incidents read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4416",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No open incidents · workspace healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4428",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No open operational incidents",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4429",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4592",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Three operational steps",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4948",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Bulk operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5407",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:341",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational command surface",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:342",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational pressure, investigation status, reviewer coordination, governance posture, and audit readiness — sourced from real workspace state.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:344",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Role ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:355",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Persona ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:358",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:362",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1047",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "capacity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1059",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1062",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1065",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "due soon",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1069",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1072",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "done · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1074",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "done · 30d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1075",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1077",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Routing recommendations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1090",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1177",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted cases",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1181",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted reviewers",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1185",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Top root causes",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1195",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "out-degree",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1221",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Overall health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1276",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1280",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Audit readiness",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1288",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1292",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Queue reliability",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1296",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Artifact reliability",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1300",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows resolved · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1304",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active incidents",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1308",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Scores derive from real counters via deterministic thresholds — no AI/ML, no fabricated metrics. Snapshot sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1312",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1314",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "confidence ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1377",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Likely impact:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1381",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1384",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Forecasts are derived from real engine outputs — no ML, no AI claims.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1390",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1430",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1434",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 30d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1438",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottleneck domains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1443",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "pressure item",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1453",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Top pressure sources",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1462",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1481",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1544",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1547",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1617",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "affected case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1619",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1626",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1705",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "policy ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1716",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA issuer parsing not yet available",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1722",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA parse failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1727",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1731",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Source ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1736",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Each signal includes the exact source field(s). Language is operator-side review — no claim of authenticity or admissibility.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1744",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Detection is operational via the canonical SecurityEvent audit log. The dashboard rollup will re-classify on the next refresh.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1788",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "× ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1825",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1835",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "source ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1838",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "· eventType:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1838",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Telemetry sampler returning delayed snapshots. The worker remains operational; the latest sample is older than the freshness threshold.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1991",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reconcile health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1999",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Heartbeat age",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2007",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Review queue depth",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2011",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Report queue pending",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2015",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Package queue pending",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2019",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry storms",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2027",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Worker heartbeats",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2038",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Heartbeat stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2078",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "heartbeat",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2089",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "processed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2093",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2101",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Queue snapshots",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2124",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "waiting",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2161",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2162",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "delayed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2163",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2166",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "stalled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2171",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2175",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Worker heartbeats are sampled by the worker every 60s and persisted to WorkerTelemetrySnapshot. Queue depth is sampled from BullMQ when the worker is online; DB-derived counts are written by the API on dashboard load when no fresh BullMQ sample is available.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2185",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2209",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2217",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments resolved",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2224",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer comments open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2232",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Annotations open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2240",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2378",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Health ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2448",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2448",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "cases at risk ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2448",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "pressure items",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2449",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Next:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2458",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2536",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open runbook",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2569",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2654",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2671",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cross-case signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2679",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Source:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2696",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2696",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Team health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2746",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Saturation (0–10)",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2756",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottlenecks",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2764",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No reviewer assignments active. Workload engine has no data to score.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2769",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "saturation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2789",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2793",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2796",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottleneck",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2801",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Inactive",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2806",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Remaining gaps are listed in the Unsupported Signals section. BullMQ depth + worker heartbeat are now persisted by Phase 32.8C+++++ telemetry snapshots; see the Queue / Worker Telemetry section.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2864",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bounded language: each signal reports an operator-side review request, not a claim of authenticity or admissibility.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2938",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "user",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3004",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Engineering diagnostics · capability catalog ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3029",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(intelligence signals the platform does not yet compute — not a platform failure)",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3030",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Critical",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3221",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "High",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3228",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Warning",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3235",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Info",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3241",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3395",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3405",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "escalation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3414",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal preservation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3420",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3428",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Throughput · last 7d:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3515",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "vs prev 7d:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3518",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3519",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3520",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Full reviewer console at",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3536",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer Ops",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3537",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3537",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3578",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3584",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "due soon",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3588",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Inactive",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3592",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Last action",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3596",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence lifecycle",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3627",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reports",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3640",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification packages",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3651",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verify",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3667",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "stuck",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3706",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Full control plane at",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3806",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3807",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": ". Preservation controls are workspace policy — they do not assert legal admissibility or authenticity of any record.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3807",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Throughput reflects realized workspace activity over the last 24 hours and 7 days — sourced from real evidence + report + package + activity records.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3877",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3958",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Audit-readiness counters surface gaps an external auditor would expect to find resolved. Each row sources from real workspace state.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4018",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Root-cause causality chains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4117",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "active chain",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "incident",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4156",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4160",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "correlation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4165",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4171",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "last seen",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4176",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active operational workflows",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4212",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4214",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4255",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "owner",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4265",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unassigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4268",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "escalated ×",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4272",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "retry ×",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4276",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "due",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4285",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "next retry",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4290",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Root-cause correlations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4337",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "correlation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4339",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "incident",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4365",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "confidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4368",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4376",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4379",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4505",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4505",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4510",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "ack",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4518",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operator actions (acknowledge / assign / resolve / suppress, workflow ownership transitions) live on the",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4543",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4545",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "incident + workflow detail pages. The dashboard is read-only.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4545",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal workspace uses basic evidence controls.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4849",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4912",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace…",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4913",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4938",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace setup incomplete",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4939",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your workspace is still being prepared, or you can create or join an organization to enable team operations. The account priorities above show what is waiting for you across all your contexts.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4941",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Create or join an organization.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4960",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations are the governance + identity tenant.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4961",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Organizations →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4963",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture evidence.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4967",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal workspace is available immediately — record hashed, signed media without waiting for an org.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4968",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Start a capture →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4971",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage workspaces.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4975",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Set retention, invite members, configure governance from",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4976",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace administration →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4978",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Organizations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4991",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture personal evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4998",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5015",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5041",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Dashboard read could not complete",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5042",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Request ID:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5045",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5106",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "canonical source healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5109",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Last successful run:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5115",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5415",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5449",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5457",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk actions are executed on the Operations Center page (",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5464",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "/operations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5465",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "). The dashboard is read-only — chips above link to the canonical surface. Every bulk run fans out to the underlying lifecycle service and is audited per-target.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5465",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No escalations open.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:440",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No workload snapshots yet.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:457",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No governance incidents open.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:473",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No SLA breaches detected.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:489",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No operational activity recorded.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:502",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Runtime is in degraded mode.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:523",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Governance state could not be loaded.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:545",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has STATE_EMPTY elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime dependency:",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:289",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:308",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:351",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:393",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "→",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:405",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BADGE",
+   "label": "Overdue",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:183",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BADGE",
+   "label": "Due soon",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:188",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BADGE elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BADGE",
+   "label": "Escalated",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:193",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BADGE",
+   "label": "Completed 7d",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:198",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BADGE elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "active reviews",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:172",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "IMBALANCED",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:220",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "INACTIVE",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:229",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "d",
+   "at": "apps/web/components/operational/WorkloadHeatTile.tsx:229",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "+",
+   "at": "apps/web/components/operational/AssignmentSuggestionRow.tsx:153",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "STUCK",
+   "at": "apps/web/components/operational/StuckBadge.tsx:77",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "+",
+   "at": "apps/web/components/operational/StuckBadge.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "STUCK",
+   "at": "apps/web/components/operational/StuckBadge.tsx:119",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "+",
+   "at": "apps/web/components/operational/StuckBadge.tsx:147",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "collecting samples…",
+   "at": "apps/web/components/operational/Sparkline.tsx:222",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Operational runtime summary",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:257",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Refresh runtime status",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:344",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Degraded subsystems",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:386",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Active incidents",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:429",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer escalations",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:474",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operations Center",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:550",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Escalations",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:566",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Runbooks",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:574",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime ·",
+   "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:336",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime readiness could not be loaded — treat dashboard as unknown state.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:133",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "UNKNOWN",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:144",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime status is currently unknown.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:181",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "for detail.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:195",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational timeline could not be loaded. The platform is failing closed — assume activity exists until the timeline is available.",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:180",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading operational activity…",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:196",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:362",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Lifecycle",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:380",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:408",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:412",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "actor",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:414",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:418",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Lifecycle",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:221",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Review state",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:226",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Legal hold",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:231",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Retention",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:246",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Storage governance",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:259",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Governance warnings",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:301",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Open incidents",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:346",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading governance state…",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:191",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open incidents (",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:365",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:365",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reason:",
+   "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:504",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Bulk mitigation note",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:617",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Bulk retry time",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:626",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow Operations",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:541",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading operational workflows…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:552",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Access restricted",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:558",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows unavailable",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:565",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You can see operational pressure in this workspace but cannot act on it. Taking workflow actions needs an operations role.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:585",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No operational workflows open",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:592",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows are generated from real incidents and correlations. An empty list means nothing in this workspace currently needs operator action — it is not a failed read.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:594",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Causes could not be loaded, so workflows below show no &quot;Why&quot; explanation. This is a failed read, not an absence of causes.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:603",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk actions ·",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:613",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "selected",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:613",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:672",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "escalation",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:725",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "retries",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:730",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "owner",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:735",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:735",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "unassigned",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:738",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Why:",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:759",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Action availability is resolved by the server from your workspace permissions and each workflow&apos;s state — this surface renders that decision, it does not make it.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:861",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the cause…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:928",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This cause is no longer recorded in this workspace. Refresh the workflows.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:933",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You do not have access to this cause in this workspace.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:940",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Root cause",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:967",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Severity",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:968",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:969",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Started",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:970",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last seen",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:971",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Resolved",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:973",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked incidents",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:976",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked cases",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:977",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked evidence",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:978",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows with this cause",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:980",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No linked workflow is visible in this workspace.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:982",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Go to",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:989",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "(not in the current list)",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:992",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cause ID",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1000",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading history…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1060",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No operator events recorded for this workflow yet.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1068",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Step-up confirmation",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:488",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:525",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Preparing your verification…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:543",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:552",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:567",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Settings → Security",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:571",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ", then start this action again.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:573",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:658",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm + retry",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:666",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirmed — retrying the original action…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:674",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Start again",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Operational quick actions",
+   "at": "apps/web/components/command-center/CommandCenterQuickActions.tsx:32",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

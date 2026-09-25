@@ -49,16 +49,14 @@ import {
   CriteriaDraftEditor,
   CriterionRowsEditor,
 } from "../../../src/ui/criteria-draft-editor";
+import { CriteriaVersionHistory } from "../../../src/ui/criteria-version-history";
 import {
   availableActions,
-  buildCriteriaUsagePath,
   isEditable,
-  parseCriteriaUsage,
   buildCreateSetBody,
   emptyCriterionRow,
   validateNewSet,
   CRITERIA_CREATE_PATH,
-  type CriteriaUsage,
   type CriterionRow,
   buildCriteriaActionPath,
   buildCriteriaPath,
@@ -87,7 +85,8 @@ export default function ReviewerCriteriaScreen() {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<{ set: CriteriaSet; action: CriteriaAction } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const [usage, setUsage] = useState<Record<string, CriteriaUsage[]>>({});
+  // T-12 — one open history at a time, as the web does. Usage lives inside it.
+  const [historyId, setHistoryId] = useState<string | null>(null);
 
   // The new set. It creates the SET and its v1 DRAFT in one call, so the name
   // and the version title are both asked for — the route keeps them apart and
@@ -113,28 +112,6 @@ export default function ReviewerCriteriaScreen() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  /**
-   * Per-version usage: how often the Reviewer Copilot actually ran against
-   * each published version, derived from existing defensibility records.
-   *
-   * Additive, and failure is silent by design — the catalogue is the point,
-   * and a usage read that 404s or is unavailable must not take the sets with
-   * it. The route says so itself with an `usageAvailable` flag.
-   */
-  const loadUsage = useCallback(
-    async (setId: string) => {
-      if (!teamId || usage[setId]) return;
-      try {
-        const data = await apiFetch(buildCriteriaUsagePath(setId, teamId));
-        if ((data as { usageAvailable?: boolean }).usageAvailable === false) return;
-        setUsage((prev) => ({ ...prev, [setId]: parseCriteriaUsage(data) }));
-      } catch {
-        /* additive */
-      }
-    },
-    [teamId, usage],
-  );
 
   const create = useCallback(async () => {
     if (!teamId) return;
@@ -186,7 +163,7 @@ export default function ReviewerCriteriaScreen() {
   }, [pending, teamId, addToast, load]);
 
   return (
-    <ProovraScreen testID="reviewer-criteria">
+    <ProovraScreen shell testID="reviewer-criteria">
       <ProovraPageHeader
         title="Reviewer criteria"
         eyebrow="Settings"
@@ -312,40 +289,14 @@ export default function ReviewerCriteriaScreen() {
 
                 {set.versions.length > 0 ? (
                   <ProovraButton
-                    label={usage[set.id] ? "Hide usage" : "Version usage"}
+                    label={historyId === set.id ? "Hide history" : "History"}
                     variant="ghost"
                     fullWidth={false}
-                    onPress={() => {
-                      if (usage[set.id]) {
-                        setUsage((prev) => {
-                          const next = { ...prev };
-                          delete next[set.id];
-                          return next;
-                        });
-                      } else {
-                        void loadUsage(set.id);
-                      }
-                    }}
+                    accessibilityLabel={`${historyId === set.id ? "Hide history" : "History"}: ${set.name}`}
+                    onPress={() => setHistoryId((cur) => (cur === set.id ? null : set.id))}
                   />
                 ) : null}
-
-                {usage[set.id]
-                  ? usage[set.id].map((u) => (
-                      <ProovraText
-                        key={u.version}
-                        variant="label"
-                        color={theme.color.ink.muted}
-                      >
-                        {[
-                          `v${u.version}`,
-                          `${u.runCount} run${u.runCount === 1 ? "" : "s"}`,
-                          `${u.reviewCount} review${u.reviewCount === 1 ? "" : "s"}`,
-                          `${u.reviewerCount} reviewer${u.reviewerCount === 1 ? "" : "s"}`,
-                          u.lastUsedAtIso ? `last ${formatUserDateTime(u.lastUsedAtIso)}` : "never used",
-                        ].join(" · ")}
-                      </ProovraText>
-                    ))
-                  : null}
+                {historyId === set.id && teamId ? <CriteriaVersionHistory teamId={teamId} setId={set.id} /> : null}
 
                 {/*
                   No edit control on a published set. The API answers 409

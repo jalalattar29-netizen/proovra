@@ -74,9 +74,17 @@ export default function PortalAcceptScreen() {
       setPortalToken(link.token);
       setPhase({ kind: "accepted", token: link.token });
     } catch (err) {
-      setPhase({ kind: "denied", denial: classifyPortalDenial(err) });
+      const denial = classifyPortalDenial(err);
+      // An MFA invitation is refused here (403 portal_mfa_required): this route
+      // has no emailed-code step. The portal exchange does, and accepts the
+      // invitation once the code is verified.
+      if (denial === "MFA") {
+        router.replace(`/portal/${encodeURIComponent(link.token)}`);
+        return;
+      }
+      setPhase({ kind: "denied", denial });
     }
-  }, [params.grantId, params.token]);
+  }, [params.grantId, params.token, router]);
 
   useEffect(() => {
     void accept();

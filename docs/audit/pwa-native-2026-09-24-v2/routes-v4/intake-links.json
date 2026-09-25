@@ -1,0 +1,1763 @@
+{
+ "route": "/intake-links",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/intake-links/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/intake-links.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 59,
+   "labelled": 172,
+   "unboundExports": 33
+  },
+  "native": {
+   "files": 24,
+   "labelled": 21,
+   "unboundExports": 6
+  }
+ },
+ "pairing": {
+  "exact": 2,
+  "copyDiffers": 3,
+  "roleDiffers": 6,
+  "unpaired": 157,
+  "extraInNative": 16,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "Submissions",
+   "web": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:589",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Submissions",
+   "web": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:203",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "Submissions used",
+   "natLabel": "Submissions",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:120",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "View submissions",
+   "natLabel": "Submissions",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:216",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Loading submissions…",
+   "natLabel": "Submissions",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:117",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Loading intake links",
+   "webRole": "BOX",
+   "natRole": "STATE_LOADING",
+   "web": "apps/web/app/(app)/intake-links/_components/States.tsx:37",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:196"
+  },
+  {
+   "label": "Loading intake links…",
+   "webRole": "TEXT",
+   "natRole": "STATE_LOADING",
+   "web": "apps/web/app/(app)/intake-links/_components/States.tsx:52",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:196"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/intake-links/_components/States.tsx:177",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Intake links",
+   "webRole": "TABLE",
+   "natRole": "SECTION",
+   "web": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:569",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:191"
+  },
+  {
+   "label": "Intake links",
+   "webRole": "LIST",
+   "natRole": "SECTION",
+   "web": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:603",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:191"
+  },
+  {
+   "label": "Submissions",
+   "webRole": "DIALOG",
+   "natRole": "TEXT",
+   "web": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:103",
+   "nat": "apps/mobile/app/(stack)/intake-links.tsx:235"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "External intake links",
+   "at": "apps/web/app/(app)/intake-links/page.tsx:448",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Secure links that let people outside your workspace upload photos, videos, audio, or documents — without an account.",
+   "at": "apps/web/app/(app)/intake-links/page.tsx:450",
+   "natHasRole": true,
+   "bestScore": 0.02,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Links in",
+   "at": "apps/web/app/(app)/intake-links/page.tsx:459",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "New intake link",
+   "at": "apps/web/app/(app)/intake-links/page.tsx:474",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Contributors submit files without ever accessing this workspace. You control the channel, expiry, accepted file types, and whether a link stays live.",
+   "at": "apps/web/app/(app)/intake-links/page.tsx:568",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss error",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Dismiss",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Not enabled yet",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "External intake links aren't turned on for your account yet. Contact your IT administrator or your PROOVRA support contact to enable this feature for your workspace.",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You don&apos;t have access to intake links here",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load intake links",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:173",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No intake links yet",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create a secure upload link to request evidence from someone outside your workspace — a client, a witness, a contractor. They upload without an account and never see your workspace.",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:82",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "New intake link",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Start from a common request",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:104",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshing intake links…",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:60",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No intake links match these filters",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:140",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Every link is still here — the current search and filters just exclude all of them.",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:142",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/intake-links/_components/States.tsx:152",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Search intake links",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by delivery channel",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:119",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by lifecycle",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:134",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by delivery state",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sort intake links",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:581",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recipient &amp; reference",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:585",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Delivery",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:586",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:587",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Timeline",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:588",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:591",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No recipient",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Manual link",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Customer ID",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:220",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Delivery status:",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contributor activity:",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:320",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Latest",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:369",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:378",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View (",
+   "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:415",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Pagination",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:32",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Rows per page",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:35",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Previous",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:58",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Page",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Next",
+   "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:70",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close new intake link",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:360",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/patterns.tsx:563"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "New intake link",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:354",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "· step",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:357",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:357",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:459",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "What are you asking for?",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:160",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "What are you asking for?",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:166",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recipient label",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:290",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Customer ID (optional)",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:317",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "CUST-849271",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:323",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recipient email",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:345",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recipient phone",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:374",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "+14155550123",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:381",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Display name",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:423",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Smith &amp; Partners",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:430",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Link expires in",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:484",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Link expires in",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:490",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Maximum files per submission",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:510",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Expires in (hours)",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:539",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Consent or disclosure text",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:587",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Request",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Delivery",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Collection rules",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:691",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Suggested file types:",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:192",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". You can change them in step 3.",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:199",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing is sent for a copy-link request. You&apos;ll get the secure link once, right after it is created, to share however you want.",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:407",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No message is sent for a copy-link request. The secure link is shown once, immediately after you create it.",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:726",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "(required)",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/fields.tsx:44",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Message preview",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:114",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Message preview",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:120",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Appears from",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:123",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent via",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:127",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Goes to",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:142",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Channel",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:148",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:152",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Subject",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Preview only. Nothing is sent until you create the link, and the secure link shown as",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:173",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "[secure-link]",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "is generated at that moment.",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No account is required to upload. Ask the recipient not to forward the link.",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close secure link dialog",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:140",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/patterns.tsx:563"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Secure link created",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:133",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This link is shown once. Copy or send it now — after you close this dialog the only way to share it is to create a new link.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:136",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:157",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Handed to the provider via",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:157",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". Track it under Delivery history on the link.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:158",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Delivery failed on",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". The link itself was created: copy it below, or retry from Delivery history.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:172",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing was sent — you chose to share this link yourself.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:182",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Secure link",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:188",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Anyone with this link can upload until it expires. Ask the recipient not to forward it.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:216",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Queued for",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:236",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "delivery. Track it under Delivery history.",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:236",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Done",
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:289",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Created",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:182",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Sent",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:183",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Opened",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Upload started",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Submitted",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:189",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Disabled",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:194",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Link ID",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:57",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Overview",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:64",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:83",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Link type",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:90",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Customer ID",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:92",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Not set",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:94",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recipient",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:96",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No recipient",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:99",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Channel",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:118",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Created",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Disabled",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:130",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:139",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Delivery",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:149",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "via",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:153",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "attempt",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:157",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "across",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:158",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "channel",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:159",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open delivery history",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing has been sent for this link — it is shared manually.",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:180",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "submitted ·",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:205",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "in progress ·",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:205",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence record",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "produced.",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:207",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Access",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The secure link is shown once, immediately after creation, and is never stored or shown again. Contributors submit files without accessing this workspace.",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Disable link",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:251",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Disabling refuses everyone holding the link. It cannot be undone.",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "DIALOG",
+   "label": "Delivery history",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:87",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading delivery history…",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:100",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing sent yet",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:104",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Email, SMS and WhatsApp attempts for this link will appear here as soon as one is made.",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "To",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:140",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· attempt",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:141",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retrying…",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:177",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry now",
+   "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:180",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "total ·",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "submitted ·",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "in progress ·",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence record",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No submissions yet",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:131",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Submissions",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:235"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "The link is ready. Nothing has been uploaded through it so far.",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:133",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Nobody has used this link yet.",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Submission #",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:154",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contributor",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:161",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Opened",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Submitted",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:169",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open evidence",
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:183",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:193"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:198"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No intake links",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:202"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Revoke",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:219"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Reveal recipient contact",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:286"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Reveal recipient contact?",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:309"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Why do you need it?",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:320"
+  },
+  {
+   "role": "INPUT",
+   "label": "Reason for revealing the contact",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:321"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Reveal and record",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:329"
+  },
+  {
+   "role": "TEXT",
+   "label": "Nobody has used this link yet.",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:246"
+  },
+  {
+   "role": "TEXT",
+   "label": "Revealed, and recorded",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:299"
+  },
+  {
+   "role": "TEXT",
+   "label": "Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.",
+   "at": "apps/mobile/app/(stack)/intake-links.tsx:339"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "CapabilityKey"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "WorkflowTemplateRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\feedback\\toSafeUserError.ts",
+   "name": "SafeUserError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "IntakeLinkListItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\filters.ts",
+   "name": "FilterState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\state-model.ts",
+   "name": "IntakeTab"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\vocabulary.ts",
+   "name": "DeliveryFilterWireValue"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\filters.ts",
+   "name": "TabParam"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "CreatedIntakeLink"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\catalog.ts",
+   "name": "RequestPurposeIcon"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\state-model.ts",
+   "name": "IntakeKpis"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\vocabulary.ts",
+   "name": "IntakeKpiKey"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\vocabulary.ts",
+   "name": "ChannelWireValue"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\filters.ts",
+   "name": "LifecycleFilterValue"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\vocabulary.ts",
+   "name": "SortWireValue"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\rowModel.ts",
+   "name": "IntakeRowModel"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\app-primitives\\AppRowMenu.tsx",
+   "name": "AppRowAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\wizardState.ts",
+   "name": "WizardState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\wizardState.ts",
+   "name": "WizardStep"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\wizardState.ts",
+   "name": "WizardErrors"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "SenderTransportInfo"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\wizardState.ts",
+   "name": "WizardField"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\vocabulary.ts",
+   "name": "IntakeModeWireValue"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\catalog.ts",
+   "name": "DeliveryChannelWire"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\intake-link-location.ts",
+   "name": "IntakeLinkLocationPolicy"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\intake-links\\catalog.ts",
+   "name": "AcceptedKind"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\intake-link-messaging.ts",
+   "name": "IntakeSenderDisplayMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_components\\wizard\\MessagePreview.tsx",
+   "name": "PreviewChannel"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "CommunicationMessageRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\rowModel.ts",
+   "name": "describeRelativeTime"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\intake-links\\_lib\\types.ts",
+   "name": "IntakeSubmissionsPayload"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\intake-links.ts",
+   "name": "IntakeLinkItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\intake-links.ts",
+   "name": "IntakeSubmission"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\intake-links.ts",
+   "name": "RevealedContact"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

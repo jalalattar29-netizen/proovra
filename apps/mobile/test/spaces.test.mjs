@@ -88,10 +88,17 @@ test("a Personal Space is never labelled as a team or an organization", () => {
   assert.doesNotMatch(S.spaceKindLabel("PERSONAL"), /team|organization/i);
 });
 
-test("a Personal Space does not announce its one member", () => {
+test("plan and member count are not on the canonical row, so none is claimed", () => {
+  // CanonicalContextWorkspace = workspaceId, name, kind, workspaceRole, workspaceMembershipId, organizationId.
   const v = S.projectSpaces(envelope);
-  assert.equal(S.spaceSummaryLine(v.personal), "PRO");
-  assert.match(S.spaceSummaryLine(v.owned[0]), /4 members/);
+  assert.equal(S.spaceSummaryLine(v.personal), null);
+  assert.equal(S.spaceSummaryLine(v.owned[0]), null);
+  assert.equal(v.owned[0].memberCount, null, "a member count was read from a key the server never sends");
+});
+
+test("the active id falls back to canonical.currentWorkspace", () => {
+  const v = S.projectSpaces({ canonical: { currentWorkspace: { workspaceId: "w-cur" } } });
+  assert.equal(v.activeWorkspaceId, "w-cur");
 });
 
 test("an absent member count is absent, not zero members", () => {

@@ -1,0 +1,150 @@
+{
+ "route": "/org-invites/[token]/accept",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "We couldn't accept this invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:277",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept organization invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:187",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:189",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:206",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:212",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization. Redirecting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:259",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

@@ -55,7 +55,9 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
       where: { workspaceId: q.teamId },
       orderBy: { updatedAt: "desc" },
       take: 100,
-      include: { versions: { orderBy: { version: "desc" }, take: 1, select: { id: true, version: true, publishedAt: true, title: true } } },
+      // `_count.criteria`: the list shows how many criteria the version in force
+      // carries. Without it native rendered "0 criteria" for every set.
+      include: { versions: { orderBy: { version: "desc" }, take: 1, select: { id: true, version: true, publishedAt: true, title: true, _count: { select: { criteria: true } } } } },
     });
     return reply.code(200).send({ sets });
   });

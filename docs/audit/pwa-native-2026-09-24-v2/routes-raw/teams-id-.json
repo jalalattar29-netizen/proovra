@@ -1,0 +1,2272 @@
+{
+ "route": "/teams/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/teams/[id]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/workspace-people.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "PROFESSIONAL",
+ "policy": "redirect",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 182,
+   "elements": 954,
+   "texts": 290,
+   "distinctTexts": 249,
+   "handlers": 152,
+   "conditionals": 1879,
+   "apiPaths": 51,
+   "distinctApi": 26,
+   "styleRefs": 762,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "next/link",
+    "zod",
+    "react-dom",
+    "qrcode.react",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser",
+    "lucide-react"
+   ]
+  },
+  "native": {
+   "files": 147,
+   "elements": 236,
+   "texts": 69,
+   "distinctTexts": 60,
+   "handlers": 68,
+   "conditionals": 1187,
+   "apiPaths": 12,
+   "distinctApi": 4,
+   "styleRefs": 235,
+   "stylesheetRules": 92,
+   "themeTokens": 273,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 280,
+  "natLabelled": 64,
+  "paired": 7,
+  "roleDiff": 24,
+  "missing": 249,
+  "extraInNative": 43,
+  "webUnlabelled": 917,
+  "missingWithRolePresent": 244,
+  "missingWithRoleAbsent": 5,
+  "samples": {
+   "paired": [
+    {
+     "role": "INPUT",
+     "label": "Workspace name",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1924",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:917"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:2273",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:647",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "web": "apps/web/components/ui-legacy.tsx:211",
+     "nat": "apps/mobile/src/toast-context.tsx:119"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Revoke this invitation?",
+     "webRole": "DIALOG",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:2285",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:943"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1225",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Pending invitations",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1419",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:597"
+    },
+    {
+     "label": "Pending invitations",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1540",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:597"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1569",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Role",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1588",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:581"
+    },
+    {
+     "label": "Resend",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1641",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:625"
+    },
+    {
+     "label": "Revoke",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1650",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:632"
+    },
+    {
+     "label": "Members",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:1970",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:516"
+    },
+    {
+     "label": "No cases are linked to this workspace yet.",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:2144",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:653"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:2202",
+     "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+    },
+    {
+     "label": "Email address",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/page.tsx:2219",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:571"
+    },
+    {
+     "label": "Members",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:295",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:516"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:345",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Role",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:398",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:581"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:247",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Transfer ownership",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:353",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:723"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:381",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:633",
+     "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1507",
+     "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:821",
+     "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+    },
+    {
+     "label": "Request closure",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:393",
+     "nat": "apps/mobile/app/(stack)/workspace-people.tsx:840"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:285",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:249",
+     "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Loading members",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1144",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Sends a new link by email. The link sent earlier stops working.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1624",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Invite a person to this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2189",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "colleague@example.com",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2221",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Workspace role",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2235",
+     "natHasRole": false
+    },
+    {
+     "role": "DIALOG",
+     "label": "What each role can do",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2261",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Remove case from this workspace?",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2299",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Delete this workspace?",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2313",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Members &amp; Access",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1112",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading members, invitations and workspace cases…",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1114",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading members…",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Members &amp; Access",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1202",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Couldn&apos;t load this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1213",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Back to workspaces",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1232",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Members &amp; Access",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1312",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Who can access",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "— members, invitations, roles and access governance. You are",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role permissions",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1338",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite person",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1360",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active members",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1395",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "With access to this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1397",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sent, not yet accepted",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1421",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Seats available",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1439",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cases in this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1451",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open Cases",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Every seat is in use.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1467",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A new person can be invited once a seat frees up, or when the plan is changed.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1469",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review plan and seats",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1472",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1474",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No invitations outstanding — everyone invited has either joined or had their invitation withdrawn. New invitations are delivered by email.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1576",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invited",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1587",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sent",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1589",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Expires",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1590",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1592",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1655",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recent activity",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1704",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace lifecycle",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1769",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Delete this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1810",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Deleting removes the workspace and everybody&rsquo;s access to it. Evidence retention and legal holds are governed separately and are not overridden by this action.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1814",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite people",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1848",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send someone an invitation to join this workspace. They are delivered",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1855",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "by email",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ", and the recipient joins by following the link in that message.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite person",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1865",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace overview",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1898",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Name",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1945",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1958",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1965",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1978",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open billing",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1985",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Storage, subscription and payment for this workspace are managed in Billing.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:1994",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Collaboration Teams",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2029",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organise existing workspace members into operational groups for cases, evidence and work.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2037",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organise members",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2045",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cases in this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2073",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading cases…",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2097",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No unlinked cases are available to add.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace role",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2233",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Access across this whole workspace. Roles inside a Collaboration Team are separate. Ownership is not granted by invitation — it moves by transfer.",
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2248",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search members",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:315",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Filter members by status",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:326",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading members…",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:339",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite person",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:381",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Person",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:397",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:399",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Joined",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:400",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:402",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:476",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:480",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Showing",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+     "natHasRole": true
+    },
+    {
+     "role": "LIST",
+     "label": "External collaborators",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:282",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "External collaborators",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:224",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading external collaborators…",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:232",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No external collaborators. Everyone with access to this workspace is a member of it.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:279",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "First granted",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:305",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:305",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case-scoped",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:310",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "granted",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:336",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Revoke access",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:347",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "People who are not workspace members but hold access to individual cases in this workspace. Revoking removes their access to that case only; workspace members are managed from Members.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:364",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search by name or email",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:400",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Confirm transferring this workspace.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:547",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Hand this workspace to another active member. They become the owner and the billing owner; you stay a member. Evidence, cases and audit history are unaffected.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:357",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading the members who can take ownership…",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:368",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite another member first — ownership can only move to someone who is already an active member of this workspace.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:389",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Find a member",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:398",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New owner",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:415",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select the new owner…",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:441",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Show more members",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Transfer ownership…",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:495",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Transfer",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "? They gain owner-only controls, including closing this workspace, and billing ownership moves with them. You can only get it back if they transfer it to you.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:514",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm transfer",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:528",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Keep ownership",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:538",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Verify it's you",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:566",
+     "natHasRole": true
+    },
+    {
+     "role": "LIST",
+     "label": "Recovery codes — shown once",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1524",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Session inventory unavailable",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1848",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Confirm signing out every other session on your account.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1893",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No security events in the recent window",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2008",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Change password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:419",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use at least 12 characters with upper- and lower-case letters and a number. Your current password is required.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:421",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Current password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:432",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:444",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm new password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:456",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign out my other sessions after the change",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:483",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Change password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:509",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verify it&apos;s you",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:585",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verify &amp; continue",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:630",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "For this change, please sign out and sign back in with your identity provider, then retry within 10 minutes.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:642",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign-in methods",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:921",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Choose which verified methods can sign in to this same PROOVRA account. Connecting Google or Apple does not create a second account.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:923",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organization single sign-on is managed by your organization and never appears here.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:928",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "last used",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:964",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add password",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:983",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Connect",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:998",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Disconnect",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1015",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New password (12+ chars, upper- and lower-case, a number)",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1031",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Two-factor authentication",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1333",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1339",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Protect your account with an authenticator app. After setup, sign-ins require a 6-digit code in addition to your login method — however you sign in.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1343",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Two-factor authentication is",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "enabled",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Recovery codes remaining:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1364",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1387",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1397",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Regenerate recovery codes",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Scan this QR code with your authenticator app (Google Authenticator, 1Password, Authy, …), then enter the 6-digit code it shows.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1420",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Can&apos;t scan? Enter this setup key manually:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1448",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "6-digit code from your app",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1468",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verify &amp; enable",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1498",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Store these recovery codes somewhere safe — each works once, and they will",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "never be shown again",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1522",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1522",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "I saved these recovery codes in a safe place.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1559",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Done",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1572",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Current session",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1760",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restricted",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1765",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign out",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1780",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· last active",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1785",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Signed in",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1788",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical details",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1795",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "User agent:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1798",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "IP (masked):",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1799",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Session reference:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1800",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Issued",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1802",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· expires",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1802",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your active sessions",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1823",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign out other sessions",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1836",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sessions you are signed into right now. Your current session is listed first and is never revoked by &ldquo;Sign out other sessions&rdquo;.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1841",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1846",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No other active sessions.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1868",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Account &amp; security activity",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1996",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Bounded timeline of authentication, profile, preference, and membership events tied to your account. Older events live in the platform audit log.",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1998",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2006",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical details",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2073",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Event key:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2076",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Outcome:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2077",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Severity:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2078",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "IP:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2079",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Resource:",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2080",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View more (",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2096",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "older)",
+     "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2096",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "+44 7700 900123",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:740",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Work handset",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:783",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verified contact device",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:602",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sensitive operations — publishing or withdrawing evidence, approving a review or a destruction, changing a governance policy, granting department membership — ask you to confirm a one-time code first. The code is always sent to the device you enrol here, never to a number entered at the time of the action.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:605",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your enrolled devices could not be loaded, so this section cannot be changed right now. Reload the page to try again.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:618",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading your enrolled devices…",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:623",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You have no verified device yet. Enrol one below to unlock the operations listed above.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:627",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:644",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Replace this device",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:690",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enrolling a new device replaces",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:707",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". The current device keeps working until the new one is verified, and any approval already granted against the old device stops working the moment it is replaced.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:708",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "How should the code be sent?",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:717",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Phone number",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:738",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Include the country code. This is the only place the full number is entered — after verification the product shows a masked form of it and never displays it again.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:763",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Name this device",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:781",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(optional)",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:781",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open a workspace before enrolling a device — the verification is recorded against the workspace you are working in.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:826",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A code was sent to",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:845",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Enter it below to finish enrolling this device.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:849",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verification code",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:854",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Start over",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:949",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Codes for sensitive operations will be sent to",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:966",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:970",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Device revoked.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:981",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Any approval granted against it has stopped working, and sensitive operations stay blocked until you enrol another device.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:981",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "An enrolment for",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:1022",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "was started but never verified. Start again to send a fresh code, or revoke it above.",
+     "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:1022",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Confirm closing this workspace.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:459",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Close workspace",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:264",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archives access to this workspace after a",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "-day cancellation window.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence is never deleted by workspace closure — it stays governed by retention and legal-hold rules.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:275",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel closure request",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:324",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Close this workspace…",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:358",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Keep this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:405",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reopen this workspace",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:422",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restores your owner access so you can work in it again. Other members, API credentials and webhooks are NOT restored — re-invite people and re-issue credentials deliberately.",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:425",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reopen workspace",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:438",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✓",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:141",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Who can do what",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:218",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What each role on this team can do. This list comes from the API — if a cell isn&apos;t checked, the action is blocked for that role.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:221",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your role here is",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:225",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading the role reference from the server…",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:245",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your account is not permitted to read the capability catalog. Ask a workspace administrator what your role includes.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:260",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The server returned no capability catalog for this deployment.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:302",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capability",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:339",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Custom roles are not supported on the current plan. Workspace capabilities are defined and enforced by the API",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:467",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "— see Security Center for org-wide policy controls.",
+     "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:469",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Evidence owned",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:309",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Cases owned",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:315",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Open assignments",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:321",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You're about to remove",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:268",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:269",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ") from the workspace.",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:270",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Checking what they own in this team…",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:278",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Transfer ownership to",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:341",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Choose an admin to receive these records…",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:358",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Only ADMIN-or-OWNER members are eligible. Ownership transfer happens atomically with the removal — no record will be orphaned.",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:383",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Removal blocked — no eligible transfer target.",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:400",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This member owns active records but the workspace has no other ADMIN or OWNER to receive them. Promote another member to ADMIN first, then re-open this dialog.",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:402",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This member doesn't own any active evidence or cases in this team. Removing them won't transfer any ownership.",
+     "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:417",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "People",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:466"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No workspace is selected",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:471"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading people",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:478"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Rename workspace",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:504"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No members are listed.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:518"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Load more",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:553"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Invite someone",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:563"
+    },
+    {
+     "role": "INPUT",
+     "label": "Email address to invite",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:572"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Send invitation",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:587"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Invitations are managed by workspace admins.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:601"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No invitations are outstanding.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:606"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Linked cases",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:646"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Linked cases are visible to workspace members.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:648"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Unlink",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:670"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Link a case",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:683"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Activity",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:692"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workspace activity is visible to workspace members.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:694"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing has happened here yet.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:699"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This workspace",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Cancel the closure request",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:740"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close this workspace",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:762"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "There is no other active member to transfer ownership to.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:784"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Close this workspace",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Type the confirmation phrase",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:825"
+    },
+    {
+     "role": "INPUT",
+     "label": "Closure confirmation phrase",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:826"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Cancel the closure request?",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:848"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Confirm it is you",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:859"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Link a case",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:895"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading your cases",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:897"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "There is no case to link.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:899"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Rename this workspace",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:911"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Save",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:924"
+    },
+    {
+     "role": "TEXT",
+     "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+    },
+    {
+     "role": "TEXT",
+     "label": "Closure requested",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:733"
+    },
+    {
+     "role": "TEXT",
+     "label": "Closure is blocked",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:751"
+    },
+    {
+     "role": "TEXT",
+     "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Confirm",
+     "at": "apps/mobile/src/ui/step-up-sheet.tsx:89"
+    },
+    {
+     "role": "TEXT",
+     "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+     "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 2566,
+  "webClassesUnresolved": 35,
+  "webNonLiteralClass": 21,
+  "webCompetingRules": 157,
+  "webDistinctUnresolvedClasses": 17,
+  "natPropsResolved": 261,
+  "natTokenUnresolved": 88,
+  "webDistinctColors": 66,
+  "natDistinctColors": 19,
+  "sharedColors": 6,
+  "webOnlyColors": 60,
+  "webOnlyColorSample": [
+   "rgba(124, 58, 237, 0.10)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(124, 58, 237, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "#172033",
+   "#5f6878",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.6)",
+   "rgba(15, 23, 42, 0.03)",
+   "rgba(15, 23, 42, 0.05)",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(15, 23, 42, 0.08)",
+   "#344054",
+   "#667085",
+   "rgba(255, 255, 255, 0.70)",
+   "rgba(178, 52, 66, 0.24)",
+   "rgba(248, 250, 253, 0.7)",
+   "rgba(15, 23, 42, 0.07)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "#8793a6"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "rgba(15, 23, 42, 0.06)",
+   "#475569",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.42)"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1879,
+  "natConditionals": 1187,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 152,
+  "natHandlers": 68,
+  "webHandlerSample": [
+   "onClick=() => void loadData() @apps/web/app/(app)/teams/[id]/page.tsx:1219",
+   "onClick=() => setPermissionsOpen(true) @apps/web/app/(app)/teams/[id]/page.tsx:1332",
+   "onClick=() => setInviteOpen(true) @apps/web/app/(app)/teams/[id]/page.tsx:1341",
+   "onInvite=() => setInviteOpen(true) @apps/web/app/(app)/teams/[id]/page.tsx:1521",
+   "onRemove=(member) => handleRemoveMember(member) @apps/web/app/(app)/teams/[id]/page.tsx:1521",
+   "onClick=() => void reloadInvites() @apps/web/app/(app)/teams/[id]/page.tsx:1564",
+   "onClick=() => void handleResendInvite(invite) @apps/web/app/(app)/teams/[id]/page.tsx:1624",
+   "onClick=() => handleDeleteInvite(invite.id) @apps/web/app/(app)/teams/[id]/page.tsx:1643",
+   "onTransferred=async (notice) => { setOwnershipNotice(notice); await loadDa @apps/web/app/(app)/teams/[id]/page.tsx:1794",
+   "onClick=() => setDeleteConfirm(true) @apps/web/app/(app)/teams/[id]/page.tsx:1818",
+   "onClick=() => setInviteOpen(true) @apps/web/app/(app)/teams/[id]/page.tsx:1859",
+   "onClick=() => isEditingName ? handleCancelEditName() : handleStartEd @apps/web/app/(app)/teams/[id]/page.tsx:1900",
+   "onChange=(e) => setTeamName(e.target.value) @apps/web/app/(app)/teams/[id]/page.tsx:1924",
+   "onClick=() => void handleSaveTeamName() @apps/web/app/(app)/teams/[id]/page.tsx:1932",
+   "onClick=() => { const next = !showAddCase; setShowAddCase(next); //  @apps/web/app/(app)/teams/[id]/page.tsx:2075",
+   "onClick=() => void handleAddExistingCase(c.id) @apps/web/app/(app)/teams/[id]/page.tsx:2126",
+   "onClick=() => handleUnlinkTeamCase(c.id) @apps/web/app/(app)/teams/[id]/page.tsx:2164",
+   "onClose=() => setInviteOpen(false) @apps/web/app/(app)/teams/[id]/page.tsx:2189",
+   "onClick=() => setInviteOpen(false) @apps/web/app/(app)/teams/[id]/page.tsx:2197",
+   "onClick=() => void handleInvite() @apps/web/app/(app)/teams/[id]/page.tsx:2204",
+   "onChange=(e) => setInviteEmail(e.target.value) @apps/web/app/(app)/teams/[id]/page.tsx:2221",
+   "onChange=(v) => setInviteRole(v as (typeof INVITE_ROLE_OPTIONS)[numbe @apps/web/app/(app)/teams/[id]/page.tsx:2235",
+   "onClose=() => setPermissionsOpen(false) @apps/web/app/(app)/teams/[id]/page.tsx:2261",
+   "onClick=() => setPermissionsOpen(false) @apps/web/app/(app)/teams/[id]/page.tsx:2268",
+   "onCancel=() => setPendingInviteDelete(null) @apps/web/app/(app)/teams/[id]/page.tsx:2285",
+   "onConfirm=handleConfirmDeleteInvite @apps/web/app/(app)/teams/[id]/page.tsx:2285",
+   "onCancel=() => setPendingCaseUnlink(null) @apps/web/app/(app)/teams/[id]/page.tsx:2299",
+   "onConfirm=handleConfirmUnlinkCase @apps/web/app/(app)/teams/[id]/page.tsx:2299",
+   "onCancel=() => setDeleteConfirm(false) @apps/web/app/(app)/teams/[id]/page.tsx:2313",
+   "onConfirm=handleDeleteTeam @apps/web/app/(app)/teams/[id]/page.tsx:2313",
+   "onCancel=() => setRemovalDialogMember(null) @apps/web/app/(app)/teams/[id]/page.tsx:2329",
+   "onRemoved=() => handleRemovalConfirmed(removalDialogMember) @apps/web/app/(app)/teams/[id]/page.tsx:2329",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onChange=(e) => setSearchInput(e.target.value) @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:315",
+   "onChange=(v) => setStatus(v as StatusFilter) @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:326",
+   "onClick=() => setRevision((v) => v + 1) @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:344",
+   "onClick=onInvite @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:375",
+   "onChange=(next) => void changeRole(member, next as ManageableRole) @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:443",
+   "onClick=() => onRemove(member) @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:469",
+   "onClick=() => void loadMore() @apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:501",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => { setState({ kind: \"loading\" }); void load(); } @apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:239",
+   "onClick=() => setExpanded(open ? null : person.userId) @apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:312",
+   "onClick=() => void revoke(person, grant) @apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:338",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=() => setReloadKey((k) => k + 1) @apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:373",
+   "onChange=(e) => setSearchInput(e.target.value) @apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:400",
+   "onChange=(e) => { const next = e.target.value; setTargetUserId(next); @apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:417",
+   "onClick=() => void loadMoreCandidates() @apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:462"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/workspace-people.tsx:466",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/workspace-people.tsx:480",
+   "onPress=() => { setDraftName(overview.name ?? \"\"); setRenaming(true) @apps/mobile/app/(stack)/workspace-people.tsx:504",
+   "onPress=canChangeRole(m, overview.canManageMembers) ? () => setRoleF @apps/mobile/app/(stack)/workspace-people.tsx:522",
+   "onPress=() => void loadMore() @apps/mobile/app/(stack)/workspace-people.tsx:553",
+   "onChangeText=setEmail @apps/mobile/app/(stack)/workspace-people.tsx:572",
+   "onChange=setRole @apps/mobile/app/(stack)/workspace-people.tsx:581",
+   "onPress=() => void invite() @apps/mobile/app/(stack)/workspace-people.tsx:587",
+   "onPress=() => void resend(i.id) @apps/mobile/app/(stack)/workspace-people.tsx:625",
+   "onPress=() => setRevoking(i) @apps/mobile/app/(stack)/workspace-people.tsx:632",
+   "onPress=() => setUnlinking(c) @apps/mobile/app/(stack)/workspace-people.tsx:670",
+   "onPress=() => void openLinkPicker() @apps/mobile/app/(stack)/workspace-people.tsx:683",
+   "onPress=() => setTransferring(true) @apps/mobile/app/(stack)/workspace-people.tsx:723",
+   "onPress=() => setCancellingClosure(true) @apps/mobile/app/(stack)/workspace-people.tsx:740",
+   "onPress=() => setClosing(true) @apps/mobile/app/(stack)/workspace-people.tsx:762",
+   "onClose=() => setTransferring(false) @apps/mobile/app/(stack)/workspace-people.tsx:774",
+   "onPress=() => { setTransferring(false); setTransferTarget(m); } @apps/mobile/app/(stack)/workspace-people.tsx:790",
+   "onConfirm=() => void transferOwnership() @apps/mobile/app/(stack)/workspace-people.tsx:803",
+   "onCancel=() => setTransferTarget(null) @apps/mobile/app/(stack)/workspace-people.tsx:803",
+   "onClose=() => setClosing(false) @apps/mobile/app/(stack)/workspace-people.tsx:814",
+   "onChangeText=setPhrase @apps/mobile/app/(stack)/workspace-people.tsx:826",
+   "onPress=() => void requestClosure() @apps/mobile/app/(stack)/workspace-people.tsx:840",
+   "onConfirm=() => void cancelClosure() @apps/mobile/app/(stack)/workspace-people.tsx:848",
+   "onCancel=() => setCancellingClosure(false) @apps/mobile/app/(stack)/workspace-people.tsx:848",
+   "onSubmit=(proof) => void stepUp.retry(proof, (err) => failLifecycle(e @apps/mobile/app/(stack)/workspace-people.tsx:859",
+   "onCancel=stepUp.dismiss @apps/mobile/app/(stack)/workspace-people.tsx:859",
+   "onClose=() => setRoleFor(null) @apps/mobile/app/(stack)/workspace-people.tsx:869",
+   "onPress=() => { if (roleFor) void changeRole(roleFor, r); } @apps/mobile/app/(stack)/workspace-people.tsx:880",
+   "onClose=() => setLinking(false) @apps/mobile/app/(stack)/workspace-people.tsx:895",
+   "onPress=() => void linkCase(c) @apps/mobile/app/(stack)/workspace-people.tsx:906",
+   "onClose=() => setRenaming(false) @apps/mobile/app/(stack)/workspace-people.tsx:911",
+   "onChangeText=setDraftName @apps/mobile/app/(stack)/workspace-people.tsx:917",
+   "onPress=() => void rename() @apps/mobile/app/(stack)/workspace-people.tsx:924",
+   "onConfirm=() => void unlinkCase() @apps/mobile/app/(stack)/workspace-people.tsx:932",
+   "onCancel=() => setUnlinking(null) @apps/mobile/app/(stack)/workspace-people.tsx:932",
+   "onConfirm=() => void revoke() @apps/mobile/app/(stack)/workspace-people.tsx:943",
+   "onCancel=() => setRevoking(null) @apps/mobile/app/(stack)/workspace-people.tsx:943",
+   "onClose=onCancel @apps/mobile/src/ui/step-up-sheet.tsx:61",
+   "onChangeText=setValue @apps/mobile/src/ui/step-up-sheet.tsx:79",
+   "onPress=() => { const proof = buildStepUpProof(method, value); if (p @apps/mobile/src/ui/step-up-sheet.tsx:89",
+   "onPress=onCancel @apps/mobile/src/ui/step-up-sheet.tsx:105",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537"
+  ]
+ },
+ "level8": {
+  "webApi": 26,
+  "natApi": 4,
+  "shared": 4,
+  "onlyWeb": 22,
+  "onlyNative": 0,
+  "onlyWebList": [
+   "/v1/platform/context/switch-workspace",
+   "/v1/identity/links",
+   "/v1/identity/mfa/factors",
+   "/v1/identity-security/my-sessions",
+   "/v1/identity-security/password",
+   "/v1/identity/links/${…}",
+   "/v1/identity/password",
+   "/v1/identity/mfa/enroll/start",
+   "/v1/identity/mfa/enroll/verify",
+   "/v1/identity/mfa/factors/${…}",
+   "/v1/identity/mfa/recovery-codes/regenerate",
+   "/v1/identity-security/my-sessions/revoke-others",
+   "/v1/identity-security/my-sessions/${…}",
+   "/v1/identity-security/security-events?limit=50",
+   "/v1/identity-security/contact-factors",
+   "/v1/identity-security/contact-factors/enroll/start",
+   "/v1/identity-security/contact-factors/enroll/verify",
+   "/v1/identity-security/contact-factors/${…}",
+   "/v1/users/me",
+   "/v1/users/cookie-consent",
+   "/v1/",
+   "/v1/platform/rbac/matrix"
+  ],
+  "onlyNativeList": [],
+  "sharedList": [
+   "/v1/teams/${…}",
+   "/v1/cases",
+   "/v1/platform/context",
+   "/v1/auth/me"
+  ],
+  "webApiWhere": {
+   "/v1/teams/${…}": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:179",
+   "/v1/cases": "apps/web/app/(app)/teams/[id]/page.tsx:962",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/identity/links": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:177",
+   "/v1/identity/mfa/factors": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:192",
+   "/v1/identity-security/my-sessions": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:211",
+   "/v1/identity-security/password": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:380",
+   "/v1/identity/links/${…}": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:872",
+   "/v1/identity/password": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:834",
+   "/v1/identity/mfa/enroll/start": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1152",
+   "/v1/identity/mfa/enroll/verify": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1178",
+   "/v1/identity/mfa/factors/${…}": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1296",
+   "/v1/identity/mfa/recovery-codes/regenerate": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1245",
+   "/v1/identity-security/my-sessions/revoke-others": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1650",
+   "/v1/identity-security/my-sessions/${…}": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1695",
+   "/v1/identity-security/security-events?limit=50": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1980",
+   "/v1/identity-security/contact-factors": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:230",
+   "/v1/identity-security/contact-factors/enroll/start": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:347",
+   "/v1/identity-security/contact-factors/enroll/verify": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:451",
+   "/v1/identity-security/contact-factors/${…}": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:518",
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227",
+   "/v1/platform/rbac/matrix": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:175"
+  },
+  "natApiWhere": {
+   "/v1/cases": "apps/mobile/app/(stack)/workspace-people.tsx:310",
+   "/v1/teams/${…}": "apps/mobile/src/product/workspace-people.ts:477",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

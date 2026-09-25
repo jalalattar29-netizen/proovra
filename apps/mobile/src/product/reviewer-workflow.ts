@@ -96,6 +96,8 @@ export interface ReviewerWorkflow {
   /** Never a raw user id: a name, an email, or absent. */
   assignedToLabel: string | null;
   assignedToUserId: string | null;
+  /** Who made the assignment (workflow.assignedBy) — a name or email, never an id. */
+  assignedByLabel: string | null;
 }
 
 /**
@@ -121,6 +123,7 @@ export function parseReviewerWorkflow(payload: unknown): ReviewerWorkflow | null
     // A raw user id is not a person. Absent stays absent.
     assignedToLabel: str(assigned.displayName) ?? str(assigned.email),
     assignedToUserId: str(assigned.id),
+    assignedByLabel: str(obj(w.assignedBy).displayName) ?? str(obj(w.assignedBy).email),
   };
 }
 

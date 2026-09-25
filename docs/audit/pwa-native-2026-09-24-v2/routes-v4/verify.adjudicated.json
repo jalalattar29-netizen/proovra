@@ -1,0 +1,480 @@
+{
+ "route": "/verify",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "INPUT",
+   "label": "Paste token here",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:208",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Verify",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:56",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review digital evidence through a verification-first record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:59",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No account required.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:67",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open a PROOVRA verification token or public verification ID to inspect recorded integrity state, custody context, timing context, access activity, and supporting verification materials where available.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:71",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verification",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:82",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Boundary notice.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:107",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA verifies recorded technical and workflow materials. It does not determine factual truth, authorship, identity, legal admissibility, or evidentiary weight.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.15)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter verification token",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the token from a PROOVRA report or shared verification record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification token or public verification ID",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter a verification token to continue.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:239",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This opens a read-only verification view. It does not modify the evidence record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:246",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verification",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:262",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Open verification report",
+    "at": "apps/mobile/app/verify.tsx:181"
+   },
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Materials May Include",
+   "at": "apps/web/app/verify/_components/VerifyMaterialsSection.tsx:33",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "A public verification record may expose selected review materials depending on what was recorded, shared, and supported for the evidence record.",
+   "at": "apps/web/app/verify/_components/VerifyMaterialsSection.tsx:36",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What it opens",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:57",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"What this establishes\" at apps/mobile/app/verify.tsx:152 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "What Public Verify opens.",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "A reviewer-facing read of the recorded evidence record. Public Verify exposes the materials shared on that record — nothing more.",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:68",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA does not decide",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:41",
+   "natHasRole": true,
+   "bestScore": 0.38,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"PROOVRA does not claim any of the following:\" at apps/mobile/app/verify.tsx:171 scores 0.38 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification exposes context.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:44",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "It does not decide outcomes.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:46",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"PROOVRA does not claim any of the following:\" at apps/mobile/app/verify.tsx:171 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification exposes recorded technical and operational context. Final factual, legal, procedural, or expert conclusions remain the responsibility of qualified reviewers.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:52",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Out of scope",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "For reviewers and organizations",
+   "at": "apps/web/app/verify/_components/VerifyUseCasesSection.tsx:57",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Built for review across functions.",
+   "at": "apps/web/app/verify/_components/VerifyUseCasesSection.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Start reviewing a verification record.",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:40",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review a PROOVRA verification token online.",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:43",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Verification",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:52",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  }
+ ]
+}

@@ -83,9 +83,9 @@ test("opening Capture creates nothing at all", async () => {
   );
 });
 
-test("the screen offers all four capture sources", async () => {
+test("the screen offers the web intake actions (CaptureDropzone: Files, Photo, Video, Audio)", async () => {
   const r = await render();
-  for (const label of ["Photo", "Video", "Audio", "Document"]) {
+  for (const label of ["Files", "Photo", "Video", "Audio"]) {
     assert.ok(r.hasText(label), `missing capture source: ${label}`);
   }
 });
@@ -93,7 +93,12 @@ test("the screen offers all four capture sources", async () => {
 test("native screen capture is offered as a SOURCE here, not on Home", async () => {
   const r = await render();
   assert.ok(r.hasText("Other capture sources"));
-  assert.ok(r.hasText("Screen capture"));
+  // T-19 — on iOS (this harness) the only screen source is the CONTINUOUS
+  // broadcast flow, so the control is named for it; the old assertion pinned
+  // Android's "Screen capture" label over a different flow.
+  assert.equal(r.byLabel("Continuous screen capture").length, 1);
+  assert.equal(r.byLabel("Screen capture").length, 0, "iOS still offers a control named for a flow it does not open");
+  assert.ok(r.hasText("records continuously through Apple"));
 });
 
 test("switching source mid-session is no longer refused", async () => {

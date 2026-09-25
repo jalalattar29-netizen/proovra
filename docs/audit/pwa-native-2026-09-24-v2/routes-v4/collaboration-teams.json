@@ -1,0 +1,744 @@
+{
+ "route": "/collaboration-teams",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/collaboration-teams/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(tabs)/teams.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 35,
+   "labelled": 78,
+   "unboundExports": 8
+  },
+  "native": {
+   "files": 21,
+   "labelled": 15,
+   "unboundExports": 5
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 3,
+  "unpaired": 70,
+  "extraInNative": 12,
+  "unpairedRoleAbsent": 5
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/collaboration-teams/page.tsx:1426",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Type",
+   "webRole": "TEXT",
+   "natRole": "TAB",
+   "web": "apps/web/app/(app)/collaboration-teams/page.tsx:817",
+   "nat": "apps/mobile/app/(tabs)/teams.tsx:161"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/collaboration-teams/page.tsx:1607",
+   "nat": "apps/mobile/app/(tabs)/teams.tsx:176"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Filter teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:719",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Which teams to show",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:738",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by status",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:750",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by team type",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:758",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Sort teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:766",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Search teams by name or description",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:783",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Group name",
+    "at": "apps/mobile/app/(tabs)/teams.tsx:153"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "No open work",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:919",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Nothing overdue",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:928",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "No high priority work",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:937",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. Claim Investigations",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1526",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "What does this team work on?",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1541",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Team template",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1560",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Collaboration Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:375",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organise workspace members into operational teams for cases, evidence, assignments, reviews and workload. Teams group members who already have access — they do not grant it.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:385",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage members &amp; access",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:392",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade plan",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:409",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:445",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open work",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:519",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "across",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:521",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:521",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Unassigned",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:538",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "held by a Team, not by a person",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:540",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Needs attention",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:554",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue ·",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:556",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "high priority",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:556",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "People carrying work",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:567",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Showing every Team in this workspace. You can see them because you administer this workspace; you are not a member of the ones without a role below, and opening one does not join it.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:584",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade plan",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1166",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1403",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Error",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request id:",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1422",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Teams give you shared assignments, member invites, and collaborative review on cases and evidence. Upgrade to create one.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1236",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade plan",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1254",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No teams yet",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1266",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "A team is worth creating once more than one person is working the same cases: it gives that work one place to be assigned and discussed.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1268",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1280",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan-restricted — read-only membership",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Existing Teams and their data remain accessible.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1199",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade plan",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1202",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No teams yet",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1312",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "A team is worth creating once more than one person is working the same cases: it gives that work one place to be assigned and discussed.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1314",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1323",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No teams match the current filters",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived teams are excluded unless the status filter includes them — an archived team still exists, and still holds its history.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1335",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Show all teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1344",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:812",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:816",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Members",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:818",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open work",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:819",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Overdue",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:820",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "High / urgent",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:825",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:826",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last activity",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:827",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:828",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:960",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1090",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Add people",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1114",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Settings",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create a team",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1515",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "A team groups people who already have access to this workspace, so you can assign work to them and keep the discussion together.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1518",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Name",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1525",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Description (optional)",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1540",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Template",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1553",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "A label for what this team works on. It changes nothing about permissions or behaviour — it helps you find the team later.",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1571",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request id:",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1598",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "plan ·",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:138",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "SECTION",
+   "label": "Collaboration",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:129"
+  },
+  {
+   "role": "LIST",
+   "label": "People in this workspace",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:136"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Group name",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:152"
+  },
+  {
+   "role": "INPUT",
+   "label": "Group name",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:153"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Create group",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:170"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Create a group",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:183"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading collaboration groups",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:196"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Collaboration isn’t available here",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:198"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No collaboration groups yet",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:205"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load more",
+   "at": "apps/mobile/app/(tabs)/teams.tsx:227"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline — showing the latest available data.",
+   "at": "apps/mobile/src/ui/shell.tsx:109"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationTeamSummary"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationEntitlement"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationWorkspaceRollup"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextActiveSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "WorkspacePlan"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\collaboration-team.ts",
+   "name": "CollaborationTeamType"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "CollaborationTeamRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "CollaborationEntitlement"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

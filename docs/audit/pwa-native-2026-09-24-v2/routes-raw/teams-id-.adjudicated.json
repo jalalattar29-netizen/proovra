@@ -1,0 +1,1998 @@
+{
+ "route": "/teams/[id]",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "BOX",
+   "label": "Loading members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1144",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Sends a new link by email. The link sent earlier stops working.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1624",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "DIALOG",
+   "label": "Invite a person to this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2189",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "colleague@example.com",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2221",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SELECT",
+   "label": "Workspace role",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2235",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "DIALOG",
+   "label": "What each role can do",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2261",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "DIALOG",
+   "label": "Remove case from this workspace?",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2299",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "DIALOG",
+   "label": "Delete this workspace?",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2313",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1112",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members, invitations and workspace cases…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1114",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1171",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1202",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1213",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to workspaces",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1232",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1312",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Who can access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "— members, invitations, roles and access governance. You are",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Role permissions",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1338",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1360",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1395",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "With access to this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1397",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent, not yet accepted",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1421",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Seats available",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1439",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases in this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1451",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Cases",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1455",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Every seat is in use.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1467",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "A new person can be invited once a seat frees up, or when the plan is changed.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1469",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Review plan and seats",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1472",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1474",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No invitations outstanding — everyone invited has either joined or had their invitation withdrawn. New invitations are delivered by email.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1576",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invited",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1587",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1589",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1590",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1592",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1655",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recent activity",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1704",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace lifecycle",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1769",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1810",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Deleting removes the workspace and everybody&rsquo;s access to it. Evidence retention and legal holds are governed separately and are not overridden by this action.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1814",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite people",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1848",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Send someone an invitation to join this workspace. They are delivered",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1855",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "by email",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": ", and the recipient joins by following the link in that message.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1865",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace overview",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1898",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Name",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1945",
+   "natHasRole": true,
+   "verdict": "EXTRACTOR_ARTIFACT",
+   "why": "the extracted label is the prop name \"Name\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1958",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1965",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1978",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open billing",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1985",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Storage, subscription and payment for this workspace are managed in Billing.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1994",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Collaboration Teams",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2029",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Organise existing workspace members into operational groups for cases, evidence and work.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2037",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Organise members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2045",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases in this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2073",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading cases…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2097",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No unlinked cases are available to add.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2101",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2171",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace role",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2233",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Access across this whole workspace. Roles inside a Collaboration Team are separate. Ownership is not granted by invitation — it moves by transfer.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2248",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Search members",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:315",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter members by status",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:326",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:339",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:381",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Person",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:397",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:399",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Joined",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:400",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:402",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:476",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:480",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Showing",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "LIST",
+   "label": "External collaborators",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:282",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has LIST elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "External collaborators",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:224",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading external collaborators…",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:232",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No external collaborators. Everyone with access to this workspace is a member of it.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:279",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "First granted",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:305",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:305",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Case-scoped",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:310",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "granted",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:336",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Revoke access",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:347",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "People who are not workspace members but hold access to individual cases in this workspace. Revoking removes their access to that case only; workspace members are managed from Members.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:364",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Search by name or email",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:400",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Confirm transferring this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:547",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Hand this workspace to another active member. They become the owner and the billing owner; you stay a member. Evidence, cases and audit history are unaffected.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:357",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the members who can take ownership…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:368",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite another member first — ownership can only move to someone who is already an active member of this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:389",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Find a member",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:398",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "New owner",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:415",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select the new owner…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:441",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Show more members",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:471",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Transfer ownership…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:495",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Transfer",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "? They gain owner-only controls, including closing this workspace, and billing ownership moves with them. You can only get it back if they transfer it to you.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:514",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm transfer",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:528",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep ownership",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:538",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Verify it's you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:566",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "LIST",
+   "label": "Recovery codes — shown once",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1524",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has LIST elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Session inventory unavailable",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1848",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no STATE_EMPTY element at all — the control is absent here"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Confirm signing out every other session on your account.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1893",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No security events in the recent window",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2008",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no STATE_EMPTY element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "Change password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:419",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Use at least 12 characters with upper- and lower-case letters and a number. Your current password is required.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:421",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Current password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:432",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "New password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:444",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm new password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:456",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign out my other sessions after the change",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:483",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Change password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:509",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify it&apos;s you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:585",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify &amp; continue",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:630",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "For this change, please sign out and sign back in with your identity provider, then retry within 10 minutes.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:642",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign-in methods",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:921",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose which verified methods can sign in to this same PROOVRA account. Connecting Google or Apple does not create a second account.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:923",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Organization single sign-on is managed by your organization and never appears here.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:928",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "last used",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:964",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Add password",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:983",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Connect",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:998",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Disconnect",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1015",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "New password (12+ chars, upper- and lower-case, a number)",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1031",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Two-factor authentication",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1333",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1339",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Protect your account with an authenticator app. After setup, sign-ins require a 6-digit code in addition to your login method — however you sign in.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1343",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Two-factor authentication is",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "enabled",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": ". Recovery codes remaining:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1364",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Active",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1387",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1397",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Regenerate recovery codes",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1410",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Scan this QR code with your authenticator app (Google Authenticator, 1Password, Authy, …), then enter the 6-digit code it shows.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1420",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Can&apos;t scan? Enter this setup key manually:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1448",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "6-digit code from your app",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1468",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify &amp; enable",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1498",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Store these recovery codes somewhere safe — each works once, and they will",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1521",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "never be shown again",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1522",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1522",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "I saved these recovery codes in a safe place.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1559",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Done",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1572",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Current session",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1760",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Restricted",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1765",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign out",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1780",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "· last active",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1785",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Signed in",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1788",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Technical details",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1795",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "User agent:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1798",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "IP (masked):",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1799",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Session reference:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1800",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Issued",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1802",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "· expires",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1802",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your active sessions",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1823",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign out other sessions",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1836",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sessions you are signed into right now. Your current session is listed first and is never revoked by &ldquo;Sign out other sessions&rdquo;.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1841",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1846",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No other active sessions.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1868",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Account &amp; security activity",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1996",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Bounded timeline of authentication, profile, preference, and membership events tied to your account. Older events live in the platform audit log.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1998",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2006",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Technical details",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2073",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Event key:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2076",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Outcome:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2077",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Severity:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2078",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "IP:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2079",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Resource:",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2080",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "View more (",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2096",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "older)",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2096",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "+44 7700 900123",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:740",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Work handset",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:783",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Verified contact device",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:602",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Sensitive operations — publishing or withdrawing evidence, approving a review or a destruction, changing a governance policy, granting department membership — ask you to confirm a one-time code first. The code is always sent to the device you enrol here, never to a number entered at the time of the action.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:605",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your enrolled devices could not be loaded, so this section cannot be changed right now. Reload the page to try again.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:618",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading your enrolled devices…",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:623",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You have no verified device yet. Enrol one below to unlock the operations listed above.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:627",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:644",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Replace this device",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:690",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enrolling a new device replaces",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:707",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ". The current device keeps working until the new one is verified, and any approval already granted against the old device stops working the moment it is replaced.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:708",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "How should the code be sent?",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:717",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Phone number",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:738",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Include the country code. This is the only place the full number is entered — after verification the product shows a masked form of it and never displays it again.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:763",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Name this device",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:781",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:781",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open a workspace before enrolling a device — the verification is recorded against the workspace you are working in.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:826",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "A code was sent to",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:845",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ". Enter it below to finish enrolling this device.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:849",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification code",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:854",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Start over",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:949",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Codes for sensitive operations will be sent to",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:966",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:970",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Device revoked.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:981",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Any approval granted against it has stopped working, and sensitive operations stay blocked until you enrol another device.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:981",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "An enrolment for",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:1022",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "was started but never verified. Start again to send a fresh code, or revoke it above.",
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:1022",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no TABLE element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Confirm closing this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:459",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Close workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:264",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Archives access to this workspace after a",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "-day cancellation window.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence is never deleted by workspace closure — it stays governed by retention and legal-hold rules.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:275",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel closure request",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:324",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Close this workspace…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:358",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:405",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:422",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Restores your owner access so you can work in it again. Other members, API credentials and webhooks are NOT restored — re-invite people and re-issue credentials deliberately.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:425",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:438",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "✓",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:141",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Who can do what",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:218",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "What each role on this team can do. This list comes from the API — if a cell isn&apos;t checked, the action is blocked for that role.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:221",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role here is",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:225",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:229",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the role reference from the server…",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your account is not permitted to read the capability catalog. Ask a workspace administrator what your role includes.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:260",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "The server returned no capability catalog for this deployment.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:302",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Capability",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:339",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Custom roles are not supported on the current plan. Workspace capabilities are defined and enforced by the API",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:467",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "— see Security Center for org-wide policy controls.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:469",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Evidence owned",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:309",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Cases owned",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:315",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Open assignments",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:321",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You're about to remove",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:268",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:269",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ") from the workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:270",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking what they own in this team…",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:278",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Transfer ownership to",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:341",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose an admin to receive these records…",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:358",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:371",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:371",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Only ADMIN-or-OWNER members are eligible. Ownership transfer happens atomically with the removal — no record will be orphaned.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:383",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Removal blocked — no eligible transfer target.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:400",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This member owns active records but the workspace has no other ADMIN or OWNER to receive them. Promote another member to ADMIN first, then re-open this dialog.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:402",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This member doesn't own any active evidence or cases in this team. Removing them won't transfer any ownership.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:417",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

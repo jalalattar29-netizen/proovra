@@ -1,0 +1,774 @@
+{
+ "route": "/cases",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "BOX",
+   "label": "Filter by status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:604",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BOX elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Search cases, owners, IDs, or references",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:647",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SELECT",
+   "label": "Risk level",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:667",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "INPUT",
+   "label": "Select all cases in view",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1019",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "SELECT",
+   "label": "Bulk action",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1033",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no SELECT element at all — the control is absent here"
+  },
+  {
+   "role": "INPUT",
+   "label": "Reason for this bulk action",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1046",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "gap",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1281",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "incident",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1284",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "overdue",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1287",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "gov block",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1290",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Case actions",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1521",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:378",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Group related evidence into simple workspaces for incidents, claims, projects, or reviews.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:390",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshed",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:404",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Updating…",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:412",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Any risk",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:677",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Create a case to group related evidence for an incident, claim, project, or review.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:903",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No cases match these filters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:921",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Try clearing filters or searching for a different case name.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:923",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:931",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Case",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:956",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:957",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:958",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:959",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Readiness",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:960",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last updated",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:961",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "applied",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1074",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1255",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal preservation",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1294",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1360",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Unassigned",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1362",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1547",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Rename",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1550",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Change status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1553",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Archive",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1562",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1571",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk:",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1619",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1781",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Investigation Matters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1804",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Investigation Matters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1837",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Matter queue temporarily unavailable",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1839",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1844",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. Insurance claim #4823",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:199",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:162",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You can rename the case from its workspace at any time. Evidence, assignments, and comments are added after creation.",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:226",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Request ID:",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:257",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx:91",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Change case status",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:113",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Operator-readable reason. Helps future readers understand the timeline.",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:170",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:128",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This updates case organization only. Linked evidence, reports, verification packages, notes, custody history, and audit records remain unchanged.",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:156",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This change is audited. If the case has an active legal hold, the backend will reject transitions to Closed or Archived with a clear explanation.",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:161",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reason (optional, ≤ 400 characters)",
+   "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:168",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "DIALOG",
+   "label": "Link evidence to this matter",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:224",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Search evidence by title",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:255",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "LIST",
+   "label": "Workspace evidence",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:288",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has LIST elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Why is this evidence linked to the matter?",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:450",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:239",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading evidence…",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:275",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No evidence matches the search.",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:285",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Already linked",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:343",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Link role",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:431",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reason / note (optional, ≤ 400 characters)",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:448",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "DIALOG",
+   "label": "Add assignment",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:220",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has DIALOG elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Search by name or email",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:267",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "LIST",
+   "label": "Workspace members",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:300",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Why this assignment? Any handoff notes?",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:434",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:235",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace members…",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:287",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "No workspace members match the search.",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:297",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Role",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:407",
+   "natHasRole": true,
+   "verdict": "EXTRACTOR_ARTIFACT",
+   "why": "the extracted label is the prop name \"Role\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This user already holds the",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:427",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "role on this case.",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:427",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Note (optional, ≤ 400 characters)",
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:432",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/ui-legacy.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no TABLE element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has COMPONENT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

@@ -1,0 +1,509 @@
+{
+ "route": "/login",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "BUTTON",
+   "label": "Continue with Apple",
+   "web": "apps/web/app/login/page.tsx:812",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:126",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA",
+   "web": "apps/web/app/login/page.tsx:722",
+   "nat": "apps/mobile/src/ui/brand.tsx:31",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "INPUT",
+   "label": "you@example.com",
+   "web": "apps/web/components/marketing/ForgotPasswordModal.tsx:285",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:73",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "INPUT",
+   "webLabel": "Password",
+   "natLabel": "Your password",
+   "score": 1,
+   "web": "apps/web/app/login/page.tsx:892",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:83",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Sign in to PROOVRA",
+   "natLabel": "PROOVRA",
+   "score": 0.5,
+   "web": "apps/web/app/login/page.tsx:154",
+   "nat": "apps/mobile/src/ui/brand.tsx:31",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "label": "Continue with Google",
+   "webRole": "BOX",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/login/page.tsx:798",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:119",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Email",
+   "webRole": "INPUT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/login/page.tsx:847",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:72",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/login/page.tsx:788",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:103",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Forgot password?",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/login/page.tsx:950",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:106",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preparing the sign-in form…",
+   "at": "apps/web/app/login/page.tsx:157",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Welcome Back",
+   "at": "apps/web/app/login/page.tsx:708",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Return to your",
+   "at": "apps/web/app/login/page.tsx:712",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "workspace.",
+   "at": "apps/web/app/login/page.tsx:724",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in to continue reviewing evidence records, verification reports, cases, workspaces, and protected review workflows.",
+   "at": "apps/web/app/login/page.tsx:728",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "or continue with",
+    "at": "apps/mobile/app/(stack)/auth.tsx:113"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Account access",
+   "at": "apps/web/app/login/page.tsx:784",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue with your preferred sign-in method and return safely to your PROOVRA workspace.",
+   "at": "apps/web/app/login/page.tsx:792",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "or continue with",
+    "at": "apps/mobile/app/(stack)/auth.tsx:113"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "I agree to the",
+   "at": "apps/web/app/login/page.tsx:980",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/auth.tsx:137"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/app/login/page.tsx:982",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/auth.tsx:137"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/app/login/page.tsx:986",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/auth.tsx:137"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cookie Policy",
+   "at": "apps/web/app/login/page.tsx:990",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/auth.tsx:137"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in with Email",
+   "at": "apps/web/app/login/page.tsx:1009",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify your email address",
+   "at": "apps/web/app/login/page.tsx:1032",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Please verify your email address before signing in. The link in your inbox will activate your account.",
+   "at": "apps/web/app/login/page.tsx:1035",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Use a different email",
+   "at": "apps/web/app/login/page.tsx:1103",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Auth Debug",
+   "at": "apps/web/app/login/page.tsx:1156",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Apple:",
+   "at": "apps/web/app/login/page.tsx:1157",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "nextUrl:",
+   "at": "apps/web/app/login/page.tsx:1158",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "acceptLegal:",
+   "at": "apps/web/app/login/page.tsx:1159",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Password reset",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:189",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your email",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:217",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "If an account exists for this address, a secure password reset link has been sent.",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to sign in",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:242",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Send again",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reset your password",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter the email address associated with your PROOVRA account. If an account exists, we&rsquo;ll send a secure password reset link.",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:273",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email address",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:283",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sending secure reset link…",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:326",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Send reset link",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:347",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:364",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to sign in",
+   "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:372",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  }
+ ]
+}

@@ -1,0 +1,1714 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "split": {
+  "TW_DECODER_GAP": 4,
+  "EXTRACTOR": 11,
+  "GENUINE": 150
+ },
+ "genuine": [
+  {
+   "cls": "cc-section",
+   "uses": 24,
+   "routes": [
+    "/cases/[id]",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:840",
+   "note": null
+  },
+  {
+   "cls": "cc-section-header",
+   "uses": 18,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:78",
+   "note": null
+  },
+  {
+   "cls": "cc-section-title",
+   "uses": 18,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:79",
+   "note": null
+  },
+  {
+   "cls": "cc-tile",
+   "uses": 17,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:241",
+   "note": null
+  },
+  {
+   "cls": "cc-tile-value",
+   "uses": 17,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:242",
+   "note": null
+  },
+  {
+   "cls": "cc-tile-label",
+   "uses": 17,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:243",
+   "note": null
+  },
+  {
+   "cls": "cc-section-note",
+   "uses": 15,
+   "routes": [
+    "/cases/[id]",
+    "/home",
+    "/reports",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:275",
+   "note": null
+  },
+  {
+   "cls": "ui-empty-state",
+   "uses": 14,
+   "routes": [
+    "/billing",
+    "/evidence",
+    "/inbox",
+    "/notifications",
+    "/organizations/[id]",
+    "/reports",
+    "/settings"
+   ],
+   "at": "apps/web/components/ui/EmptyState.tsx:128",
+   "note": null
+  },
+  {
+   "cls": "cc-muted",
+   "uses": 13,
+   "routes": [
+    "/cases",
+    "/cases/[id]"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:407",
+   "note": null
+  },
+  {
+   "cls": "cc-subtitle",
+   "uses": 9,
+   "routes": [
+    "/billing",
+    "/cases",
+    "/workspaces"
+   ],
+   "at": "apps/web/app/(app)/billing/page.tsx:866",
+   "note": null
+  },
+  {
+   "cls": "cc-kicker",
+   "uses": 9,
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+   "note": null
+  },
+  {
+   "cls": "opsw-drawer__section",
+   "uses": 9,
+   "routes": [
+    "/operations"
+   ],
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:143",
+   "note": null
+  },
+  {
+   "cls": "landing-page",
+   "uses": 8,
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/verify-email",
+    "/login",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]"
+   ],
+   "at": "apps/web/app/auth/callback/ui/page.tsx:313",
+   "note": null
+  },
+  {
+   "cls": "cc-quick-action",
+   "uses": 8,
+   "routes": [
+    "/home",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/command-center/CommandCenter.tsx:385",
+   "note": null
+  },
+  {
+   "cls": "legal-list",
+   "uses": 8,
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "at": "apps/web/app/legal/legal-content.tsx:313",
+   "note": null
+  },
+  {
+   "cls": "cc-section-foot",
+   "uses": 7,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:264",
+   "note": null
+  },
+  {
+   "cls": "app-btn",
+   "uses": 6,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:91",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-metric-value-lg",
+   "uses": 6,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:367",
+   "note": null
+  },
+  {
+   "cls": "legal-document-shell",
+   "uses": 6,
+   "routes": [
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:264",
+   "note": null
+  },
+  {
+   "cls": "[&_h2]:scroll-mt-24",
+   "uses": 6,
+   "routes": [
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:412",
+   "note": "variant prefix [&_h2]: but base \"scroll-mt-24\" resolves to nothing"
+  },
+  {
+   "cls": "cc-page-header",
+   "uses": 6,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:48",
+   "note": null
+  },
+  {
+   "cls": "app-table__link",
+   "uses": 5,
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]",
+    "/teams/[id]"
+   ],
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:268",
+   "note": null
+  },
+  {
+   "cls": "legal-link",
+   "uses": 5,
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]",
+    "/trust-center/subprocessors"
+   ],
+   "at": "apps/web/app/legal/legal-content.tsx:389",
+   "note": null
+  },
+  {
+   "cls": "cases-row-main",
+   "uses": 5,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:86",
+   "note": null
+  },
+  {
+   "cls": "cc-tile-grid",
+   "uses": 5,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:240",
+   "note": null
+  },
+  {
+   "cls": "ilk-listbox",
+   "uses": 4,
+   "routes": [
+    "/intake-links"
+   ],
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:121",
+   "note": null
+  },
+  {
+   "cls": "legal-list-ordered",
+   "uses": 4,
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "at": "apps/web/app/legal/legal-content.tsx:328",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-card-title",
+   "uses": 4,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:428",
+   "note": null
+  },
+  {
+   "cls": "inset-x-0",
+   "uses": 4,
+   "routes": [
+    "/trust",
+    "/verify"
+   ],
+   "at": "apps/web/app/trust/page.tsx:755",
+   "note": null
+  },
+  {
+   "cls": "matter-workspace",
+   "uses": 3,
+   "routes": [
+    "/cases/[id]"
+   ],
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:774",
+   "note": null
+  },
+  {
+   "cls": "app-field__help",
+   "uses": 3,
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]",
+    "/teams/[id]"
+   ],
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:543",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-field",
+   "uses": 3,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:459",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-soft-grid",
+   "uses": 3,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:488",
+   "note": null
+  },
+  {
+   "cls": "border-collapse",
+   "uses": 3,
+   "routes": [
+    "/pricing",
+    "/support"
+   ],
+   "at": "apps/web/app/pricing/page.tsx:1252",
+   "note": null
+  },
+  {
+   "cls": "cc-meta",
+   "uses": 2,
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:395",
+   "note": null
+  },
+  {
+   "cls": "cc-skeleton",
+   "uses": 2,
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1787",
+   "note": null
+  },
+  {
+   "cls": "ui-filterbar",
+   "uses": 2,
+   "routes": [
+    "/cases",
+    "/reports"
+   ],
+   "at": "apps/web/components/ui/FilterBar.tsx:100",
+   "note": null
+  },
+  {
+   "cls": "app-link",
+   "uses": 2,
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/components/ai-copilot/CopilotCitation.tsx:63",
+   "note": null
+  },
+  {
+   "cls": "TRASH",
+   "uses": 2,
+   "routes": [
+    "/evidence"
+   ],
+   "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:318",
+   "note": null
+  },
+  {
+   "cls": "evidence-detail-artifact-note",
+   "uses": 2,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:216",
+   "note": null
+  },
+  {
+   "cls": "app-btn-primary",
+   "uses": 2,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:91",
+   "note": null
+  },
+  {
+   "cls": "ops-item__open",
+   "uses": 2,
+   "routes": [
+    "/inbox",
+    "/notifications"
+   ],
+   "at": "apps/web/app/(app)/inbox/page.tsx:1942",
+   "note": null
+  },
+  {
+   "cls": "legal-divider",
+   "uses": 2,
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "at": "apps/web/app/legal/legal-content.tsx:572",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-row",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:166",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-top",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:167",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-label",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:168",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-meta",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:169",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-percent",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:194",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-grid",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:348",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-metric-label",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:364",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-metric-sub",
+   "uses": 2,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:373",
+   "note": null
+  },
+  {
+   "cls": "bg-gradient-to-r",
+   "uses": 2,
+   "routes": [
+    "/pricing"
+   ],
+   "at": "apps/web/app/pricing/page.tsx:981",
+   "note": null
+  },
+  {
+   "cls": "list-none",
+   "uses": 2,
+   "routes": [
+    "/pricing"
+   ],
+   "at": "apps/web/app/pricing/page.tsx:1001",
+   "note": null
+  },
+  {
+   "cls": "cc-input",
+   "uses": 2,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:121",
+   "note": null
+  },
+  {
+   "cls": "cc-button",
+   "uses": 2,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:140",
+   "note": null
+  },
+  {
+   "cls": "cc-empty",
+   "uses": 2,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:151",
+   "note": null
+  },
+  {
+   "cls": "border-[#b39b86]/42",
+   "uses": 1,
+   "routes": [
+    "/auth/callback/ui"
+   ],
+   "at": "apps/web/app/auth/callback/ui/page.tsx:349",
+   "note": null
+  },
+  {
+   "cls": "bill-pay",
+   "uses": 1,
+   "routes": [
+    "/billing"
+   ],
+   "at": "apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx:116",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:75",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__list",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:94",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__banner",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:119",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__banner--offline",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:119",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__close",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:136",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__close--safe",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:136",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__recovery",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:227",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__file-name",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:256",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__classification",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:259",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__row",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:165",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__row-header",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:166",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__state-pill",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:167",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__reason",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:171",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__progress",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:179",
+   "note": null
+  },
+  {
+   "cls": "proovra-upload-operations__row-actions",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:187",
+   "note": null
+  },
+  {
+   "cls": "capture-phase4-requirements-panel",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:42",
+   "note": null
+  },
+  {
+   "cls": "capture-activity__label",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:60",
+   "note": null
+  },
+  {
+   "cls": "capture-session-metadata-card",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:221",
+   "note": null
+  },
+  {
+   "cls": "capture-phase7-ai-modal-backdrop",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:466",
+   "note": null
+  },
+  {
+   "cls": "capture-phase7-ai-loading",
+   "uses": 1,
+   "routes": [
+    "/capture"
+   ],
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:495",
+   "note": null
+  },
+  {
+   "cls": "cases-table",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:940",
+   "note": null
+  },
+  {
+   "cls": "cases-th-actions",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:962",
+   "note": null
+  },
+  {
+   "cls": "cases-bulk-bar",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1017",
+   "note": null
+  },
+  {
+   "cls": "cases-bulk-selectall",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1018",
+   "note": null
+  },
+  {
+   "cls": "cases-row-select",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1151",
+   "note": null
+  },
+  {
+   "cls": "cases-row-bulk-note",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1166",
+   "note": null
+  },
+  {
+   "cls": "create-case-context-banner",
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ],
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:182",
+   "note": null
+  },
+  {
+   "cls": "matter-workspace--loading",
+   "uses": 1,
+   "routes": [
+    "/cases/[id]"
+   ],
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:774",
+   "note": null
+  },
+  {
+   "cls": "matter-workspace--error",
+   "uses": 1,
+   "routes": [
+    "/cases/[id]"
+   ],
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:797",
+   "note": null
+  },
+  {
+   "cls": "attach-evidence__kind",
+   "uses": 1,
+   "routes": [
+    "/cases/[id]"
+   ],
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1691",
+   "note": null
+  },
+  {
+   "cls": "app-panel__hint",
+   "uses": 1,
+   "routes": [
+    "/collaboration-teams"
+   ],
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:579",
+   "note": null
+  },
+  {
+   "cls": "app-table-footer",
+   "uses": 1,
+   "routes": [
+    "/collaboration-teams"
+   ],
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:626",
+   "note": null
+  },
+  {
+   "cls": "app-empty__body",
+   "uses": 1,
+   "routes": [
+    "/collaboration-teams/[teamId]/collaboration"
+   ],
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx:40",
+   "note": null
+  },
+  {
+   "cls": "Phase",
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1976",
+   "note": null
+  },
+  {
+   "cls": "EVIDENCE-RISK-TONE",
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1976",
+   "note": null
+  },
+  {
+   "cls": "snap-raw",
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:295",
+   "note": null
+  },
+  {
+   "cls": "ec-recommended-action-row",
+   "uses": 1,
+   "routes": [
+    "/home"
+   ],
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1480",
+   "note": null
+  },
+  {
+   "cls": "ilk-kpi__value",
+   "uses": 1,
+   "routes": [
+    "/intake-links"
+   ],
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:65",
+   "note": null
+  },
+  {
+   "cls": "ilk-kpi__label",
+   "uses": 1,
+   "routes": [
+    "/intake-links"
+   ],
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:68",
+   "note": null
+  },
+  {
+   "cls": "ilk-kpi__meta",
+   "uses": 1,
+   "routes": [
+    "/intake-links"
+   ],
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:71",
+   "note": null
+  },
+  {
+   "cls": "ilk-status__line",
+   "uses": 1,
+   "routes": [
+    "/intake-links"
+   ],
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:65",
+   "note": null
+  },
+  {
+   "cls": "legal-center-page",
+   "uses": 1,
+   "routes": [
+    "/legal/[slug]"
+   ],
+   "at": "apps/web/app/legal/[slug]/page.tsx:46",
+   "note": null
+  },
+  {
+   "cls": "opsw-condition__affected",
+   "uses": 1,
+   "routes": [
+    "/operations"
+   ],
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:292",
+   "note": null
+  },
+  {
+   "cls": "opsw-activity__last",
+   "uses": 1,
+   "routes": [
+    "/operations"
+   ],
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:178",
+   "note": null
+  },
+  {
+   "cls": "opsw-drawer__title",
+   "uses": 1,
+   "routes": [
+    "/operations"
+   ],
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:128",
+   "note": null
+  },
+  {
+   "cls": "opsw-drawer__close",
+   "uses": 1,
+   "routes": [
+    "/operations"
+   ],
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:132",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-responsive-btn",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:211",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-page",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:432",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-form-grid",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:447",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-mono",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:499",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-form-actions",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:508",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-metrics-grid",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:531",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-card-metric-value",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:563",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-card-metric-sub",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:569",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-list",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:609",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-card-inner",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:626",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-header",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:627",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-header-main",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:628",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-title",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:629",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-date",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:630",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-job-status",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:635",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-progress-row",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:651",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-stats-grid",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:670",
+   "note": null
+  },
+  {
+   "cls": "dashboard-batch-actions-row",
+   "uses": 1,
+   "routes": [
+    "/operations/batch-analysis"
+   ],
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:741",
+   "note": null
+  },
+  {
+   "cls": "wsh__posture",
+   "uses": 1,
+   "routes": [
+    "/operations/health"
+   ],
+   "at": "apps/web/app/(app)/operations/health/page.tsx:295",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-page",
+   "uses": 1,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:335",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-metric-value-md",
+   "uses": 1,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:400",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-bar-stack",
+   "uses": 1,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:430",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-reset-row",
+   "uses": 1,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:459",
+   "note": null
+  },
+  {
+   "cls": "dashboard-quotas-grid-wide",
+   "uses": 1,
+   "routes": [
+    "/operations/quotas"
+   ],
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:471",
+   "note": null
+  },
+  {
+   "cls": "org-list-surface",
+   "uses": 1,
+   "routes": [
+    "/organizations"
+   ],
+   "at": "apps/web/app/(app)/organizations/page.tsx:191",
+   "note": null
+  },
+  {
+   "cls": "border-[#5B21B6]/35",
+   "uses": 1,
+   "routes": [
+    "/pricing"
+   ],
+   "at": "apps/web/app/pricing/page.tsx:944",
+   "note": null
+  },
+  {
+   "cls": "set-nav",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx:47",
+   "note": null
+  },
+  {
+   "cls": "set-nav__group",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx:89",
+   "note": null
+  },
+  {
+   "cls": "set-section",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx:383",
+   "note": null
+  },
+  {
+   "cls": "set-roles",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:210",
+   "note": null
+  },
+  {
+   "cls": "set-grid--links",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:218",
+   "note": null
+  },
+  {
+   "cls": "set-matrix",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:292",
+   "note": null
+  },
+  {
+   "cls": "set-matrix__group",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:294",
+   "note": null
+  },
+  {
+   "cls": "set-matrix__scroll",
+   "uses": 1,
+   "routes": [
+    "/settings"
+   ],
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:301",
+   "note": null
+  },
+  {
+   "cls": "support-page",
+   "uses": 1,
+   "routes": [
+    "/support"
+   ],
+   "at": "apps/web/app/support/page.tsx:337",
+   "note": null
+  },
+  {
+   "cls": "rounded-r",
+   "uses": 1,
+   "routes": [
+    "/support"
+   ],
+   "at": "apps/web/app/support/page.tsx:451",
+   "note": null
+  },
+  {
+   "cls": "scroll-mt-24",
+   "uses": 1,
+   "routes": [
+    "/trust"
+   ],
+   "at": "apps/web/app/trust/page.tsx:936",
+   "note": null
+  },
+  {
+   "cls": "mt-auto",
+   "uses": 1,
+   "routes": [
+    "/trust"
+   ],
+   "at": "apps/web/app/trust/page.tsx:1300",
+   "note": null
+  },
+  {
+   "cls": "ml-auto",
+   "uses": 1,
+   "routes": [
+    "/trust-center/methodology"
+   ],
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:42",
+   "note": null
+  },
+  {
+   "cls": "outline-none",
+   "uses": 1,
+   "routes": [
+    "/verify"
+   ],
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:208",
+   "note": null
+  },
+  {
+   "cls": "md:flex-nowrap",
+   "uses": 1,
+   "routes": [
+    "/verify"
+   ],
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:47",
+   "note": "variant prefix md: but base \"flex-nowrap\" resolves to nothing"
+  },
+  {
+   "cls": "page-subtitle",
+   "uses": 1,
+   "routes": [
+    "/verify/[token]"
+   ],
+   "at": "apps/web/app/verify/[token]/page.tsx:4545",
+   "note": null
+  },
+  {
+   "cls": "cases-activity-main",
+   "uses": 1,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:706",
+   "note": null
+  },
+  {
+   "cls": "cc-section-sub",
+   "uses": 1,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:114",
+   "note": null
+  },
+  {
+   "cls": "cc-toolbar",
+   "uses": 1,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:120",
+   "note": null
+  },
+  {
+   "cls": "cc-table",
+   "uses": 1,
+   "routes": [
+    "/workspaces"
+   ],
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:159",
+   "note": null
+  }
+ ],
+ "families": {
+  "cc": {
+   "classes": 22,
+   "uses": 196,
+   "routes": [
+    "/cases/[id]",
+    "/workspaces",
+    "/home",
+    "/reports",
+    "/cases",
+    "/billing"
+   ]
+  },
+  "ui": {
+   "classes": 2,
+   "uses": 16,
+   "routes": [
+    "/billing",
+    "/evidence",
+    "/inbox",
+    "/notifications",
+    "/organizations/[id]",
+    "/reports",
+    "/settings",
+    "/cases"
+   ]
+  },
+  "opsw": {
+   "classes": 5,
+   "uses": 13,
+   "routes": [
+    "/operations"
+   ]
+  },
+  "landing": {
+   "classes": 1,
+   "uses": 8,
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/verify-email",
+    "/login",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]"
+   ]
+  },
+  "legal": {
+   "classes": 6,
+   "uses": 26,
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ]
+  },
+  "app": {
+   "classes": 8,
+   "uses": 21,
+   "routes": [
+    "/evidence/[id]",
+    "/cases/[id]",
+    "/teams/[id]",
+    "/collaboration-teams",
+    "/collaboration-teams/[teamId]/collaboration"
+   ]
+  },
+  "dashboard": {
+   "classes": 35,
+   "uses": 55,
+   "routes": [
+    "/operations/quotas",
+    "/operations/batch-analysis"
+   ]
+  },
+  "[&_h2]:scroll": {
+   "classes": 1,
+   "uses": 6,
+   "routes": [
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ]
+  },
+  "cases": {
+   "classes": 8,
+   "uses": 12,
+   "routes": [
+    "/workspaces",
+    "/cases"
+   ]
+  },
+  "ilk": {
+   "classes": 5,
+   "uses": 8,
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  "inset": {
+   "classes": 1,
+   "uses": 4,
+   "routes": [
+    "/trust",
+    "/verify"
+   ]
+  },
+  "matter": {
+   "classes": 3,
+   "uses": 5,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  "border": {
+   "classes": 3,
+   "uses": 5,
+   "routes": [
+    "/pricing",
+    "/support",
+    "/auth/callback/ui"
+   ]
+  },
+  "TRASH": {
+   "classes": 1,
+   "uses": 2,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  "evidence": {
+   "classes": 1,
+   "uses": 2,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  "ops": {
+   "classes": 1,
+   "uses": 2,
+   "routes": [
+    "/inbox",
+    "/notifications"
+   ]
+  },
+  "bg": {
+   "classes": 1,
+   "uses": 2,
+   "routes": [
+    "/pricing"
+   ]
+  },
+  "list": {
+   "classes": 1,
+   "uses": 2,
+   "routes": [
+    "/pricing"
+   ]
+  },
+  "bill": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/billing"
+   ]
+  },
+  "proovra": {
+   "classes": 15,
+   "uses": 15,
+   "routes": [
+    "/capture"
+   ]
+  },
+  "capture": {
+   "classes": 5,
+   "uses": 5,
+   "routes": [
+    "/capture"
+   ]
+  },
+  "create": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/cases"
+   ]
+  },
+  "attach": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  "Phase": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  "EVIDENCE": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  "snap": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  "ec": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/home"
+   ]
+  },
+  "wsh__posture": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/operations/health"
+   ]
+  },
+  "org": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/organizations"
+   ]
+  },
+  "set": {
+   "classes": 8,
+   "uses": 8,
+   "routes": [
+    "/settings"
+   ]
+  },
+  "support": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/support"
+   ]
+  },
+  "rounded": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/support"
+   ]
+  },
+  "scroll": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/trust"
+   ]
+  },
+  "mt": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/trust"
+   ]
+  },
+  "ml": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/trust-center/methodology"
+   ]
+  },
+  "outline": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/verify"
+   ]
+  },
+  "md:flex": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/verify"
+   ]
+  },
+  "page": {
+   "classes": 1,
+   "uses": 1,
+   "routes": [
+    "/verify/[token]"
+   ]
+  }
+ }
+}

@@ -212,3 +212,17 @@ test("the module offers no way to mint URLs in bulk", () => {
   const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8");
   assert.doesNotMatch(src, /buildReportLatestPaths|mintAllReport|reportUrlsFor/);
 });
+
+test("T-12: the evidence-title search reaches the query, trimmed and capped at 80 (ArtifactsQuery)", () => {
+  const path = R.buildReportsPath({ teamId: "t1", search: `  ${"x".repeat(100)}  ` });
+  const q = new URL(`https://h${path}`).searchParams.get("search");
+  assert.equal(q, "x".repeat(80));
+  assert.equal(new URL(`https://h${R.buildReportsPath({ teamId: "t1", search: "   " })}`).searchParams.has("search"), false);
+});
+
+test("the package state is read where the aggregator sends it: package.state", () => {
+  const page = R.parseArtifacts({
+    sections: { artifacts: { status: "ok", items: [{ evidenceId: "e1", title: "Roof", type: "PHOTO", status: "REPORTED", report: { state: "READY" }, package: { state: "BLOCKED", blockedReason: "x" } }] } },
+  });
+  assert.equal(page.items[0].packageState, "BLOCKED", "package ready/blocked could never show");
+});

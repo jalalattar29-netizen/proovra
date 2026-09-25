@@ -22,8 +22,18 @@ const ENVELOPE_URL =
     }).outputText,
   );
 
+// The delivery vocabulary the Details read is the real one, too.
+const DELIVERY_URL =
+  "data:text/javascript," +
+  encodeURIComponent(
+    ts.transpileModule(readFileSync(resolve(HERE, "../src/product/intake-delivery.ts"), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    }).outputText,
+  );
+
 const src = readFileSync(resolve(HERE, "../src/product/intake-links.ts"), "utf8")
   .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
+  .replace('from "./intake-delivery"', `from "${DELIVERY_URL}"`)
   .replace(/^import type .*$/m, "")
   .replace(/^import \{ humanizeEnum \}.*$/m, "function humanizeEnum(v){return v.charAt(0)+v.slice(1).toLowerCase().replace(/_/g,' ');}");
 const js = ts.transpileModule(src, {
@@ -33,20 +43,48 @@ const mod = await import(`data:text/javascript,${encodeURIComponent(js)}`);
 
 const TONES = new Set(["verified", "pending", "risk", "neutral", "governance", "info"]);
 
-test("parses enriched items (item.link + lifecycle), drops rows without an id", () => {
+test("parses enriched items (item.link + delivery + activity), drops rows without an id", () => {
   const rows = mod.parseIntakeLinks({
     items: [
       {
-        link: { id: "l1", workflowTemplateName: "Incident intake", recipientLabel: "Acme", status: "SENT", usedCount: 1, maxUses: 3, expiresAtUtc: "2026-10-01T00:00:00Z" },
-        lifecycle: { state: "OPENED" },
+        link: { id: "l1", workflowTemplateName: "Incident intake", recipientLabel: "Acme", status: "ACTIVE", usedCount: 1, maxUses: 3, expiresAtUtc: "2099-10-01T00:00:00Z", intakeMode: "EXTERNAL_REUSABLE" },
+        delivery: { latestStatus: "DELIVERED", latestChannel: "EMAIL", attemptCount: 2, channelsAttempted: ["EMAIL"] },
+        activity: { sessionsOpened: 1, sessionsStarted: 0, sessionsSubmitted: 0, evidenceCount: 0 },
       },
       { link: { workflowTemplateName: "no id" } },
     ],
   });
   assert.equal(rows.length, 1);
   assert.equal(rows[0].templateName, "Incident intake");
-  assert.equal(rows[0].status, "OPENED"); // lifecycle.state wins over link.status
+  assert.equal(rows[0].status, "ACTIVE");
   assert.equal(rows[0].maxUses, 3);
+  assert.equal(rows[0].detail.delivery.attemptCount, 2);
+  assert.equal(mod.intakeModeLabel(rows[0].detail.intakeMode), "Reusable link");
+});
+
+/*
+ * THE DEFECT: the parser read `item.lifecycle.state`, a key the server never
+ * sends (it sends `computedLifecycle`), so every row fell back to the raw DB
+ * status. An archived link, a used-up link and a link past its expiry all read
+ * "ACTIVE". The state is now derived from the link's own fields, as the web
+ * derives it (lib/intake-links/state-model.ts getLinkOperationalState).
+ */
+test("the row state is the web's operational state, derived from the link itself", () => {
+  const row = (link) => mod.parseIntakeLinks({ items: [{ link: { id: "l", status: "ACTIVE", usedCount: 0, maxUses: 3, expiresAtUtc: "2099-01-01T00:00:00Z", ...link } }] })[0];
+  assert.equal(row({ archivedAtUtc: "2026-09-01T00:00:00Z" }).status, "ARCHIVED");
+  assert.equal(row({ revokedAtUtc: "2026-09-01T00:00:00Z" }).status, "REVOKED");
+  assert.equal(row({ expiresAtUtc: "2020-01-01T00:00:00Z" }).status, "EXPIRED", "a link past its expiry read ACTIVE");
+  assert.equal(row({ usedCount: 3 }).status, "EXPIRED", "a used-up link read ACTIVE");
+  assert.equal(row({}).status, "ACTIVE");
+  assert.equal(mod.LINK_STATE_VOCABULARY.REVOKED.label, "Link disabled");
+});
+
+test("delivery presentation: no record is Manual; the latest status uses the history's vocabulary", () => {
+  const d = (x) => ({ latestStatus: null, latestChannel: null, latestAtUtc: null, latestSentAtUtc: null, latestErrorCode: null, attemptCount: 0, channelsAttempted: [], ...x });
+  assert.equal(mod.deliveryPresentation(d({})).label, "Manual");
+  assert.equal(mod.deliveryPresentation(d({ attemptCount: 1, latestChannel: "SMS", latestStatus: "UNDELIVERED" })).label, "Failed");
+  assert.equal(mod.deliveryAttemptLine(d({ attemptCount: 3, channelsAttempted: ["EMAIL", "SMS"] })), "3 attempts across 2 channels.");
+  assert.equal(mod.intakeChannelLabel(null), "Copy link");
 });
 
 test("the projection carries NO url/token field (server secret)", () => {

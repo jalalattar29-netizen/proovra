@@ -33,6 +33,12 @@ export const Pressable = host("Pressable");
 export const ScrollView = host("ScrollView");
 export const TextInput = host("TextInput");
 export const Image = host("Image");
+// T-05 — ImageBackground renders its children ON TOP of the source, so a
+// render test must be able to find those children. Treating it as a host
+// component with children preserves that, unlike a stub that drops them.
+export const ImageBackground = host("ImageBackground");
+// T-07 — expo-linear-gradient is aliased here; it is a plain host component.
+export const LinearGradient = host("LinearGradient");
 export const Switch = host("Switch");
 export const ActivityIndicator = host("ActivityIndicator");
 export const Modal = ({ visible = true, children, ...props }) =>
@@ -66,7 +72,14 @@ export const StyleSheet = {
 
 export const Platform = { OS: "ios", select: (o) => o.ios ?? o.default };
 export const Dimensions = { get: () => ({ width: 390, height: 844 }), addEventListener: () => ({ remove() {} }) };
-export const Linking = { openURL: async () => true, canOpenURL: async () => true };
+// Every opened URL is recorded on globalThis.__LINKING_OPENED__ so a test can assert what left the app.
+export const Linking = {
+  openURL: async (url) => {
+    (globalThis.__LINKING_OPENED__ ??= []).push(url);
+    return true;
+  },
+  canOpenURL: async () => true,
+};
 export const Alert = { alert: () => {} };
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
 export const useColorScheme = () => "light";
@@ -103,7 +116,13 @@ export const Animated = {
 export const Easing = { linear: (t) => t, inOut: (f) => f, ease: (t) => t };
 export const LayoutAnimation = { configureNext: () => {}, Presets: { easeInEaseOut: {} } };
 export const UIManager = { setLayoutAnimationEnabledExperimental: () => {} };
-export const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
+// A test can put the app in the background with globalThis.__APP_STATE__ = "background".
+export const AppState = {
+  get currentState() {
+    return globalThis.__APP_STATE__ ?? "active";
+  },
+  addEventListener: () => ({ remove() {} }),
+};
 export const BackHandler = { addEventListener: () => ({ remove() {} }) };
 export const Keyboard = { dismiss: () => {}, addListener: () => ({ remove() {} }) };
 export const PixelRatio = { get: () => 3, getFontScale: () => 1, roundToNearestPixel: (n) => n };

@@ -1,0 +1,1574 @@
+{
+ "route": "/verify/[token]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "SHA-256:",
+   "web": "apps/web/app/verify/[token]/page.tsx:6069",
+   "nat": "apps/mobile/app/verify.tsx:114",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Custody chain check reported:",
+   "natLabel": "Chain of custody",
+   "score": 0.5,
+   "web": "apps/web/app/verify/[token]/page.tsx:5589",
+   "nat": "apps/mobile/app/verify.tsx:129",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "label": "Try Again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/verify/[token]/page.tsx:4623",
+   "nat": "apps/mobile/src/ui/index.tsx:531",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "IMAGE",
+   "label": "PROOVRA — Integrity in Every Evidence",
+   "at": "apps/web/app/verify/[token]/page.tsx:4483",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:22"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"PROOVRA\" at apps/mobile/src/ui/brand.tsx:22 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Verification Failed",
+   "at": "apps/web/app/verify/[token]/page.tsx:4612",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no STATE_EMPTY element at all"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Evidence Not Found",
+   "at": "apps/web/app/verify/[token]/page.tsx:4634",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no STATE_EMPTY element at all"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Snapshot Source",
+   "at": "apps/web/app/verify/[token]/page.tsx:5195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Generated At",
+   "at": "apps/web/app/verify/[token]/page.tsx:5199",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Report Version",
+   "at": "apps/web/app/verify/[token]/page.tsx:5207",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Package Version",
+   "at": "apps/web/app/verify/[token]/page.tsx:5215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "OTS Status At Generation",
+   "at": "apps/web/app/verify/[token]/page.tsx:5223",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Report Signature",
+   "at": "apps/web/app/verify/[token]/page.tsx:5227",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Package Manifest Signature",
+   "at": "apps/web/app/verify/[token]/page.tsx:5231",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Snapshot Trust Decision",
+   "at": "apps/web/app/verify/[token]/page.tsx:5241",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Current OTS Status",
+   "at": "apps/web/app/verify/[token]/page.tsx:5315",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Anchored At",
+   "at": "apps/web/app/verify/[token]/page.tsx:5319",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Bitcoin Transaction",
+   "at": "apps/web/app/verify/[token]/page.tsx:5327",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Last Anchoring Update",
+   "at": "apps/web/app/verify/[token]/page.tsx:5331",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Latest Report",
+   "at": "apps/web/app/verify/[token]/page.tsx:5339",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Latest Package",
+   "at": "apps/web/app/verify/[token]/page.tsx:5343",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Record",
+   "at": "apps/web/app/verify/[token]/page.tsx:6360",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Integrity",
+   "at": "apps/web/app/verify/[token]/page.tsx:6365",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Package Integrity",
+   "at": "apps/web/app/verify/[token]/page.tsx:6370",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Custody Chain",
+   "at": "apps/web/app/verify/[token]/page.tsx:6375",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Access Activity",
+   "at": "apps/web/app/verify/[token]/page.tsx:6380",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Canonical Fingerprint Hash",
+   "at": "apps/web/app/verify/[token]/page.tsx:6559",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Digital Signature",
+   "at": "apps/web/app/verify/[token]/page.tsx:6570",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Public Key",
+   "at": "apps/web/app/verify/[token]/page.tsx:6581",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "OpenTimestamps Proof",
+   "at": "apps/web/app/verify/[token]/page.tsx:6592",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "CARD",
+   "label": "Custody Chain",
+   "at": "apps/web/app/verify/[token]/page.tsx:6782",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "CARD",
+   "label": "Access Activity",
+   "at": "apps/web/app/verify/[token]/page.tsx:6844",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Prev Hash",
+   "at": "apps/web/app/verify/[token]/page.tsx:1058",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Event Hash",
+   "at": "apps/web/app/verify/[token]/page.tsx:1059",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Home",
+   "at": "apps/web/app/verify/[token]/page.tsx:4516",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Trust Decision",
+   "at": "apps/web/app/verify/[token]/page.tsx:4543",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review the final verification verdict, legal reliance boundary, recommended reviewer actions, cryptographic materials, custody chain, timestamping state, storage protection, and access activity associated with this evidence record.",
+   "at": "apps/web/app/verify/[token]/page.tsx:4557",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Token:",
+   "at": "apps/web/app/verify/[token]/page.tsx:4578",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Home",
+   "at": "apps/web/app/verify/[token]/page.tsx:4639",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Signal Breakdown",
+   "at": "apps/web/app/verify/[token]/page.tsx:4661",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Why this decision was reached",
+   "at": "apps/web/app/verify/[token]/page.tsx:4670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "These signals align the verification page with the PDF report and verification package. A failed or pending timestamp/anchoring layer does not automatically invalidate core hashes, signatures, custody records, or preserved originals.",
+   "at": "apps/web/app/verify/[token]/page.tsx:4673",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.07)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture Context",
+   "at": "apps/web/app/verify/[token]/page.tsx:4709",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "📍",
+   "at": "apps/web/app/verify/[token]/page.tsx:4721",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Supporting provenance context",
+   "at": "apps/web/app/verify/[token]/page.tsx:4750",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Signal Summary",
+   "at": "apps/web/app/verify/[token]/page.tsx:4941",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Supporting Technical Signals",
+   "at": "apps/web/app/verify/[token]/page.tsx:4954",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The signals below show the recorded verification layers behind the Trust Decision above. They support forensic review, but the overall decision should be read from the classification, reviewer reliance, legal boundary, and reviewer action.",
+   "at": "apps/web/app/verify/[token]/page.tsx:4963",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer Action",
+   "at": "apps/web/app/verify/[token]/page.tsx:5037",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This decision is limited to the recorded technical state. It does not prove factual truth, authorship, intent, context, or court admissibility.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5057",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The trust decision shown here is sourced from the fixed snapshot taken at report or package generation time. Later activity can change the live page without necessarily changing the preserved evidence integrity state.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5126",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Why this appears",
+   "at": "apps/web/app/verify/[token]/page.tsx:5141",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification package snapshot",
+   "at": "apps/web/app/verify/[token]/page.tsx:5181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This section reflects the verification package/report generated at the recorded time.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Live anchoring status",
+   "at": "apps/web/app/verify/[token]/page.tsx:5267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5270",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Anchoring has advanced since this package was generated. A newer report/package may be available.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5287",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "OpenTimestamps public anchoring is pending. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5304",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Publication Posture",
+   "at": "apps/web/app/verify/[token]/page.tsx:5483",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recorded integrity is verified, but independent public anchoring is not finalized yet. Reviewers should treat this as a conditional anchoring state and recheck anchoring later if independent public anchoring matters to the review.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5492",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Bitcoin Anchoring",
+   "at": "apps/web/app/verify/[token]/page.tsx:5514",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Bitcoin anchor recorded",
+   "at": "apps/web/app/verify/[token]/page.tsx:5524",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "TxID:",
+   "at": "apps/web/app/verify/[token]/page.tsx:5532",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy TxID",
+   "at": "apps/web/app/verify/[token]/page.tsx:5554",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Warning",
+   "at": "apps/web/app/verify/[token]/page.tsx:5578",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Important limitation",
+   "at": "apps/web/app/verify/[token]/page.tsx:5610",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Content Review",
+   "at": "apps/web/app/verify/[token]/page.tsx:5666",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer access note",
+   "at": "apps/web/app/verify/[token]/page.tsx:5768",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What changed since completion",
+   "at": "apps/web/app/verify/[token]/page.tsx:5808",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No later report, package, or reviewer-summary changes were exposed in this verification response.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5830",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Timestamp / mismatch review",
+   "at": "apps/web/app/verify/[token]/page.tsx:5866",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No explicit digest, signature, custody, timestamp, or OTS mismatches were detected in the current verification result.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5889",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.07)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Representation note",
+   "at": "apps/web/app/verify/[token]/page.tsx:5988",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This panel is intended for reviewer understanding of the preserved evidence item. The original file remains separately preserved and the technical sections below describe the recorded integrity, custody, timestamping, and publication state tied to that item.",
+   "at": "apps/web/app/verify/[token]/page.tsx:5997",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Selected Evidence Item",
+   "at": "apps/web/app/verify/[token]/page.tsx:6021",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Kind:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6040",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "MIME Type:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6045",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Size:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6051",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "EXTRACTOR_ARTIFACT",
+   "why": "extracted label is the prop name \"Size:\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Duration:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6057",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access role:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6063",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Original:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6075",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer surface:",
+   "at": "apps/web/app/verify/[token]/page.tsx:6081",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open preserved evidence",
+   "at": "apps/web/app/verify/[token]/page.tsx:6110",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Download evidence",
+   "at": "apps/web/app/verify/[token]/page.tsx:6134",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer representation note",
+   "at": "apps/web/app/verify/[token]/page.tsx:6156",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification materials note",
+   "at": "apps/web/app/verify/[token]/page.tsx:6186",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Primary evidence item",
+   "at": "apps/web/app/verify/[token]/page.tsx:6217",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Jump to primary item",
+   "at": "apps/web/app/verify/[token]/page.tsx:6246",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Technical Review Materials",
+   "at": "apps/web/app/verify/[token]/page.tsx:6281",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "These materials support the Trust Decision shown above. The Trust Decision is the reviewer-facing summary; this technical layer exposes the raw hashes, signatures, custody-chain hashes, timestamp materials, anchoring state, and access activity for deeper forensic review.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6290",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Forensic Review Mode",
+   "at": "apps/web/app/verify/[token]/page.tsx:6317",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Core record identity, lifecycle milestones, and versioning metadata are shown here. This metadata identifies the preserved record but is separate from the cryptographic proof and from any custody-event chronology.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6398",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrity scope",
+   "at": "apps/web/app/verify/[token]/page.tsx:6449",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "These materials support review of the recorded file hash, canonical fingerprint, signature, timestamp linkage, OpenTimestamps proofing, immutable storage indicators, and publication state. They do not independently resolve authorship, narrative context, or admissibility.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6458",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Multipart integrity boundary",
+   "at": "apps/web/app/verify/[token]/page.tsx:6514",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legacy mode: this record predates explicit timestamp-input digest storage, so timestamp verification falls back to the recorded legacy digest model.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6552",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Timestamp Failure Reason",
+   "at": "apps/web/app/verify/[token]/page.tsx:6663",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "OpenTimestamps Status Note",
+   "at": "apps/web/app/verify/[token]/page.tsx:6698",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Show technical details",
+   "at": "apps/web/app/verify/[token]/page.tsx:6724",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package verification scope",
+   "at": "apps/web/app/verify/[token]/page.tsx:6761",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package integrity is separate from evidence integrity. Evidence integrity verifies the preserved evidence state. Package integrity verifies whether the exported forensic bundle contains the manifest, checksum index, manifest digest reference, and audit exports needed for independent review.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6770",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access Activity Boundary",
+   "at": "apps/web/app/verify/[token]/page.tsx:6825",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access activity is not part of the evidence integrity verdict. It records later interaction with the verification page, files, reports, or packages and must not be treated as proof that the underlying evidence is authentic or admissible. Package access snapshots are taken at generation time; the current activity shown here is live and may include later events not present in the exported package.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6835",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/verify/[token]/page.tsx:6879",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy the verification link to share this record.",
+   "at": "apps/web/app/verify/[token]/page.tsx:6888",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy Verification Link",
+   "at": "apps/web/app/verify/[token]/page.tsx:6923",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Overall Trust Decision",
+   "at": "apps/web/app/verify/[token]/page.tsx:2064",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Technical Confidence",
+   "at": "apps/web/app/verify/[token]/page.tsx:2111",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Classification",
+   "at": "apps/web/app/verify/[token]/page.tsx:2126",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Decision Basis",
+   "at": "apps/web/app/verify/[token]/page.tsx:2154",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Publication posture:",
+   "at": "apps/web/app/verify/[token]/page.tsx:2160",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verdict source:",
+   "at": "apps/web/app/verify/[token]/page.tsx:1975",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Snapshot generated:",
+   "at": "apps/web/app/verify/[token]/page.tsx:1979",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Live observed:",
+   "at": "apps/web/app/verify/[token]/page.tsx:1984",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "May have advanced since snapshot:",
+   "at": "apps/web/app/verify/[token]/page.tsx:1989",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal Review Boundary",
+   "at": "apps/web/app/verify/[token]/page.tsx:2528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended Reviewer Actions",
+   "at": "apps/web/app/verify/[token]/page.tsx:2562",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "These actions help a legal, insurance, compliance, or forensic reviewer decide what must be checked before relying on this evidence record.",
+   "at": "apps/web/app/verify/[token]/page.tsx:2565",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrity Issue Explanation",
+   "at": "apps/web/app/verify/[token]/page.tsx:2644",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The following issue explanations translate raw technical mismatch signals into reviewer-facing meaning.",
+   "at": "apps/web/app/verify/[token]/page.tsx:2647",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence content is not directly exposed here",
+   "at": "apps/web/app/verify/[token]/page.tsx:1248",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This verification flow can still validate the recorded integrity state, chain of custody, timestamps, and publication details even when direct evidence viewing is intentionally restricted.",
+   "at": "apps/web/app/verify/[token]/page.tsx:1251",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Chain of custody",
+    "at": "apps/mobile/app/verify.tsx:129"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Listen to the preserved audio item through controlled verification access. Original evidence remains separately preserved with the recorded integrity state.",
+   "at": "apps/web/app/verify/[token]/page.tsx:1344",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Text-based evidence is best opened in a dedicated tab so reviewers can inspect the original preserved file directly.",
+   "at": "apps/web/app/verify/[token]/page.tsx:1396",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open text evidence",
+   "at": "apps/web/app/verify/[token]/page.tsx:1418",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preview is not available inline for this file type",
+   "at": "apps/web/app/verify/[token]/page.tsx:1436",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The verification record still exposes the preserved file reference and integrity materials for controlled review.",
+   "at": "apps/web/app/verify/[token]/page.tsx:1439",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open preserved file",
+   "at": "apps/web/app/verify/[token]/page.tsx:1461",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy",
+   "at": "apps/web/app/verify/[token]/page.tsx:536",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Package Integrity",
+   "at": "apps/web/app/verify/[token]/page.tsx:2362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package Decision",
+   "at": "apps/web/app/verify/[token]/page.tsx:2415",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Version v",
+   "at": "apps/web/app/verify/[token]/page.tsx:2420",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Impact on Trust Decision",
+   "at": "apps/web/app/verify/[token]/page.tsx:2435",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package generated at:",
+   "at": "apps/web/app/verify/[token]/page.tsx:2461",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Submitted through",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:153",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Delivery Channel",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:154",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Submission",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:155",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Consent",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:156",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Submission Status",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:160",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Capture Device",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operating system",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:172",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Device",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:173",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "EXIF Original Capture Time",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Acquisition",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:150",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture device",
+   "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Redaction",
+   "at": "apps/web/components/verify-v2/VerifyRedactionSection.tsx:104",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Whether a redacted copy of this record has been published, and what was reviewed before it was.",
+   "at": "apps/web/components/verify-v2/VerifyRedactionSection.tsx:107",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "How this record was acquired",
+   "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:85",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recorded later from this record&apos;s secure intake session, not at the moment it was created.",
+   "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Submitted in a server-issued capture session",
+   "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA established integrity on its server at",
+   "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "original file",
+   "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:129",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  }
+ ]
+}

@@ -242,3 +242,14 @@ test("a clean projection still states what it is", () => {
   );
   assert.ok(caveats.length >= 2, "a derived surface with no caveats at all");
 });
+
+test("T-12: each block keeps its source parts and offsets, and names up to six keyframes", () => {
+  const r = D.parseDerivedReview(envelope(), API);
+  const withSource = r.projection.blocks.find((b) => b.sources.length > 0);
+  assert.ok(withSource, "the block sources were dropped");
+  assert.equal(D.sourceLine(withSource.sources[0]), `Source part ${withSource.sources[0].evidencePartId.slice(0, 8)}…${
+    withSource.sources[0].startMs !== null ? ` · ${(withSource.sources[0].startMs / 1000).toFixed(1)}s–${(withSource.sources[0].endMs / 1000).toFixed(1)}s` : ""
+  }`);
+  const urls = D.blockKeyframeUrls({ keyframeIds: ["a", "b", "a", "c", "d", "e", "f", "g"] }, { a: "u1", b: null, c: "u3", d: "u4", e: "u5", f: "u6", g: "u7" });
+  assert.deepEqual(urls, ["u1", "u3", "u4", "u5", "u6", "u7"], "missing urls skipped, duplicates dropped, at most six");
+});

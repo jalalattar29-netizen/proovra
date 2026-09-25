@@ -1,0 +1,303 @@
+{
+ "route": "/portal/[token]/work/[workflowId]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "webLabel": "Your recorded decision",
+   "natLabel": "Your decision has been recorded.",
+   "score": 0.5,
+   "web": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:483",
+   "nat": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "BOX",
+   "label": "Evidence preview",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:361",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Bounded rationale (≤ 600 chars). Required for non-APPROVE verdicts.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:508",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Comment on this review",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:621",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Add a comment\" at apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "INPUT",
+   "label": "Reply to this comment",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:684",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Add a comment\" at apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm it is you",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:279",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:309",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "← Back to dashboard",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Role:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Decision",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:466",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role cannot view recorded decisions for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:469",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading your recorded decision…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Your decision has been recorded.\" at apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162 scores 0.4 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recorded decision is not available for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:473",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Your decision has been recorded.\" at apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162 scores 0.29 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:478",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recorded",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:485",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Rationale",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:491",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You have not recorded a decision for this review yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:495",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Your decision has been recorded.\" at apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Submitting again replaces this decision.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:498",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role is read-only for decisions. You may still annotate and comment when permitted.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:503",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review communication",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:614",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Post",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No comments yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:647",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reply",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:705",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

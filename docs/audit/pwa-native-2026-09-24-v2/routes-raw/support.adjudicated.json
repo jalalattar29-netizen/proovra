@@ -1,0 +1,750 @@
+{
+ "route": "/support",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Get the",
+   "at": "apps/web/app/support/page.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "right help path.",
+   "at": "apps/web/app/support/page.tsx:375",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose the support route that matches your request — product help, billing, security reports, legal and privacy requests, or enterprise evaluation.",
+   "at": "apps/web/app/support/page.tsx:380",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Email support",
+   "at": "apps/web/app/support/page.tsx:390",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:396",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support paths",
+   "at": "apps/web/app/support/page.tsx:429",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Pick the route that matches your request.",
+   "at": "apps/web/app/support/page.tsx:431",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Each path routes your request to the correct operational, security, legal, or enterprise workflow.",
+   "at": "apps/web/app/support/page.tsx:434",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support routing",
+   "at": "apps/web/app/support/page.tsx:490",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "From question to the right team.",
+   "at": "apps/web/app/support/page.tsx:492",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA support is routed by request type so sensitive matters reach the correct operational, security, legal, or enterprise path.",
+   "at": "apps/web/app/support/page.tsx:495",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 1",
+   "at": "apps/web/app/support/page.tsx:533",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Start with your request",
+   "at": "apps/web/app/support/page.tsx:536",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Describe what you need. Most requests fall into one of five types.",
+   "at": "apps/web/app/support/page.tsx:539",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 2",
+   "at": "apps/web/app/support/page.tsx:564",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose request type",
+   "at": "apps/web/app/support/page.tsx:567",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 3",
+   "at": "apps/web/app/support/page.tsx:610",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Correct path",
+   "at": "apps/web/app/support/page.tsx:613",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support scope",
+   "at": "apps/web/app/support/page.tsx:643",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "What support can help with — and where support must draw the line.",
+   "at": "apps/web/app/support/page.tsx:645",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "What support can help with",
+   "at": "apps/web/app/support/page.tsx:656",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "What support cannot do",
+   "at": "apps/web/app/support/page.tsx:695",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Response expectations",
+   "at": "apps/web/app/support/page.tsx:720",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "How requests are prioritized.",
+   "at": "apps/web/app/support/page.tsx:722",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA routes requests by severity, risk, plan, contractual commitments, and operational capacity. Unless an enterprise agreement states otherwise, these expectations are not guaranteed response or resolution times.",
+   "at": "apps/web/app/support/page.tsx:725",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Request type",
+   "at": "apps/web/app/support/page.tsx:740",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Typical handling path",
+   "at": "apps/web/app/support/page.tsx:743",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Expectation",
+   "at": "apps/web/app/support/page.tsx:746",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise evaluation",
+   "at": "apps/web/app/support/page.tsx:807",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support for procurement, security review, and enterprise adoption.",
+   "at": "apps/web/app/support/page.tsx:810",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations evaluating PROOVRA may need technical, legal, privacy, and security materials before adoption. The enterprise path routes these requests to the right team instead of mixing them with ordinary product support.",
+   "at": "apps/web/app/support/page.tsx:814",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise reviewers may ask for",
+   "at": "apps/web/app/support/page.tsx:822",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/app/support/page.tsx:855",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:861",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Review packet",
+   "at": "apps/web/app/support/page.tsx:873",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Security reviews",
+   "at": "apps/web/app/support/page.tsx:917",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Security questions should go through the right path.",
+   "at": "apps/web/app/support/page.tsx:919",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Before adopting PROOVRA, organizations may review security documentation, architecture boundaries, subprocessors, incident response posture, and verification controls.",
+   "at": "apps/web/app/support/page.tsx:922",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Report a vulnerability",
+   "at": "apps/web/app/support/page.tsx:971",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Vulnerability reports should go to",
+   "at": "apps/web/app/support/page.tsx:974",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/support/page.tsx:981",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise security questionnaire",
+   "at": "apps/web/app/support/page.tsx:993",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise security questionnaires should go through",
+   "at": "apps/web/app/support/page.tsx:996",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "/contact-sales",
+   "at": "apps/web/app/support/page.tsx:1001",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/support/page.tsx:1003",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Sensitive or legal requests",
+   "at": "apps/web/app/support/page.tsx:1016",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Use the dedicated request path.",
+   "at": "apps/web/app/support/page.tsx:1019",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "For legally sensitive matters, use the dedicated intake path so the request is logged and routed correctly. Each path links to the relevant policy with the full submission process.",
+   "at": "apps/web/app/support/page.tsx:1022",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support vs policy",
+   "at": "apps/web/app/support/page.tsx:1061",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Support and Support Policy are different surfaces.",
+   "at": "apps/web/app/support/page.tsx:1063",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "/support",
+   "at": "apps/web/app/support/page.tsx:1087",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Support",
+   "at": "apps/web/app/support/page.tsx:1091",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "The operational support page for product help, billing routing, sensitive-request paths, and enterprise evaluation.",
+   "at": "apps/web/app/support/page.tsx:1094",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You are here",
+   "at": "apps/web/app/support/page.tsx:1098",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "/legal/support",
+   "at": "apps/web/app/support/page.tsx:1121",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support Policy",
+   "at": "apps/web/app/support/page.tsx:1125",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The legal policy document describing support scope, severity prioritization, escalation, limitations, and availability expectations.",
+   "at": "apps/web/app/support/page.tsx:1128",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Support Policy",
+   "at": "apps/web/app/support/page.tsx:1136",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Helpful resources",
+   "at": "apps/web/app/support/page.tsx:1148",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Read the documents behind each support path.",
+   "at": "apps/web/app/support/page.tsx:1150",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Not sure yet?",
+   "at": "apps/web/app/support/page.tsx:1223",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Still not sure where your request belongs?",
+   "at": "apps/web/app/support/page.tsx:1226",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Email the team and we will route it to the right path. For enterprise procurement, security review, or vendor evaluation, talk to sales.",
+   "at": "apps/web/app/support/page.tsx:1229",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Email support",
+   "at": "apps/web/app/support/page.tsx:1239",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:1245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "©",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/ui-legacy.tsx:211",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has BUTTON elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native screen for this route contains no TABLE element at all — the control is absent here"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

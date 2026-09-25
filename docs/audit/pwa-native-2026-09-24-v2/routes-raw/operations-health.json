@@ -1,0 +1,418 @@
+{
+ "route": "/operations/health",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/health/page.tsx",
+ "nativeEntry": null,
+ "ledgerStatus": "(absent from ledger)",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 157,
+   "elements": 199,
+   "texts": 42,
+   "distinctTexts": 38,
+   "handlers": 17,
+   "conditionals": 1157,
+   "apiPaths": 4,
+   "distinctApi": 3,
+   "styleRefs": 106,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 5,
+   "unresolvedImports": 0,
+   "external": [
+    "next/link",
+    "react",
+    "zod",
+    "react-dom"
+   ]
+  },
+  "native": {
+   "files": 0,
+   "elements": 0,
+   "texts": 0,
+   "distinctTexts": 0,
+   "handlers": 0,
+   "conditionals": 0,
+   "apiPaths": 0,
+   "distinctApi": 0,
+   "styleRefs": 0,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 0,
+   "unresolvedImports": 0,
+   "external": []
+  }
+ },
+ "level4": {
+  "webLabelled": 42,
+  "natLabelled": 0,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 42,
+  "extraInNative": 0,
+  "webUnlabelled": 194,
+  "missingWithRolePresent": 0,
+  "missingWithRoleAbsent": 42,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "No workspace is currently selected. Workspace health describes one workspace at a time.",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:260",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace health",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:273",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Unresolved operational conditions recorded against",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:275",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ". Every figure below is a record in this workspace — none of it is platform runtime.",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:276",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Scope: Workspace",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:281",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Refresh",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:287",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Current posture",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:301",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Evaluating…",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:306",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Unknown",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:309",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Attempted",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:311",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ". This is not a statement that the workspace is healthy — the evaluation did not complete.",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:311",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Open conditions",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:332",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Open or acknowledged",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:336",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Last condition activity",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:340",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Evaluated",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:348",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "open",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:359",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Unresolved conditions",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:375",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Open the conditions queue",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:378",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:383",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Unknown",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:386",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Attempted",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:388",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ". The list below is not empty because there is nothing to show; it is empty because it could not be read.",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:388",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No unresolved conditions are recorded against this workspace as of",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:395",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:396",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Severity",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:403",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Condition",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:404",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Category",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:405",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "First seen",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:406",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Last seen",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:407",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Occurrences",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:408",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Platform runtime — process counters, queue depth, worker heartbeat and dependency probes — is not shown here. It is identical for every workspace on the instance and is administered by PROOVRA platform staff.",
+     "at": "apps/web/app/(app)/operations/health/page.tsx:447",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": false
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": false
+    },
+    {
+     "role": "BOX",
+     "label": "Operational breadcrumb",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:101",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:120",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": false
+    }
+   ],
+   "extra": []
+  }
+ },
+ "level5": {
+  "webPropsResolved": 452,
+  "webClassesUnresolved": 1,
+  "webNonLiteralClass": 5,
+  "webCompetingRules": 28,
+  "webDistinctUnresolvedClasses": 1,
+  "natPropsResolved": 0,
+  "natTokenUnresolved": 0,
+  "webDistinctColors": 28,
+  "natDistinctColors": 0,
+  "sharedColors": 0,
+  "webOnlyColors": 28,
+  "webOnlyColorSample": [
+   "#475569",
+   "#172033",
+   "#5f6878",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(15, 23, 42, 0.06)",
+   "rgba(15, 23, 42, 0.09)",
+   "#f1f4f9",
+   "#94a3b8",
+   "#344054",
+   "rgba(248, 250, 253, 0.7)",
+   "rgba(15, 23, 42, 0.07)",
+   "#667085",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "rgba(99, 91, 255, 0.08)",
+   "rgba(100, 116, 139, 0.36)",
+   "#8793a6",
+   "#6d28d9"
+  ],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 1157,
+  "natConditionals": 0,
+  "webStateRoles": [],
+  "natStateRoles": []
+ },
+ "level7": {
+  "webHandlers": 17,
+  "natHandlers": 0,
+  "webHandlerSample": [
+   "onClick=refresh @apps/web/app/(app)/operations/health/page.tsx:282",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294"
+  ],
+  "natHandlerSample": []
+ },
+ "level8": {
+  "webApi": 3,
+  "natApi": 0,
+  "shared": 0,
+  "onlyWeb": 3,
+  "onlyNative": 0,
+  "onlyWebList": [
+   "/v1/teams/${…}",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [],
+  "sharedList": [],
+  "webApiWhere": {
+   "/v1/teams/${…}": "apps/web/app/(app)/operations/health/page.tsx:211",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {}
+ }
+}

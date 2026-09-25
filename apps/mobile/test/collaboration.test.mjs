@@ -66,7 +66,8 @@ test("empty / garbage envelopes fail safely", () => {
 
 test("subtitle pluralizes and omits the pending clause when zero", () => {
   assert.equal(mod.collaborationTeamSubtitle({ id: "t", name: "n", memberCount: 1, pendingInviteCount: 0 }), "1 member");
-  assert.equal(mod.collaborationTeamSubtitle({ id: "t", name: "n", memberCount: 4, pendingInviteCount: 2 }), "4 members · 2 pending invites");
+  // Retired group invitations are not a clause (web collaboration-teams/page.tsx:906).
+  assert.equal(mod.collaborationTeamSubtitle({ id: "t", name: "n", memberCount: 4, pendingInviteCount: 2 }), "4 members");
   assert.equal(mod.collaborationTeamSubtitle({ id: "t", name: "n" }), "0 members");
 });
 
@@ -117,7 +118,7 @@ test("the create affordance comes from the server, never from the counts", () =>
   // Counts that look like room to spare, but the server says no.
   const e = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: false,
-    teams: { used: 1, limit: 2 },
+    collaborationTeams: { used: 1, limit: 2 },
     exceededDimensions: [],
   });
   assert.equal(e.canCreate, false);
@@ -126,7 +127,7 @@ test("the create affordance comes from the server, never from the counts", () =>
   // And counts that look full, but the server says yes.
   const ok = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: true,
-    teams: { used: 2, limit: 2 },
+    collaborationTeams: { used: 2, limit: 2 },
   });
   assert.equal(ok.canCreate, true);
   assert.equal(mod.createDisabledReason(ok), null);
@@ -135,10 +136,10 @@ test("the create affordance comes from the server, never from the counts", () =>
 test("a refusal is explained from the dimension the server named", () => {
   const overTeams = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: false,
-    teams: { used: 5, limit: 5 },
+    collaborationTeams: { used: 5, limit: 5 },
     exceededDimensions: ["COLLABORATION_TEAMS"],
   });
-  assert.match(mod.createDisabledReason(overTeams), /all 5 of its collaboration groups/);
+  assert.match(mod.createDisabledReason(overTeams), /allows up to 5 active Teams. Upgrade to add more./);
 
   const overSeats = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: false,
@@ -148,9 +149,11 @@ test("a refusal is explained from the dimension the server named", () => {
 
   const locked = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: false,
-    planLocked: true,
+    featureIncluded: false,
   });
-  assert.match(mod.createDisabledReason(locked), /not included in this plan/);
+  assert.equal(mod.createDisabledReason(locked), "Teams are available on Pro, Team, and Enterprise plans.");
+  const restricted = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: false, featureIncluded: true, mutationsAllowed: false });
+  assert.match(mod.createDisabledReason(restricted), /billing needs attention/);
 
   // No stated reason still gets an honest sentence rather than silence.
   const unknown = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: false });
@@ -380,4 +383,24 @@ test("a history row with no id is dropped rather than rendered", () => {
   assert.equal(page.items.length, 1);
   assert.equal(mod.teamActivityLabel(page.items[0].eventType), "Team member added");
   assert.equal(page.nextCursor, "c1");
+});
+
+test("disposability blockers are the server's { kind, count }, said in words", () => {
+  const d = mod.parseTeamDisposability({
+    disposition: { disposable: false, blockers: [{ kind: "assignments", count: 3 }, { kind: "discussion", count: 1 }, { kind: "activity", count: 12 }] },
+  });
+  assert.equal(d.disposable, false);
+  assert.deepEqual(d.blockers, ["3 assignments", "1 discussion comment", "12 activity entries"], "every blocker was dropped");
+});
+
+test("the entitlement is read at the server's keys (collaborationTeams, featureIncluded, plan)", () => {
+  const e = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: true, featureIncluded: true, plan: "TEAM", collaborationTeams: { used: 2, limit: 5 } });
+  assert.equal(e.teamsUsed, 2);
+  assert.equal(e.teamsLimit, 5);
+  assert.equal(e.plan, "TEAM");
+  assert.equal(e.planLocked, false);
+  // The keys native used to read are not the server's.
+  const fiction = mod.parseCollaborationEntitlement({ teams: { used: 2, limit: 5 }, planLocked: true });
+  assert.equal(fiction.teamsLimit, null);
+  assert.equal(fiction.planLocked, false);
 });

@@ -1,0 +1,776 @@
+{
+ "route": "/collaboration-teams/[teamId]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 39,
+   "labelled": 42,
+   "unboundExports": 17
+  },
+  "native": {
+   "files": 25,
+   "labelled": 56,
+   "unboundExports": 13
+  }
+ },
+ "pairing": {
+  "exact": 1,
+  "copyDiffers": 0,
+  "roleDiffers": 2,
+  "unpaired": 39,
+  "extraInNative": 53,
+  "unpairedRoleAbsent": 1
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "Priority",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:296",
+   "nat": "apps/mobile/src/ui/collaboration-work.tsx:300",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Discussion",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:791",
+   "nat": "apps/mobile/src/ui/discussion-section.tsx:196"
+  },
+  {
+   "label": "Description",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:325",
+   "nat": "apps/mobile/src/ui/collaboration-settings.tsx:208"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Breadcrumb",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:524",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "LINK",
+   "label": "Invite and manage external reviewers via the External Review console",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:794",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Team sections",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:808",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading team…",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:343",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Fetching members, invites, and assignments.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:345",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:383",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "We couldn&apos;t load this team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:394",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request id:",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:409",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Collaboration Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:542",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:637",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role:",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:678",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last activity",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:694",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Add people",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:740",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create assignment",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:764",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "External reviewers",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:801",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Viewing as a workspace administrator.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:865",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You are not a member of this team, so you can see its work, members and history but cannot change them or take part in the discussion. A team lead or admin can add you if you need to participate.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:867",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "member",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:99"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This team is archived.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:903",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Its members, work and history stay readable, but changes are disabled.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:903",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen in Settings",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:914",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Discussion is for members of this team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:942",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You are viewing this team as a workspace administrator. Joining the team is what grants a place in its conversation.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:944",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "plan ·",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:138",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Archiving is the action for a group that has done work, and it already frees the plan slot.",
+    "at": "apps/mobile/src/ui/collaboration-settings.tsx:334"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Add context so the assignee knows what's expected.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:327",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create assignment",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:194",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Delegate a case, evidence item, or evidence review to a teammate or to the team.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Target type",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigning",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". Search again to choose a different",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Assignee",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:282",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Due date",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:347",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading group",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:81"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Group not found",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:83"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:83"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:90"
+  },
+  {
+   "role": "SECTION",
+   "label": "Members",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:105"
+  },
+  {
+   "role": "SECTION",
+   "label": "Pending invitations",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:123"
+  },
+  {
+   "role": "BUTTON",
+   "label": "People in this workspace",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:157"
+  },
+  {
+   "role": "TEXT",
+   "label": "member",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:99"
+  },
+  {
+   "role": "TEXT",
+   "label": "No members to show.",
+   "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back to discussions",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:130"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading messages",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:139"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No messages in this thread yet.",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:142"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reply",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:169"
+  },
+  {
+   "role": "INPUT",
+   "label": "Write a message",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:170"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Send",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:178"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading discussions",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:197"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Discussions are open to reviewers in this group.",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:202"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No discussions in this group yet.",
+   "at": "apps/mobile/src/ui/discussion-section.tsx:214"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  },
+  {
+   "role": "SECTION",
+   "label": "Work",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:164"
+  },
+  {
+   "role": "INPUT",
+   "label": "Search assignments",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:165"
+  },
+  {
+   "role": "TAB",
+   "label": "Status",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:173"
+  },
+  {
+   "role": "TAB",
+   "label": "Record",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:185"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading work",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:198"
+  },
+  {
+   "role": "BADGE",
+   "label": "Overdue",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:252"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load more",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:264"
+  },
+  {
+   "role": "LIST",
+   "label": "Team-level",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:316"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:286"
+  },
+  {
+   "role": "TEXT",
+   "label": "Who is carrying it",
+   "at": "apps/mobile/src/ui/collaboration-work.tsx:314"
+  },
+  {
+   "role": "SECTION",
+   "label": "Group settings",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:198"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Name",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:199"
+  },
+  {
+   "role": "INPUT",
+   "label": "Group name",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:200"
+  },
+  {
+   "role": "INPUT",
+   "label": "Group description",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:209"
+  },
+  {
+   "role": "LIST",
+   "label": "Group type",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:219"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save changes",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:225"
+  },
+  {
+   "role": "SECTION",
+   "label": "Roles",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:241"
+  },
+  {
+   "role": "SECTION",
+   "label": "History",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:260"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This group's history is visible to its members.",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:262"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has been recorded yet.",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:267"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load older",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:282"
+  },
+  {
+   "role": "SECTION",
+   "label": "This group",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:293"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Reopen this group",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:295"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Archive this group",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:302"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Delete this group",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:317"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Group type",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:342"
+  },
+  {
+   "role": "TEXT",
+   "label": "This group cannot be deleted",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:326"
+  },
+  {
+   "role": "TEXT",
+   "label": "Archiving is the action for a group that has done work, and it already frees the plan slot.",
+   "at": "apps/mobile/src/ui/collaboration-settings.tsx:334"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationTeamDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationEntitlement"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\feedback\\toSafeUserError.ts",
+   "name": "SafeErrorFallback"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "CapabilityKey"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\OverviewTab.tsx",
+   "name": "OverviewTab"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\MembersTab.tsx",
+   "name": "MembersTab"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\AssignmentsTab.tsx",
+   "name": "AssignmentsTab"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\DiscussionTab.tsx",
+   "name": "DiscussionPanel"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\SettingsTab.tsx",
+   "name": "SettingsTab"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\collaboration-teams\\[teamId]\\_tabs\\ActivityTab.tsx",
+   "name": "ActivityTab"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\collaboration-team.ts",
+   "name": "CollaborationTeamAssignmentTarget"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\app-primitives\\AppSearchSelect.tsx",
+   "name": "AppSearchSelectOption"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "AssignableTarget"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\collaboration-team.ts",
+   "name": "CollaborationTeamAssignmentPriority"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api\\collaboration-teams.ts",
+   "name": "CollaborationTeamMember"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "CollaborationTeamDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\discussion.ts",
+   "name": "DiscussionThread"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\discussion.ts",
+   "name": "DiscussionMessage"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "CollaborationMember"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "TeamAssignment"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "COLLABORATION_TEAM_ASSIGNMENT_STATUSES"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "COLLABORATION_TEAM_ASSIGNMENT_TARGETS"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "TeamActivityItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\collaboration.ts",
+   "name": "TeamDisposability"
+  }
+ ]
+}

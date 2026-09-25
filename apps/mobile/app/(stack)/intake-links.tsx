@@ -1,148 +1,273 @@
 /**
- * INTAKE LINKS (Native Convergence §9, Workstream F). View and revoke the
- * workspace's secure intake links: GET /v1/workflow/intake-links?teamId. The
- * intake URL is a server-side secret (delivered via /send), so it is never shown
- * or copied here — this is a view + revoke surface; creation is web-managed.
- * A 403 / feature-off / unresolved workspace renders an honest state.
+ * EXTERNAL INTAKE LINKS — the native port of the web management surface
+ * (apps/web/app/(app)/intake-links/page.tsx and its _components).
+ *
+ * GET /v1/workflow/intake-links?teamId&archiveScope=all[&search] lists the
+ * workspace's links; tabs (KPI cards), channel, lifecycle, delivery state,
+ * sort and paging run over the returned rows exactly as the web's
+ * `applyFilters` does. The search term is a SERVER parameter.
+ *
+ * The intake URL is a server-side secret shown once at creation (see
+ * intake-link-create.tsx), so no row offers "copy link".
+ *
+ * Fail closed, as the web does: no envelope, or an envelope without
+ * INTAKE_LINKS_MANAGE, renders the restricted panel; a 503 / FEATURE_DISABLED
+ * read renders "Not enabled yet"; a 403 / anti-enumeration 404 is restricted
+ * (no retry); anything else is a retryable error.
  */
-import { useCallback, useEffect, useState } from "react";
-import { Alert, View, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
-import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
-import { formatUserDateTime } from "../../src/lib/date";
+import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { BUILT_IN_PURPOSES } from "../../src/product/intake-create";
 import {
-  parseIntakeLinks,
-  intakeStatusDisplay,
+  DEFAULT_INTAKE_FILTERS,
+  DISABLE_LINK_COPY,
+  INTAKE_LINKS_COPY as COPY,
+  INTAKE_REVEAL_CONSEQUENCE,
+  applyIntakeFilters,
   buildIntakeArchivePath,
+  buildIntakeListPath,
   buildIntakeRevealPath,
   buildIntakeSubmissionsPath,
+  canDisableLink,
+  classifyIntakeListFailure,
+  computeIntakeKpis,
+  intakeFiltersActive,
+  linkHasSessions,
+  parseIntakeLinks,
   parseIntakeSubmissions,
   parseRevealedContact,
-  INTAKE_REVEAL_CONSEQUENCE,
+  type IntakeFilterState,
   type IntakeLinkItem,
   type IntakeSubmission,
+  type IntakeTab,
   type RevealedContact,
 } from "../../src/product/intake-links";
 import { theme } from "../../src/theme/theme";
+import { IntakeDeliveryHistory } from "../../src/ui/intake-delivery-history";
+import { IntakeLinkDetails } from "../../src/ui/intake-link-details";
 import {
-  ProovraScreen,
-  ProovraCard,
-  ProovraSection,
-  ProovraText,
+  IntakeLinkRecord,
+  IntakeLinkSubmissionsList,
+  IntakeLinksEmpty,
+  IntakeLinksKpis,
+  IntakeLinksMutationError,
+  IntakeLinksPager,
+  IntakeLinksRefreshing,
+  IntakeLinksStateCard,
+  IntakeLinksToolbar,
+} from "../../src/ui/intake-links-console";
+import {
   ProovraButton,
-  ProovraBadge,
-  ProovraListRow,
-  ProovraSheet,
-  ProovraInput,
-  ProovraFormField,
-  ProovraEmptyState,
+  ProovraCard,
   ProovraErrorState,
+  ProovraFormField,
+  ProovraInput,
   ProovraLoadingState,
+  ProovraScreen,
+  ProovraText,
 } from "../../src/ui";
+import { ProovraConfirmSheet, ProovraPageHeader, ProovraSheet } from "../../src/ui/patterns";
 
-type Phase = "loading" | "ready" | "error" | "unavailable";
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "ready"; items: IntakeLinkItem[] }
+  | { kind: "error"; message: string; requestId: string | null }
+  | { kind: "restricted"; reason: "forbidden" | "no_envelope" }
+  | { kind: "feature_disabled" };
+
+const NO_ITEMS: IntakeLinkItem[] = [];
 
 export default function IntakeLinksScreen() {
   const router = useRouter();
-  const { loading: ctxLoading, context } = usePlatformContext();
+  const { loading: ctxLoading, context, envelope } = usePlatformContext();
+  // page.tsx:115 useCan("INTAKE_LINKS_MANAGE") — envelope.capabilities[key] === true.
+  const canManage =
+    (envelope as { capabilities?: Record<string, unknown> } | null)?.capabilities?.["INTAKE_LINKS_MANAGE"] === true;
   const teamId = context?.activeTeamId ?? null;
-  const [items, setItems] = useState<IntakeLinkItem[]>([]);
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [error, setError] = useState<SafeError | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-  // null is LOADING. A failure carries its reason, because "no submissions"
-  // and "we could not read them" are different answers about a real intake.
+  const teamName = context?.activeSpaceType === "PERSONAL" ? COPY.personalSpace : (context?.displayName ?? "Workspace");
+
+  const [load, setLoad] = useState<LoadState>({ kind: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
+  const [mutationError, setMutationError] = useState<{ action: string; message: string } | null>(null);
+
+  // Search is a SERVER parameter (debounced); everything else filters the rows in hand.
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setAppliedSearch(search.trim()), 300);
+    return () => clearTimeout(h);
+  }, [search]);
+  const [filters, setFilters] = useState<IntakeFilterState>(DEFAULT_INTAKE_FILTERS);
+
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [deliveryFor, setDeliveryFor] = useState<string | null>(null);
+  const [submissionsFor, setSubmissionsFor] = useState<string | null>(null);
+  const [disableFor, setDisableFor] = useState<IntakeLinkItem | null>(null);
+  const [disableBusy, setDisableBusy] = useState(false);
+  const [archivePendingId, setArchivePendingId] = useState<string | null>(null);
+  // null is LOADING. A failure carries its reason: "no submissions" and "we could not read them" differ.
   const [submissions, setSubmissions] = useState<IntakeSubmission[] | null>(null);
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<IntakeLinkItem | null>(null);
   const [revealReason, setRevealReason] = useState("");
+  const [revealBusy, setRevealBusy] = useState(false);
   const [revealed, setRevealed] = useState<RevealedContact | null>(null);
 
-  const load = useCallback(async () => {
-    if (ctxLoading) return;
-    if (!teamId) {
-      setPhase("ready");
-      setItems([]);
+  // Home's Intake status rows open a link's delivery history here (?linkId=); ?new=1 opens creation (page.tsx:295-307).
+  const params = useLocalSearchParams<{ linkId?: string; new?: string }>();
+  const deepLinkApplied = useRef(false);
+  useEffect(() => {
+    if (deepLinkApplied.current) return;
+    if (params.new === "1") {
+      deepLinkApplied.current = true;
+      router.push("/intake-link-create");
       return;
     }
-    setPhase("loading");
-    setError(null);
-    try {
-      const data = await apiFetch(`/v1/workflow/intake-links?teamId=${encodeURIComponent(teamId)}`);
-      setItems(parseIntakeLinks(data));
-      setPhase("ready");
-    } catch (err) {
-      const safe = toSafeUserError(err);
-      if (safe.kind === "forbidden") setPhase("unavailable");
-      else {
-        setError(safe);
-        setPhase("error");
-      }
+    if (typeof params.linkId === "string" && params.linkId.length > 0) {
+      deepLinkApplied.current = true;
+      setDeliveryFor(params.linkId);
     }
-  }, [teamId, ctxLoading]);
+  }, [params.new, params.linkId, router]);
 
+  // Fail closed BEFORE any read (page.tsx:417-421).
+  const restricted: LoadState | null = ctxLoading
+    ? null
+    : !envelope || !teamId
+      ? { kind: "restricted", reason: "no_envelope" }
+      : !canManage
+        ? { kind: "restricted", reason: "forbidden" }
+        : null;
 
-  /** Submissions for one link. The retry in the panel uses this too. */
+  const fetchLinks = useCallback(
+    async (mode: "initial" | "refresh", term: string) => {
+      if (!teamId) return;
+      if (mode === "refresh") setRefreshing(true);
+      else setLoad({ kind: "loading" });
+      try {
+        const data = await apiFetch(buildIntakeListPath(teamId, term));
+        setLoad({ kind: "ready", items: parseIntakeLinks(data) });
+      } catch (err) {
+        const safe = toSafeUserError(err, { message: COPY.errorFallback });
+        const kind = classifyIntakeListFailure(safe);
+        if (kind === "feature_disabled") setLoad({ kind: "feature_disabled" });
+        else if (kind === "restricted") setLoad({ kind: "restricted", reason: "forbidden" });
+        else setLoad({ kind: "error", message: safe.message, requestId: safe.requestId ?? null });
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [teamId],
+  );
+
+  // The first read for a workspace replaces the rows; a new search term refreshes them in place.
+  const loadedFor = useRef<string | null>(null);
+  const termRef = useRef(appliedSearch);
+  termRef.current = appliedSearch;
+  useEffect(() => {
+    if (ctxLoading || restricted || !teamId) return;
+    if (loadedFor.current !== teamId) {
+      loadedFor.current = teamId;
+      void fetchLinks("initial", termRef.current);
+    }
+  }, [ctxLoading, restricted, teamId, fetchLinks]);
+  const searchedFor = useRef("");
+  useEffect(() => {
+    if (!teamId || loadedFor.current !== teamId) return;
+    if (appliedSearch === searchedFor.current) return;
+    searchedFor.current = appliedSearch;
+    void fetchLinks("refresh", appliedSearch);
+  }, [appliedSearch, teamId, fetchLinks]);
+
+  const refresh = useCallback(() => fetchLinks("refresh", termRef.current), [fetchLinks]);
+
+  const patchFilters = useCallback((patch: Partial<IntakeFilterState>) => {
+    setFilters((prev) => {
+      const resetsPage = "tab" in patch || "channel" in patch || "lifecycle" in patch || "delivery" in patch || "pageSize" in patch;
+      return { ...prev, ...patch, ...(resetsPage ? { page: 1 } : {}) };
+    });
+  }, []);
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setAppliedSearch("");
+    setFilters(DEFAULT_INTAKE_FILTERS);
+  }, []);
+  // A KPI is a whole view: it clears the secondary filters (page.tsx:265-270).
+  const selectKpi = useCallback((tab: IntakeTab) => patchFilters({ tab, channel: "", lifecycle: "", delivery: "" }), [patchFilters]);
+
+  /** Submissions for one link. The retry in the sheet uses this too. */
   const loadSubmissions = useCallback(async (linkId: string) => {
     setSubmissions(null);
     setSubmissionsError(null);
     try {
       setSubmissions(parseIntakeSubmissions(await apiFetch(buildIntakeSubmissionsPath(linkId))));
     } catch (err) {
-      // Covers a refusal, a transport failure, and a response this build
-      // cannot read - parseIntakeSubmissions throws on an envelope that is not
-      // the contract rather than reporting an intake with no submissions.
-      setSubmissionsError(toSafeUserError(err).message);
+      // A refusal, a transport failure, or an envelope this build cannot read.
+      setSubmissionsError(toSafeUserError(err, { message: COPY.submissionsLoadFailed }).message);
       setSubmissions([]);
     }
   }, []);
-
-  /** Opening a link loads its submissions; tapping it again closes it. */
   const openSubmissions = useCallback(
-    async (item: IntakeLinkItem) => {
-      const next = openId === item.id ? null : item.id;
-      setOpenId(next);
-      if (!next) {
-        setSubmissions(null);
-        setSubmissionsError(null);
-        return;
-      }
-      await loadSubmissions(next);
+    (id: string) => {
+      setDetailsId(null);
+      setSubmissionsFor(id);
+      void loadSubmissions(id);
     },
-    [openId, loadSubmissions],
+    [loadSubmissions],
   );
 
-  const toggleArchive = useCallback(
-    async (item: IntakeLinkItem, archived: boolean) => {
-      setBusyId(item.id);
+  const archiveLink = useCallback(
+    async (item: IntakeLinkItem) => {
+      if (archivePendingId) return;
+      const archived = item.archived;
+      setArchivePendingId(item.id);
+      setMutationError(null);
       try {
-        await apiFetch(buildIntakeArchivePath(item.id, archived), {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
-        await load();
+        await apiFetch(buildIntakeArchivePath(item.id, archived), { method: "POST" });
+        await refresh();
       } catch (err) {
-        Alert.alert("Could not update", toSafeUserError(err).message);
+        setMutationError({
+          action: archived ? "Couldn't restore that link from the archive." : "Couldn't archive that link.",
+          message: toSafeUserError(err, { message: COPY.mutationRetry }).message,
+        });
       } finally {
-        setBusyId(null);
+        setArchivePendingId(null);
       }
     },
-    [load],
+    [archivePendingId, refresh],
   );
+
+  const confirmDisable = useCallback(async () => {
+    const item = disableFor;
+    if (!item) return;
+    setDisableBusy(true);
+    setMutationError(null);
+    try {
+      await apiFetch(`/v1/workflow/intake-links/${encodeURIComponent(item.id)}/revoke`, {
+        method: "POST",
+        body: JSON.stringify({ reason: null }),
+      });
+      await refresh();
+    } catch (err) {
+      setMutationError({ action: "Couldn't disable that link.", message: toSafeUserError(err, { message: COPY.mutationRetry }).message });
+    } finally {
+      setDisableBusy(false);
+      setDisableFor(null);
+    }
+  }, [disableFor, refresh]);
 
   /**
-   * The ONE audited disclosure. Every projection ships the masked address for
-   * everybody; this asks for the raw one, needs a capability, and is recorded
-   * at WARNING severity with the reason. The user is told that before they
-   * tap, not after it appears in an audit log.
+   * The ONE audited disclosure. Every projection ships the masked address;
+   * this asks for the raw one, needs a capability, and is recorded at WARNING
+   * severity with the reason. The user is told that before they tap.
    */
   const reveal = useCallback(async () => {
     const item = revealing;
     if (!item) return;
-    setBusyId(item.id);
+    setRevealBusy(true);
     try {
       const res = await apiFetch(buildIntakeRevealPath(item.id), {
         method: "POST",
@@ -150,200 +275,237 @@ export default function IntakeLinksScreen() {
       });
       setRevealed(parseRevealedContact(res));
     } catch (err) {
-      Alert.alert("Could not reveal", toSafeUserError(err).message);
-    } finally {
-      setBusyId(null);
       setRevealing(null);
       setRevealReason("");
+      setMutationError({ action: "Couldn't reveal the recipient contact.", message: toSafeUserError(err).message });
+    } finally {
+      setRevealBusy(false);
     }
   }, [revealing, revealReason]);
+  const closeReveal = () => {
+    setRevealing(null);
+    setRevealReason("");
+    setRevealed(null);
+  };
 
-  useEffect(() => { void load(); }, [load]);
-
-  const revoke = useCallback(
-    (item: IntakeLinkItem) => {
-      Alert.alert("Revoke intake link", `Revoke the link for ${item.templateName}? People with the link can no longer submit.`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Revoke",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setBusyId(item.id);
-              try {
-                await apiFetch(`/v1/workflow/intake-links/${item.id}/revoke`, { method: "POST", body: JSON.stringify({}) });
-                await load();
-              } catch (err) {
-                Alert.alert("Could not revoke", toSafeUserError(err).message);
-              } finally {
-                setBusyId(null);
-              }
-            })();
-          },
-        },
-      ]);
-    },
-    [load],
-  );
+  const effective: LoadState = ctxLoading ? { kind: "loading" } : (restricted ?? load);
+  const items = effective.kind === "ready" ? effective.items : NO_ITEMS;
+  const kpis = useMemo(() => computeIntakeKpis(items), [items]);
+  const result = useMemo(() => applyIntakeFilters(items, filters), [items, filters]);
+  const filtersActive = intakeFiltersActive(search, filters);
+  const detailsItem = detailsId ? (items.find((i) => i.id === detailsId) ?? null) : null;
+  const submissionsItem = submissionsFor ? (items.find((i) => i.id === submissionsFor) ?? null) : null;
+  // The primary action only when the surface is actually usable (page.tsx:436).
+  const canOfferCreate = canManage && !!teamId && effective.kind === "ready";
+  const openCreate = (slug?: string) =>
+    router.push(slug ? `/intake-link-create?purpose=${encodeURIComponent(slug)}` : "/intake-link-create");
 
   return (
-    <ProovraScreen>
-      <ProovraSection
-        title="Intake links"
-        action={<ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />}
-      >
-        {ctxLoading || phase === "loading" ? (
-          <ProovraLoadingState label="Loading intake links" />
-        ) : phase === "unavailable" ? (
-          <ProovraEmptyState title="Not available" message="Secure intake links aren’t available for this workspace." />
-        ) : phase === "error" && error ? (
-          <ProovraErrorState message={error.message} onRetry={load} />
-        ) : items.length === 0 ? (
-          <ProovraEmptyState title="No intake links" message="Secure intake links you create appear here." />
-        ) : (
-          <ProovraCard>
-            {items.map((item) => {
-              const status = intakeStatusDisplay(item.status);
-              const revocable = !["REVOKED", "EXPIRED"].includes(item.status.toUpperCase());
-              return (
-                <ProovraListRow
-                  key={item.id}
-                  title={item.templateName}
-                  subtitle={[
-                    item.recipientLabel,
-                    item.maxUses ? `${item.usedCount}/${item.maxUses} used` : `${item.usedCount} used`,
-                    item.expiresAtUtc ? `Expires ${formatUserDateTime(item.expiresAtUtc)}` : null,
-                  ].filter(Boolean).join(" · ") || undefined}
-                  trailing={
-                    revocable ? (
-                      <ProovraButton label="Revoke" variant="ghost" fullWidth={false} loading={busyId === item.id} onPress={() => revoke(item)} />
-                    ) : (
-                      <ProovraBadge tone={status.tone} label={status.label} />
-                    )
-                  }
-                  onPress={() => void openSubmissions(item)}
-                />
-              );
-            })}
-          </ProovraCard>
-        )}
-
-        {/* The opened link's submissions, archive control, and the reveal. */}
-        {openId ? (
-          <ProovraCard>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-              Submissions
+    <ProovraScreen shell testID="intake-links-page">
+      <ProovraPageHeader
+        title={COPY.title}
+        subtitle={COPY.subtitle}
+        contextStrip={
+          teamId ? (
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {COPY.linksIn}{" "}
+              <ProovraText variant="label" weight="semibold">{teamName}</ProovraText>
             </ProovraText>
-            {submissions === null ? (
-              <ProovraLoadingState label="Loading submissions" />
-            ) : submissionsError ? (
-              <ProovraErrorState
-                message={submissionsError}
-                onRetry={() => void loadSubmissions(openId)}
-              />
-            ) : submissions.length === 0 ? (
-              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                Nobody has used this link yet.
-              </ProovraText>
-            ) : (
-              submissions.map((sub) => (
-                <View key={sub.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
-                  <ProovraText variant="bodySm">
-                    {sub.submitterName ?? sub.pseudonym ?? "Anonymous contributor"}
-                  </ProovraText>
-                  {/*
-                    Masked by the server, for everybody. Nothing here un-masks
-                    them; the raw address has exactly one route out of the API
-                    and it is the audited reveal below.
-                  */}
-                  <ProovraText variant="label" color={theme.color.ink.muted}>
-                    {[
-                      sub.status,
-                      sub.submitterEmailPreview,
-                      sub.submitterPhonePreview,
-                      sub.submittedAtIso ? formatUserDateTime(sub.submittedAtIso) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </ProovraText>
-                </View>
-              ))
-            )}
+          ) : undefined
+        }
+        primaryAction={
+          canOfferCreate ? <ProovraButton label={COPY.newLink} fullWidth={false} onPress={() => openCreate()} testID="intake-new" /> : undefined
+        }
+        secondaryActions={<ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />}
+      />
 
-            {(() => {
-              const item = items.find((i) => i.id === openId);
-              if (!item) return null;
-              const archived = item.status.toUpperCase() === "ARCHIVED";
-              return (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-                  <ProovraButton
-                    label={archived ? "Unarchive" : "Archive"}
-                    variant="secondary"
-                    fullWidth={false}
-                    loading={busyId === item.id}
-                    onPress={() => void toggleArchive(item, archived)}
-                  />
-                  <ProovraButton
-                    label="Reveal recipient contact"
-                    variant="ghost"
-                    fullWidth={false}
-                    onPress={() => setRevealing(item)}
-                  />
-                </View>
-              );
-            })()}
-
-            {revealed ? (
-              <ProovraCard>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Revealed, and recorded
-                </ProovraText>
-                <ProovraText variant="bodySm" mono>
-                  {[revealed.email, revealed.phone].filter(Boolean).join("  ") || "No contact on file"}
-                </ProovraText>
-              </ProovraCard>
-            ) : null}
-          </ProovraCard>
+      <View style={{ gap: theme.space.s3 }}>
+        {mutationError ? (
+          <IntakeLinksMutationError action={mutationError.action} message={mutationError.message} onDismiss={() => setMutationError(null)} />
         ) : null}
 
-        <ProovraSheet
-          visible={revealing !== null}
-          title="Reveal recipient contact?"
-          onClose={() => { setRevealing(null); setRevealReason(""); }}
-        >
-          {/*
-            Said BEFORE the tap, not discovered in an audit log afterwards.
-          */}
-          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            {INTAKE_REVEAL_CONSEQUENCE}
-          </ProovraText>
-          <ProovraFormField label="Why do you need it?">
-            <ProovraInput
-              value={revealReason}
-              onChangeText={setRevealReason}
-              placeholder="Recorded with the disclosure"
-              autoCapitalize="sentences"
-              accessibilityLabel="Reason for revealing the contact"
-            />
-          </ProovraFormField>
-          <ProovraButton
-            label="Reveal and record"
-            variant="danger"
-            disabled={revealReason.trim().length < 3}
-            onPress={() => void reveal()}
-          />
-        </ProovraSheet>
+        {effective.kind === "loading" ? <ProovraLoadingState label={COPY.loading} /> : null}
 
-        <View style={styles.note}>
-          <ProovraText variant="label" color={theme.color.ink.muted}>
-            Intake links are delivered securely to recipients. Creating a new link, and resending one, stay in the PROOVRA web app: a resend needs the link's raw token, which the API never persists, so it can only be sent from the session that created it.
+        {effective.kind === "feature_disabled" ? (
+          <IntakeLinksStateCard tone="neutral" title={COPY.featureDisabledTitle} message={COPY.featureDisabledBody} testID="intake-links-feature-disabled" />
+        ) : null}
+
+        {effective.kind === "restricted" ? (
+          <IntakeLinksStateCard
+            tone="neutral"
+            title={COPY.restrictedTitle}
+            message={effective.reason === "forbidden" ? COPY.restrictedForbidden : COPY.restrictedNoEnvelope}
+            testID="intake-links-restricted"
+          />
+        ) : null}
+
+        {effective.kind === "error" ? (
+          <IntakeLinksStateCard tone="risk" title={COPY.errorTitle} message={effective.message} onRetry={() => void fetchLinks("initial", termRef.current)} testID="intake-links-error" />
+        ) : null}
+
+        {effective.kind === "ready" && items.length === 0 && !appliedSearch ? (
+          <IntakeLinksEmpty canCreate={canManage} purposes={BUILT_IN_PURPOSES} onCreate={() => openCreate()} onPickPurpose={(slug) => openCreate(slug)} />
+        ) : null}
+
+        {effective.kind === "ready" && (items.length > 0 || !!appliedSearch) ? (
+          <>
+            {refreshing ? <IntakeLinksRefreshing /> : null}
+            <IntakeLinksKpis kpis={kpis} currentTab={filters.tab} onSelect={selectKpi} />
+            <IntakeLinksToolbar
+              search={search}
+              onSearch={setSearch}
+              filters={filters}
+              onChange={patchFilters}
+              showClear={filtersActive}
+              onClear={clearFilters}
+              resultSummary={result.matched.length === 1 ? "1 link" : `${result.matched.length} links`}
+              pageSummary={result.pageCount > 1 ? `Page ${result.page} of ${result.pageCount}` : null}
+            />
+            {result.matched.length === 0 ? (
+              <IntakeLinksStateCard
+                tone="neutral"
+                title={COPY.noMatchTitle}
+                message={COPY.noMatchBody}
+                action={<ProovraButton label={COPY.clearFilters} variant="secondary" fullWidth={false} onPress={clearFilters} />}
+                testID="intake-links-no-match"
+              />
+            ) : (
+              result.visible.map((item) => (
+                <IntakeLinkRecord
+                  key={item.id}
+                  item={item}
+                  onOpenDetails={() => setDetailsId(item.id)}
+                  onOpenSubmissions={() => openSubmissions(item.id)}
+                  onOpenDelivery={() => setDeliveryFor(item.id)}
+                  onArchive={() => void archiveLink(item)}
+                  archivePending={archivePendingId === item.id}
+                  onDisable={canDisableLink(item) ? () => setDisableFor(item) : null}
+                />
+              ))
+            )}
+            {result.pageCount > 1 ? (
+              <IntakeLinksPager
+                page={result.page}
+                pageCount={result.pageCount}
+                pageSize={filters.pageSize}
+                onPage={(page) => patchFilters({ page })}
+                onPageSize={(pageSize) => patchFilters({ pageSize })}
+              />
+            ) : null}
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {COPY.safetyNote}
+            </ProovraText>
+          </>
+        ) : null}
+      </View>
+
+      {/* DetailsDrawer — Overview, Delivery, Activity, Submissions, Access. */}
+      <ProovraSheet visible={detailsItem !== null} title={detailsItem?.templateName ?? ""} onClose={() => setDetailsId(null)}>
+        {detailsItem ? (
+          <>
+            <IntakeLinkDetails
+              item={detailsItem}
+              onOpenDelivery={() => {
+                setDetailsId(null);
+                setDeliveryFor(detailsItem.id);
+              }}
+              onOpenSubmissions={linkHasSessions(detailsItem) ? () => openSubmissions(detailsItem.id) : null}
+              onArchive={() => void archiveLink(detailsItem)}
+              archivePending={archivePendingId === detailsItem.id}
+              onDisable={
+                canDisableLink(detailsItem)
+                  ? () => {
+                      setDetailsId(null);
+                      setDisableFor(detailsItem);
+                    }
+                  : null
+              }
+            />
+            <ProovraButton
+              label="Reveal recipient contact"
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => {
+                setDetailsId(null);
+                setRevealing(detailsItem);
+              }}
+            />
+          </>
+        ) : null}
+      </ProovraSheet>
+
+      {/* SubmissionsDrawer. */}
+      <ProovraSheet visible={submissionsFor !== null} title="Submissions" onClose={() => setSubmissionsFor(null)}>
+        {submissionsItem ? (
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {submissionsItem.templateName}
           </ProovraText>
-        </View>
-      </ProovraSection>
+        ) : null}
+        {submissions === null ? (
+          <ProovraLoadingState label="Loading submissions…" />
+        ) : submissionsError ? (
+          <ProovraErrorState message={submissionsError} onRetry={() => submissionsFor && void loadSubmissions(submissionsFor)} />
+        ) : (
+          <IntakeLinkSubmissionsList
+            submissions={submissions}
+            onOpenEvidence={(id) => {
+              setSubmissionsFor(null);
+              router.push(`/evidence/${id}` as never);
+            }}
+          />
+        )}
+      </ProovraSheet>
+
+      <ProovraConfirmSheet
+        visible={disableFor !== null}
+        title={DISABLE_LINK_COPY.title}
+        consequence={DISABLE_LINK_COPY.description}
+        confirmLabel={DISABLE_LINK_COPY.confirmLabel}
+        tone="danger"
+        busy={disableBusy}
+        onConfirm={() => void confirmDisable()}
+        onCancel={() => setDisableFor(null)}
+      />
+
+      <ProovraSheet visible={revealing !== null} title="Reveal recipient contact?" onClose={closeReveal}>
+        {revealed ? (
+          <ProovraCard>
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              Revealed, and recorded
+            </ProovraText>
+            <ProovraText variant="bodySm" mono selectable>
+              {[revealed.email, revealed.phone].filter(Boolean).join("  ") || "No contact on file"}
+            </ProovraText>
+          </ProovraCard>
+        ) : (
+          <>
+            {/* Said BEFORE the tap, not discovered in an audit log afterwards. */}
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {INTAKE_REVEAL_CONSEQUENCE}
+            </ProovraText>
+            <ProovraFormField label="Why do you need it?">
+              <ProovraInput
+                value={revealReason}
+                onChangeText={setRevealReason}
+                placeholder="Recorded with the disclosure"
+                autoCapitalize="sentences"
+                accessibilityLabel="Reason for revealing the contact"
+              />
+            </ProovraFormField>
+            <ProovraButton
+              label="Reveal and record"
+              variant="danger"
+              loading={revealBusy}
+              disabled={revealReason.trim().length < 3}
+              onPress={() => void reveal()}
+            />
+          </>
+        )}
+      </ProovraSheet>
+
+      {deliveryFor && teamId ? (
+        <IntakeDeliveryHistory visible teamId={teamId} linkId={deliveryFor} onClose={() => setDeliveryFor(null)} />
+      ) : null}
     </ProovraScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  note: { marginTop: theme.space.s3 },
-});

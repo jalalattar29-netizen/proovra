@@ -1,0 +1,448 @@
+{
+ "route": "/trust-center/ai-disclosure",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/trust-center.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 31,
+   "labelled": 33,
+   "unboundExports": 7
+  },
+  "native": {
+   "files": 20,
+   "labelled": 15,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 33,
+  "extraInNative": 15,
+  "unpairedRoleAbsent": 1
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "AI Disclosure Center",
+   "at": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx:10",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Trust documentation",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Published for the active workspace",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:182",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading articles…",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This Trust Center section is not published for the active workspace yet.",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:230",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Version",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:251",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "On this page",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Related documents",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:428",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Applies to",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "On this page",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Related documents",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:430",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open public Trust Center",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:467",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Opens the public Trust Center in a new tab — this app stays open.",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:470",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No earlier versions are recorded for this section.",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:127",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Only one version is recorded — this is the original text.",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:130",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Version",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:134",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading version history…",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Live AI capability status",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Live AI capability status (this workspace)",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:102",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Computed from the actual platform configuration and this workspace&apos;s AI policy — never inferred from the existence of code or a provider key. Stubs and previews are labelled as such.",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:104",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading live status…",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:109",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capability",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:118",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Provider",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:119",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Data",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:120",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Default",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:121",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Opt-in",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:123",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Training / retention",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last verified",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· statuses refresh on load.",
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Trust Center",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:109"
+  },
+  {
+   "role": "BADGE",
+   "label": "What PROOVRA does not claim",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:137"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "How PROOVRA works",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:143"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Loading…",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:183"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Not included in your plan",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:185"
+  },
+  {
+   "role": "BADGE",
+   "label": "Unavailable",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:192"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:196"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing published yet",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:204"
+  },
+  {
+   "role": "TEXT",
+   "label": "Limitations",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:165"
+  },
+  {
+   "role": "TEXT",
+   "label": "This section could not be read. The other sections are unaffected.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+  },
+  {
+   "role": "TEXT",
+   "label": "This is the only version on record.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "TrustArticleKind"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "TrustArticleProjection"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "TrustArticleDriftState"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "TrustArticleVersionProjection"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextEnvelope"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustSectionState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticle"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticleVersion"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

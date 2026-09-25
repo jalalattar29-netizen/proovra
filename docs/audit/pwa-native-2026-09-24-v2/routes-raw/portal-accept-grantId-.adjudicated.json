@@ -1,0 +1,134 @@
+{
+ "route": "/portal/accept/[grantId]",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Welcome to the PROOVRA External Reviewer Portal",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:199",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You were invited to review evidence on behalf of an external party. Your activity here is audited. PROOVRA records what you observe and decide — it does not assert authenticity of content.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:202",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation:",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:219",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access ends when the grant expires. Once you sign in, navigate using the dashboard ribbon at the top.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:223",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Single sign-on did not accept this sign-in. You can still continue with the invitation link below.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "We could not find your invitation link in this URL. Please re-open the link from your invitation email, or use the fallback",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:287",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "paste-the-token page",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:295",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:297",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Use SSO if your organization is federated with PROOVRA — it validates that the identity who arrives matches the invited reviewer. If you are not sure, \"Open with invitation link\" always works.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:353",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "What we will record",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:373",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Every page view inside the portal.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:375",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Annotations, comments, and decisions you submit.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:376",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "The fact that you opened the portal and from what IP.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:377",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

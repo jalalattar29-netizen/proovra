@@ -1,0 +1,1231 @@
+{
+ "route": "/search",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/search/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/search.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 156,
+   "elements": 490,
+   "texts": 149,
+   "distinctTexts": 131,
+   "handlers": 71,
+   "conditionals": 1480,
+   "apiPaths": 14,
+   "distinctApi": 13,
+   "styleRefs": 303,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "lucide-react",
+    "zod",
+    "react-dom"
+   ]
+  },
+  "native": {
+   "files": 145,
+   "elements": 155,
+   "texts": 20,
+   "distinctTexts": 17,
+   "handlers": 32,
+   "conditionals": 1100,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 181,
+   "stylesheetRules": 86,
+   "themeTokens": 246,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 146,
+  "natLabelled": 20,
+  "paired": 2,
+  "roleDiff": 7,
+  "missing": 137,
+  "extraInNative": 11,
+  "webUnlabelled": 436,
+  "missingWithRolePresent": 136,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "web": "apps/web/app/(app)/search/components/SearchGuidance.tsx:67",
+     "nat": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Updated",
+     "webRole": "SECTION",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/search/page.tsx:2080",
+     "nat": "apps/mobile/app/(stack)/search.tsx:193"
+    },
+    {
+     "label": "Updated",
+     "webRole": "COMPONENT",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/search/page.tsx:2913",
+     "nat": "apps/mobile/app/(stack)/search.tsx:193"
+    },
+    {
+     "label": "Search",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/search/page.tsx:1627",
+     "nat": "apps/mobile/app/(stack)/search.tsx:162"
+    },
+    {
+     "label": "Search",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/search/page.tsx:1883",
+     "nat": "apps/mobile/app/(stack)/search.tsx:162"
+    },
+    {
+     "label": "updated",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/app/(app)/search/page.tsx:2457",
+     "nat": "apps/mobile/app/(stack)/search.tsx:193"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/search/SearchAuditLogPanel.tsx:185",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Type",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "nat": "apps/mobile/app/(stack)/search.tsx:185"
+    }
+   ],
+   "missing": [
+    {
+     "role": "INPUT",
+     "label": "Search query",
+     "at": "apps/web/app/(app)/search/page.tsx:1816",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Search console scope",
+     "at": "apps/web/app/(app)/search/page.tsx:1931",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Sort",
+     "at": "apps/web/app/(app)/search/page.tsx:1985",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Sort results",
+     "at": "apps/web/app/(app)/search/page.tsx:1986",
+     "natHasRole": false
+    },
+    {
+     "role": "SECTION",
+     "label": "Document type",
+     "at": "apps/web/app/(app)/search/page.tsx:1994",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Evidence kind",
+     "at": "apps/web/app/(app)/search/page.tsx:2018",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Lifecycle",
+     "at": "apps/web/app/(app)/search/page.tsx:2042",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workflow-linked only",
+     "at": "apps/web/app/(app)/search/page.tsx:2043",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "On legal hold",
+     "at": "apps/web/app/(app)/search/page.tsx:2050",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Export-restricted",
+     "at": "apps/web/app/(app)/search/page.tsx:2057",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Incident-linked",
+     "at": "apps/web/app/(app)/search/page.tsx:2064",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Contributor-scoped",
+     "at": "apps/web/app/(app)/search/page.tsx:2071",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Saved views",
+     "at": "apps/web/app/(app)/search/page.tsx:2145",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Rename",
+     "at": "apps/web/app/(app)/search/page.tsx:2177",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Delete",
+     "at": "apps/web/app/(app)/search/page.tsx:2187",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Signals",
+     "at": "apps/web/app/(app)/search/page.tsx:2756",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Pointers",
+     "at": "apps/web/app/(app)/search/page.tsx:2771",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Document",
+     "at": "apps/web/app/(app)/search/page.tsx:2772",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Evidence",
+     "at": "apps/web/app/(app)/search/page.tsx:2774",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workflow",
+     "at": "apps/web/app/(app)/search/page.tsx:2785",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workflow step",
+     "at": "apps/web/app/(app)/search/page.tsx:2806",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Case",
+     "at": "apps/web/app/(app)/search/page.tsx:2813",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Investigation pivots",
+     "at": "apps/web/app/(app)/search/page.tsx:2835",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Case graph",
+     "at": "apps/web/app/(app)/search/page.tsx:2847",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Timeline",
+     "at": "apps/web/app/(app)/search/page.tsx:2860",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Duplicates",
+     "at": "apps/web/app/(app)/search/page.tsx:2875",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Related evidence",
+     "at": "apps/web/app/(app)/search/page.tsx:2895",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Lifecycle",
+     "at": "apps/web/app/(app)/search/page.tsx:2903",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Review",
+     "at": "apps/web/app/(app)/search/page.tsx:2908",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workflow",
+     "at": "apps/web/app/(app)/search/page.tsx:2909",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Export",
+     "at": "apps/web/app/(app)/search/page.tsx:2910",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Retention",
+     "at": "apps/web/app/(app)/search/page.tsx:2911",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Legal hold",
+     "at": "apps/web/app/(app)/search/page.tsx:2912",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Summary",
+     "at": "apps/web/app/(app)/search/page.tsx:2917",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Related evidence",
+     "at": "apps/web/app/(app)/search/page.tsx:2923",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace setup pending — refresh shortly.",
+     "at": "apps/web/app/(app)/search/page.tsx:1606",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search evidence, cases, reports, notes and OCR text across this workspace. Results respect visibility and governance.",
+     "at": "apps/web/app/(app)/search/page.tsx:1630",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/search/page.tsx:1783",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search index status unavailable",
+     "at": "apps/web/app/(app)/search/page.tsx:1804",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "How search works",
+     "at": "apps/web/app/(app)/search/page.tsx:1895",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Titles, filenames, case names, report titles, package labels and note text are matched directly.",
+     "at": "apps/web/app/(app)/search/page.tsx:1909",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "OCR and transcript text are matched where a record carries them.",
+     "at": "apps/web/app/(app)/search/page.tsx:1913",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Records you cannot access are counted above the results, never listed.",
+     "at": "apps/web/app/(app)/search/page.tsx:1916",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The filters narrow by record type, evidence kind, lifecycle state and when a record was last updated.",
+     "at": "apps/web/app/(app)/search/page.tsx:1920",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Records",
+     "at": "apps/web/app/(app)/search/page.tsx:1946",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search activity",
+     "at": "apps/web/app/(app)/search/page.tsx:1957",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Since",
+     "at": "apps/web/app/(app)/search/page.tsx:2086",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Until",
+     "at": "apps/web/app/(app)/search/page.tsx:2097",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Apply filters",
+     "at": "apps/web/app/(app)/search/page.tsx:2125",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/search/page.tsx:2134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/search/page.tsx:2156",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No saved views yet.",
+     "at": "apps/web/app/(app)/search/page.tsx:2158",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✎",
+     "at": "apps/web/app/(app)/search/page.tsx:2185",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/app/(app)/search/page.tsx:2194",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Semantically similar to:",
+     "at": "apps/web/app/(app)/search/page.tsx:2842",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open case graph",
+     "at": "apps/web/app/(app)/search/page.tsx:2854",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open timeline view",
+     "at": "apps/web/app/(app)/search/page.tsx:2869",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review duplicates and similars",
+     "at": "apps/web/app/(app)/search/page.tsx:2884",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Semantically similar to:",
+     "at": "apps/web/app/(app)/search/page.tsx:2897",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/search/page.tsx:2925",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No related evidence.",
+     "at": "apps/web/app/(app)/search/page.tsx:2927",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Semantic backfill",
+     "at": "apps/web/app/(app)/search/page.tsx:3267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Would embed",
+     "at": "apps/web/app/(app)/search/page.tsx:3282",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "chunk",
+     "at": "apps/web/app/(app)/search/page.tsx:3282",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "across",
+     "at": "apps/web/app/(app)/search/page.tsx:3283",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "workspace",
+     "at": "apps/web/app/(app)/search/page.tsx:3284",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/search/page.tsx:3285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Tip: try searching by filename, case name, or report title.",
+     "at": "apps/web/app/(app)/search/page.tsx:3567",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recent searches",
+     "at": "apps/web/app/(app)/search/page.tsx:3574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear all",
+     "at": "apps/web/app/(app)/search/page.tsx:3586",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggestions",
+     "at": "apps/web/app/(app)/search/page.tsx:3649",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No matching titles. Press Enter to search anyway.",
+     "at": "apps/web/app/(app)/search/page.tsx:3678",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recent searches",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:56",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your recent searches will appear here.",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:73",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Saved searches",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:99",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No saved searches yet.",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:103",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search tips",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search by filename, case name, report title, package, note, or record ID.",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:144",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "OCR and transcript text appear in results when available.",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:151",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use the filters on the left to narrow by type, status, case, or date.",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:157",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Need help?",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:166",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact system admin",
+     "at": "apps/web/app/(app)/search/components/SearchGuidance.tsx:168",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Search across this workspace",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:72",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Search is temporarily unavailable",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:143",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Search is not available for this workspace",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Indexing is not progressing",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:457",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Rebuild index",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:464",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "The last indexing run did not finish",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:488",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Retry indexing",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:500",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Search is working",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:524",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Search is temporarily unavailable",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:542",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Preparing workspace search…",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Search indexing is not progressing",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:635",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Rebuild index",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:644",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search evidence, cases, reports, verification packages and notes. OCR and transcript text appear in results where a record provides them.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:116",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact Support",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:160",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The secure connection to the data indexing service was interrupted. Try refreshing the page or checking your network status.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:165",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Service Connection Interrupted",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We couldn&apos;t reach the search service. Check your connection and try again — your evidence data has not been changed.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:183",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Indexing retries automatically. Contact support if records stay missing.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:289",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:476",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records are searchable. What is below is real and complete for what has been indexed. Indexing retries on its own; the remaining records appear once it catches up.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:476",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:512",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records are searchable. The rest will not appear until indexing runs again.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:512",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "One secondary capability is unavailable right now. Everything below is complete for the search you ran.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:531",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The search service could not be reached, so nothing can be said about this workspace&apos;s index right now. Try again shortly.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:550",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence, cases, reports, packages and notes become searchable once they are created in this workspace.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:605",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:659",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records in this workspace are searchable, and no indexing run is currently making progress.",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:659",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Searching…",
+     "at": "apps/web/app/(app)/search/components/SearchStates.tsx:684",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search activity",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:136",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Who ran a search in this workspace, what the platform returned, and how many results governance or visibility rules withheld. Search wording itself is never stored — only a short non-reversible fingerprint.",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Withheld results only",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:153",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading search activity…",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:160",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "When",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:205",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Person",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Surface",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:207",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search fingerprint",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:208",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Returned",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:209",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Withheld",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Outcome",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:219",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "chars",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No search wording",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:230",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Results withheld",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Completed",
+     "at": "apps/web/components/search/SearchAuditLogPanel.tsx:248",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "INPUT",
+     "label": "Search evidence, cases…",
+     "at": "apps/mobile/app/(stack)/search.tsx:163"
+    },
+    {
+     "role": "TAB",
+     "label": "Match on",
+     "at": "apps/mobile/app/(stack)/search.tsx:209"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Preparing search",
+     "at": "apps/mobile/app/(stack)/search.tsx:230"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Search isn’t ready yet",
+     "at": "apps/mobile/app/(stack)/search.tsx:232"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Searching",
+     "at": "apps/mobile/app/(stack)/search.tsx:237"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Search your workspace",
+     "at": "apps/mobile/app/(stack)/search.tsx:241"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No results",
+     "at": "apps/mobile/app/(stack)/search.tsx:246"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 1907,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 9,
+  "webCompetingRules": 77,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 237,
+  "natTokenUnresolved": 75,
+  "webDistinctColors": 54,
+  "natDistinctColors": 19,
+  "sharedColors": 5,
+  "webOnlyColors": 49,
+  "webOnlyColorSample": [
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "#667085",
+   "#172033",
+   "rgba(91, 79, 233, 0.1)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(91, 79, 233, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(255, 255, 255, 0.72)",
+   "#d9c7fb",
+   "rgba(124, 58, 237, 0.14)",
+   "#98a2b3",
+   "#263247",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(37, 99, 235, 0.16)",
+   "#eaf0fd",
+   "#2563eb",
+   "rgba(37, 99, 235, 0.28)",
+   "#344054",
+   "rgba(255, 255, 255, 0.38)",
+   "rgba(15, 23, 42, 0.025)",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(255, 255, 255, 0.70)",
+   "rgba(178, 52, 66, 0.24)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.06)",
+   "#f2ecfe"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1480,
+  "natConditionals": 1100,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 71,
+  "natHandlers": 32,
+  "webHandlerSample": [
+   "onRun=runBackfillDryRun @apps/web/app/(app)/search/page.tsx:1667",
+   "onSubmit=submitQuery @apps/web/app/(app)/search/page.tsx:1810",
+   "onChange=(e) => setQDraft(e.target.value) @apps/web/app/(app)/search/page.tsx:1816",
+   "onFocus=() => setSuggestOpen(true) @apps/web/app/(app)/search/page.tsx:1816",
+   "onBlur=() => { // Delay close so a mousedown on a suggestion fires  @apps/web/app/(app)/search/page.tsx:1816",
+   "onKeyDown=(e) => { if (!suggestOpen) return; const items = qDraft.trim @apps/web/app/(app)/search/page.tsx:1816",
+   "onPointerDownOutside=() => setSuggestOpen(false) @apps/web/app/(app)/search/page.tsx:1856",
+   "onPick=(text) => { setQDraft(text); setSuggestOpen(false); updateFi @apps/web/app/(app)/search/page.tsx:1862",
+   "onClearRecent=clearRecent @apps/web/app/(app)/search/page.tsx:1862",
+   "onRemoveRecent=removeRecent @apps/web/app/(app)/search/page.tsx:1862",
+   "onClick=() => setHelpOpen((prev) => !prev) @apps/web/app/(app)/search/page.tsx:1896",
+   "onClick=() => setScope(\"records\") @apps/web/app/(app)/search/page.tsx:1937",
+   "onClick=() => setScope(\"activity\") @apps/web/app/(app)/search/page.tsx:1948",
+   "onChange=(value) => updateFilter({ sort: value }) @apps/web/app/(app)/search/page.tsx:1986",
+   "onClick=() => updateFilter({ documentTypes: toggleArray(filter.docum @apps/web/app/(app)/search/page.tsx:1999",
+   "onClick=() => updateFilter({ evidenceTypes: toggleArray(filter.evide @apps/web/app/(app)/search/page.tsx:2023",
+   "onChange=(v) => updateFilter({ workflowLinked: v ? true : undefined } @apps/web/app/(app)/search/page.tsx:2043",
+   "onChange=(v) => updateFilter({ onLegalHold: v ? true : undefined }) @apps/web/app/(app)/search/page.tsx:2050",
+   "onChange=(v) => updateFilter({ exportRestricted: v ? true : undefined @apps/web/app/(app)/search/page.tsx:2057",
+   "onChange=(v) => updateFilter({ incidentLinked: v ? true : undefined } @apps/web/app/(app)/search/page.tsx:2064",
+   "onChange=(v) => updateFilter({ contributorScoped: v ? true : undefine @apps/web/app/(app)/search/page.tsx:2071",
+   "onChange=(e) => setDateSinceDraft(e.target.value) @apps/web/app/(app)/search/page.tsx:2087",
+   "onChange=(e) => setDateUntilDraft(e.target.value) @apps/web/app/(app)/search/page.tsx:2098",
+   "onClick=applyDraftFilters @apps/web/app/(app)/search/page.tsx:2118",
+   "onClick=clearNarrowingFilters @apps/web/app/(app)/search/page.tsx:2128",
+   "onClick=saveCurrentView @apps/web/app/(app)/search/page.tsx:2146",
+   "onClick=() => applySavedView(v) @apps/web/app/(app)/search/page.tsx:2163",
+   "onClick=() => renameSavedView(v.id, v.name) @apps/web/app/(app)/search/page.tsx:2177",
+   "onClick=() => deleteSavedView(v.id) @apps/web/app/(app)/search/page.tsx:2187",
+   "onRecover=() => void rebuildIndex() @apps/web/app/(app)/search/page.tsx:2212",
+   "onRetry=retrySearch @apps/web/app/(app)/search/page.tsx:2273",
+   "onRecover=() => void rebuildIndex() @apps/web/app/(app)/search/page.tsx:2299",
+   "onClearFilters=clearNarrowingFilters @apps/web/app/(app)/search/page.tsx:2324",
+   "onClick=() => setSelected(row) @apps/web/app/(app)/search/page.tsx:2377",
+   "onClick=loadMore @apps/web/app/(app)/search/page.tsx:2468",
+   "onApplyRecent=(q) => { setQDraft(q); updateFilter({ q }); } @apps/web/app/(app)/search/page.tsx:2485",
+   "onClearRecent=clearRecent @apps/web/app/(app)/search/page.tsx:2485",
+   "onApplySaved=(id) => { const view = savedViews?.find((v) => v.id === id); @apps/web/app/(app)/search/page.tsx:2485",
+   "onChange=(e) => onChange(e.target.checked) @apps/web/app/(app)/search/page.tsx:3042",
+   "onClick=onRun @apps/web/app/(app)/search/page.tsx:3270",
+   "onMouseDown=(e) => { // The input's blur closes this list. Preventing th @apps/web/app/(app)/search/page.tsx:3575",
+   "onMouseDown=(e) => { e.preventDefault(); onPick(r); } @apps/web/app/(app)/search/page.tsx:3600",
+   "onMouseDown=(e) => { // THE ROW IS ALSO CLICKABLE. Without stopping prop @apps/web/app/(app)/search/page.tsx:3614",
+   "onClick=(e) => { e.preventDefault(); e.stopPropagation(); } @apps/web/app/(app)/search/page.tsx:3614",
+   "onMouseDown=(e) => { e.preventDefault(); onPick(sug.title); } @apps/web/app/(app)/search/page.tsx:3652",
+   "onClick=onClearRecent @apps/web/app/(app)/search/components/SearchGuidance.tsx:61",
+   "onClick=() => onApplyRecent(query) @apps/web/app/(app)/search/components/SearchGuidance.tsx:79",
+   "onClick=() => onApplySaved(view.id) @apps/web/app/(app)/search/components/SearchGuidance.tsx:109",
+   "onClick=onClearFilters @apps/web/app/(app)/search/components/SearchStates.tsx:109",
+   "onClick=onRetry @apps/web/app/(app)/search/components/SearchStates.tsx:149",
+   "onClick=onRecover @apps/web/app/(app)/search/components/SearchStates.tsx:248",
+   "onRecover=onRecover @apps/web/app/(app)/search/components/SearchStates.tsx:464",
+   "onRecover=onRecover @apps/web/app/(app)/search/components/SearchStates.tsx:500",
+   "onRecover=onRecover @apps/web/app/(app)/search/components/SearchStates.tsx:644",
+   "onChange=(e) => setFailClosedOnly(e.target.checked) @apps/web/components/search/SearchAuditLogPanel.tsx:146",
+   "onClick=() => void load({ append: false }) @apps/web/components/search/SearchAuditLogPanel.tsx:179",
+   "onClick=() => void load({ beforeUtc: nextBeforeUtc, append: true }) @apps/web/components/search/SearchAuditLogPanel.tsx:260",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293"
+  ],
+  "natHandlerSample": [
+   "onChangeText=setQ @apps/mobile/app/(stack)/search.tsx:163",
+   "onPress=() => setQ(sug) @apps/mobile/app/(stack)/search.tsx:174",
+   "onChange=setFilter @apps/mobile/app/(stack)/search.tsx:185",
+   "onChange=setRecency @apps/mobile/app/(stack)/search.tsx:193",
+   "onChange=(v: string) => setMode(v as SearchMode) @apps/mobile/app/(stack)/search.tsx:209",
+   "onRetry=() => void run(debounced, [], null) @apps/mobile/app/(stack)/search.tsx:239",
+   "onPress=navigable ? () => open(row) : undefined @apps/mobile/app/(stack)/search.tsx:257",
+   "onLoadMore=() => void run(debounced, rows, cursor) @apps/mobile/app/(stack)/search.tsx:272",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 13,
+  "natApi": 4,
+  "shared": 3,
+  "onlyWeb": 10,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/search/saved-views?teamId=${…}",
+   "/v1/search/semantic/status?teamId=${…}",
+   "/v1/search/diagnostics?${…}",
+   "/v1/search/reconcile",
+   "/v1/search/relationships/${…}",
+   "/v1/search/saved-views",
+   "/v1/search/saved-views/${…}",
+   "/v1/search/semantic/backfill",
+   "/v1/search/audit?${…}",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/search/suggest?teamId=${…}",
+   "/v1/search?${…}",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/search/saved-views?teamId=${…}": "apps/web/app/(app)/search/page.tsx:703",
+   "/v1/search/semantic/status?teamId=${…}": "apps/web/app/(app)/search/page.tsx:727",
+   "/v1/search/diagnostics?${…}": "apps/web/app/(app)/search/page.tsx:793",
+   "/v1/search/reconcile": "apps/web/app/(app)/search/page.tsx:940",
+   "/v1/search/relationships/${…}": "apps/web/app/(app)/search/page.tsx:1079",
+   "/v1/search/suggest?teamId=${…}": "apps/web/app/(app)/search/page.tsx:1322",
+   "/v1/search/saved-views": "apps/web/app/(app)/search/page.tsx:1409",
+   "/v1/search/saved-views/${…}": "apps/web/app/(app)/search/page.tsx:1477",
+   "/v1/search/semantic/backfill": "apps/web/app/(app)/search/page.tsx:1570",
+   "/v1/search?${…}": "apps/web/app/(app)/search/page.tsx:3465",
+   "/v1/search/audit?${…}": "apps/web/components/search/SearchAuditLogPanel.tsx:84",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/search?${…}": "apps/mobile/src/product/search.ts:121",
+   "/v1/search/suggest?${…}": "apps/mobile/src/product/search.ts:165",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

@@ -23,7 +23,7 @@
  * / draw-over-other-apps or Accessibility permission.
  */
 import { Platform } from "react-native";
-import { EventEmitter, requireNativeModule } from "expo-modules-core";
+import { EventEmitter, requireNativeModule } from "expo";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 type Subscription = { remove: () => void };

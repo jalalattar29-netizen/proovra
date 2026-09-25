@@ -1,0 +1,210 @@
+{
+ "route": "/invite/[token]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Workspace",
+   "at": "apps/web/app/invite/[token]/page.tsx:439",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Organization",
+   "at": "apps/web/app/invite/[token]/page.tsx:444",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Role",
+   "at": "apps/web/app/invite/[token]/page.tsx:449",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "EXTRACTOR_ARTIFACT",
+   "why": "extracted label is the prop name \"Role\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Invited as",
+   "at": "apps/web/app/invite/[token]/page.tsx:453",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "You’ve been invited to join a collaboration group.",
+    "at": "apps/mobile/app/(stack)/invite/[token].tsx:108"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/invite/[token]/page.tsx:458",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation links are single-use and expire. Never share this link.",
+   "at": "apps/web/app/invite/[token]/page.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy",
+   "at": "apps/web/app/invite/[token]/page.tsx:498",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms",
+   "at": "apps/web/app/invite/[token]/page.tsx:500",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support",
+   "at": "apps/web/app/invite/[token]/page.tsx:502",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

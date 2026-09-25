@@ -60,7 +60,11 @@ test("closure is offered only when the server listed no blockers", () => {
 });
 
 test("an open request is not another chance to request one", () => {
-  const open = C.parseClosureState({ request: { id: "r1", status: "PENDING" }, blockers: [] });
+  // The server creates a request as COOLING_OFF (organizations.routes.ts / teams.routes.ts).
+  const open = C.parseClosureState({ request: { id: "r1", status: "COOLING_OFF", coolingOffEndsAtUtc: "2026-10-01T00:00:00.000Z" }, blockers: [] });
+  assert.equal(open.effectiveAtIso, "2026-10-01T00:00:00.000Z", "the cooling-off end was not read");
+  assert.equal(C.hasOpenClosure(C.parseClosureState({ request: { id: "r1", status: "PENDING" } })), false, "PENDING is not a server status");
+  assert.equal(C.canRequestClosure(C.parseClosureState({ request: { id: "r1", status: "PROCESSING" }, blockers: [] })), false, "a closure in progress offered another");
   assert.equal(C.hasOpenClosure(open), true);
   assert.equal(C.canRequestClosure(open), false);
 });

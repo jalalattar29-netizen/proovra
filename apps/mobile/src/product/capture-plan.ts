@@ -427,3 +427,293 @@ export function buildTemplateSnapshot(template: CollectionPlanTemplate | null) {
     ...(template.version !== null ? { collectionPlanTemplateVersion: template.version } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// T-14 — CaptureSessionPanel: the session readiness the web's rail and Finish
+// gate read (web `_lib/session-readiness.ts` buildSessionReadiness +
+// `file-utils.ts` getItemQualityStatus), ported rule-for-rule.
+//
+// The plan mode is the web's Intake structure choice: in FLEXIBLE a missing
+// required step is progress, in CHECKLIST_REQUIRED (Guided) it is a blocker.
+// Native carries no client file signals (generic MIME, duplicate), so those
+// two warnings cannot arise here.
+// ---------------------------------------------------------------------------
+
+export type CapturePlanMode = "FLEXIBLE" | "CHECKLIST_REQUIRED";
+
+export interface SessionReadinessItem {
+  id: string;
+  mimeType: string;
+  checklistStepId: string | null;
+}
+
+export interface SessionReadinessIssue {
+  code: string;
+  severity: "blocker" | "warning";
+  label: string;
+  detail: string;
+  itemId?: string;
+  checklistStepId?: string;
+}
+
+export interface SessionReadiness {
+  canFinalize: boolean;
+  status: "empty" | "collecting" | "blocked" | "warning" | "ready";
+  blockers: SessionReadinessIssue[];
+  warnings: SessionReadinessIssue[];
+  /** Required steps no staged item is mapped to (web `missingRequiredSteps`). */
+  missingRequiredSteps: ChecklistStep[];
+  mappedCount: number;
+  unmappedCount: number;
+  totalItems: number;
+  requiredTotal: number;
+  requiredCompleted: number;
+  /** 0-100, the web's requiredProgressPercent (100 when the plan requires nothing). */
+  requiredProgressPercent: number;
+  /** The web's `aiRecommendedReview`: any warning recommends the AI review. */
+  aiRecommendedReview: boolean;
+}
+
+function kindForMime(mime: string): CaptureItemKind {
+  const m = mime.toLowerCase();
+  if (m.startsWith("image/")) return "PHOTO";
+  if (m.startsWith("video/")) return "VIDEO";
+  if (m.startsWith("audio/")) return "AUDIO";
+  return "DOCUMENT";
+}
+
+const KIND_WORD: Record<CaptureItemKind, string> = { PHOTO: "Photo", VIDEO: "Video", AUDIO: "Audio", DOCUMENT: "Document" };
+
+/** The web `formatEvidenceTypeLabel`. */
+export function captureKindLabel(kind: CaptureItemKind): string {
+  return KIND_WORD[kind];
+}
+
+export interface ItemQualityStatus {
+  tone: "success" | "warning" | "danger";
+  label: string;
+  detail: string;
+}
+
+/**
+ * The web `getItemQualityStatus` (file-utils.ts:153), minus the two
+ * browser-only client signals (generic MIME, duplicate) a phone never raises.
+ */
+export function itemQualityStatus(item: { mimeType: string }, step: ChecklistStep | null): ItemQualityStatus {
+  if (!step) {
+    return { tone: "warning", label: "Needs mapping", detail: "This item is not mapped to a collection requirement." };
+  }
+  const kind = kindForMime(item.mimeType);
+  if (step.acceptedKinds.length > 0 && !step.acceptedKinds.includes(kind)) {
+    return { tone: "danger", label: "Invalid file type", detail: `${KIND_WORD[kind]} does not match this requirement.` };
+  }
+  if (step.id.includes("close_up") || step.id.includes("damage_close_up") || step.id.includes("close-up")) {
+    if (!item.mimeType.startsWith("image/") && !item.mimeType.startsWith("video/")) {
+      return {
+        tone: "danger",
+        label: "Close-up requirement not satisfied (metadata-based)",
+        detail: "This metadata-based check only verifies file type. It does not visually confirm close-up quality.",
+      };
+    }
+  }
+  return {
+    tone: "success",
+    label: "Matches selected requirement",
+    detail: "The item metadata matches the selected intake requirement. This is not a factual, visual, or legal validation.",
+  };
+}
+
+function qualityCode(label: string): string {
+  return `capture_item_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}`;
+}
+
+export function buildSessionReadiness(args: {
+  items: ReadonlyArray<SessionReadinessItem>;
+  plan: CollectionPlanTemplate | null;
+  useLocation: boolean;
+  /** Web `planMode`; FLEXIBLE when omitted. */
+  planMode?: CapturePlanMode;
+}): SessionReadiness {
+  const { items, plan, useLocation } = args;
+  const planMode = args.planMode ?? "FLEXIBLE";
+  const requiredSteps = plan?.steps.filter((s) => s.required) ?? [];
+  const mapped = new Set(items.map((i) => i.checklistStepId).filter(Boolean) as string[]);
+  const missingRequiredSteps = requiredSteps.filter((s) => !mapped.has(s.id));
+  const requiredCompleted = requiredSteps.length - missingRequiredSteps.length;
+  const blockers: SessionReadinessIssue[] = [];
+  const warnings: SessionReadinessIssue[] = [];
+  if (items.length === 0) {
+    blockers.push({
+      code: "capture_empty_session",
+      severity: "blocker",
+      label: "Add at least one material to finish.",
+      detail: "Capture requires at least one staged material before Review & Sign can start.",
+    });
+  }
+  // Guided mode: every unmapped required step is a blocker (session-readiness.ts:195).
+  if (planMode === "CHECKLIST_REQUIRED") {
+    for (const step of missingRequiredSteps) {
+      blockers.push({
+        code: "capture_required_step_missing",
+        severity: "blocker",
+        label: "Cannot finish yet",
+        detail: `${step.title} has not been mapped to a staged material.`,
+        checklistStepId: step.id,
+      });
+    }
+  }
+  if (plan?.locationRequirement === "required" && !useLocation) {
+    blockers.push({
+      code: "capture_required_location_missing",
+      severity: "blocker",
+      label: "Location metadata is required by the selected plan.",
+      detail: "Enable location and grant permission before finishing this evidence session.",
+    });
+  }
+  // The web raises BOTH "not mapped" and the quality "Needs mapping" for an
+  // unmapped item, so each one counts twice. Kept, so the counts match the web.
+  for (const item of items) {
+    if (!item.checklistStepId) {
+      warnings.push({ code: "capture_item_unmapped", severity: "warning", label: "Needs mapping", detail: "This material is not mapped to a collection requirement.", itemId: item.id });
+    }
+  }
+  for (const item of items) {
+    const step = plan?.steps.find((s) => s.id === item.checklistStepId) ?? null;
+    const status = itemQualityStatus(item, step);
+    if (status.tone === "success") continue;
+    warnings.push({ code: qualityCode(status.label), severity: "warning", label: status.label, detail: status.detail, itemId: item.id });
+  }
+  if (plan?.locationRequirement === "recommended" && !useLocation) {
+    warnings.push({
+      code: "capture_recommended_location_missing",
+      severity: "warning",
+      label: "Recommended location not included",
+      detail: "The selected plan recommends location metadata, but it is not included for this session.",
+    });
+  }
+  const canFinalize = blockers.length === 0;
+  const status: SessionReadiness["status"] =
+    items.length === 0 ? "empty" : blockers.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "ready";
+  const mappedCount = items.filter((i) => Boolean(i.checklistStepId)).length;
+  return {
+    canFinalize,
+    status,
+    blockers,
+    warnings,
+    missingRequiredSteps,
+    mappedCount,
+    unmappedCount: items.length - mappedCount,
+    totalItems: items.length,
+    requiredTotal: requiredSteps.length,
+    requiredCompleted,
+    requiredProgressPercent: requiredSteps.length === 0 ? 100 : Math.round((requiredCompleted / requiredSteps.length) * 100),
+    aiRecommendedReview: warnings.length > 0,
+  };
+}
+
+/**
+ * Guided-mode auto-mapping (web useCaptureSessionOrchestration.ts:340-378):
+ * an incoming item takes the one still-unmapped required step it can satisfy,
+ * or the only one left. FLEXIBLE never assigns.
+ */
+export function assignRequiredStep(args: {
+  planMode: CapturePlanMode;
+  plan: CollectionPlanTemplate | null;
+  stagedStepIds: ReadonlyArray<string | null | undefined>;
+  mimeType: string;
+}): string | null {
+  if (args.planMode !== "CHECKLIST_REQUIRED" || !args.plan) return null;
+  const taken = new Set(args.stagedStepIds.filter(Boolean) as string[]);
+  const open = args.plan.steps.filter((s) => s.required && !taken.has(s.id));
+  if (open.length === 0) return null;
+  const kind = kindForMime(args.mimeType);
+  const compatible = open.filter((s) => s.acceptedKinds.length === 0 || s.acceptedKinds.includes(kind));
+  const chosen = compatible.length === 1 ? compatible[0] : open.length === 1 ? open[0] : null;
+  return chosen?.id ?? null;
+}
+
+/** Web `CANONICAL_TEMPLATE_PRIORITY` + `orderTemplatesByWorkflow`: reorders, never hides. */
+export const DEFAULT_TEMPLATE_ID = "general-evidence-record";
+export function orderCaptureTemplates(templates: ReadonlyArray<CollectionPlanTemplate>): CollectionPlanTemplate[] {
+  const lead = templates.filter((t) => t.id === DEFAULT_TEMPLATE_ID);
+  return [...lead, ...templates.filter((t) => t.id !== DEFAULT_TEMPLATE_ID)];
+}
+
+/** The web material row's role label (capture/page.tsx:112-132). */
+export function roleRequirementLabel(role: string | null | undefined, step: ChecklistStep | null): string {
+  if (step) return `${roleFromChecklistStep(step)} · ${step.title}`;
+  const r = (role ?? "").trim().toLowerCase();
+  const simple = r.startsWith("primary") ? "Primary" : r.startsWith("supporting") ? "Supporting" : "Context";
+  return `${simple} · Unmapped`;
+}
+
+/** Web CaptureFinalReadiness (CaptureFinalReadiness.tsx:22-52). */
+export function finalReadinessCopy(readiness: SessionReadiness, busy: boolean): {
+  ready: boolean;
+  title: string;
+  detail: string;
+  missing: string[];
+} {
+  const ready = !busy && readiness.canFinalize;
+  if (ready) {
+    const materials = `${readiness.totalItems} material${readiness.totalItems === 1 ? "" : "s"} added`;
+    const mapped =
+      readiness.requiredTotal > 0
+        ? `${readiness.requiredCompleted}/${readiness.requiredTotal} required items mapped`
+        : "No required items outstanding";
+    return { ready, title: "Ready to finalize", detail: `${materials} · ${mapped}`, missing: [] };
+  }
+  let detail: string;
+  const first = readiness.blockers[0];
+  if (busy) detail = "Finishing the current operation.";
+  else if (first) detail = first.detail?.trim() || first.label;
+  else {
+    const outstanding = readiness.requiredTotal - readiness.requiredCompleted;
+    detail =
+      outstanding > 0
+        ? `${outstanding} required item${outstanding === 1 ? "" : "s"} still ${outstanding === 1 ? "needs" : "need"} evidence.`
+        : "This session cannot be finalized yet.";
+  }
+  const extra = readiness.blockers.length > 1 ? readiness.blockers.length - 1 : 0;
+  if (extra > 0) detail += ` (+${extra} more)`;
+  return { ready, title: "Not ready to finalize", detail, missing: readiness.missingRequiredSteps.map((s) => s.title) };
+}
+
+/** Web CaptureOperationalSummary LEVEL_LABEL. */
+export const OPERATIONAL_LEVEL_LABEL: Record<ReadinessLevel, string> = {
+  draft: "Draft",
+  developing: "Developing",
+  ready: "Ready",
+};
+
+/** Web CaptureReadinessPanel LEVEL_LABEL. */
+export const READINESS_PANEL_LEVEL_LABEL: Record<ReadinessLevel, string> = {
+  draft: "Draft intake",
+  developing: "Developing intake",
+  ready: "Operationally ready",
+};
+
+/** The web's session label: `CAP-YYYY-MM-DD` of the session's local start date. */
+export function formatCaptureSessionId(startedAt: Date): string {
+  const y = startedAt.getFullYear();
+  const m = String(startedAt.getMonth() + 1).padStart(2, "0");
+  const d = String(startedAt.getDate()).padStart(2, "0");
+  return `CAP-${y}-${m}-${d}`;
+}
+
+export const SESSION_STATUS_COPY: Record<SessionReadiness["status"], { label: string; detail: string }> = {
+  empty: { label: "Awaiting material", detail: "Add at least one file, folder, photo, video, or audio recording to begin readiness review." },
+  collecting: { label: "Collecting", detail: "Materials are staged locally. Continue mapping and reviewing before finalization." },
+  blocked: { label: "Blocked", detail: "Required evidence or metadata is missing. Resolve blockers before Review & Sign." },
+  warning: { label: "Ready with warnings", detail: "The session can proceed, but reviewers should inspect the warnings first." },
+  ready: { label: "Ready for Review & Sign", detail: "Required evidence is mapped and no blockers are currently detected." },
+};
+
+/** The web capture formatFileSize. */
+export function formatCaptureFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}

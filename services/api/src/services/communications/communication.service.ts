@@ -699,6 +699,13 @@ export type CommunicationMessageProjection = {
   relatedEvidenceRequestId: string | null;
   relatedDiscussionThreadId: string | null;
   relatedIntakeSessionId: string | null;
+  /**
+   * The intake link a delivery was sent for. The column is written on every
+   * intake send and the list route filters by it, but it was never projected —
+   * so Home (web and native) could not match a message to its link: no
+   * per-link delivery status, and "Failed sends" was always 0.
+   */
+  relatedIntakeLinkId: string | null;
   createdAt: string;
   sentAtUtc: string | null;
   deliveredAtUtc: string | null;
@@ -724,6 +731,7 @@ export function projectCommunicationMessage(
     relatedEvidenceRequestId: row.relatedEvidenceRequestId,
     relatedDiscussionThreadId: row.relatedDiscussionThreadId,
     relatedIntakeSessionId: row.relatedIntakeSessionId,
+    relatedIntakeLinkId: row.relatedIntakeLinkId,
     createdAt: row.createdAt.toISOString(),
     sentAtUtc: row.sentAtUtc?.toISOString() ?? null,
     deliveredAtUtc: row.deliveredAtUtc?.toISOString() ?? null,

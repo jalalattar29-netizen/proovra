@@ -305,3 +305,40 @@ test("a named refusal says what happened, in workspace words", () => {
   assert.match(named("target_not_member"), /this workspace/i);
   assert.equal(named("something_else"), "fallback");
 });
+
+/* ------------------------------------------------- web parity (teams/[id]) */
+
+test("the case picker drops cases the link route refuses (already in any workspace)", () => {
+  const all = W.parseWorkspaceCases({ items: [{ id: "c1", name: "A", teamId: null }, { id: "c2", name: "B", teamId: "t9" }, { id: "c3", name: "C" }] });
+  assert.deepEqual(W.linkableCases(all, []).map((c) => c.id), ["c1", "c3"]);
+});
+
+test("activity reads in the web's words, and an unmapped SHOUTY type does not shout", () => {
+  assert.equal(W.activityLabel("invite_created"), "Invitation sent");
+  assert.equal(W.activityLabel("SOMETHING_NEW"), "Something new");
+  assert.equal(W.describeActivity({ eventType: "member_added", actorLabel: "Ada" }), "Person added — Ada");
+  assert.equal(W.describeActivity({ eventType: "member_added", actorLabel: null }), "Person added");
+});
+
+test("the overview resolves the owner from the embedded page, or states nothing", () => {
+  const ov = W.parseWorkspaceOverview({ ownerUserId: "u1", members: [{ userId: "u1", user: { displayName: "Olivia" } }], stats: { pendingInviteCount: 2, caseCount: 3 } });
+  assert.equal(ov.ownerLabel, "Olivia");
+  assert.equal(ov.pendingInviteCount, 2);
+  assert.equal(W.parseWorkspaceOverview({ ownerUserId: "u9", members: [] }).ownerLabel, null);
+});
+
+test("transfer candidates come from the server's eligible list, never offering the caller", () => {
+  assert.equal(W.buildTransferCandidatesPath("t1", " ada ", "m5"), "/v1/teams/t1/members?eligible=ownership_transfer&limit=50&q=ada&cursor=m5");
+  const page = W.parseTransferCandidates({ members: [{ userId: "me", label: "Me" }, { userId: "u2", label: "Workspace member" }], nextCursor: null, total: 2 }, "me");
+  assert.deepEqual(page.rows, [{ userId: "u2", label: "Workspace member" }]);
+  assert.equal(page.total, 2);
+});
+
+test("a resend is reported from the re-read list and the route's emailSent", () => {
+  const inv = { id: "i1", email: "a@x.io" };
+  assert.equal(W.resendOutcome(inv, true, [{ id: "i1" }]).tone, "success");
+  assert.equal(W.resendOutcome(inv, false, [{ id: "i1" }]).tone, "warning");
+  assert.equal(W.resendOutcome(inv, true, []).tone, "error");
+  assert.equal(W.resendOutcome(inv, true, null).tone, "error");
+  assert.match(W.resendErrorCopy({ code: "INVITE_NOT_FOUND" }), /no longer exists/);
+});

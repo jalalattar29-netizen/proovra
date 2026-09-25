@@ -1,0 +1,230 @@
+{
+ "route": "/portal/[token]/work/[workflowId]",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "BOX",
+   "label": "Evidence preview",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:361",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Bounded rationale (≤ 600 chars). Required for non-APPROVE verdicts.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:508",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Comment on this review",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:621",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "INPUT",
+   "label": "Reply to this comment",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:684",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has INPUT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm it is you",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:279",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:309",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "← Back to dashboard",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:333",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Role:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Decision",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:466",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role cannot view recorded decisions for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:469",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading your recorded decision…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:471",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recorded decision is not available for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:473",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:478",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recorded decision",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:483",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Recorded",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:485",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Rationale",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:491",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "You have not recorded a decision for this review yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:495",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Submitting again replaces this decision.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:498",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role is read-only for decisions. You may still annotate and comment when permitted.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:503",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Review communication",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:614",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Post",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:642",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No comments yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:647",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:662",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Reply",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:705",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

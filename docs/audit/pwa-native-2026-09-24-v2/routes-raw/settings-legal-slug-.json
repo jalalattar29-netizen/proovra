@@ -1,0 +1,399 @@
+{
+ "route": "/settings/legal/[slug]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/settings/legal/[slug]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 152,
+   "elements": 221,
+   "texts": 21,
+   "distinctTexts": 15,
+   "handlers": 4,
+   "conditionals": 1147,
+   "apiPaths": 2,
+   "distinctApi": 2,
+   "styleRefs": 103,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "next/navigation",
+    "react",
+    "next/link",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 139,
+   "elements": 177,
+   "texts": 19,
+   "distinctTexts": 15,
+   "handlers": 37,
+   "conditionals": 1033,
+   "apiPaths": 2,
+   "distinctApi": 2,
+   "styleRefs": 217,
+   "stylesheetRules": 83,
+   "themeTokens": 269,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 21,
+  "natLabelled": 18,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 21,
+  "extraInNative": 18,
+  "webUnlabelled": 215,
+  "missingWithRolePresent": 21,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/legal/legal-content.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/legal/legal-content.tsx:204",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "On this page",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Related documents",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:428",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "←",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:341",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Applies to",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "On this page",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "▾",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:387",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Related documents",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:430",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open public Trust Center",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:467",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:467",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Opens the public Trust Center in a new tab — this app stays open.",
+     "at": "apps/web/components/legal/LegalDocumentShell.tsx:470",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:108"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading document",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:117"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Browse legal documents",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:134"
+    },
+    {
+     "role": "TEXT",
+     "label": "No such document",
+     "at": "apps/mobile/app/(stack)/legal/[slug].tsx:128"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Legal",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:59"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:64"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading documents",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:73"
+    },
+    {
+     "role": "TEXT",
+     "label": "Acceptance",
+     "at": "apps/mobile/app/(stack)/legal/index.tsx:93"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 105,
+  "webClassesUnresolved": 175,
+  "webNonLiteralClass": 7,
+  "webCompetingRules": 2,
+  "webDistinctUnresolvedClasses": 100,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 81,
+  "webDistinctColors": 4,
+  "natDistinctColors": 20,
+  "sharedColors": 1,
+  "webOnlyColors": 3,
+  "webOnlyColorSample": [
+   "#e2e8f0",
+   "rgba(15, 23, 42, 0.04)",
+   "#cbd5e1"
+  ],
+  "sharedColorSample": [
+   "#ffffff"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1147,
+  "natConditionals": 1033,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 4,
+  "natHandlers": 37,
+  "webHandlerSample": [
+   "onClick=() => setTocOpen((o) => !o) @apps/web/components/legal/LegalDocumentShell.tsx:372",
+   "onClick=() => setTocOpen(false) @apps/web/components/legal/LegalDocumentShell.tsx:395",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/legal/[slug].tsx:108",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/legal/[slug].tsx:120",
+   "onPress=() => router.replace(\"/legal\") @apps/mobile/app/(stack)/legal/[slug].tsx:134",
+   "onInternalLink=followInternalLink @apps/mobile/app/(stack)/legal/[slug].tsx:149",
+   "onPress=() => { if (span.external) { void Linking.openURL(span.href) @apps/mobile/src/ui/legal-document.tsx:59",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:113",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:158",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:202",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:211",
+   "onInternalLink=onInternalLink @apps/mobile/src/ui/legal-document.tsx:220",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/legal/index.tsx:64",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/legal/index.tsx:76",
+   "onPress=() => router.push(`/legal/${doc.slug}`) @apps/mobile/app/(stack)/legal/index.tsx:85"
+  ]
+ },
+ "level8": {
+  "webApi": 2,
+  "natApi": 2,
+  "shared": 0,
+  "onlyWeb": 2,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/legal",
+   "/v1/legal/${…}"
+  ],
+  "sharedList": [],
+  "webApiWhere": {
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/legal": "apps/mobile/src/product/legal.ts:43",
+   "/v1/legal/${…}": "apps/mobile/src/product/legal.ts:47"
+  }
+ }
+}

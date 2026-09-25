@@ -134,13 +134,22 @@ test("the Android fingerprint is a real one, not a placeholder", () => {
 });
 
 /**
- * THE ONE THAT IS STILL MISSING, STATED AS A FACT RATHER THAN A HOPE.
+ * THE APPLE TEAM ID MUST BE REAL. A PLACEHOLDER IS A FAILURE, NOT A NOTE.
  *
- * This test PASSES while the Apple Team ID is a placeholder. It exists to
- * keep the gap legible and to fail the moment somebody writes something
- * that is neither the placeholder nor a valid ten-character Team ID.
+ * This test previously PASSED while the Team ID was the literal
+ * `<APPLE_TEAM_ID>`, on the reasoning that the gap was better kept "legible"
+ * than enforced. That reasoning was wrong in the way that matters: CI stayed
+ * green for the entire period in which EVERY iOS Universal Link was dead, and
+ * the defect was found on a physical iPad instead of in the pipeline.
+ *
+ * A placeholder RESOLVES over HTTPS and then fails association silently — iOS
+ * cannot match `<APPLE_TEAM_ID>.com.jalalattar29.proovra` to the installed app,
+ * so every https://www.proovra.com/... link opens Safari and nothing anywhere
+ * says why. That is exactly the class of defect a guard exists to catch.
+ *
+ * Ten characters, uppercase A-Z0-9, and explicitly not the placeholder.
  */
-test("the Apple Team ID is either the known placeholder or a real one", () => {
+test("the Apple Team ID is a real one, not a placeholder", () => {
   const aasa = readFileSync(
     resolve(REPO_ROOT, "apps/web/public/.well-known/apple-app-site-association"),
     "utf8",
@@ -150,12 +159,18 @@ test("the Apple Team ID is either the known placeholder or a real one", () => {
   );
   assert.ok(appIds.length > 0, "the AASA file claims no app ID");
   for (const id of appIds) {
-    const real = /^[A-Z0-9]{10}$/.test(id);
-    const placeholder = id === "<APPLE_TEAM_ID>";
-    assert.ok(
-      real || placeholder,
-      `${id} is neither a ten-character Apple Team ID nor the recorded ` +
-        "placeholder. Universal Links verification fails silently on anything else.",
+    assert.notStrictEqual(
+      id,
+      "<APPLE_TEAM_ID>",
+      "the AASA still ships the literal placeholder. Universal Links " +
+        "verification fails silently: the file resolves, the appID matches no " +
+        "installed app, and every deep link opens the browser instead.",
+    );
+    assert.match(
+      id,
+      /^[A-Z0-9]{10}$/,
+      `${id} is not a ten-character uppercase Apple Team ID. Universal Links ` +
+        "verification rejects anything else, and it does so silently.",
     );
   }
 });

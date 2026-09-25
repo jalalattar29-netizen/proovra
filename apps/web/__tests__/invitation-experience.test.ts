@@ -58,7 +58,8 @@ const PAGE_RAW = read("app/invite/[token]/page.tsx");
 const CSS_RAW = read("app/invite/invite.css");
 const PAGE = stripTs(PAGE_RAW);
 const CSS = stripCss(CSS_RAW);
-const RESOLVER = stripTs(read("lib/invitations/resolveInvitationView.ts"));
+// The resolver moved to @proovra/shared (shared with native); assert on the real source.
+const RESOLVER = stripTs(read("../../packages/shared/src/workspace-invitation-view.ts"));
 
 /** A shape-valid token, so the resolver reaches the lookup arms. */
 const TOKEN = `wsit_v1_${"a".repeat(43)}`;

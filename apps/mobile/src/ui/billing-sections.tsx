@@ -30,12 +30,18 @@ import {
   STORAGE_ADDON_CANCEL_PATH,
   SUBSCRIPTION_CANCEL_PATH,
   buildBillingHistoryPath,
+  buildPaymentCancelPath,
+  buildPaymentRecheckPath,
+  paymentCancelMessage,
+  paymentRecheckMessage,
+  PAYMENT_CANCEL_COPY,
   buildRetryStorageCancellationPath,
   buildStorageAddonCancelBody,
   formatPaymentAmount,
   isCancellableAddon,
   parseBillingOverview,
   parsePaymentHistory,
+  paymentHistoryFailureCopy,
   paymentStatusTone,
   type BillingOverview,
   type PaymentRow,
@@ -58,9 +64,14 @@ export function BillingSections({
 }) {
   const [overview, setOverview] = useState<BillingOverview | null>(null);
   const [payments, setPayments] = useState<PaymentRow[] | null>(null);
+  // A failed history read is NOT "no payments" (it used to become []).
+  const [paymentsFailure, setPaymentsFailure] = useState<{ message: string; retry: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // T-14 — per-payment Re-check / Stop (web StorageAndHistory :475 / :562).
+  const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
+  const [stopping, setStopping] = useState<PaymentRow | null>(null);
 
   const load = useCallback(async () => {
     // The two reads are independent: a history that fails must not hide what
@@ -71,8 +82,14 @@ export function BillingSections({
         .catch(() => setOverview(null)),
       accountType && accountId
         ? apiFetch(buildBillingHistoryPath(accountType, accountId))
-            .then((d) => setPayments(parsePaymentHistory(d)))
-            .catch(() => setPayments([]))
+            .then((d) => {
+              setPayments(parsePaymentHistory(d));
+              setPaymentsFailure(null);
+            })
+            .catch((err) => {
+              setPayments(null);
+              setPaymentsFailure(paymentHistoryFailureCopy(err));
+            })
         : Promise.resolve(),
     ]);
   }, [accountType, accountId]);
@@ -80,6 +97,42 @@ export function BillingSections({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const recheckPayment = useCallback(
+    async (row: PaymentRow) => {
+      if (!accountType || !accountId || paymentBusyId) return;
+      setPaymentBusyId(row.id);
+      setMessage(null);
+      try {
+        const result = await apiFetch(buildPaymentRecheckPath(accountType, accountId, row.id), { method: "POST", body: "{}" });
+        const read = paymentRecheckMessage(result);
+        setMessage(read.message);
+        if ((result as { outcome?: string } | null)?.outcome === "UPDATED") void load();
+      } catch (err) {
+        setMessage(toSafeUserError(err, { message: "We could not check this payment with your provider. Nothing has changed — try again in a moment." }).message);
+      } finally {
+        setPaymentBusyId(null);
+      }
+    },
+    [accountType, accountId, paymentBusyId, load],
+  );
+
+  const stopPayment = useCallback(async () => {
+    const row = stopping;
+    if (!row || !accountType || !accountId) return;
+    setPaymentBusyId(row.id);
+    setMessage(null);
+    try {
+      const result = await apiFetch(buildPaymentCancelPath(accountType, accountId, row.id), { method: "POST", body: "{}" });
+      setMessage(paymentCancelMessage(result).message);
+      void load();
+    } catch (err) {
+      setMessage(toSafeUserError(err, { message: "We could not reach your payment provider, so this payment is unchanged in PROOVRA." }).message);
+    } finally {
+      setPaymentBusyId(null);
+      setStopping(null);
+    }
+  }, [stopping, accountType, accountId, load]);
 
   /**
    * Retry a storage cancellation the provider did not confirm.
@@ -220,10 +273,16 @@ export function BillingSections({
       ) : null}
 
       <ProovraSection title="Payments">
-        {payments === null ? (
+        {paymentsFailure ? (
+          <ProovraEmpty
+            presence="inline"
+            title={paymentsFailure.message}
+            action={paymentsFailure.retry ? <ProovraButton label="Try again" variant="secondary" fullWidth={false} onPress={() => void load()} /> : undefined}
+          />
+        ) : payments === null ? (
           <ProovraLoadingState label="Loading payments" />
         ) : payments.length === 0 ? (
-          <ProovraEmpty presence="inline" title="No payments have been recorded." />
+          <ProovraEmpty presence="inline" title="No payments yet" purpose="Payments for this account will appear here." />
         ) : (
           <ProovraCard>
             {payments.map((p) => (
@@ -251,6 +310,32 @@ export function BillingSections({
                     .filter(Boolean)
                     .join(" · ")}
                 </ProovraText>
+                {/* The server's own affordances only. */}
+                {p.canRecheck || p.canCancel ? (
+                  <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
+                    {p.canRecheck ? (
+                      <ProovraButton
+                        label="Re-check"
+                        accessibilityLabel={`Re-check payment: ${p.description}`}
+                        variant="secondary"
+                        fullWidth={false}
+                        loading={paymentBusyId === p.id}
+                        disabled={paymentBusyId !== null}
+                        onPress={() => void recheckPayment(p)}
+                      />
+                    ) : null}
+                    {p.canCancel ? (
+                      <ProovraButton
+                        label="Cancel payment"
+                        accessibilityLabel={`Cancel payment: ${p.description}`}
+                        variant="ghost"
+                        fullWidth={false}
+                        disabled={paymentBusyId !== null}
+                        onPress={() => setStopping(p)}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             ))}
           </ProovraCard>
@@ -294,6 +379,17 @@ export function BillingSections({
         busy={busy}
         onConfirm={() => void cancel()}
         onCancel={() => setPending(null)}
+      />
+      <ProovraConfirmSheet
+        visible={stopping !== null}
+        title={PAYMENT_CANCEL_COPY.title}
+        consequence={PAYMENT_CANCEL_COPY.body}
+        confirmLabel={PAYMENT_CANCEL_COPY.confirm}
+        cancelLabel={PAYMENT_CANCEL_COPY.cancel}
+        tone="danger"
+        busy={paymentBusyId !== null}
+        onConfirm={() => void stopPayment()}
+        onCancel={() => setStopping(null)}
       />
     </>
   );

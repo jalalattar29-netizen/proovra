@@ -1,0 +1,772 @@
+{
+ "route": "/login",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/login/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/auth.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 148,
+   "elements": 318,
+   "texts": 68,
+   "distinctTexts": 63,
+   "handlers": 61,
+   "conditionals": 1177,
+   "apiPaths": 13,
+   "distinctApi": 11,
+   "styleRefs": 302,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "lucide-react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 159,
+   "texts": 24,
+   "distinctTexts": 20,
+   "handlers": 33,
+   "conditionals": 1059,
+   "apiPaths": 14,
+   "distinctApi": 13,
+   "styleRefs": 198,
+   "stylesheetRules": 92,
+   "themeTokens": 257,
+   "cssImports": 0,
+   "assetImports": 1,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-apple-authentication",
+    "expo-auth-session/providers/google",
+    "expo-auth-session",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 68,
+  "natLabelled": 24,
+  "paired": 6,
+  "roleDiff": 5,
+  "missing": 57,
+  "extraInNative": 11,
+  "webUnlabelled": 299,
+  "missingWithRolePresent": 56,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Continue with Apple",
+     "web": "apps/web/app/login/page.tsx:812",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:126"
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA",
+     "web": "apps/web/app/login/page.tsx:722",
+     "nat": "apps/mobile/src/ui/brand.tsx:31"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/marketing/ForgotPasswordModal.tsx:191",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "INPUT",
+     "label": "you@example.com",
+     "web": "apps/web/components/marketing/ForgotPasswordModal.tsx:285",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:73"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Continue with Google",
+     "webRole": "BOX",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/login/page.tsx:798",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:119"
+    },
+    {
+     "label": "Email",
+     "webRole": "INPUT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/login/page.tsx:847",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:72"
+    },
+    {
+     "label": "Password",
+     "webRole": "INPUT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/login/page.tsx:892",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:82"
+    },
+    {
+     "label": "Sign in",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/login/page.tsx:788",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:103"
+    },
+    {
+     "label": "Forgot password?",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/login/page.tsx:950",
+     "nat": "apps/mobile/app/(stack)/auth.tsx:106"
+    }
+   ],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Sign in to PROOVRA",
+     "at": "apps/web/app/login/page.tsx:154",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Preparing the sign-in form…",
+     "at": "apps/web/app/login/page.tsx:157",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Welcome Back",
+     "at": "apps/web/app/login/page.tsx:708",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Return to your",
+     "at": "apps/web/app/login/page.tsx:712",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "workspace.",
+     "at": "apps/web/app/login/page.tsx:724",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign in to continue reviewing evidence records, verification reports, cases, workspaces, and protected review workflows.",
+     "at": "apps/web/app/login/page.tsx:728",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✓",
+     "at": "apps/web/app/login/page.tsx:748",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Account access",
+     "at": "apps/web/app/login/page.tsx:784",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Continue with your preferred sign-in method and return safely to your PROOVRA workspace.",
+     "at": "apps/web/app/login/page.tsx:792",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "I agree to the",
+     "at": "apps/web/app/login/page.tsx:980",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Terms of Service",
+     "at": "apps/web/app/login/page.tsx:982",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Privacy Policy",
+     "at": "apps/web/app/login/page.tsx:986",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cookie Policy",
+     "at": "apps/web/app/login/page.tsx:990",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/login/page.tsx:992",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign in with Email",
+     "at": "apps/web/app/login/page.tsx:1009",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verify your email address",
+     "at": "apps/web/app/login/page.tsx:1032",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Please verify your email address before signing in. The link in your inbox will activate your account.",
+     "at": "apps/web/app/login/page.tsx:1035",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use a different email",
+     "at": "apps/web/app/login/page.tsx:1103",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Auth Debug",
+     "at": "apps/web/app/login/page.tsx:1156",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Apple:",
+     "at": "apps/web/app/login/page.tsx:1157",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "nextUrl:",
+     "at": "apps/web/app/login/page.tsx:1158",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "acceptLegal:",
+     "at": "apps/web/app/login/page.tsx:1159",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "?",
+     "at": "apps/web/app/login/page.tsx:1171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Password reset",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:189",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:207",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Check your email",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:217",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If an account exists for this address, a secure password reset link has been sent.",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Back to sign in",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:242",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send again",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reset your password",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enter the email address associated with your PROOVRA account. If an account exists, we&rsquo;ll send a secure password reset link.",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:273",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Email address",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:283",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sending secure reset link…",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:326",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send reset link",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:347",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:364",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Back to sign in",
+     "at": "apps/web/components/marketing/ForgotPasswordModal.tsx:372",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Primary",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Mobile",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Select language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "INPUT",
+     "label": "Your password",
+     "at": "apps/mobile/app/(stack)/auth.tsx:83"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Resend verification email",
+     "at": "apps/mobile/app/(stack)/auth.tsx:95"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create account",
+     "at": "apps/mobile/app/(stack)/auth.tsx:105"
+    },
+    {
+     "role": "TEXT",
+     "label": "or continue with",
+     "at": "apps/mobile/app/(stack)/auth.tsx:113"
+    },
+    {
+     "role": "TEXT",
+     "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+     "at": "apps/mobile/app/(stack)/auth.tsx:137"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 495,
+  "webClassesUnresolved": 222,
+  "webNonLiteralClass": 21,
+  "webCompetingRules": 33,
+  "webDistinctUnresolvedClasses": 128,
+  "natPropsResolved": 251,
+  "natTokenUnresolved": 76,
+  "webDistinctColors": 43,
+  "natDistinctColors": 19,
+  "sharedColors": 1,
+  "webOnlyColors": 42,
+  "webOnlyColorSample": [
+   "#446166",
+   "rgba(62, 96, 99, 0.96)",
+   "rgba(24, 43, 48, 0.98)",
+   "rgba(79, 112, 107, 0.28)",
+   "rgba(20, 48, 52, 0.16)",
+   "#eef3f1",
+   "#6c787c",
+   "rgba(79, 112, 107, 0.14)",
+   "rgba(255, 255, 255, 0.92)",
+   "rgba(79, 112, 107, 0.16)",
+   "rgba(6, 16, 22, 0.08)",
+   "#102126",
+   "rgba(79, 112, 107, 0.34)",
+   "#d64545",
+   "rgba(255, 255, 255, 0.52)",
+   "rgba(180, 35, 24, 0.12)",
+   "#45656a",
+   "#b79d84",
+   "rgba(240, 244, 241, 0.98)",
+   "rgba(255, 255, 255, 0.75)",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(79, 112, 107, 0.42)",
+   "#496268",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(79, 112, 107, 0.10)",
+   "#4f5f63",
+   "rgba(15, 23, 42, 0.035)",
+   "rgba(255, 255, 255, 0.28)",
+   "rgba(0, 0, 0, 0.7)",
+   "#1b3136"
+  ],
+  "sharedColorSample": [
+   "#7c3aed"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1177,
+  "natConditionals": 1059,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 61,
+  "natHandlers": 33,
+  "webHandlerSample": [
+   "onClick=() => void startApple() @apps/web/app/login/page.tsx:812",
+   "onSubmit=onEmailLogin @apps/web/app/login/page.tsx:842",
+   "onChange=(e) => setEmail(e.target.value) @apps/web/app/login/page.tsx:847",
+   "onChange=(e) => setPassword(e.target.value) @apps/web/app/login/page.tsx:892",
+   "onToggle=() => setShowPassword((v) => !v) @apps/web/app/login/page.tsx:916",
+   "onClick=() => setForgotOpen(true) @apps/web/app/login/page.tsx:935",
+   "onChange=(e) => setAcceptLegal(e.target.checked) @apps/web/app/login/page.tsx:971",
+   "onClick=async () => { if (verifyResendBusy || !email) return; setVer @apps/web/app/login/page.tsx:1039",
+   "onClick=() => { setNeedsVerification(false); setVerifyResendStatus(n @apps/web/app/login/page.tsx:1087",
+   "onClose=() => setForgotOpen(false) @apps/web/app/login/page.tsx:1187",
+   "onClick=(e) => { if (e.target === e.currentTarget) onClose(); } @apps/web/components/marketing/ForgotPasswordModal.tsx:141",
+   "onClick=onClose @apps/web/components/marketing/ForgotPasswordModal.tsx:191",
+   "onClick=onClose @apps/web/components/marketing/ForgotPasswordModal.tsx:227",
+   "onClick=() => setDone(false) @apps/web/components/marketing/ForgotPasswordModal.tsx:244",
+   "onSubmit=submit @apps/web/components/marketing/ForgotPasswordModal.tsx:262",
+   "onChange=(e) => { setEmail(e.target.value); if (error) setError(null) @apps/web/components/marketing/ForgotPasswordModal.tsx:285",
+   "onClick=onClose @apps/web/components/marketing/ForgotPasswordModal.tsx:349",
+   "onClick=onClose @apps/web/components/marketing/ForgotPasswordModal.tsx:366",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:249",
+   "onMouseEnter=() => setOpenDropdown(group.label) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onMouseLeave=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:309",
+   "onClick=() => setMobileOpen(true) @apps/web/components/marketing/MarketingHeader.tsx:376",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:389",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:401",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:419",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:436",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:459",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:466",
+   "onClick=() => setOpen((v) => !v) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "onClick=() => select(l.code) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:106",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onChangeText=setEmail @apps/mobile/app/(stack)/auth.tsx:73",
+   "onChangeText=setPassword @apps/mobile/app/(stack)/auth.tsx:83",
+   "onSubmitEditing=() => void submit() @apps/mobile/app/(stack)/auth.tsx:83",
+   "onPress=() => void resendVerification(email.trim()) @apps/mobile/app/(stack)/auth.tsx:95",
+   "onPress=() => void submit() @apps/mobile/app/(stack)/auth.tsx:103",
+   "onPress=() => router.push(\"/register\") @apps/mobile/app/(stack)/auth.tsx:105",
+   "onPress=() => router.push(\"/forgot-password\") @apps/mobile/app/(stack)/auth.tsx:106",
+   "onPress=oauth.promptGoogle @apps/mobile/app/(stack)/auth.tsx:119",
+   "onPress=oauth.signInApple @apps/mobile/app/(stack)/auth.tsx:126",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 11,
+  "natApi": 13,
+  "shared": 7,
+  "onlyWeb": 4,
+  "onlyNative": 6,
+  "onlyWebList": [
+   "/v1/evidence/claim",
+   "/v1/users/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/email/register",
+   "/v1/auth/email/verify",
+   "/v1/auth/password-reset/confirm",
+   "/v1/auth/mfa/verify",
+   "/v1/auth/logout",
+   "/v1/users/legal-status"
+  ],
+  "sharedList": [
+   "/v1/users/legal-acceptance",
+   "/v1/auth/me",
+   "/v1/auth/google",
+   "/v1/auth/apple",
+   "/v1/auth/email/login",
+   "/v1/auth/email/resend-verification",
+   "/v1/auth/password-reset/request"
+  ],
+  "webApiWhere": {
+   "/v1/users/legal-acceptance": "apps/web/app/login/page.tsx:288",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/evidence/claim": "apps/web/app/login/page.tsx:411",
+   "/v1/auth/google": "apps/web/app/login/page.tsx:543",
+   "/v1/auth/apple": "apps/web/app/login/page.tsx:632",
+   "/v1/auth/email/login": "apps/web/app/login/page.tsx:665",
+   "/v1/auth/email/resend-verification": "apps/web/app/login/page.tsx:1048",
+   "/v1/auth/password-reset/request": "apps/web/components/marketing/ForgotPasswordModal.tsx:114",
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/auth/email/login": "apps/mobile/src/auth/auth-api.ts:44",
+   "/v1/auth/email/register": "apps/mobile/src/auth/auth-api.ts:61",
+   "/v1/auth/email/verify": "apps/mobile/src/auth/auth-api.ts:69",
+   "/v1/auth/email/resend-verification": "apps/mobile/src/auth/auth-api.ts:77",
+   "/v1/auth/password-reset/request": "apps/mobile/src/auth/auth-api.ts:84",
+   "/v1/auth/password-reset/confirm": "apps/mobile/src/auth/auth-api.ts:91",
+   "/v1/auth/mfa/verify": "apps/mobile/src/auth/auth-api.ts:103",
+   "/v1/auth/google": "apps/mobile/src/auth/auth-api.ts:113",
+   "/v1/auth/apple": "apps/mobile/src/auth/auth-api.ts:117",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88",
+   "/v1/auth/logout": "apps/mobile/src/auth/auth-api.ts:129",
+   "/v1/users/legal-status": "apps/mobile/src/auth/auth-api.ts:144",
+   "/v1/users/legal-acceptance": "apps/mobile/src/auth/auth-api.ts:155"
+  }
+ }
+}

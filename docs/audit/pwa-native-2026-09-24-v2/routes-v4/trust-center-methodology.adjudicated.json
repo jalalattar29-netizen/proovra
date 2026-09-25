@@ -1,0 +1,274 @@
+{
+ "route": "/trust-center/methodology",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "Verification Methodology Center",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:11",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Trust Center\" at apps/mobile/app/(stack)/trust-center.tsx:104 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal counterpart",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:30",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "For the full legal methodology document, see",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:32",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Verification Methodology (legal)",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:38",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Read full legal methodology →",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:47",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no STATE_ERROR element at all"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Trust documentation",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Published for the active workspace",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:182",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading articles…",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This Trust Center section is not published for the active workspace yet.",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:230",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.15)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Version",
+   "at": "apps/web/app/(app)/trust-center/_section-list.tsx:251",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "On this page",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Related documents",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:428",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Applies to",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "On this page",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Related documents",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:430",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open public Trust Center",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:467",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Opens the public Trust Center in a new tab — this app stays open.",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:470",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No earlier versions are recorded for this section.",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:127",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Only one version is recorded — this is the original text.",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:130",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"This is the only version on record.\" at apps/mobile/app/(stack)/trust-center.tsx:251 scores 0.29 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Version",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:134",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading version history…",
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  }
+ ]
+}

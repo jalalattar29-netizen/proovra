@@ -1,0 +1,246 @@
+{
+ "route": "/portal/[token]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/portal/[token]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/portal/[token].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 12,
+   "labelled": 17,
+   "unboundExports": 3
+  },
+  "native": {
+   "files": 17,
+   "labelled": 10,
+   "unboundExports": 1
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 17,
+  "extraInNative": 10,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Confirm it is you",
+   "at": "apps/web/app/portal/[token]/page.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading portal…",
+   "at": "apps/web/app/portal/[token]/page.tsx:152",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "External Reviewer Portal",
+   "at": "apps/web/app/portal/[token]/page.tsx:203",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Log out",
+   "at": "apps/web/app/portal/[token]/page.tsx:251",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigned reviews",
+   "at": "apps/web/app/portal/[token]/page.tsx:294",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No reviews are currently assigned to your grant.",
+   "at": "apps/web/app/portal/[token]/page.tsx:297",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow",
+   "at": "apps/web/app/portal/[token]/page.tsx:303",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/portal/[token]/page.tsx:304",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Due",
+   "at": "apps/web/app/portal/[token]/page.tsx:305",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/portal/[token]/page.tsx:306",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "DECIDED",
+   "at": "apps/web/app/portal/[token]/page.tsx:321",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PENDING",
+   "at": "apps/web/app/portal/[token]/page.tsx:328",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open review →",
+   "at": "apps/web/app/portal/[token]/page.tsx:341",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "What this review does not establish",
+    "at": "apps/mobile/app/(stack)/portal/[token].tsx:255"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Portal limitations",
+   "at": "apps/web/app/portal/[token]/page.tsx:367",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Review portal",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:153"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Opening your review access",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:164"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Verification code",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:170"
+  },
+  {
+   "role": "INPUT",
+   "label": "Verification code",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:171"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Continue",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:179"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This review access is not open",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:189"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Assigned to you",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:217"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing is assigned to you right now.",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:219"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Sign out of the portal",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:265"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this review does not establish",
+   "at": "apps/mobile/app/(stack)/portal/[token].tsx:255"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "ExternalPortalProjection"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "PortalMfaDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "portalLogout"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

@@ -1,0 +1,361 @@
+{
+ "route": "/auth/mfa-challenge",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/mfa-challenge/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/mfa.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 11,
+   "labelled": 28,
+   "unboundExports": 0
+  },
+  "native": {
+   "files": 22,
+   "labelled": 11,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 2,
+  "unpaired": 26,
+  "extraInNative": 8,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Two-factor verification",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/auth/mfa-challenge/page.tsx:318",
+   "nat": "apps/mobile/app/(stack)/mfa.tsx:48"
+  },
+  {
+   "label": "What happened?",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:533",
+   "nat": "apps/mobile/src/ui/mfa-recovery-request.tsx:164"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "INPUT",
+   "label": "Six-digit authenticator code",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:331",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Single-use recovery code",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:360",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading...",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:441",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Set up two-factor authentication",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:229",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your organization requires two-factor authentication. To continue, you need to enroll an authenticator on your account.",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:232",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in again and your operator menu will guide you through enrollment. You will not be able to access workspace data until enrollment is complete.",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:237",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in to start enrollment",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:253",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Need help?",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:256",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contact support",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:258",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign-in session expired",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:283",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Return to sign in",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:300",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Authenticator code",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:329",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Lost your authenticator?",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:148"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Recovery code",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:358",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Still stuck?",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:427",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contact support",
+   "at": "apps/web/app/auth/mfa-challenge/page.tsx:429",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. My phone was replaced and the recovery codes were on it.",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:535",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request an administrator reset",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:480",
+   "natHasRole": true,
+   "bestScore": 0.23,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "If your authenticator and your recovery codes are both gone, file a request here. A workspace administrator reviews it. Approval only clears your second factor so you can enroll a new one — it never signs you in and never grants access on its own.",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:483",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:493",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Select a workspace…",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:511",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "characters. An administrator reads this. Do not include codes, passwords, or links.",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:555",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading your recovery request…",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:661",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This recovery request is no longer available.",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:668",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:677",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recovery request",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:710",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+    "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:713",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Verify",
+   "at": "apps/mobile/app/(stack)/mfa.tsx:62"
+  },
+  {
+   "role": "IMAGE",
+   "label": "PROOVRA",
+   "at": "apps/mobile/src/ui/brand.tsx:22"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA",
+   "at": "apps/mobile/src/ui/brand.tsx:31"
+  },
+  {
+   "role": "BUTTON",
+   "label": "File recovery request",
+   "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:179"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Resend email",
+   "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:190"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel request",
+   "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:197"
+  },
+  {
+   "role": "TEXT",
+   "label": "Lost your authenticator?",
+   "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:148"
+  },
+  {
+   "role": "TEXT",
+   "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+   "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+  }
+ ],
+ "webUnbound": [],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\auth\\auth-api.ts",
+   "name": "LoginResult"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\auth\\use-auth-flow.ts",
+   "name": "LoginMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  }
+ ]
+}

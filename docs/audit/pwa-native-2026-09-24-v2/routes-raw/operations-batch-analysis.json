@@ -1,0 +1,610 @@
+{
+ "route": "/operations/batch-analysis",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 161,
+   "elements": 297,
+   "texts": 41,
+   "distinctTexts": 39,
+   "handlers": 38,
+   "conditionals": 1224,
+   "apiPaths": 10,
+   "distinctApi": 8,
+   "styleRefs": 215,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 140,
+   "elements": 175,
+   "texts": 37,
+   "distinctTexts": 31,
+   "handlers": 41,
+   "conditionals": 1161,
+   "apiPaths": 5,
+   "distinctApi": 5,
+   "styleRefs": 205,
+   "stylesheetRules": 83,
+   "themeTokens": 261,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "expo-file-system",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 39,
+  "natLabelled": 31,
+  "paired": 2,
+  "roleDiff": 4,
+  "missing": 33,
+  "extraInNative": 23,
+  "webUnlabelled": 282,
+  "missingWithRolePresent": 32,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "No Batch Jobs",
+     "webRole": "STATE_EMPTY",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:600",
+     "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:346"
+    },
+    {
+     "label": "Batch Name",
+     "webRole": "TEXT",
+     "natRole": "INPUT",
+     "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:457",
+     "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:386"
+    },
+    {
+     "label": "Description (optional)",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:477",
+     "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:395"
+    },
+    {
+     "label": "Export CSV",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:749",
+     "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:149"
+    }
+   ],
+   "missing": [
+    {
+     "role": "COMPONENT",
+     "label": "Analyze multiple evidence items",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g., Q1 2026 Review",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:459",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Add notes about this batch",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:479",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g.\nabc-123\ndef-456\nghi-789",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:499",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create batch jobs, monitor progress, review outcomes, and export result sets for larger evidence workloads.",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "+ New Batch Job",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:216",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence IDs (one per line)",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:497",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create & Start Batch",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:513",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:523",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Progress",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:652",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:654",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Processed",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:679",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Failed",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:701",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Pending",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:723",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:759",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Cancel job",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:163"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Batch analysis",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:312"
+    },
+    {
+     "role": "BUTTON",
+     "label": "New batch job",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:317"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:324"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading jobs",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:339"
+    },
+    {
+     "role": "BUTTON",
+     "label": "New batch job",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:350"
+    },
+    {
+     "role": "DIALOG",
+     "label": "New batch job",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:384"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Name",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:385"
+    },
+    {
+     "role": "INPUT",
+     "label": "Batch description",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:396"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Records",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:406"
+    },
+    {
+     "role": "INPUT",
+     "label": "Search evidence",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:407"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading your evidence",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:423"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No records match that.",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:425"
+    },
+    {
+     "role": "BADGE",
+     "label": "Chosen",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:435"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create and start",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:442"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Cancel this batch job?",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:455"
+    },
+    {
+     "role": "TEXT",
+     "label": "This job declares no items, so it has no progress to report.",
+     "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 194,
+  "webClassesUnresolved": 106,
+  "webNonLiteralClass": 10,
+  "webCompetingRules": 17,
+  "webDistinctUnresolvedClasses": 47,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 82,
+  "webDistinctColors": 16,
+  "natDistinctColors": 20,
+  "sharedColors": 2,
+  "webOnlyColors": 14,
+  "webOnlyColorSample": [
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#f1f4f9"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1224,
+  "natConditionals": 1161,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 38,
+  "natHandlers": 41,
+  "webHandlerSample": [
+   "onClick=() => setShowNewJobForm((prev) => !prev) @apps/web/app/(app)/operations/batch-analysis/page.tsx:211",
+   "onSubmit=handleCreateJob @apps/web/app/(app)/operations/batch-analysis/page.tsx:447",
+   "onChange=(e) => setJobName(e.target.value) @apps/web/app/(app)/operations/batch-analysis/page.tsx:459",
+   "onChange=(e) => setJobDescription(e.target.value) @apps/web/app/(app)/operations/batch-analysis/page.tsx:479",
+   "onChange=(e) => setEvidenceIds(e.target.value) @apps/web/app/(app)/operations/batch-analysis/page.tsx:499",
+   "onClick=() => setShowNewJobForm(false) @apps/web/app/(app)/operations/batch-analysis/page.tsx:516",
+   "onClick=() => handleExportResults(job.id) @apps/web/app/(app)/operations/batch-analysis/page.tsx:743",
+   "onClick=() => handleCancelJob(job.id) @apps/web/app/(app)/operations/batch-analysis/page.tsx:754",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=onExport @apps/mobile/app/(stack)/operations/batch-analysis.tsx:149",
+   "onPress=onCancel @apps/mobile/app/(stack)/operations/batch-analysis.tsx:163",
+   "onPress=() => setComposing(true) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:317",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/operations/batch-analysis.tsx:324",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/operations/batch-analysis.tsx:342",
+   "onPress=() => setComposing(true) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:350",
+   "onCancel=() => setCancelling(job) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:370",
+   "onExport=() => void exportCsv(job) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:370",
+   "onClose=() => setComposing(false) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:384",
+   "onChangeText=setName @apps/mobile/app/(stack)/operations/batch-analysis.tsx:386",
+   "onChangeText=setDescription @apps/mobile/app/(stack)/operations/batch-analysis.tsx:396",
+   "onChangeText=setSearch @apps/mobile/app/(stack)/operations/batch-analysis.tsx:407",
+   "onSubmitEditing=() => void loadCandidates() @apps/mobile/app/(stack)/operations/batch-analysis.tsx:407",
+   "onPress=() => toggle(row.id) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:428",
+   "onPress=() => void create() @apps/mobile/app/(stack)/operations/batch-analysis.tsx:442",
+   "onConfirm=() => void cancel() @apps/mobile/app/(stack)/operations/batch-analysis.tsx:455",
+   "onCancel=() => setCancelling(null) @apps/mobile/app/(stack)/operations/batch-analysis.tsx:455",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 8,
+  "natApi": 5,
+  "shared": 1,
+  "onlyWeb": 7,
+  "onlyNative": 4,
+  "onlyWebList": [
+   "/v1/batch-analysis/${…}",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace",
+   "/v1/users/me",
+   "/v1/auth/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/quotas",
+   "/v1/usage-stats",
+   "/v1/evidence?${…}",
+   "/v1/evidence/saved-views/${…}"
+  ],
+  "sharedList": [
+   "/v1/batch-analysis"
+  ],
+  "webApiWhere": {
+   "/v1/batch-analysis": "apps/web/app/(app)/operations/batch-analysis/page.tsx:96",
+   "/v1/batch-analysis/${…}": "apps/web/app/(app)/operations/batch-analysis/page.tsx:138",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/quotas": "apps/mobile/src/product/operations.ts:48",
+   "/v1/usage-stats": "apps/mobile/src/product/operations.ts:49",
+   "/v1/batch-analysis": "apps/mobile/src/product/operations.ts:50",
+   "/v1/evidence?${…}": "apps/mobile/src/product/evidence-library.ts:53",
+   "/v1/evidence/saved-views/${…}": "apps/mobile/src/product/evidence-library.ts:507"
+  }
+ }
+}

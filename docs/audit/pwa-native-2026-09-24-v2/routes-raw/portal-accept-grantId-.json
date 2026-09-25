@@ -1,0 +1,353 @@
+{
+ "route": "/portal/accept/[grantId]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/portal/accept/[grantId]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 122,
+   "elements": 45,
+   "texts": 16,
+   "distinctTexts": 16,
+   "handlers": 10,
+   "conditionals": 983,
+   "apiPaths": 10,
+   "distinctApi": 6,
+   "styleRefs": 38,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 138,
+   "elements": 140,
+   "texts": 15,
+   "distinctTexts": 12,
+   "handlers": 25,
+   "conditionals": 1020,
+   "apiPaths": 7,
+   "distinctApi": 5,
+   "styleRefs": 176,
+   "stylesheetRules": 83,
+   "themeTokens": 240,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 16,
+  "natLabelled": 15,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 16,
+  "extraInNative": 15,
+  "webUnlabelled": 45,
+  "missingWithRolePresent": 16,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Welcome to the PROOVRA External Reviewer Portal",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:199",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You were invited to review evidence on behalf of an external party. Your activity here is audited. PROOVRA records what you observe and decide — it does not assert authenticity of content.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:202",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invitation:",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:219",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Access ends when the grant expires. Once you sign in, navigate using the dashboard ribbon at the top.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Single sign-on did not accept this sign-in. You can still continue with the invitation link below.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:245",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We could not find your invitation link in this URL. Please re-open the link from your invitation email, or use the fallback",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:287",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "paste-the-token page",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:295",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:297",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use SSO if your organization is federated with PROOVRA — it validates that the identity who arrives matches the invited reviewer. If you are not sure, \"Open with invitation link\" always works.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:353",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What we will record",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:373",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Every page view inside the portal.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:375",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Annotations, comments, and decisions you submit.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The fact that you opened the portal and from what IP.",
+     "at": "apps/web/app/portal/accept/[grantId]/page.tsx:377",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enter your sign-in code",
+     "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Six-digit code",
+     "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Check your inbox and spam folder. Only the newest code works.",
+     "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Review invitation",
+     "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:87"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Opening your invitation",
+     "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:90"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This invitation is not open",
+     "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:94"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open my reviews",
+     "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:106"
+    },
+    {
+     "role": "TEXT",
+     "label": "Your review access is active. You can open the reviews assigned to you now.",
+     "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 1,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 73,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 983,
+  "natConditionals": 1020,
+  "webStateRoles": [
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 10,
+  "natHandlers": 25,
+  "webHandlerSample": [
+   "onRetry=() => void onOpenWithToken() @apps/web/app/portal/accept/[grantId]/page.tsx:264",
+   "onVerified=() => router.push(`/portal/${encodeURIComponent(token)}`) @apps/web/app/portal/accept/[grantId]/page.tsx:300",
+   "onClick=onOpenWithToken @apps/web/app/portal/accept/[grantId]/page.tsx:316",
+   "onClick=onSignInWithSso @apps/web/app/portal/accept/[grantId]/page.tsx:334",
+   "onClick=onReauthenticate @apps/web/components/external-portal/PortalDenialNotice.tsx:146",
+   "onClick=onRetry @apps/web/components/external-portal/PortalDenialNotice.tsx:157",
+   "onChange=(e) => setCode(e.target.value.replace(/\\D/g, \"\").slice(0, 6) @apps/web/components/external-portal/PortalMfaCodeStep.tsx:217",
+   "onKeyDown=(e) => { if (e.key === \"Enter\" && code.length === 6 && !busy @apps/web/components/external-portal/PortalMfaCodeStep.tsx:217",
+   "onClick=() => void verify() @apps/web/components/external-portal/PortalMfaCodeStep.tsx:267",
+   "onClick=() => void resend() @apps/web/components/external-portal/PortalMfaCodeStep.tsx:277"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.replace(`/portal/${encodeURIComponent(phase.tok @apps/mobile/app/(stack)/portal/accept/[grantId].tsx:106",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 6,
+  "natApi": 5,
+  "shared": 4,
+  "onlyWeb": 2,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/portal/sso/start/${…}",
+   "/v1/portal/activity"
+  ],
+  "onlyNativeList": [
+   "/v1/external-review/access/${…}"
+  ],
+  "sharedList": [
+   "/v1/portal/auth",
+   "/v1/portal/logout",
+   "/v1/portal/dashboard",
+   "/v1/portal/work/${…}"
+  ],
+  "webApiWhere": {
+   "/v1/portal/auth": "apps/web/lib/external-portal/portal-client.ts:182",
+   "/v1/portal/logout": "apps/web/lib/external-portal/portal-client.ts:196",
+   "/v1/portal/dashboard": "apps/web/lib/external-portal/portal-client.ts:206",
+   "/v1/portal/work/${…}": "apps/web/lib/external-portal/portal-client.ts:289",
+   "/v1/portal/sso/start/${…}": "apps/web/lib/external-portal/portal-client.ts:340",
+   "/v1/portal/activity": "apps/web/lib/external-portal/portal-client.ts:362"
+  },
+  "natApiWhere": {
+   "/v1/portal/auth": "apps/mobile/src/product/portal.ts:42",
+   "/v1/portal/dashboard": "apps/mobile/src/product/portal.ts:43",
+   "/v1/portal/logout": "apps/mobile/src/product/portal.ts:44",
+   "/v1/portal/work/${…}": "apps/mobile/src/product/portal.ts:55",
+   "/v1/external-review/access/${…}": "apps/mobile/src/product/portal.ts:59"
+  }
+ }
+}

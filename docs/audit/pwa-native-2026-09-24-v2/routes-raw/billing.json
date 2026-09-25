@@ -1,0 +1,1052 @@
+{
+ "route": "/billing",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/billing/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/billing.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 179,
+   "elements": 607,
+   "texts": 111,
+   "distinctTexts": 97,
+   "handlers": 98,
+   "conditionals": 1634,
+   "apiPaths": 20,
+   "distinctApi": 14,
+   "styleRefs": 452,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "lucide-react",
+    "zod",
+    "react-icons/fa",
+    "@sentry/browser",
+    "@proovra/shared/legal-revisions",
+    "next/link",
+    "react-dom"
+   ]
+  },
+  "native": {
+   "files": 141,
+   "elements": 189,
+   "texts": 26,
+   "distinctTexts": 22,
+   "handlers": 32,
+   "conditionals": 1125,
+   "apiPaths": 6,
+   "distinctApi": 6,
+   "styleRefs": 230,
+   "stylesheetRules": 86,
+   "themeTokens": 269,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 109,
+  "natLabelled": 26,
+  "paired": 6,
+  "roleDiff": 6,
+  "missing": 97,
+  "extraInNative": 17,
+  "webUnlabelled": 589,
+  "missingWithRolePresent": 93,
+  "missingWithRoleAbsent": 4,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:87",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "Current plan",
+     "web": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:94",
+     "nat": "apps/mobile/app/(stack)/billing.tsx:98"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:190",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "TEXT",
+     "label": "Current plan",
+     "web": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:133",
+     "nat": "apps/mobile/app/(stack)/billing.tsx:98"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/page.tsx:936",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "label": "Cancel subscription",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:292",
+     "nat": "apps/mobile/src/ui/billing-sections.tsx:162"
+    },
+    {
+     "label": "Cancel subscription",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:338",
+     "nat": "apps/mobile/src/ui/billing-sections.tsx:162"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:263",
+     "nat": "apps/mobile/src/ui/billing-sections.tsx:203"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:255",
+     "nat": "apps/mobile/src/ui/billing-sections.tsx:203"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:392",
+     "nat": "apps/mobile/src/ui/index.tsx:531"
+    }
+   ],
+   "missing": [
+    {
+     "role": "STATE_EMPTY",
+     "label": "Billing is managed for you",
+     "at": "apps/web/app/(app)/billing/page.tsx:952",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "We will ask your payment provider to stop renewing it.",
+     "at": "apps/web/app/(app)/billing/page.tsx:349",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing is charged again.",
+     "at": "apps/web/app/(app)/billing/page.tsx:353",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your evidence is not deleted. Records, custody history, hashes, signatures and verification packages all stay exactly as they are.",
+     "at": "apps/web/app/(app)/billing/page.tsx:357",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your account moves to Free. You can subscribe again at any time.",
+     "at": "apps/web/app/(app)/billing/page.tsx:368",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing",
+     "at": "apps/web/app/(app)/billing/page.tsx:862",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your plan, what you have used, and what you have paid.",
+     "at": "apps/web/app/(app)/billing/page.tsx:867",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View pricing",
+     "at": "apps/web/app/(app)/billing/page.tsx:906",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan change in progress",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:143",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Change plan",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:180",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "How you have this plan",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:250",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "access was granted to this account. There is no active billing subscription behind it: nothing is charged, and it does not renew automatically. If you expected to be billed for this, contact support and we will look at it with you.",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:252",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Changing your agreement",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:260",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise terms are set by your agreement. Your account manager is the person who can change them — this page cannot, and offering a checkout that replaced a signed agreement with a card payment would be worse than offering none.",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:262",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your existing evidence and custody records remain available under the applicable retention and access rules.",
+     "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:318",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:207",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "There is nothing to buy here on your current plan. Close this and choose a plan that includes it.",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:298",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:306",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "For",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:321",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:321",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plans are billed monthly. You can cancel at any time from this page.",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:374",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Purchase",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:406",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Available now",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:409",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Buying",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:416",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Price per credit",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:424",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Total",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:434",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Balance after payment",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:446",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "One-time payment · Credits do not expire",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:459",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capacity",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:468",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "per month",
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:499",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Payment method",
+     "at": "apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx:105",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Displayed prices exclude any taxes that may be handled by the payment provider where applicable.",
+     "at": "apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx:152",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Billing history",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:364",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Billing history",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:381",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Billing history",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:413",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No payments yet",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:444",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Storage",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:91",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View plans",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Storage",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:159",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Included with your plan",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:178",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add-ons",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:185",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Kept from earlier purchases",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:193",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No extra storage yet.",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:295",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Payment records for this account are visible to its billing owner.",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:373",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We could not load payment history just now.",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:389",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:442",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Payment",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:468",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Method",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:469",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Amount",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:470",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:475",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:513",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Resume payment",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:549",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Re-check",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:562",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel payment",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:573",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Abandon payment attempt",
+     "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:592",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/ month",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:153",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:594",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Included with",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:619",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Agreed account limit",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:631",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Above the",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:640",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Allowance period",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:652",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Credits available",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:658",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "existing evidence",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:687",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "now eligible for a report and verification package.",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:688",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open Reports",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:691",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Buy credits",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:705",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Choose a plan",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:716",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan capabilities",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:764",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Collaboration teams are part of your plan. They are not separately billed workspaces.",
+     "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:779",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Agreement",
+     "at": "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry stopping storage add-ons",
+     "at": "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx:102",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact support",
+     "at": "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx:116",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We do not have your full agreement on file here. Your account manager holds the authoritative terms.",
+     "at": "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx:277",
+     "natHasRole": true
+    },
+    {
+     "role": "LIST",
+     "label": "Billing account",
+     "at": "apps/web/app/(app)/billing/_sections/AccountSelector.tsx:158",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing account",
+     "at": "apps/web/app/(app)/billing/_sections/AccountSelector.tsx:102",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "▾",
+     "at": "apps/web/app/(app)/billing/_sections/AccountSelector.tsx:154",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✓",
+     "at": "apps/web/app/(app)/billing/_sections/AccountSelector.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/billing.tsx:88"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading plan",
+     "at": "apps/mobile/app/(stack)/billing.tsx:92"
+    },
+    {
+     "role": "BADGE",
+     "label": "Active",
+     "at": "apps/mobile/app/(stack)/billing.tsx:101"
+    },
+    {
+     "role": "SECTION",
+     "label": "What each plan includes",
+     "at": "apps/mobile/app/(stack)/billing.tsx:114"
+    },
+    {
+     "role": "BADGE",
+     "label": "Your plan",
+     "at": "apps/mobile/app/(stack)/billing.tsx:122"
+    },
+    {
+     "role": "SECTION",
+     "label": "Storage add-ons",
+     "at": "apps/mobile/app/(stack)/billing.tsx:157"
+    },
+    {
+     "role": "SECTION",
+     "label": "Pay per record",
+     "at": "apps/mobile/app/(stack)/billing.tsx:174"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "SECTION",
+     "label": "What you are paying for",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:141"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Ask the provider again",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:183"
+    },
+    {
+     "role": "SECTION",
+     "label": "Payments",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:222"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading payments",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:224"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No payments have been recorded.",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:226"
+    },
+    {
+     "role": "TEXT",
+     "label": "Storage add-ons",
+     "at": "apps/mobile/src/ui/billing-sections.tsx:175"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 1454,
+  "webClassesUnresolved": 2,
+  "webNonLiteralClass": 20,
+  "webCompetingRules": 98,
+  "webDistinctUnresolvedClasses": 2,
+  "natPropsResolved": 239,
+  "natTokenUnresolved": 83,
+  "webDistinctColors": 58,
+  "natDistinctColors": 19,
+  "sharedColors": 8,
+  "webOnlyColors": 50,
+  "webOnlyColorSample": [
+   "#172033",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "#d9c7fb",
+   "rgba(15, 23, 42, 0.18)",
+   "#000000",
+   "#6b5bff",
+   "#5b6b7b",
+   "#f1f4f9",
+   "#c4b5fd",
+   "#1434cb",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "#ea580c",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "#344054",
+   "rgba(248, 250, 253, 0.7)",
+   "rgba(15, 23, 42, 0.07)",
+   "#667085",
+   "rgba(124, 58, 237, 0.07)",
+   "rgba(124, 58, 237, 0.02)",
+   "rgba(255, 255, 255, 0)",
+   "rgba(15, 23, 42, 0.05)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.09)",
+   "#f2ecfe",
+   "#0f172a",
+   "#f8fafc",
+   "#dc2626"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1634,
+  "natConditionals": 1125,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 98,
+  "natHandlers": 32,
+  "webHandlerSample": [
+   "onClick=() => window.location.reload() @apps/web/app/(app)/billing/page.tsx:935",
+   "onSelect=selectAccount @apps/web/app/(app)/billing/page.tsx:967",
+   "onRetryStorageCancellation=handleRetryStorageCancellation @apps/web/app/(app)/billing/page.tsx:997",
+   "onManagePlan=() => openPlanManagement() @apps/web/app/(app)/billing/page.tsx:1003",
+   "onStartSubscription=(planKey) => setCheckout({ kind: \"PLAN\", planKey }) @apps/web/app/(app)/billing/page.tsx:1003",
+   "onBuyCredits=projection.actions.canBuyEvidenceCredits ? () => setCheckout @apps/web/app/(app)/billing/page.tsx:1040",
+   "onChoosePlan=() => openPlanManagement() @apps/web/app/(app)/billing/page.tsx:1040",
+   "onManageStorage=() => setCheckout({ kind: \"STORAGE\" }) @apps/web/app/(app)/billing/page.tsx:1050",
+   "onChoosePlan=() => openPlanManagement() @apps/web/app/(app)/billing/page.tsx:1050",
+   "onCancelAddon=(id) => void handleCancelAddon(id) @apps/web/app/(app)/billing/page.tsx:1050",
+   "onRetry=() => selected && void loadHistory(selected) @apps/web/app/(app)/billing/page.tsx:1067",
+   "onRecheckPayment=(entry) => void handleRecheckPayment(entry) @apps/web/app/(app)/billing/page.tsx:1067",
+   "onCancelPayment=(entry) => void handleCancelPayment(entry) @apps/web/app/(app)/billing/page.tsx:1067",
+   "onAbandonPayment=(entry) => void handleAbandonPayment(entry) @apps/web/app/(app)/billing/page.tsx:1067",
+   "onRecheck=() => void handleAccountRecheck() @apps/web/app/(app)/billing/page.tsx:1067",
+   "onClose=() => setManagePlanOpen(false) @apps/web/app/(app)/billing/page.tsx:1137",
+   "onChangePlan=(offer) => void handleChangePlan(offer) @apps/web/app/(app)/billing/page.tsx:1137",
+   "onCancel=() => void handleCancel() @apps/web/app/(app)/billing/page.tsx:1137",
+   "onClose=() => setCheckout(null) @apps/web/app/(app)/billing/page.tsx:1147",
+   "onCompleted=refresh @apps/web/app/(app)/billing/page.tsx:1147",
+   "onError=(title, message) => addToast(`${title}: ${message}`, \"error\" @apps/web/app/(app)/billing/page.tsx:1147",
+   "onClose=onClose @apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:69",
+   "onClick=onClose @apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:86",
+   "onClick=() => onChangePlan(offer) @apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:188",
+   "onClick=onCancel @apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:322",
+   "onMouseDown=(e) => { // Backdrop click closes; a drag that STARTED insid @apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:111",
+   "onClick=close @apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:190",
+   "onClose=onClose @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:254",
+   "onClick=onClose @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:262",
+   "onClick=() => void startCheckout() @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:265",
+   "onChange=() => setSelectedPlan(p.planKey) @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:340",
+   "onChange=() => setSelectedAddon(offer.key) @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:485",
+   "onChange=setProvider @apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:518",
+   "onChange=() => onChange(option.provider) @apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx:128",
+   "onClick=onChoosePlan @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:109",
+   "onClick=() => onCancelAddon(addon.id) @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:247",
+   "onClick=onManageStorage @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:273",
+   "onClick=onRetry @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:391",
+   "onClick=onRecheck @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:423",
+   "onClick=() => onRecheckPayment(entry) @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:553",
+   "onClick=() => onCancelPayment(entry) @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:566",
+   "onClick=() => onAbandonPayment(entry) @apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:577",
+   "onClick=onClick @apps/web/components/ui/Card.tsx:250",
+   "onClick=onManagePlan @apps/web/app/(app)/billing/_sections/BillingOverview.tsx:197",
+   "onClick=() => onStartSubscription(actions.secondaryPlanAction!.planK @apps/web/app/(app)/billing/_sections/BillingOverview.tsx:221",
+   "onClick=onBuyCredits @apps/web/app/(app)/billing/_sections/BillingOverview.tsx:698",
+   "onClick=onChoosePlan @apps/web/app/(app)/billing/_sections/BillingOverview.tsx:710",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/billing.tsx:88",
+   "onRetry=load @apps/mobile/app/(stack)/billing.tsx:94",
+   "onChanged=() => void load() @apps/mobile/app/(stack)/billing.tsx:200",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => setPending({ kind: \"subscription\" }) @apps/mobile/src/ui/billing-sections.tsx:162",
+   "onPress=() => void retryStorageCancellation() @apps/mobile/src/ui/billing-sections.tsx:183",
+   "onPress=() => setPending({ kind: \"addon\", addon: a }) @apps/mobile/src/ui/billing-sections.tsx:203",
+   "onConfirm=() => void cancel() @apps/mobile/src/ui/billing-sections.tsx:276",
+   "onCancel=() => setPending(null) @apps/mobile/src/ui/billing-sections.tsx:276"
+  ]
+ },
+ "level8": {
+  "webApi": 14,
+  "natApi": 6,
+  "shared": 4,
+  "onlyWeb": 10,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/billing/subscription/plan",
+   "/v1/billing/credits/checkout/stripe",
+   "/v1/billing/credits/checkout/paypal",
+   "/v1/billing/storage-addons/checkout/stripe",
+   "/v1/billing/storage-addons/checkout/paypal",
+   "/v1/billing/checkout/stripe",
+   "/v1/billing/checkout/paypal",
+   "/v1/",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/billing/pricing",
+   "/v1/billing/overview"
+  ],
+  "sharedList": [
+   "/v1/billing/storage-addons/cancel",
+   "/v1/billing/accounts/${…}",
+   "/v1/billing/accounts",
+   "/v1/billing/subscription/cancel"
+  ],
+  "webApiWhere": {
+   "/v1/billing/storage-addons/cancel": "apps/web/app/(app)/billing/page.tsx:811",
+   "/v1/billing/accounts/${…}": "apps/web/lib/api/billing-accounts.ts:640",
+   "/v1/billing/accounts": "apps/web/lib/api/billing-accounts.ts:485",
+   "/v1/billing/subscription/cancel": "apps/web/lib/api/billing-accounts.ts:561",
+   "/v1/billing/subscription/plan": "apps/web/lib/api/billing-accounts.ts:595",
+   "/v1/billing/credits/checkout/stripe": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:147",
+   "/v1/billing/credits/checkout/paypal": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:153",
+   "/v1/billing/storage-addons/checkout/stripe": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:172",
+   "/v1/billing/storage-addons/checkout/paypal": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:178",
+   "/v1/billing/checkout/stripe": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:195",
+   "/v1/billing/checkout/paypal": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:201",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/billing/pricing": "apps/mobile/src/product/pricing.ts:47",
+   "/v1/billing/accounts": "apps/mobile/src/product/billing.ts:53",
+   "/v1/billing/overview": "apps/mobile/src/product/billing.ts:54",
+   "/v1/billing/subscription/cancel": "apps/mobile/src/product/billing.ts:55",
+   "/v1/billing/storage-addons/cancel": "apps/mobile/src/product/billing.ts:56",
+   "/v1/billing/accounts/${…}": "apps/mobile/src/product/billing.ts:59"
+  }
+ }
+}

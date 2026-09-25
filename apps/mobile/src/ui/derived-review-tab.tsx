@@ -13,9 +13,9 @@
  * own confidence.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Image, View } from "react-native";
 
-import { apiBaseUrl, apiFetch } from "../api";
+import { apiBaseUrl, apiFetch, getAuthToken } from "../api";
 import { formatUserDateTime } from "../lib/date";
 import { theme } from "../theme/theme";
 import {
@@ -40,12 +40,56 @@ import {
   runStatusTone,
   shouldPoll,
   type DerivedReview,
+  blockKeyframeUrls,
+  sourceLine,
+  type DerivedBlock,
 } from "../product/derived-review";
 
 type State =
   | { phase: "loading" }
   | { phase: "loaded"; review: DerivedReview }
   | { phase: "failed" };
+
+/**
+ * T-12 — "View source" (EvidenceDerivedReviewTab.tsx:270-300): which parts and
+ * offsets the text came from, and up to six source keyframes. The keyframe
+ * bytes route is AUTHENTICATED (media-intelligence.routes.ts:1334), so each
+ * image carries the session's bearer token; the URLs are the server's proxy
+ * paths, never storage keys.
+ */
+function BlockSource({ block, urls }: { block: DerivedBlock; urls: Record<string, string | null> }) {
+  const [open, setOpen] = useState(false);
+  const thumbs = blockKeyframeUrls(block, urls);
+  if (block.sources.length === 0 && thumbs.length === 0) return null;
+  const token = getAuthToken();
+  return (
+    <View style={{ gap: theme.space.s1 }}>
+      <ProovraButton label={open ? "Hide source" : "View source"} variant="ghost" fullWidth={false} onPress={() => setOpen((v) => !v)} />
+      {open ? (
+        <>
+          {block.sources.map((src, i) => (
+            <ProovraText key={`${src.evidencePartId}-${i}`} variant="label" color={theme.color.ink.muted}>
+              {sourceLine(src)}
+            </ProovraText>
+          ))}
+          {thumbs.length > 0 ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+              {thumbs.map((u) => (
+                <Image
+                  key={u}
+                  source={{ uri: u, headers: token ? { authorization: `Bearer ${token}` } : undefined }}
+                  accessibilityLabel="Derived source keyframe"
+                  style={{ width: 96, height: 64, borderRadius: theme.radius.sm, backgroundColor: theme.color.surface.muted }}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
 
 export function DerivedReviewTab({
   evidenceId,
@@ -116,7 +160,7 @@ export function DerivedReviewTab({
     );
   }
 
-  const { run, projection } = state.review;
+  const { run, projection, keyframeUrls } = state.review;
   const caveats = projection ? derivedReviewCaveats(projection) : [];
 
   return (
@@ -220,6 +264,7 @@ export function DerivedReviewTab({
                       />
                     </View>
                     <ProovraText variant="body">{block.text}</ProovraText>
+                    <BlockSource block={block} urls={keyframeUrls} />
                   </View>
                 ))}
               </View>

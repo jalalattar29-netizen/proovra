@@ -8,8 +8,9 @@
  * access events, TSA/OTS, signature, custody chain, relationships, provenance,
  * public verification — plus the separate /technical-metadata and /certifications
  * responses. Everything here binds real server data; nothing is fabricated. The
- * enterprise/team-only blocks (governance, reviewerAudit, AI/derived-review) are
- * intentionally NOT projected (they need a teamId / enterprise surface).
+ * enterprise/team-only blocks (governance, AI/derived-review) are intentionally
+ * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
+ * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
 
 export interface CustodyEvent {
@@ -36,6 +37,8 @@ export interface RelationshipView {
   linkedId: string;
   linkedTitle: string;
   linkedStatus: string;
+  /** relationships.items[].note (EvidenceRelationshipsSection.tsx:170). */
+  note: string | null;
 }
 
 export interface ProvenanceView {
@@ -104,6 +107,146 @@ export function projectPreservation(rw: unknown): PreservationView {
   };
 }
 
+/* ------------------------------------------------------- capture location (T-12) */
+
+/**
+ * The position recorded ALONGSIDE the capture (`review-workspace.sourceCaptureLocation`).
+ * Rendered only when present — never synthesised from an approximate or
+ * inferred position (EvidenceIntegrityTab.tsx:431-457).
+ */
+export interface CaptureLocationView {
+  lat: number;
+  lng: number;
+  accuracyMeters: number | null;
+  legalBoundary: string | null;
+  /** The server-built external map link (sourceCaptureLocation.externalMapUrl), https only. */
+  externalMapUrl: string | null;
+}
+function numOrNull(v: unknown): number | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+export function projectCaptureLocation(rw: unknown): CaptureLocationView | null {
+  const loc = o(rw)["sourceCaptureLocation"];
+  if (!loc || typeof loc !== "object") return null;
+  const l = o(loc);
+  const lat = numOrNull(l["lat"]);
+  const lng = numOrNull(l["lng"]);
+  if (lat === null || lng === null) return null;
+  const map = s(l["externalMapUrl"]);
+  return {
+    lat,
+    lng,
+    accuracyMeters: numOrNull(l["accuracyMeters"]),
+    legalBoundary: s(l["legalBoundary"]),
+    externalMapUrl: map && /^https:\/\//.test(map) ? map : null,
+  };
+}
+/* ------------------------------------------------ reviewer audit (T-14) */
+
+/** One workspace review action (review-workspace `reviewerAudit[]`, ReviewerAuditTrailSection). */
+export interface ReviewerAuditItem {
+  id: string;
+  eventLabel: string;
+  /** A name or email — never a raw id; "Workspace user" when the server sent none. */
+  actorLabel: string;
+  metadataRecorded: boolean;
+  createdAtIso: string | null;
+}
+
+export function projectReviewerAudit(rw: unknown): ReviewerAuditItem[] {
+  const list = o(rw)["reviewerAudit"];
+  return (Array.isArray(list) ? list : [])
+    .map((raw) => o(raw))
+    .filter((x) => s(x["id"]) && s(x["eventType"]))
+    .map((x) => {
+      const actor = o(x["actor"]);
+      const meta = x["metadata"];
+      return {
+        id: s(x["id"]) as string,
+        eventLabel: (s(x["eventType"]) as string).replace(/_/g, " "),
+        actorLabel: s(actor["displayName"]) ?? s(actor["email"]) ?? "Workspace user",
+        metadataRecorded: !!meta && typeof meta === "object" && Object.keys(meta as object).length > 0,
+        createdAtIso: s(x["createdAt"]),
+      };
+    });
+}
+
+export const REVIEWER_AUDIT_COPY = {
+  title: "Workspace review activity",
+  boundary: "Reviewer audit is separate from forensic custody and records workspace review actions only.",
+  empty: "No reviewer audit activity recorded yet.",
+} as const;
+
+/** The web technical-appendix copy (LocationContextCard, IntegrityContextCard, EvidencePartMetadataTable, FullExifAccordion). */
+export const LOCATION_NOT_PROVIDED = "Location was not provided for this evidence.";
+export const INTEGRITY_SECTION_TITLE = "Security & Integrity";
+export const INTEGRITY_ADVISORY =
+  "These values summarize the recorded integrity state. Full signature, RFC 3161 timestamp token, and OpenTimestamps proofs are preserved in the Verification Package and the verification endpoint.";
+export const PER_PARTS_EMPTY = "No per-part technical metadata is available for this record.";
+export const EXIF_REPRESENTATIVE_NOTE =
+  "Representative EXIF is shown for the primary media item. Full per-file EXIF for every part is included in the Verification Package.";
+
+export const CAPTURE_LOCATION_COPY = {
+  title: "Capture location",
+  description:
+    "The position recorded alongside the capture, with its recorded accuracy. This is where the capturing device reported itself to be — not a determination of where the subject matter is.",
+} as const;
+
+/* ------------------------------------------------------- case assignment (T-12) */
+
+/**
+ * Which case this record belongs to — `review-workspace.relationships.caseId/caseName`
+ * (the web's "Case" row and "Assign case" modal, evidence/[id]/page.tsx:1447).
+ * Native never read it, so a record's case was invisible from the record.
+ */
+export interface CaseAssignmentView {
+  caseId: string | null;
+  caseName: string | null;
+  /** T-14 — the web Relationships facts (review-workspace relationships). Absent on local updates. */
+  relatedEvidenceCount?: number | null;
+  multipart?: boolean;
+}
+export function projectCaseAssignment(rw: unknown): CaseAssignmentView {
+  const r = o(o(rw)["relationships"]);
+  const count = r["relatedEvidenceCount"];
+  return {
+    caseId: s(r["caseId"]),
+    caseName: s(r["caseName"]),
+    relatedEvidenceCount: typeof count === "number" && Number.isFinite(count) ? count : null,
+    multipart: r["multipart"] === true,
+  };
+}
+
+/** The ELIGIBILITY-narrowed case list (cases.routes.ts:434-458). */
+export function buildEligibleCasesPath(evidenceId: string): string {
+  return `/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}`;
+}
+export function parseEligibleCases(data: unknown): Array<{ id: string; name: string }> {
+  return arr(o(data)["items"])
+    .map((raw) => {
+      const c = o(raw);
+      const id = s(c["id"]);
+      return id ? { id, name: s(c["name"]) ?? s(c["title"]) ?? "Untitled case" } : null;
+    })
+    .filter((x): x is { id: string; name: string } => x !== null);
+}
+export function buildCaseEvidencePath(caseId: string): string {
+  return `/v1/cases/${encodeURIComponent(caseId)}/evidence`;
+}
+export function buildCaseEvidenceItemPath(caseId: string, evidenceId: string): string {
+  return `${buildCaseEvidencePath(caseId)}/${encodeURIComponent(evidenceId)}`;
+}
+/** evidence/[id]/page.tsx toasts, verbatim. */
+export const CASE_ASSIGN_COPY = {
+  title: "Assign evidence to case",
+  empty: "No attachable cases are available in this workspace.",
+  added: "Evidence added to case",
+  addFailed: "Assignment failed",
+  removed: "Evidence removed from case",
+  removeFailed: "Remove failed",
+} as const;
+
 export function projectRelationships(rw: unknown): RelationshipView[] {
   const items = arr(o(o(rw)["relationships"])["items"]);
   const out: RelationshipView[] = [];
@@ -120,6 +263,7 @@ export function projectRelationships(rw: unknown): RelationshipView[] {
       linkedId,
       linkedTitle: s(linked["title"]) ?? "Evidence",
       linkedStatus: s(linked["status"]) ?? "",
+      note: s(r["note"]),
     });
   }
   return out;
@@ -148,6 +292,55 @@ export interface TechnicalView {
   filesTotal: number | null;
   exif: { present: boolean; camera: string | null; lensModel: string | null; originalCaptureTime: string | null; iso: string | null; aperture: string | null; exposureTime: string | null; gpsPresent: boolean } | null;
   capture: { uploadSource: string | null; captureMethod: string | null; deviceClass: string | null; osName: string | null; browserName: string | null; timezone: string | null };
+  /** T-14 — the authenticated per-part table (technicalMetadata.perParts; never on the public projection). */
+  perParts: TechnicalPart[];
+}
+
+export interface TechnicalPart {
+  partIndex: number | null;
+  sha256: string | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  pageCount: number | null;
+  codec: string | null;
+  container: string | null;
+  metadataStatusLabel: string | null;
+}
+
+/** The web technical-appendix formatters (sections-model.ts fmtDimensions / fmtDurationMs). */
+export function fmtPartDimensions(w: number | null, h: number | null): string | null {
+  if (w == null || h == null || w <= 0 || h <= 0) return null;
+  return `${w}×${h}`;
+}
+export function fmtPartDuration(ms: number | null): string | null {
+  if (ms == null || !Number.isFinite(ms) || ms <= 0) return null;
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+/** The web PartMeta rows that carry a value, as one labelled line. */
+export function partMetaLine(part: TechnicalPart): string | null {
+  const bits = [
+    fmtPartDimensions(part.width, part.height) ? `Dimensions ${fmtPartDimensions(part.width, part.height)}` : null,
+    fmtPartDuration(part.durationMs) ? `Duration ${fmtPartDuration(part.durationMs)}` : null,
+    part.pageCount != null && part.pageCount > 0 ? `Pages ${part.pageCount}` : null,
+    part.codec ? `Codec ${part.codec}` : null,
+    part.container ? `Container ${part.container}` : null,
+    part.metadataStatusLabel ? `Metadata ${part.metadataStatusLabel}` : null,
+  ].filter(Boolean);
+  return bits.length > 0 ? bits.join(" · ") : null;
+}
+
+/** The part row for a material: by part index, else by content hash. */
+export function technicalPartFor(parts: TechnicalPart[], material: { index: number | null; sha256: string | null }): TechnicalPart | null {
+  return (
+    (material.index !== null ? parts.find((x) => x.partIndex === material.index) : undefined) ??
+    (material.sha256 ? parts.find((x) => x.sha256 === material.sha256) : undefined) ??
+    null
+  );
 }
 
 function num(v: unknown): number | null {
@@ -188,6 +381,20 @@ export function projectTechnical(data: unknown): TechnicalView | null {
       browserName: s(env["browserName"]),
       timezone: s(env["timezone"]),
     },
+    perParts: arr(tm["perParts"]).map((raw) => {
+      const x = o(raw);
+      return {
+        partIndex: num(x["partIndex"]),
+        sha256: s(x["sha256"]),
+        width: num(x["width"]),
+        height: num(x["height"]),
+        durationMs: num(x["durationMs"]),
+        pageCount: num(x["pageCount"]),
+        codec: s(x["codec"]),
+        container: s(x["container"]),
+        metadataStatusLabel: s(x["metadataStatusLabel"]),
+      };
+    }),
   };
 }
 
@@ -200,6 +407,15 @@ export interface CertificationView {
   attestorName: string | null;
   attestedAtUtc: string | null;
   revoked: boolean;
+  /** T-12 — the lifecycle fields the declarations panel needs (EvidenceCertificationsPanel.tsx). */
+  version: number;
+  requestedAtUtc: string | null;
+  attestorTitle: string | null;
+  attestorOrganization: string | null;
+  statementMarkdown: string | null;
+  certificationHash: string | null;
+  revokedAtUtc: string | null;
+  revokeReason: string | null;
 }
 
 /** Project GET /v1/evidence/:id/certifications → { certifications }. */
@@ -217,6 +433,14 @@ export function projectCertifications(data: unknown): CertificationView[] {
       attestorName: s(c["attestorName"]),
       attestedAtUtc: s(c["attestedAtUtc"]),
       revoked: !!c["revokedAtUtc"],
+      version: typeof c["version"] === "number" && Number.isFinite(c["version"]) ? (c["version"] as number) : 1,
+      requestedAtUtc: s(c["requestedAtUtc"]),
+      attestorTitle: s(c["attestorTitle"]),
+      attestorOrganization: s(c["attestorOrganization"]),
+      statementMarkdown: s(c["statementMarkdown"]),
+      certificationHash: s(c["certificationHash"]),
+      revokedAtUtc: s(c["revokedAtUtc"]),
+      revokeReason: s(c["revokeReason"]),
     });
   }
   return out;
@@ -258,7 +482,11 @@ export interface MaterialItem {
 }
 
 export function projectMaterials(rw: unknown): MaterialItem[] {
-  const raw = o(rw)["contentItems"];
+  // The review workspace nests the record's files at `evidence.contentItems`
+  // (evidence.routes.ts review-workspace reply); reading the top level found
+  // nothing, so the Materials list was always empty. The top level stays as a
+  // fallback for a flat projection.
+  const raw = o(o(rw)["evidence"])["contentItems"] ?? o(rw)["contentItems"];
   const items = Array.isArray(raw) ? raw : [];
 
   return items
@@ -495,31 +723,45 @@ export function parseDuplicateReport(payload: unknown): DuplicateReport {
 export const DUPLICATE_LIMITATION =
   "Duplicate detection is limited to accessible records and recorded hashes or metadata.";
 
+/** The web MATCH_REASON_LABELS, verbatim (DuplicateDetectionPanel.tsx:16). */
 export function duplicateReasonLabel(reason: string): string {
   switch (reason.toUpperCase()) {
     case "EXACT_HASH":
-      return "Identical file hash";
+      return "Exact file hash";
     case "FINGERPRINT":
-      return "Matching fingerprint";
+      return "Fingerprint";
     case "PART_HASH":
-      return "Matching part hash";
+      return "Part-level hash";
     case "METADATA":
-      return "Similar metadata";
+      return "Filename + size";
     default:
       return humanizeEnum(reason);
   }
 }
 
-/** A single line describing WHY this record is flagged. */
+/**
+ * A single line describing WHY this record is flagged — the web's reason
+ * chips, with the part-level count as `× n` (DuplicateDetectionPanel.tsx:106).
+ */
 export function duplicateMatchSummary(match: DuplicateMatch): string {
-  const reasons = match.matchReasons.map(duplicateReasonLabel);
-  if (match.matchedPartsCount > 0) {
-    reasons.push(
-      `${match.matchedPartsCount} matching part${match.matchedPartsCount === 1 ? "" : "s"}`,
-    );
-  }
+  const reasons = match.matchReasons.map((r) =>
+    r.toUpperCase() === "PART_HASH" && match.matchedPartsCount > 1
+      ? `${duplicateReasonLabel(r)} × ${match.matchedPartsCount}`
+      : duplicateReasonLabel(r),
+  );
   return reasons.length > 0 ? reasons.join(" · ") : "Matched";
 }
+
+/** DuplicateDetectionPanel.tsx:234-251, verbatim. */
+export const DUPLICATE_COPY = {
+  loading: "Checking accessible duplicates...",
+  empty: "No accessible duplicate or related records found.",
+  summary: (total: number) =>
+    total === 1
+      ? "1 record shares one or more file hashes or metadata."
+      : `${total} records share one or more file hashes or metadata.`,
+  open: "Open record →",
+} as const;
 
 // ---------------------------------------------------------------------------
 // REPORT AND PACKAGE GENERATION
@@ -628,14 +870,17 @@ export const REGENERATE_CONSEQUENCE =
   "downloadable, and the new one uses additional workspace storage. No evidence " +
   "credit is charged.";
 
+/** The web GENERATION_ACTION_LABEL (lib/evidence/generation-labels.ts:37), verbatim. */
 export function generationActionLabel(action: string): string {
   switch (action.toUpperCase()) {
     case "REGENERATE":
-      return "Regenerate";
+      return "Regenerate report & verification package";
     case "RETRY":
-      return "Retry generation";
+      return "Retry report & verification package";
+    case "NONE":
+      return "";
     default:
-      return "Generate report and package";
+      return "Generate report & verification package";
   }
 }
 
@@ -1064,6 +1309,8 @@ export interface EvidenceLifecycle {
   archiveBlockReason: string | null;
   legalHold: boolean;
   effectiveRetentionUntilIso: string | null;
+  /** `objectLockCompliance` (shared evidence-retention-lifecycle.ts:531). */
+  objectLockCompliance: boolean;
 }
 
 export function parseEvidenceLifecycle(payload: unknown): EvidenceLifecycle | null {
@@ -1080,6 +1327,7 @@ export function parseEvidenceLifecycle(payload: unknown): EvidenceLifecycle | nu
     archiveBlockReason: str(l.archiveBlockReason),
     legalHold: l.legalHold === true,
     effectiveRetentionUntilIso: str(l.effectiveRetentionUntilUtc),
+    objectLockCompliance: l.objectLockCompliance === true,
   };
 }
 
@@ -1136,6 +1384,118 @@ export function evidenceIsLocked(lifecycle: EvidenceLifecycle | null): boolean {
 export function buildEvidenceUnlockPath(evidenceId: string): string {
   return `${buildEvidencePath(evidenceId)}/unlock`;
 }
+/** POST {restore:true} — out of Trash (web evidence/[id]/page.tsx:718). */
+export function buildEvidenceRestorePath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/restore`;
+}
+
+/** The web's words for Trash on the record (page.tsx:1069-1085, :1864-1896). */
+export const TRASH_COPY = {
+  bannerTitle: "This record is in trash",
+  bannerBody:
+    "Mutating actions (download, lock, archive, assign to case, generate report/package) are disabled while the record is in trash. Restore it to bring it back to the active library.",
+  restore: "Restore from trash",
+  moveAction: "Move to trash",
+  moveTitle: "Move evidence to trash",
+  moveBody:
+    "Nothing is deleted. The record leaves Active evidence and can be restored from Trash; its content, custody history and verification state are unchanged.",
+  moveBody2: "Any retention or legal hold on this record continues to apply in Trash — moving it here does not shorten either.",
+} as const;
+
+/** The web's confirm for removing a relationship (EvidenceRelationshipsSection.tsx:196-206). */
+export function relationshipRemoveCopy(relationshipType: string, linkedTitle: string) {
+  return {
+    title: "Remove this relationship?",
+    body: `Remove the "${relationshipType.replace(/_/g, " ").toLowerCase()}" relationship with "${linkedTitle}"? The linked evidence record itself is not affected.`,
+    confirm: "Remove relationship",
+  };
+}
+
 export function buildEvidenceUnarchivePath(evidenceId: string): string {
   return `${buildEvidencePath(evidenceId)}/unarchive`;
+}
+
+/* ------------------------------------------- T-14 — What needs attention (page.tsx:1972) */
+
+export type RiskSeverity = "danger" | "warning" | "info" | "neutral";
+export interface RiskSignal {
+  severity: RiskSeverity;
+  title: string;
+  detail: string | null;
+}
+
+const RISK_ORDER: Record<RiskSeverity, number> = { danger: 0, warning: 1, info: 2, neutral: 3 };
+
+function normalizeRiskSeverity(v: string | null): RiskSeverity {
+  if (v === "danger" || v === "warning" || v === "info" || v === "neutral") return v;
+  // Unknown severities never over-alert (web normalizeSeverity).
+  if (v === "critical" || v === "high") return "danger";
+  return "info";
+}
+
+/** The web buildRiskSignals over review-workspace reviewerAlerts + sourceContext, severity-first. */
+export function projectRiskSignals(rw: unknown): RiskSignal[] {
+  const root = o(rw);
+  const signals: RiskSignal[] = arr(root["reviewerAlerts"]).map((raw) => {
+    const a = o(raw);
+    return { severity: normalizeRiskSeverity(s(a["severity"])), title: s(a["label"]) ?? "Review alert", detail: s(a["detail"]) };
+  });
+  const sc = o(root["sourceContext"]);
+  const cs = o(sc["clientSignalsSummary"]);
+  if (cs["screenshotLikeStatus"] === "DETECTED") {
+    signals.push({ severity: "warning", title: "Screenshot filename heuristic", detail: "Filename and client-metadata heuristic only. This is advisory, not image-forensic or AI proof." });
+  }
+  if (cs["genericMime"] === true) {
+    signals.push({ severity: "info", title: "Generic MIME type", detail: "Generic file typing was recorded in client signals. Review source context separately." });
+  }
+  if (cs["oldLastModified"] === true) {
+    signals.push({ severity: "neutral", title: "File timestamp note", detail: "Client metadata shows the file was modified before upload. This is common for existing documents and is advisory only." });
+  }
+  if (sc["importedUpload"] === true) {
+    signals.push({ severity: "info", title: "Imported upload", detail: "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source." });
+  }
+  return signals.sort((a, b) => RISK_ORDER[a.severity] - RISK_ORDER[b.severity]);
+}
+
+export interface EvidenceAttention {
+  risks: RiskSignal[];
+  needsCase: boolean;
+  needsReviewer: boolean;
+  missingReport: boolean;
+  missingPackage: boolean;
+}
+
+/** The web WhatNeedsAttentionStrip rules; null when there is nothing to say. */
+export function deriveEvidenceAttention(input: {
+  hasCase: boolean;
+  canSeeReviewerOps: boolean;
+  reviewStatus: string | null;
+  reportState: string | null;
+  packageState: string | null;
+  signals: RiskSignal[];
+}): EvidenceAttention | null {
+  const needsCase = !input.hasCase;
+  const needsReviewer = input.canSeeReviewerOps && (!input.reviewStatus || input.reviewStatus === "NOT_STARTED");
+  // "Missing" is a canonical STATE, not a plan flag beside an absence.
+  const missingReport = input.reportState === "ELIGIBLE_NOT_GENERATED";
+  const missingPackage = input.packageState === "ELIGIBLE_NOT_GENERATED";
+  const risks = input.signals.slice(0, 3);
+  if (!needsCase && !needsReviewer && !missingReport && !missingPackage && risks.length === 0) return null;
+  return { risks, needsCase, needsReviewer, missingReport, missingPackage };
+}
+
+/* ----------------------------------------------- T-14 — boundaries (web copy) */
+
+/** EvidenceReviewTab.tsx:287 — the private-notes boundary callout. */
+export const PRIVATE_NOTES_BOUNDARY =
+  "Private review notes are not included in public verification or external packages unless explicitly exported.";
+
+/** LocationContextCard.tsx — used when the server states no boundary of its own. */
+export const DEFAULT_LOCATION_BOUNDARY =
+  "Location is device/browser-reported and permission-based. It may support context, but it does not independently prove physical presence.";
+
+/** EvidenceIntegrityTab.tsx:427 — the source context's first stated limitation. */
+export function projectSourceBoundary(rw: unknown): string | null {
+  const lim = arr(o(o(rw)["sourceContext"])["limitations"]);
+  return typeof lim[0] === "string" && (lim[0] as string).length > 0 ? (lim[0] as string) : null;
 }

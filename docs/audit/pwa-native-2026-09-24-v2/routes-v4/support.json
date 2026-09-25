@@ -1,0 +1,716 @@
+{
+ "route": "/support",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/support/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/support.tsx",
+  "apps/mobile/app/(stack)/legal/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 10,
+   "labelled": 79,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 16,
+   "labelled": 7,
+   "unboundExports": 1
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 1,
+  "unpaired": 78,
+  "extraInNative": 6,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Support",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/support/page.tsx:363",
+   "nat": "apps/mobile/app/(stack)/support.tsx:38"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Get the",
+   "at": "apps/web/app/support/page.tsx:367",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "right help path.",
+   "at": "apps/web/app/support/page.tsx:375",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose the support route that matches your request — product help, billing, security reports, legal and privacy requests, or enterprise evaluation.",
+   "at": "apps/web/app/support/page.tsx:380",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Email support",
+   "at": "apps/web/app/support/page.tsx:390",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:396",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support paths",
+   "at": "apps/web/app/support/page.tsx:429",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Pick the route that matches your request.",
+   "at": "apps/web/app/support/page.tsx:431",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Each path routes your request to the correct operational, security, legal, or enterprise workflow.",
+   "at": "apps/web/app/support/page.tsx:434",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support routing",
+   "at": "apps/web/app/support/page.tsx:490",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "From question to the right team.",
+   "at": "apps/web/app/support/page.tsx:492",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA support is routed by request type so sensitive matters reach the correct operational, security, legal, or enterprise path.",
+   "at": "apps/web/app/support/page.tsx:495",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 1",
+   "at": "apps/web/app/support/page.tsx:533",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Start with your request",
+   "at": "apps/web/app/support/page.tsx:536",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Describe what you need. Most requests fall into one of five types.",
+   "at": "apps/web/app/support/page.tsx:539",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 2",
+   "at": "apps/web/app/support/page.tsx:564",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose request type",
+   "at": "apps/web/app/support/page.tsx:567",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Step 3",
+   "at": "apps/web/app/support/page.tsx:610",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Correct path",
+   "at": "apps/web/app/support/page.tsx:613",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support scope",
+   "at": "apps/web/app/support/page.tsx:643",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What support can help with — and where support must draw the line.",
+   "at": "apps/web/app/support/page.tsx:645",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What support can help with",
+   "at": "apps/web/app/support/page.tsx:656",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What support cannot do",
+   "at": "apps/web/app/support/page.tsx:695",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Response expectations",
+   "at": "apps/web/app/support/page.tsx:720",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "How requests are prioritized.",
+   "at": "apps/web/app/support/page.tsx:722",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA routes requests by severity, risk, plan, contractual commitments, and operational capacity. Unless an enterprise agreement states otherwise, these expectations are not guaranteed response or resolution times.",
+   "at": "apps/web/app/support/page.tsx:725",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request type",
+   "at": "apps/web/app/support/page.tsx:740",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Typical handling path",
+   "at": "apps/web/app/support/page.tsx:743",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Expectation",
+   "at": "apps/web/app/support/page.tsx:746",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise evaluation",
+   "at": "apps/web/app/support/page.tsx:807",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support for procurement, security review, and enterprise adoption.",
+   "at": "apps/web/app/support/page.tsx:810",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations evaluating PROOVRA may need technical, legal, privacy, and security materials before adoption. The enterprise path routes these requests to the right team instead of mixing them with ordinary product support.",
+   "at": "apps/web/app/support/page.tsx:814",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise reviewers may ask for",
+   "at": "apps/web/app/support/page.tsx:822",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/app/support/page.tsx:855",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:861",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review packet",
+   "at": "apps/web/app/support/page.tsx:873",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security reviews",
+   "at": "apps/web/app/support/page.tsx:917",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security questions should go through the right path.",
+   "at": "apps/web/app/support/page.tsx:919",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Before adopting PROOVRA, organizations may review security documentation, architecture boundaries, subprocessors, incident response posture, and verification controls.",
+   "at": "apps/web/app/support/page.tsx:922",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Report a vulnerability",
+   "at": "apps/web/app/support/page.tsx:971",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Vulnerability reports should go to",
+   "at": "apps/web/app/support/page.tsx:974",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise security questionnaire",
+   "at": "apps/web/app/support/page.tsx:993",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise security questionnaires should go through",
+   "at": "apps/web/app/support/page.tsx:996",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "/contact-sales",
+   "at": "apps/web/app/support/page.tsx:1001",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sensitive or legal requests",
+   "at": "apps/web/app/support/page.tsx:1016",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Use the dedicated request path.",
+   "at": "apps/web/app/support/page.tsx:1019",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "For legally sensitive matters, use the dedicated intake path so the request is logged and routed correctly. Each path links to the relevant policy with the full submission process.",
+   "at": "apps/web/app/support/page.tsx:1022",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support vs policy",
+   "at": "apps/web/app/support/page.tsx:1061",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Support and Support Policy are different surfaces.",
+   "at": "apps/web/app/support/page.tsx:1063",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "/support",
+   "at": "apps/web/app/support/page.tsx:1087",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Support",
+   "at": "apps/web/app/support/page.tsx:1091",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The operational support page for product help, billing routing, sensitive-request paths, and enterprise evaluation.",
+   "at": "apps/web/app/support/page.tsx:1094",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You are here",
+   "at": "apps/web/app/support/page.tsx:1098",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "/legal/support",
+   "at": "apps/web/app/support/page.tsx:1121",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support Policy",
+   "at": "apps/web/app/support/page.tsx:1125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The legal policy document describing support scope, severity prioritization, escalation, limitations, and availability expectations.",
+   "at": "apps/web/app/support/page.tsx:1128",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Support Policy",
+   "at": "apps/web/app/support/page.tsx:1136",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Helpful resources",
+   "at": "apps/web/app/support/page.tsx:1148",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Read the documents behind each support path.",
+   "at": "apps/web/app/support/page.tsx:1150",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Not sure yet?",
+   "at": "apps/web/app/support/page.tsx:1223",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Still not sure where your request belongs?",
+   "at": "apps/web/app/support/page.tsx:1226",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Email the team and we will route it to the right path. For enterprise procurement, security review, or vendor evaluation, talk to sales.",
+   "at": "apps/web/app/support/page.tsx:1229",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Email support",
+   "at": "apps/web/app/support/page.tsx:1239",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Talk to sales",
+   "at": "apps/web/app/support/page.tsx:1245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/support.tsx:43"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reference",
+   "at": "apps/mobile/app/(stack)/support.tsx:79"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Legal",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:59"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:64"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading documents",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:73"
+  },
+  {
+   "role": "TEXT",
+   "label": "Acceptance",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:93"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

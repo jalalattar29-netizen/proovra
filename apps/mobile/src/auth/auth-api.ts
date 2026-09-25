@@ -22,10 +22,33 @@ export interface AuthSession {
   user?: AuthUser | null;
 }
 
-/** Login/OAuth can resolve to a session OR an MFA challenge. */
+/** Login/OAuth can resolve to a session, an MFA challenge, or an MFA-enrolment requirement. */
 export type LoginResult =
   | { kind: "session"; token: string; user?: AuthUser | null }
-  | { kind: "mfaRequired"; mfaPendingToken: string };
+  | { kind: "mfaRequired"; mfaPendingToken: string }
+  /**
+   * The organization requires MFA and the account has no factor: the server
+   * refuses with 403 { mfaRequired: true, mfaEnrollmentRequired: true,
+   * reason: "org_policy_requires_mfa" } (auth.routes.ts:586-597). The web
+   * sends that person to /auth/mfa-challenge?enroll=1, a guided surface —
+   * not a raw refusal.
+   */
+  | { kind: "mfaEnrollmentRequired" };
+
+function isMfaEnrollmentRequired(err: unknown): boolean {
+  const e = err as { statusCode?: number; body?: Record<string, unknown> } | null;
+  return e?.statusCode === 403 && e.body?.["mfaEnrollmentRequired"] === true;
+}
+
+/** A sign-in exchange: the enrolment refusal is an ANSWER, every other failure still throws. */
+async function signInExchange(path: string, body: Record<string, unknown>): Promise<LoginResult> {
+  try {
+    return toLoginResult(await apiFetch(path, { method: "POST", body: JSON.stringify(body) }));
+  } catch (err) {
+    if (isMfaEnrollmentRequired(err)) return { kind: "mfaEnrollmentRequired" };
+    throw err;
+  }
+}
 
 function toLoginResult(data: Record<string, unknown>): LoginResult {
   if (data && data["mfaRequired"] === true && typeof data["mfaPendingToken"] === "string") {
@@ -41,11 +64,7 @@ function toLoginResult(data: Record<string, unknown>): LoginResult {
 /* ------------------------------------------------------------- email/pw */
 
 export async function emailLogin(email: string, password: string): Promise<LoginResult> {
-  const data = await apiFetch("/v1/auth/email/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-  return toLoginResult(data);
+  return signInExchange("/v1/auth/email/login", { email, password });
 }
 
 export interface RegisterResult {
@@ -110,11 +129,11 @@ export async function verifyMfa(
 /* ------------------------------------------------------------------ OAuth */
 
 export async function oauthGoogle(idToken: string): Promise<LoginResult> {
-  return toLoginResult(await apiFetch("/v1/auth/google", { method: "POST", body: JSON.stringify({ idToken }) }));
+  return signInExchange("/v1/auth/google", { idToken });
 }
 
 export async function oauthApple(idToken: string): Promise<LoginResult> {
-  return toLoginResult(await apiFetch("/v1/auth/apple", { method: "POST", body: JSON.stringify({ idToken }) }));
+  return signInExchange("/v1/auth/apple", { idToken });
 }
 
 /* -------------------------------------------------------------- session */
@@ -149,11 +168,26 @@ export async function getLegalStatus(): Promise<LegalStatus> {
   return { ok: data["ok"] !== false && missing.length === 0, missingPolicies: missing, requiredVersions: versions };
 }
 
+/**
+ * The server schema (users.routes.ts LegalAcceptanceBody) is
+ * `{ source?, acceptances: [{ policyKey, policyVersion }] }`. This used to
+ * post `version`, which the schema rejects — every native acceptance failed
+ * with a 400 and a user who owed a re-acceptance could not pass the gate.
+ * `source` names the flow, as the web does ("login", "register", "settings").
+ */
+export function buildLegalAcceptanceBody(
+  acceptances: Array<{ policyKey: string; version: string }>,
+  source: string,
+): { source: string; acceptances: Array<{ policyKey: string; policyVersion: string }> } {
+  return { source, acceptances: acceptances.map((a) => ({ policyKey: a.policyKey, policyVersion: a.version })) };
+}
+
 export async function recordLegalAcceptance(
   acceptances: Array<{ policyKey: string; version: string }>,
+  source = "mobile_legal_gate",
 ): Promise<void> {
   await apiFetch("/v1/users/legal-acceptance", {
     method: "POST",
-    body: JSON.stringify({ acceptances }),
+    body: JSON.stringify(buildLegalAcceptanceBody(acceptances, source)),
   });
 }

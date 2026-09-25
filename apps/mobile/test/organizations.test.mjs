@@ -101,11 +101,13 @@ test("an organization with no id is not an organization", () => {
   assert.equal(O.parseOrgDetail({ organization: { name: "x" } }), null);
 });
 
-test("the detail reads through either envelope shape", () => {
-  const wrapped = O.parseOrgDetail({ organization: { id: "o1", name: "Acme" } });
-  const bare = O.parseOrgDetail({ id: "o1", name: "Acme" });
-  assert.equal(wrapped.id, "o1");
-  assert.equal(bare.name, "Acme");
+test("the detail reads the server's FLAT shape keyed organizationId, with its summary", () => {
+  const d = O.parseOrgDetail({ organizationId: "o1", name: "Acme", callerRole: "ORG_OWNER", summary: { memberCount: 1, workspaceCount: 0, pendingInviteCount: 3 } });
+  assert.equal(d.id, "o1", "the organization id the server sends was not read");
+  assert.equal(d.name, "Acme");
+  assert.equal(d.callerRole, "ORG_OWNER");
+  assert.equal(d.memberCount, 1);
+  assert.equal(d.pendingInviteCount, 3);
 });
 
 test("a member with no name falls back to email, then to unnamed", () => {
@@ -221,3 +223,33 @@ test("a named refusal says what happened, not that something failed", () => {
   assert.equal(named("something_else"), "fallback");
 });
 
+
+/*
+ * THE DEFECT: GET /v1/orgs/:id/workspaces sends each row as `workspaceId`
+ * (organizations.routes.ts). The parser read only `id`, so it dropped every
+ * row and the screen told an administrator their organization had none.
+ */
+test("org workspaces are read from the server's real row shape (workspaceId, billing)", () => {
+  const rows = O.parseOrgWorkspaces({
+    organizationId: "o1",
+    summary: { totalWorkspaces: 2 },
+    callerCanSeeBilling: true,
+    workspaces: [
+      { workspaceId: "w1", name: "Claims", isPersonal: false, createdAt: "2026-01-02T00:00:00.000Z", billing: { plan: "TEAM", status: "PAST_DUE", includedSeats: 5, overSeatLimit: true } },
+      { workspaceId: "w2", name: "Mine", isPersonal: true, createdAt: "2026-01-03T00:00:00.000Z" },
+    ],
+  });
+  assert.equal(rows.length, 2, "rows were dropped");
+  assert.equal(rows[0].id, "w1");
+  assert.deepEqual(rows[0].billing, { plan: "TEAM", status: "PAST_DUE", includedSeats: 5, overSeatLimit: true });
+  assert.equal(rows[1].isPersonal, true);
+  assert.equal(rows[1].billing, null, "billing invented for a caller who may not see it");
+  assert.equal(O.orgPlanLabel("TEAM"), "Team");
+  assert.equal(O.orgWorkspaceBillingStatusLabel("PAST_DUE"), "Payment failed");
+});
+
+test("an org member row's id is the MEMBERSHIP id the server sends", () => {
+  const [m] = O.parseOrgMembers({ members: [{ membershipId: "mem-9", userId: "u-9", role: "ORG_ADMIN", status: "ACTIVE", user: { email: "a@x.test", displayName: "Ada" } }] });
+  assert.equal(m.id, "mem-9");
+  assert.equal(m.userId, "u-9");
+});

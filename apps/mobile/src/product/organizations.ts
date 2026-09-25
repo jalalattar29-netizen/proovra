@@ -118,6 +118,8 @@ export interface OrgDetail {
   verificationState: string | null;
   verifiedAtIso: string | null;
   timezone: string | null;
+  address: string | null;
+  logoUrl: string | null;
   createdAtIso: string | null;
   /**
    * The caller's OWN role in this organization.
@@ -128,12 +130,21 @@ export interface OrgDetail {
    * answer to "who are you here", not an inference from the member list.
    */
   callerRole: string | null;
+  /** The server's `summary` counts (null when absent). */
+  memberCount: number | null;
+  workspaceCount: number | null;
+  pendingInviteCount: number | null;
 }
 
 export function parseOrgDetail(payload: unknown): OrgDetail | null {
+  // GET /v1/orgs/:id sends a FLAT object keyed `organizationId`
+  // (organizations.routes.ts). This read `organization.id` / `id`, neither of
+  // which the server sends, so every organization rendered as "not available".
   const d = obj(obj(payload).organization ?? payload);
-  const id = str(d.id);
+  const id = str(d.organizationId) ?? str(d.id);
   if (!id) return null;
+  const summary = obj(obj(payload).summary);
+  const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   return {
     id,
     name: str(d.name),
@@ -143,9 +154,14 @@ export function parseOrgDetail(payload: unknown): OrgDetail | null {
     verificationState: str(d.verificationState),
     verifiedAtIso: str(d.verifiedAtUtc) ?? str(d.verifiedAt),
     timezone: str(d.timezone),
+    address: str(d.address),
+    logoUrl: str(d.logoUrl),
     createdAtIso: str(d.createdAt),
     // On the envelope, beside `organization`, not inside it.
     callerRole: str(obj(payload).callerRole) ?? str(d.callerRole),
+    memberCount: count(summary.memberCount),
+    workspaceCount: count(summary.workspaceCount),
+    pendingInviteCount: count(summary.pendingInviteCount),
   };
 }
 
@@ -177,7 +193,9 @@ export function parseOrgMembers(payload: unknown): OrgMember[] {
   return rows(obj(payload).members ?? payload)
     .map((raw) => {
       const m = obj(raw);
-      const id = str(m.id) ?? str(m.userId);
+      // The MEMBERSHIP id is `membershipId` on the wire (organizations.routes.ts);
+      // `id` is not sent, so this fell back to the user id.
+      const id = str(m.membershipId) ?? str(m.id) ?? str(m.userId);
       if (!id) return null;
       const user = obj(m.user);
       const email = str(user.email) ?? str(m.email);
@@ -197,18 +215,31 @@ export interface OrgWorkspace {
   id: string;
   name: string;
   memberCount: number | null;
+  isPersonal: boolean;
+  createdAtIso: string | null;
+  /** Present only when the caller may see billing (ORG_ADMIN+ / ORG_BILLING_ADMIN). */
+  billing: { plan: string; status: string; includedSeats: number | null; overSeatLimit: boolean } | null;
 }
 
 export function parseOrgWorkspaces(payload: unknown): OrgWorkspace[] {
   return rows(obj(payload).workspaces ?? obj(payload).teams ?? payload)
     .map((raw) => {
       const w = obj(raw);
-      const id = str(w.id);
+      // GET /v1/orgs/:id/workspaces sends `workspaceId` (organizations.routes.ts).
+      // Reading only `id` dropped EVERY row, so an organization with workspaces
+      // was reported as having none.
+      const id = str(w.workspaceId) ?? str(w.id);
       if (!id) return null;
+      const b = obj(w.billing);
       return {
         id,
         name: str(w.name) ?? "Unnamed workspace",
         memberCount: num(w.memberCount),
+        isPersonal: w.isPersonal === true,
+        createdAtIso: str(w.createdAt),
+        billing: str(b.plan)
+          ? { plan: str(b.plan) as string, status: str(b.status) ?? "", includedSeats: num(b.includedSeats), overSeatLimit: b.overSeatLimit === true }
+          : null,
       };
     })
     .filter((w): w is OrgWorkspace => w !== null);
@@ -390,6 +421,12 @@ export function orgLifecycleFailureMessage(err: unknown, fallback: string): stri
   const e = obj(err);
   const code = str(obj(obj(e.body).error).code) ?? str(e.code);
   switch (code) {
+    // POST /leave by the owner (organizations.routes.ts): the server's own sentence.
+    case "OWNERSHIP_TRANSFER_REQUIRED":
+      return (
+        str(obj(obj(e.body).error).message) ??
+        "You are the organization owner. Transfer ownership or close the organization before leaving."
+      );
     case "owner_required":
       return "Only the organization owner can do this.";
     case "target_not_member":
@@ -407,3 +444,232 @@ export function orgLifecycleFailureMessage(err: unknown, fallback: string): stri
   }
 }
 
+
+const PLAN_LABEL: Readonly<Record<string, string>> = { FREE: "Free", PAYG: "Pay as you go", PRO: "Pro", TEAM: "Team", ENTERPRISE: "Enterprise" };
+/** identityOrgLabels.planLabel. */
+export function orgPlanLabel(plan: string): string {
+  return PLAN_LABEL[plan] ?? plan;
+}
+const BILLING_STATUS_LABEL: Readonly<Record<string, string>> = { INACTIVE: "Inactive", ACTIVE: "Active", PAST_DUE: "Payment failed", CANCELED: "Cancelled" };
+/** identityOrgLabels.workspaceBillingStatusLabel. */
+export function orgWorkspaceBillingStatusLabel(status: string): string {
+  return BILLING_STATUS_LABEL[status] ?? status;
+}
+
+// ---------------------------------------------------------------------------
+// T-14 — organization Settings (web organizations/[id]/page.tsx, PATCH /v1/orgs/:id)
+// ---------------------------------------------------------------------------
+
+const ORG_ROLE_RANK: Readonly<Record<string, number>> = {
+  ORG_OWNER: 5,
+  ORG_ADMIN: 4,
+  ORG_SECURITY_ADMIN: 3,
+  ORG_BILLING_ADMIN: 3,
+  ORG_AUDITOR: 2,
+  ORG_MEMBER: 1,
+};
+/** ORG_ADMIN+ may change the identity metadata; the route enforces the same minRole. */
+export function canEditOrgSettings(org: OrgDetail): boolean {
+  return (ORG_ROLE_RANK[(org.callerRole ?? "").toUpperCase()] ?? 0) >= ORG_ROLE_RANK.ORG_ADMIN;
+}
+
+export interface OrgSettingsDraft {
+  name: string;
+  legalName: string;
+  legalEmail: string;
+  address: string;
+  timezone: string;
+  logoUrl: string;
+}
+export function orgSettingsDraft(org: OrgDetail): OrgSettingsDraft {
+  return {
+    name: org.name ?? "",
+    legalName: org.legalName ?? "",
+    legalEmail: org.legalEmail ?? "",
+    address: org.address ?? "",
+    timezone: org.timezone ?? "",
+    logoUrl: org.logoUrl ?? "",
+  };
+}
+/** The web's body: name trimmed, every optional field null when blank. */
+export function buildOrgSettingsBody(d: OrgSettingsDraft) {
+  const orNull = (v: string) => (v.trim() === "" ? null : v.trim());
+  return {
+    name: d.name.trim(),
+    legalName: orNull(d.legalName),
+    legalEmail: orNull(d.legalEmail),
+    address: orNull(d.address),
+    timezone: orNull(d.timezone),
+    logoUrl: orNull(d.logoUrl),
+  };
+}
+export const ORG_SETTINGS_COPY = {
+  title: "Settings",
+  subtitle: "Identity metadata. ORG_ADMIN+ required.",
+  forbidden: "You don’t have permission to change settings. Ask an organization admin.",
+  nameRequired: "Name is required.",
+  failed: "Failed to save settings.",
+  save: "Save settings",
+  saving: "Saving…",
+} as const;
+
+// ---------------------------------------------------------------------------
+// T-14 — organization workspace suspend / resume (web OrgWorkspaceLifecycleControls)
+//   POST /v1/orgs/:id/workspaces/:teamId/{suspend|resume}, body {}
+//   200 { suspend: { membersSuspended } } | { resume: { membersReactivated } }
+//   403 admin_required · 404 not bound · 409 not an organization workspace
+// ---------------------------------------------------------------------------
+
+export type OrgWorkspaceAction = "suspend" | "resume";
+
+export function buildOrgWorkspaceLifecyclePath(orgId: string, workspaceId: string, action: OrgWorkspaceAction): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/workspaces/${encodeURIComponent(workspaceId)}/${action}`;
+}
+
+/** The denial bodies carry no message, so the STATUS is the signal — the web's copy per status. */
+export function orgWorkspaceLifecycleDenial(status: number | null, action: OrgWorkspaceAction, fallback: string | null): string {
+  if (status === 403) return "You don't have permission to change this workspace. Organization admins and owners can suspend and resume workspaces.";
+  if (status === 404) return "This workspace is no longer bound to this organization. The list has been reloaded.";
+  if (status === 409) return "Only organization workspaces can be suspended here. Personal spaces and individually owned workspaces are governed by their owner.";
+  return fallback ?? (action === "suspend" ? "Could not suspend this workspace. Nothing was changed." : "Could not resume this workspace. Nothing was changed.");
+}
+
+export function orgWorkspaceLifecycleNotice(action: OrgWorkspaceAction, workspaceName: string, payload: unknown): string {
+  if (action === "suspend") {
+    const n = obj(obj(payload).suspend).membersSuspended;
+    const c = typeof n === "number" ? n : 0;
+    return `${workspaceName} is suspended. ${c} member${c === 1 ? "" : "s"} lost access and webhook delivery is paused. Evidence and audit history are untouched.`;
+  }
+  const n = obj(obj(payload).resume).membersReactivated;
+  const c = typeof n === "number" ? n : 0;
+  return `${workspaceName} is active again. ${c} member${c === 1 ? "" : "s"} regained access; webhooks stay disabled until you re-enable them.`;
+}
+
+export const ORG_SUSPEND_CONSEQUENCE = (name: string) =>
+  `Suspend ${name}? Every active member loses access, anyone working in it is returned to their personal space, and webhook delivery pauses. Evidence, cases and audit history are not deleted, and Resume brings the members back.`;
+
+// ---------------------------------------------------------------------------
+// Detail overview (web organizations/[id]/page.tsx — the four overview tiles,
+// the members summary and the lifecycle card copy)
+// ---------------------------------------------------------------------------
+
+const ORG_ROLE_ORDER = ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR", "ORG_MEMBER"] as const;
+
+/** The web's `roleTallyShort`: "1 Owner · 2 Member", roles in rank order, zero counts omitted. */
+export function orgRoleTally(members: ReadonlyArray<{ role: string }>): string {
+  const counts = new Map<string, number>();
+  for (const m of members) counts.set(m.role.toUpperCase(), (counts.get(m.role.toUpperCase()) ?? 0) + 1);
+  const parts = ORG_ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).map((r) => `${counts.get(r)} ${orgRoleLabel(r)}`);
+  return parts.length === 0 ? "—" : parts.join(" · ");
+}
+
+/**
+ * `callerCanSeeBilling` from GET /v1/orgs/:id/workspaces
+ * (organizations.routes.ts: true for ORG_OWNER / ORG_ADMIN / ORG_BILLING_ADMIN).
+ * The per-row `billing` object is present only when it is true.
+ */
+export function parseOrgWorkspacesCanSeeBilling(payload: unknown): boolean {
+  return obj(payload).callerCanSeeBilling === true;
+}
+
+/** `summary.totalPending` from GET /v1/orgs/:id/invites (ORG_ADMIN+). */
+export function parseOrgPendingInviteTotal(payload: unknown): number | null {
+  return num(obj(obj(payload).summary).totalPending);
+}
+
+/** The web's `billingTileSummary`: the dominant plan, or "Mixed plans", plus the over-seat count. */
+export function orgBillingTileSummary(workspaces: ReadonlyArray<OrgWorkspace>): string {
+  const plans = new Map<string, number>();
+  let over = 0;
+  for (const w of workspaces) {
+    if (!w.billing) continue;
+    plans.set(w.billing.plan, (plans.get(w.billing.plan) ?? 0) + 1);
+    if (w.billing.overSeatLimit) over += 1;
+  }
+  if (plans.size === 0) return "—";
+  const suffix = over > 0 ? ` · ${over} over seat limit` : "";
+  if (plans.size === 1) {
+    const [plan, count] = [...plans.entries()][0] as [string, number];
+    return `${count}× ${plan}${suffix}`;
+  }
+  return `Mixed plans${suffix}`;
+}
+
+/**
+ * The audit event count. `summary.totalEvents` is the length of the page the
+ * route returned (organizations.routes.ts: `totalEvents: trimmedEvents.length`),
+ * not the organization's total, so a page with a next cursor is "N+" rather
+ * than a total the server never computed.
+ */
+export function orgAuditCountLabel(count: number, hasMore: boolean): string {
+  return `${count}${hasMore ? "+" : ""} event${count === 1 && !hasMore ? "" : "s"}`;
+}
+
+const ORG_CLOSURE_STATUS_LABEL: Readonly<Record<string, string>> = {
+  BLOCKED: "Blocked — action needed",
+  COOLING_OFF: "Scheduled — cancellation window open",
+  SCHEDULED: "Scheduled",
+  PROCESSING: "Closing…",
+  COMPLETED: "Closed",
+  CANCELLED: "Cancelled",
+  FAILED: "Failed",
+};
+/** The web's ORG_CLOSURE_STATUS_LABEL, falling back to the status as words. */
+export function orgClosureStatusLabel(status: string): string {
+  return ORG_CLOSURE_STATUS_LABEL[status] ?? auditEventLabel(status.toLowerCase());
+}
+
+export const ORG_DETAIL_COPY = {
+  eyebrow: "Organization · Governance",
+  subtitle:
+    "Governance and identity tenant — members, roles, invites, audit timeline, and legal metadata. Workspace evidence access is managed separately.",
+  allOrgs: "← All organizations",
+  workspaceAdmin: "Workspace admin →",
+  leave: "Leave organization",
+  leaveConsequence:
+    "You will immediately lose access to this organization and its workspaces. Your past activity remains attributed to you in the organization's audit records. An owner or admin must re-invite you to return.",
+  leaveOwnerRequired:
+    "You are the organization owner. Transfer ownership or close the organization before leaving.",
+  leaveFailed: "Could not leave the organization. Please try again.",
+  membersTitle: "Members & invites",
+  membersSubtitle:
+    "Managing members, roles, and pending invites moved to the Admin console — one canonical surface for member governance.",
+  workspacesSubtitle:
+    "Operational evidence, cases, and reviewer queues live inside each workspace. Org-level membership does not grant workspace access — that is workspace-scoped.",
+  workspacesEmptyTitle: "No workspaces bound to this organization.",
+  workspacesEmptyPurpose:
+    "Workspaces hold this organization’s evidence, cases, and reviewer queues. Bind one in Workspace administration to start capturing.",
+  openWorkspaceAdmin: "Open Workspace administration →",
+  auditSubtitle:
+    "Organization governance events, newest first. Requires ORG_AUDITOR or higher.",
+  auditorOnly: "Requires ORG_AUDITOR or higher.",
+  lifecycleTitle: "Organization lifecycle",
+  lifecycleSubtitle:
+    "Owner-only, verified lifecycle actions. Non-owner members leave from the page header; owners must transfer ownership (or close the organization) first.",
+  ownerOnlyNote:
+    "Ownership transfer and organization closure are available to the organization owner only. To leave this organization, use Leave organization in the page header.",
+  transferLead: "The new owner must already be a member. You become an admin; the organization is never left without an owner.",
+  transferNoTargets: "No other members yet — invite a member before transferring ownership.",
+  closureLead: (days: number) =>
+    `Archives the organization after a ${days}-day cancellation window. Workspace access and machine credentials are revoked; evidence is never deleted by closure — it stays governed by retention and legal-hold rules.`,
+  keep: "Keep the organization",
+} as const;
+
+/** The web list page's copy (organizations/page.tsx). */
+export const ORG_LIST_COPY = {
+  eyebrow: "Account · Organizations",
+  subtitle:
+    "Organizations are the governance + billing tenant. Members, invites, and audit live here. Operational work — evidence, cases, reviewer queues — continues to live inside each workspace.",
+  loadFailed: "Couldn’t load organizations.",
+  emptyTitle: "You’re not a member of any organization yet.",
+  // The web's first bullet ("Create an organization to become its ORG_OWNER")
+  // describes the self-service creation that page's own header retired; the
+  // provisioning truth is said instead.
+  emptyBullets: [
+    "Enterprise organizations are provisioned as part of a PROOVRA Enterprise agreement.",
+    "Accept an invite token if an organization administrator shared one with you.",
+    "For workspace-level operations (evidence, cases, reviewers), open Workspace administration.",
+  ],
+  footer:
+    "Looking for evidence, cases, reviewer queues, or per-workspace billing? Those are workspace-scoped. Open the relevant workspace from Workspace administration.",
+} as const;

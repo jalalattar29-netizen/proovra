@@ -1,0 +1,708 @@
+{
+ "route": "/reports",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/reports/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/reports.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 171,
+   "elements": 384,
+   "texts": 62,
+   "distinctTexts": 56,
+   "handlers": 57,
+   "conditionals": 1398,
+   "apiPaths": 9,
+   "distinctApi": 7,
+   "styleRefs": 259,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "lucide-react",
+    "zod",
+    "react-dom"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 151,
+   "texts": 18,
+   "distinctTexts": 15,
+   "handlers": 31,
+   "conditionals": 1076,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 183,
+   "stylesheetRules": 83,
+   "themeTokens": 243,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 61,
+  "natLabelled": 17,
+  "paired": 2,
+  "roleDiff": 1,
+  "missing": 58,
+  "extraInNative": 12,
+  "webUnlabelled": 361,
+  "missingWithRolePresent": 53,
+  "missingWithRoleAbsent": 5,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Lifecycle:",
+     "webRole": "TEXT",
+     "natRole": "TAB",
+     "web": "apps/web/components/governance/GovernedExportAction.tsx:295",
+     "nat": "apps/mobile/app/(stack)/reports.tsx:148"
+    }
+   ],
+   "missing": [
+    {
+     "role": "SECTION",
+     "label": "Operational summary",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:632",
+     "natHasRole": false
+    },
+    {
+     "role": "SECTION",
+     "label": "Operational summary",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:656",
+     "natHasRole": false
+    },
+    {
+     "role": "SECTION",
+     "label": "Filters",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:671",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Search by evidence title",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:673",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Artifact lifecycle filters",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:680",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Pagination",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:745",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Customer ID supplied by your organization",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:879",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reports & Artifacts",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1428",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reports & Artifacts",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1461",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reports & Artifacts",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1496",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Temporarily unavailable",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1534",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Reports & Artifacts couldn't load",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1543",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Reports &amp; Artifacts",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:597",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Generated report snapshots and verification packages. These are workspace deliverables — they record integrity at the time of generation and do NOT assert legal admissibility, authenticity, or \"court-ready\" status.",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:602",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refreshed",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:613",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Summary is temporarily unavailable. The artifact list below remains usable.",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:663",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Artifact list is temporarily unavailable. Retry shortly.",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:723",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Previous",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:757",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Page",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:760",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Next",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:773",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Browsing this page never triggers report or package generation and never marks any artifact as viewed. Signed download URLs are only minted on explicit per-row action (the Download buttons above), the same gated path used by the evidence-detail page.",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:785",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:838",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Package",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:846",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrity:",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:859",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case:",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:872",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Customer:",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:884",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Captured",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:888",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Export blocked by governance:",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:896",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Package blocked —",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1193",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Needs a workspace association",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1219",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open evidence",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1250",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open evidence",
+     "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1414",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A workspace context is required to check eligibility.",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Checking eligibility for",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "— eligibility unavailable",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:235",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss contextual help",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Help ·",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Hide",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Reports & packages",
+     "at": "apps/mobile/app/(stack)/reports.tsx:128"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/reports.tsx:133"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Deliverables are unavailable",
+     "at": "apps/mobile/app/(stack)/reports.tsx:163"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear filter",
+     "at": "apps/mobile/app/(stack)/reports.tsx:177"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Get",
+     "at": "apps/mobile/app/(stack)/reports.tsx:217"
+    },
+    {
+     "role": "TEXT",
+     "label": "Generation and download live on each evidence record, where the backend gates them.",
+     "at": "apps/mobile/app/(stack)/reports.tsx:238"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 643,
+  "webClassesUnresolved": 3,
+  "webNonLiteralClass": 20,
+  "webCompetingRules": 42,
+  "webDistinctUnresolvedClasses": 1,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 74,
+  "webDistinctColors": 51,
+  "natDistinctColors": 19,
+  "sharedColors": 6,
+  "webOnlyColors": 45,
+  "webOnlyColorSample": [
+   "rgba(91, 79, 233, 0.1)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(91, 79, 233, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.6)",
+   "rgba(15, 23, 42, 0.03)",
+   "rgba(15, 23, 42, 0.08)",
+   "#172033",
+   "#344054",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(15, 23, 42, 0.04)",
+   "#2563eb",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "#ea580c",
+   "rgba(22, 122, 91, 0.16)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "#667085",
+   "rgba(99, 91, 255, 0.08)",
+   "rgba(100, 116, 139, 0.36)",
+   "#8793a6"
+  ],
+  "sharedColorSample": [
+   "#475569",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.09)",
+   "#0f172a",
+   "#7c3aed",
+   "#6d28d9"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1398,
+  "natConditionals": 1076,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 57,
+  "natHandlers": 31,
+  "webHandlerSample": [
+   "onChange=changeSearch @apps/web/components/reports-experience/ReportsIndex.tsx:673",
+   "onClick=() => changeFilter(key) @apps/web/components/reports-experience/ReportsIndex.tsx:688",
+   "onClick=() => setCursors((c) => c.slice(0, -1)) @apps/web/components/reports-experience/ReportsIndex.tsx:750",
+   "onClick=() => { const next = sections.artifacts.nextCursor; if (next @apps/web/components/reports-experience/ReportsIndex.tsx:763",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/reports-experience/ReportsIndex.tsx:863",
+   "onAction=() => void triggerReport({ preventDefault() {}, stopPropagat @apps/web/components/reports-experience/ReportsIndex.tsx:1110",
+   "onClick=onClick @apps/web/components/reports-experience/ReportsIndex.tsx:1122",
+   "onAction=() => void triggerPackage({ preventDefault() {}, stopPropaga @apps/web/components/reports-experience/ReportsIndex.tsx:1160",
+   "onClick=onClick @apps/web/components/reports-experience/ReportsIndex.tsx:1172",
+   "onClick=triggerRegenerate @apps/web/components/reports-experience/ReportsIndex.tsx:1223",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=() => setExpanded((p) => !p) @apps/web/components/contextual-help/ContextualHelp.tsx:172",
+   "onClick=dismiss @apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=onClick @apps/web/components/ui/Card.tsx:250",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/reports.tsx:133",
+   "onChange=setFilter @apps/mobile/app/(stack)/reports.tsx:148",
+   "onRetry=() => void load(null, []) @apps/mobile/app/(stack)/reports.tsx:156",
+   "onPress=() => setFilter(\"all\") @apps/mobile/app/(stack)/reports.tsx:177",
+   "onPress=() => router.push(`/evidence/${row.evidenceId}`) @apps/mobile/app/(stack)/reports.tsx:195",
+   "onPress=() => void retrieve(row.evidenceId) @apps/mobile/app/(stack)/reports.tsx:217",
+   "onLoadMore=() => void load(cursor, items) @apps/mobile/app/(stack)/reports.tsx:232",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 7,
+  "natApi": 4,
+  "shared": 4,
+  "onlyWeb": 3,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/reports",
+   "/v1/governance/export-eligibility?teamId=${…}",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/reports/artifacts?teamId=${…}",
+   "/v1/reports/artifacts?${…}",
+   "/v1/evidence/${…}",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/reports": "apps/web/components/reports-experience/ReportsIndex.tsx:221",
+   "/v1/reports/artifacts?teamId=${…}": "apps/web/components/reports-experience/ReportsIndex.tsx:331",
+   "/v1/reports/artifacts?${…}": "apps/web/components/reports-experience/ReportsIndex.tsx:382",
+   "/v1/evidence/${…}": "apps/web/components/reports-experience/ReportsIndex.tsx:1022",
+   "/v1/governance/export-eligibility?teamId=${…}": "apps/web/components/governance/GovernedExportAction.tsx:124",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/reports/artifacts?${…}": "apps/mobile/src/product/reports.ts:183",
+   "/v1/evidence/${…}": "apps/mobile/src/product/reports.ts:227",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

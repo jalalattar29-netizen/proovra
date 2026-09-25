@@ -1,0 +1,70 @@
+{
+ "route": "/auth/mfa-recovery/verify",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "COMPONENT",
+   "label": "Verifying your recovery request",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:174",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Email verified",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:184",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Hold tight — we&apos;re confirming your recovery link…",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:176",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do NOT need to take any further action until they reach out.",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:189",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "This step confirmed your email only. It did NOT log you in and did NOT change your two-factor authentication. You will still need to enroll a fresh authenticator once an admin approves your reset.",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:194",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue to home",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:209",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "If you did not request an MFA recovery, contact your organization administrator immediately.",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:324",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:335",
+   "natHasRole": true,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on a different native screen (placement difference)"
+  }
+ ]
+}

@@ -1,0 +1,269 @@
+{
+ "route": "/trust-center",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/trust-center/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/trust-center.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "elements": 0,
+   "texts": 0,
+   "distinctTexts": 0,
+   "handlers": 0,
+   "conditionals": 0,
+   "apiPaths": 0,
+   "distinctApi": 0,
+   "styleRefs": 0,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 0,
+   "unresolvedImports": 0,
+   "external": [
+    "next/navigation"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 168,
+   "texts": 23,
+   "distinctTexts": 19,
+   "handlers": 29,
+   "conditionals": 1072,
+   "apiPaths": 5,
+   "distinctApi": 5,
+   "styleRefs": 211,
+   "stylesheetRules": 83,
+   "themeTokens": 264,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 0,
+  "natLabelled": 22,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 0,
+  "extraInNative": 22,
+  "webUnlabelled": 0,
+  "missingWithRolePresent": 0,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Trust Center",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:109"
+    },
+    {
+     "role": "BADGE",
+     "label": "What PROOVRA does not claim",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:137"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "How PROOVRA works",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:143"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Loading…",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:183"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Not included in your plan",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:185"
+    },
+    {
+     "role": "BADGE",
+     "label": "Unavailable",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:192"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:196"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing published yet",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:204"
+    },
+    {
+     "role": "TEXT",
+     "label": "Limitations",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:165"
+    },
+    {
+     "role": "TEXT",
+     "label": "This section could not be read. The other sections are unaffected.",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+    },
+    {
+     "role": "TEXT",
+     "label": "This is the only version on record.",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 0,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 85,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 0,
+  "natConditionals": 1072,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 0,
+  "natHandlers": 29,
+  "webHandlerSample": [],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/trust-center.tsx:109",
+   "onPress=() => void load() @apps/mobile/app/(stack)/trust-center.tsx:196",
+   "onPress=() => setOpen(a) @apps/mobile/app/(stack)/trust-center.tsx:212",
+   "onClose=() => setOpen(null) @apps/mobile/app/(stack)/trust-center.tsx:225",
+   "onPress=() => setShowVersions((v) => !v) @apps/mobile/app/(stack)/trust-center.tsx:255",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 0,
+  "natApi": 5,
+  "shared": 0,
+  "onlyWeb": 0,
+  "onlyNative": 5,
+  "onlyWebList": [],
+  "onlyNativeList": [
+   "/v1/trust/articles?kind=${…}",
+   "/v1/trust/articles/${…}",
+   "/v1/external-intake/:token/* (POST)",
+   "/v1/external-review/access/:token/*",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)"
+  ],
+  "sharedList": [],
+  "webApiWhere": {},
+  "natApiWhere": {
+   "/v1/trust/articles?kind=${…}": "apps/mobile/src/product/trust-center.ts:62",
+   "/v1/trust/articles/${…}": "apps/mobile/src/product/trust-center.ts:121",
+   "/v1/external-intake/:token/* (POST)": "packages/shared-evidence-presentation/src/external-access-content.ts:114",
+   "/v1/external-review/access/:token/*": "packages/shared-evidence-presentation/src/external-access-content.ts:128",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)": "packages/shared-evidence-presentation/src/external-access-content.ts:142"
+  }
+ }
+}

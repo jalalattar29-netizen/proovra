@@ -1,0 +1,17 @@
+{
+ "route": "/collaboration-teams/[teamId]/collaboration",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Opening the team discussion…",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx:40",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

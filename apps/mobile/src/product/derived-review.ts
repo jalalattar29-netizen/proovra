@@ -132,6 +132,8 @@ export interface DerivedBlock {
   confidence: BlockConfidence;
   observedInFrames: number;
   keyframeIds: string[];
+  /** T-12 — where each block came from (EvidenceDerivedReviewTab.tsx "View source"). */
+  sources: Array<{ evidencePartId: string; startMs: number | null; endMs: number | null }>;
 }
 
 export interface DerivedProjection {
@@ -197,6 +199,14 @@ function parseBlocks(v: unknown): DerivedBlock[] {
         confidence: (CONFIDENCES.has(conf) ? conf : "UNRESOLVED") as BlockConfidence,
         observedInFrames: num(b.observedInFrames) ?? 0,
         keyframeIds: rows(b.sources).flatMap((s) => strList(obj(s).keyframeIds)),
+        sources: rows(b.sources)
+          .map((raw) => {
+            const src = obj(raw);
+            const part = str(src.evidencePartId);
+            const range = Array.isArray(src.offsetMsRange) ? (src.offsetMsRange as unknown[]) : [];
+            return part ? { evidencePartId: part, startMs: num(range[0]), endMs: num(range[1]) } : null;
+          })
+          .filter((x): x is { evidencePartId: string; startMs: number | null; endMs: number | null } => x !== null),
       };
     })
     .filter((b): b is DerivedBlock => b !== null)
@@ -211,6 +221,24 @@ function parseBlocks(v: unknown): DerivedBlock[] {
  * API base the app is already talking to — the same normalisation the web hook
  * performs, for the same reason.
  */
+/** "Source part 1a2b3c4d… · 1.2s–3.4s" — EvidenceDerivedReviewTab.tsx, verbatim format. */
+export function sourceLine(src: { evidencePartId: string; startMs: number | null; endMs: number | null }): string {
+  const range =
+    src.startMs !== null && src.endMs !== null ? ` · ${(src.startMs / 1000).toFixed(1)}s–${(src.endMs / 1000).toFixed(1)}s` : "";
+  return `Source part ${src.evidencePartId.slice(0, 8)}…${range}`;
+}
+
+/** Up to six keyframe URLs for a block, in its source order; missing URLs are skipped. */
+export function blockKeyframeUrls(block: { keyframeIds: string[] }, urls: Record<string, string | null>): string[] {
+  const out: string[] = [];
+  for (const id of block.keyframeIds) {
+    const u = urls[id];
+    if (u && !out.includes(u)) out.push(u);
+    if (out.length === 6) break;
+  }
+  return out;
+}
+
 export function normalizeKeyframeUrls(
   urls: unknown,
   apiBase: string,

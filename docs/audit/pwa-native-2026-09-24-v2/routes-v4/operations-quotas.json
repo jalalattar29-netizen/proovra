@@ -1,0 +1,259 @@
+{
+ "route": "/operations/quotas",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/quotas/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/operations/quotas.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 25,
+   "labelled": 20,
+   "unboundExports": 3
+  },
+  "native": {
+   "files": 14,
+   "labelled": 11,
+   "unboundExports": 3
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 17,
+  "extraInNative": 11,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "Monitor platform usage and",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Quotas & usage",
+    "at": "apps/mobile/app/(stack)/operations/quotas.tsx:133"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "used ·",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "remaining",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "% used",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:194",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review analysis activity, cost metrics, quota consumption, and active service usage from one dashboard.",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Current Quotas",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:428",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Quotas reset on",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:460",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cost Overview",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:486",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Total Cost",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:499",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This Month",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:519",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active Services",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:546",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active API Keys",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:559",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active Batch Jobs",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:579",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Types Analyzed",
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:610",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Quotas & usage",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:133"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:138"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Allowances",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:142"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading allowances",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:143"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No allowances are published for this account.",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:148"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Analyses",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:161"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading usage",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:162"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No usage has been recorded.",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:169"
+  },
+  {
+   "role": "TEXT",
+   "label": "No limit is published for this allowance.",
+   "at": "apps/mobile/app/(stack)/operations/quotas.tsx:66"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\dashboard\\DashboardShell.tsx",
+   "name": "DashboardShell"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\operations.ts",
+   "name": "QuotaLine"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\operations.ts",
+   "name": "UsageStats"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

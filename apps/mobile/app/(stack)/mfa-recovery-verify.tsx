@@ -26,6 +26,8 @@ import {
 } from "../../src/ui";
 import {
   MFA_RECOVERY_BOUNDARY,
+  MFA_RECOVERY_NOT_YOU,
+  MFA_RECOVERY_VERIFYING,
   MFA_RECOVERY_PAGE_VIEWED_PATH,
   SESSION_LIGHT_PATH,
   buildVerifyEmailPath,
@@ -106,7 +108,7 @@ export default function MfaRecoveryVerifyScreen() {
       />
 
       {state.kind === "verifying" ? (
-        <ProovraLoadingState label="Confirming your recovery link" />
+        <ProovraLoadingState label={MFA_RECOVERY_VERIFYING} />
       ) : null}
 
       {state.kind === "verified" ? (
@@ -138,6 +140,8 @@ export default function MfaRecoveryVerifyScreen() {
           />
         </ProovraCard>
       ) : null}
+      {/* Every state, as the web shell carries it. */}
+      <ProovraText variant="label" color={theme.color.ink.muted}>{MFA_RECOVERY_NOT_YOU}</ProovraText>
     </ProovraScreen>
   );
 }

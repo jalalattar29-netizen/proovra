@@ -275,3 +275,12 @@ test("creating reuses the version rules rather than restating them", () => {
   assert.equal(C.validateNewSet("n", "t", [row({ key: "" })]), C.validateDraft("t", [row({ key: "" })]));
   assert.equal(C.validateNewSet("n", "t", [row()]), null);
 });
+
+test("the list's criteria count is the server's `_count.criteria`", () => {
+  // GET /v1/reviewer-criteria selects the latest version with _count.criteria —
+  // not the criteria rows — so counting rows always said "0 criteria".
+  const sets = C.parseCriteriaSets({
+    sets: [{ id: "s1", name: "Water damage", status: "PUBLISHED", versions: [{ id: "v3", version: 3, title: "v3", publishedAt: "2026-09-01T00:00:00.000Z", _count: { criteria: 7 } }] }],
+  });
+  assert.equal(sets[0].versions[0].criteriaCount, 7);
+});

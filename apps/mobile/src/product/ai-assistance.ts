@@ -44,6 +44,18 @@ export interface AiFeature {
   state: AiFeatureState;
 }
 
+/**
+ * The one case where two facts differ and both matter (web AiStatusRow :112):
+ * the workspace has AI on, but the platform is not serving it. "Unavailable"
+ * alone would send an administrator hunting for a setting already right.
+ */
+export const AI_ENABLED_BUT_UNAVAILABLE =
+  "This workspace has AI assistance enabled; the platform is not serving AI requests at the moment. No change is needed here.";
+
+export function aiStatusDetail(status: string | null, enabled: boolean, fallback: string): string {
+  return status === "TEMPORARILY_UNAVAILABLE" && enabled ? AI_ENABLED_BUT_UNAVAILABLE : fallback;
+}
+
 export interface AiAssistanceSettings {
   status: AiAssistanceStatus | null;
   available: boolean;
@@ -228,3 +240,73 @@ export function aiProcessingLines(processing: AiAssistanceSettings["processing"]
   }
   return lines;
 }
+
+/* ===================================================================== */
+/* WEB PARITY — AiReadOnlyView.tsx / lib/ai/assistanceStatus.ts          */
+/* ===================================================================== */
+
+export type AiManagedBy = "YOU" | "WORKSPACE_ADMINS" | "ORGANIZATION" | "PLAN" | "PLATFORM";
+
+/**
+ * Who decides (lib/ai/assistanceStatus.ts resolveManagedBy). `canManage` is
+ * the SERVER capability `SETTINGS_MANAGE` for the active workspace; null =
+ * unknown, which never claims the viewer decides.
+ */
+export function resolveAiManagedBy(input: {
+  status: AiAssistanceStatus | null;
+  workspaceKind: "PERSONAL" | "ORGANIZATION" | null;
+  canManage: boolean | null;
+}): AiManagedBy {
+  if (input.status === "TEMPORARILY_UNAVAILABLE") return "PLATFORM";
+  if (input.status === "NOT_INCLUDED_IN_PLAN") return "PLAN";
+  if (input.workspaceKind === "ORGANIZATION") {
+    return input.canManage === true ? "WORKSPACE_ADMINS" : "ORGANIZATION";
+  }
+  return input.canManage === true ? "YOU" : "WORKSPACE_ADMINS";
+}
+
+export function aiManagedByLabel(managedBy: AiManagedBy): string {
+  switch (managedBy) {
+    case "YOU":
+      return "Managed by you";
+    case "WORKSPACE_ADMINS":
+      return "Managed by workspace administrators";
+    case "ORGANIZATION":
+      return "Managed by your organization";
+    case "PLAN":
+      return "Determined by your plan";
+    case "PLATFORM":
+    default:
+      return "PROOVRA platform availability";
+  }
+}
+
+/**
+ * The web's "How AI uses your data" rows, from the server's own processing
+ * block — the web hard-codes the words; native keeps them tied to the data,
+ * and a vocabulary it does not know is shown rather than hidden.
+ */
+export function aiProcessingRows(processing: AiAssistanceSettings["processing"]): Array<{ name: string; value: string }> {
+  return [
+    {
+      name: "Processing mode",
+      value: processing.mode === "METADATA_FIRST" ? "Metadata first" : processing.mode || "Not stated",
+    },
+    {
+      name: "Raw evidence content",
+      value: processing.rawEvidenceSentByDefault
+        ? "Sent to the AI provider by default"
+        : "Not sent to the AI provider by default",
+    },
+    {
+      name: "AI decisions",
+      value: processing.decisions === "ADVISORY_ONLY" ? "Advisory only" : processing.decisions || "Not stated",
+    },
+  ];
+}
+
+export const AI_ADVISORY_NOTICE =
+  "AI-assisted features in PROOVRA are advisory only and do not determine factual truth, authenticity, or legal admissibility.";
+
+export const AI_NOT_INCLUDED_COPY =
+  "AI assistance is not included in your plan. Plans with AI assistance include a monthly operation allowance for advisory features like the support assistant and capture assistance.";

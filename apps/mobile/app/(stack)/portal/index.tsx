@@ -24,10 +24,10 @@ import {
   ProovraPageHeader,
 } from "../../../src/ui";
 
-/** The auth route bounds the raw token at 8..512; refuse below that here. */
+/** POST /v1/portal/auth's PortalAuthBody bounds the raw token at 8..256; refuse outside that here. */
 function looksLikePortalToken(value: string): boolean {
   const v = value.trim();
-  return v.length >= 8 && v.length <= 512;
+  return v.length >= 8 && v.length <= 256;
 }
 
 export default function PortalEntryScreen() {

@@ -1,0 +1,435 @@
+{
+ "route": "/collaboration-teams/[teamId]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Priority",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:296",
+   "nat": "apps/mobile/src/ui/collaboration-work.tsx:300",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "label": "Discussion",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:791",
+   "nat": "apps/mobile/src/ui/discussion-section.tsx:196",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Description",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:325",
+   "nat": "apps/mobile/src/ui/collaboration-settings.tsx:208",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "BOX",
+   "label": "Breadcrumb",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:524",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "LINK",
+   "label": "Invite and manage external reviewers via the External Review console",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:794",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no LINK element at all"
+  },
+  {
+   "role": "BOX",
+   "label": "Team sections",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:808",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading team…",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:343",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Fetching members, invites, and assignments.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:345",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:383",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "We couldn&apos;t load this team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:394",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request id:",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:409",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Collaboration Teams",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:542",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Archived",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:637",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role:",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:678",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last activity",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:694",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Add people",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:740",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create assignment",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:764",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "External reviewers",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:801",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Viewing as a workspace administrator.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:865",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You are not a member of this team, so you can see its work, members and history but cannot change them or take part in the discussion. A team lead or admin can add you if you need to participate.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:867",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "member",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:99"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This team is archived.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:903",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Its members, work and history stay readable, but changes are disabled.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:903",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen in Settings",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:914",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Discussion is for members of this team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:942",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No members to show.",
+    "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You are viewing this team as a workspace administrator. Joining the team is what grants a place in its conversation.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:944",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "plan ·",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:138",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Archiving is the action for a group that has done work, and it already frees the plan slot.",
+    "at": "apps/mobile/src/ui/collaboration-settings.tsx:334"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Upgrade",
+   "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add context so the assignee knows what's expected.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:327",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create assignment",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:194",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Delegate a case, evidence item, or evidence review to a teammate or to the team.",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Target type",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigning",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": ". Search again to choose a different",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Assignee",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:282",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Due date",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:347",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  }
+ ]
+}

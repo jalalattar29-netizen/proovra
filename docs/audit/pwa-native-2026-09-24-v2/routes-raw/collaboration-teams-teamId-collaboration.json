@@ -1,0 +1,500 @@
+{
+ "route": "/collaboration-teams/[teamId]/collaboration",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "elements": 2,
+   "texts": 1,
+   "distinctTexts": 1,
+   "handlers": 0,
+   "conditionals": 1,
+   "apiPaths": 0,
+   "distinctApi": 0,
+   "styleRefs": 2,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 0,
+   "unresolvedImports": 0,
+   "external": [
+    "next/navigation",
+    "react"
+   ]
+  },
+  "native": {
+   "files": 145,
+   "elements": 250,
+   "texts": 64,
+   "distinctTexts": 56,
+   "handlers": 64,
+   "conditionals": 1232,
+   "apiPaths": 10,
+   "distinctApi": 5,
+   "styleRefs": 248,
+   "stylesheetRules": 88,
+   "themeTokens": 285,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 1,
+  "natLabelled": 61,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 1,
+  "extraInNative": 61,
+  "webUnlabelled": 2,
+  "missingWithRolePresent": 1,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Opening the team discussion…",
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx:40",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading group",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:81"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Not available",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Group not found",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:83"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:83"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:90"
+    },
+    {
+     "role": "SECTION",
+     "label": "Members",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:105"
+    },
+    {
+     "role": "SECTION",
+     "label": "Pending invitations",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:123"
+    },
+    {
+     "role": "BUTTON",
+     "label": "People in this workspace",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:157"
+    },
+    {
+     "role": "TEXT",
+     "label": "member",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:99"
+    },
+    {
+     "role": "TEXT",
+     "label": "No members to show.",
+     "at": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:107"
+    },
+    {
+     "role": "SECTION",
+     "label": "Group settings",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:198"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Name",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:199"
+    },
+    {
+     "role": "INPUT",
+     "label": "Group name",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:200"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Description",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:208"
+    },
+    {
+     "role": "INPUT",
+     "label": "Group description",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:209"
+    },
+    {
+     "role": "LIST",
+     "label": "Group type",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:219"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Save changes",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:225"
+    },
+    {
+     "role": "SECTION",
+     "label": "Roles",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:241"
+    },
+    {
+     "role": "SECTION",
+     "label": "History",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:260"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This group's history is visible to its members.",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:262"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing has been recorded yet.",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:267"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Load older",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:282"
+    },
+    {
+     "role": "SECTION",
+     "label": "This group",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:293"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Reopen this group",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:295"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Archive this group",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:302"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Delete this group",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:317"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Group type",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:342"
+    },
+    {
+     "role": "TEXT",
+     "label": "This group cannot be deleted",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:326"
+    },
+    {
+     "role": "TEXT",
+     "label": "Archiving is the action for a group that has done work, and it already frees the plan slot.",
+     "at": "apps/mobile/src/ui/collaboration-settings.tsx:334"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "SECTION",
+     "label": "Work",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:164"
+    },
+    {
+     "role": "INPUT",
+     "label": "Search assignments",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:165"
+    },
+    {
+     "role": "TAB",
+     "label": "Status",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:173"
+    },
+    {
+     "role": "TAB",
+     "label": "Record",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:185"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading work",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:198"
+    },
+    {
+     "role": "BADGE",
+     "label": "Overdue",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:252"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Load more",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:264"
+    },
+    {
+     "role": "LIST",
+     "label": "Team-level",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:316"
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:286"
+    },
+    {
+     "role": "TEXT",
+     "label": "Priority",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:300"
+    },
+    {
+     "role": "TEXT",
+     "label": "Who is carrying it",
+     "at": "apps/mobile/src/ui/collaboration-work.tsx:314"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back to discussions",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:130"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading messages",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:139"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No messages in this thread yet.",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:142"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reply",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:169"
+    },
+    {
+     "role": "INPUT",
+     "label": "Write a message",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:170"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Send",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:178"
+    },
+    {
+     "role": "SECTION",
+     "label": "Discussion",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:196"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading discussions",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:197"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Discussions are open to reviewers in this group.",
+     "at": "apps/mobile/src/ui/discussion-section.tsx:202"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 3,
+  "webClassesUnresolved": 1,
+  "webNonLiteralClass": 0,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 1,
+  "natPropsResolved": 241,
+  "natTokenUnresolved": 90,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 1,
+  "natConditionals": 1232,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 0,
+  "natHandlers": 64,
+  "webHandlerSample": [],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/collaboration-team/[id].tsx:82",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/collaboration-team/[id].tsx:83",
+   "onRetry=load @apps/mobile/app/(stack)/collaboration-team/[id].tsx:84",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/collaboration-team/[id].tsx:90",
+   "onChanged=() => void load() @apps/mobile/app/(stack)/collaboration-team/[id].tsx:151",
+   "onDeleted=() => router.back() @apps/mobile/app/(stack)/collaboration-team/[id].tsx:151",
+   "onPress=() => router.push(\"/(stack)/workspace-people\") @apps/mobile/app/(stack)/collaboration-team/[id].tsx:157",
+   "onChangeText=setName @apps/mobile/src/ui/collaboration-settings.tsx:200",
+   "onChangeText=setDescription @apps/mobile/src/ui/collaboration-settings.tsx:209",
+   "onPress=() => setTypePicker(true) @apps/mobile/src/ui/collaboration-settings.tsx:219",
+   "onPress=() => void save() @apps/mobile/src/ui/collaboration-settings.tsx:225",
+   "onPress=() => setRolePicker(m) @apps/mobile/src/ui/collaboration-settings.tsx:244",
+   "onPress=() => void loadMoreActivity() @apps/mobile/src/ui/collaboration-settings.tsx:282",
+   "onPress=() => setPending({ kind: \"unarchive\" }) @apps/mobile/src/ui/collaboration-settings.tsx:295",
+   "onPress=() => setPending({ kind: \"archive\" }) @apps/mobile/src/ui/collaboration-settings.tsx:302",
+   "onPress=() => setPending({ kind: \"delete\" }) @apps/mobile/src/ui/collaboration-settings.tsx:317",
+   "onClose=() => setTypePicker(false) @apps/mobile/src/ui/collaboration-settings.tsx:342",
+   "onPress=() => { setTeamType(t); setTypePicker(false); } @apps/mobile/src/ui/collaboration-settings.tsx:348",
+   "onClose=() => setRolePicker(null) @apps/mobile/src/ui/collaboration-settings.tsx:360",
+   "onPress=() => { if (rolePicker) void changeRole(rolePicker, r); } @apps/mobile/src/ui/collaboration-settings.tsx:366",
+   "onConfirm=() => void runPending() @apps/mobile/src/ui/collaboration-settings.tsx:377",
+   "onCancel=() => setPending(null) @apps/mobile/src/ui/collaboration-settings.tsx:377",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onChangeText=setSearch @apps/mobile/src/ui/collaboration-work.tsx:165",
+   "onSubmitEditing=() => void load() @apps/mobile/src/ui/collaboration-work.tsx:165",
+   "onChange=setStatus @apps/mobile/src/ui/collaboration-work.tsx:173",
+   "onChange=setTargetType @apps/mobile/src/ui/collaboration-work.tsx:185",
+   "onRetry=() => void load() @apps/mobile/src/ui/collaboration-work.tsx:200",
+   "onPress=assignmentIsTerminal(a.status) ? undefined : () => setEditin @apps/mobile/src/ui/collaboration-work.tsx:232",
+   "onPress=() => void loadMore() @apps/mobile/src/ui/collaboration-work.tsx:264",
+   "onClose=() => setEditing(null) @apps/mobile/src/ui/collaboration-work.tsx:274",
+   "onPress=() => { if (editing) void update(editing, { status: s }); } @apps/mobile/src/ui/collaboration-work.tsx:289",
+   "onPress=() => { if (editing) void update(editing, { priority: p });  @apps/mobile/src/ui/collaboration-work.tsx:303",
+   "onPress=() => { // `null` is meaningful, not \"leave it alone\": it ma @apps/mobile/src/ui/collaboration-work.tsx:316",
+   "onPress=() => { if (editing) void update(editing, { assigneeUserId:  @apps/mobile/src/ui/collaboration-work.tsx:330",
+   "onPress=() => setOpen(null) @apps/mobile/src/ui/discussion-section.tsx:130",
+   "onChangeText=setDraft @apps/mobile/src/ui/discussion-section.tsx:170"
+  ]
+ },
+ "level8": {
+  "webApi": 0,
+  "natApi": 5,
+  "shared": 0,
+  "onlyWeb": 0,
+  "onlyNative": 5,
+  "onlyWebList": [],
+  "onlyNativeList": [
+   "/v1/collaboration-teams/${…}",
+   "/v1/collaboration-teams/entitlement",
+   "/v1/collaboration-teams",
+   "/v1/collaboration/threads?teamId=${…}",
+   "/v1/collaboration/threads/${…}"
+  ],
+  "sharedList": [],
+  "webApiWhere": {},
+  "natApiWhere": {
+   "/v1/collaboration-teams/${…}": "apps/mobile/src/product/collaboration.ts:503",
+   "/v1/collaboration-teams/entitlement": "apps/mobile/src/product/collaboration.ts:157",
+   "/v1/collaboration-teams": "apps/mobile/src/product/collaboration.ts:159",
+   "/v1/collaboration/threads?teamId=${…}": "apps/mobile/src/product/discussion.ts:49",
+   "/v1/collaboration/threads/${…}": "apps/mobile/src/product/discussion.ts:62"
+  }
+ }
+}

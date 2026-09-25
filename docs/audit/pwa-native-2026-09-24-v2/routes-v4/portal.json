@@ -1,0 +1,151 @@
+{
+ "route": "/portal",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/portal/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/portal/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 7,
+   "labelled": 8,
+   "unboundExports": 1
+  },
+  "native": {
+   "files": 10,
+   "labelled": 5,
+   "unboundExports": 0
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 8,
+  "extraInNative": 5,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "INPUT",
+   "label": "Paste your token",
+   "at": "apps/web/app/portal/page.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Access token",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:51"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA External Reviewer Portal",
+   "at": "apps/web/app/portal/page.tsx:100",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the invitation token you were sent. Your activity in the portal is audited. PROOVRA records what you observe and decide; it does not assert authenticity of content.",
+   "at": "apps/web/app/portal/page.tsx:103",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation token",
+   "at": "apps/web/app/portal/page.tsx:111",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Use a different invitation",
+   "at": "apps/web/app/portal/page.tsx:169",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   }
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Open a review",
+   "at": "apps/mobile/app/(stack)/portal/index.tsx:39"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Access token",
+   "at": "apps/mobile/app/(stack)/portal/index.tsx:50"
+  },
+  {
+   "role": "INPUT",
+   "label": "Access token",
+   "at": "apps/mobile/app/(stack)/portal/index.tsx:51"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open my reviews",
+   "at": "apps/mobile/app/(stack)/portal/index.tsx:59"
+  },
+  {
+   "role": "TEXT",
+   "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+   "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "PortalMfaDetail"
+  }
+ ],
+ "natUnbound": []
+}

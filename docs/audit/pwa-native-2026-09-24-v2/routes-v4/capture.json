@@ -1,0 +1,2524 @@
+{
+ "route": "/capture",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/capture/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/capture.tsx",
+  "apps/mobile/app/(stack)/screen-capture.tsx",
+  "apps/mobile/app/(stack)/continuous-capture.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 82,
+   "labelled": 200,
+   "unboundExports": 42
+  },
+  "native": {
+   "files": 40,
+   "labelled": 92,
+   "unboundExports": 24
+  }
+ },
+ "pairing": {
+  "exact": 5,
+  "copyDiffers": 8,
+  "roleDiffers": 2,
+  "unpaired": 185,
+  "extraInNative": 75,
+  "unpairedRoleAbsent": 1
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/capture/page.tsx:675",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "web": "apps/web/app/(app)/capture/page.tsx:1280",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1522",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Uploaded",
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:181",
+   "nat": "apps/mobile/app/(stack)/continuous-capture.tsx:399",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/components/ai/CaptureAiAssistant.tsx:489",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:65",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "unfinished capture session",
+   "natLabel": "An unfinished capture with",
+   "score": 0.67,
+   "web": "apps/web/app/(app)/capture/page.tsx:638",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Unfinished capture drafts",
+   "natLabel": "An unfinished capture with",
+   "score": 0.67,
+   "web": "apps/web/app/(app)/capture/page.tsx:670",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "staged item",
+   "natLabel": "item",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/capture/page.tsx:685",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/capture/page.tsx:714",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "natTag": "#text"
+  },
+  {
+   "role": "BUTTON",
+   "webLabel": "Resume upload",
+   "natLabel": "Resume",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:189",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1317",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraButton"
+  },
+  {
+   "role": "BUTTON",
+   "webLabel": "Cancel upload",
+   "natLabel": "Cancel",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:207",
+   "nat": "apps/mobile/app/(stack)/screen-capture.tsx:212",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraButton"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:268",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:194",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Discard",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/capture/page.tsx:992",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1318"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:212",
+   "nat": "apps/mobile/app/(stack)/screen-capture.tsx:212"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "INPUT",
+   "label": "Upload evidence files",
+   "at": "apps/web/app/(app)/capture/page.tsx:569",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Upload evidence folder",
+   "at": "apps/web/app/(app)/capture/page.tsx:589",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Unfinished capture sessions",
+   "at": "apps/web/app/(app)/capture/page.tsx:631",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Capture Evidence",
+   "at": "apps/web/app/(app)/capture/page.tsx:758",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close audio recorder",
+   "at": "apps/web/app/(app)/capture/page.tsx:944",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:223"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Bulk actions",
+   "at": "apps/web/app/(app)/capture/page.tsx:1051",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Add a note about this material (private to you).",
+   "at": "apps/web/app/(app)/capture/page.tsx:1298",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Context note",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1630"
+   }
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. Phone camera, on-site",
+   "at": "apps/web/app/(app)/capture/page.tsx:1334",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You have",
+   "at": "apps/web/app/(app)/capture/page.tsx:638",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Resume restores template, mappings, notes, and item metadata. For privacy and browser-security reasons, the original file binaries cannot be restored automatically — you must re-attach the actual files before finalization.",
+   "at": "apps/web/app/(app)/capture/page.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "item",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1314"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Drafts (",
+   "at": "apps/web/app/(app)/capture/page.tsx:655",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Resume draft metadata, then re-attach files before Review & Sign.",
+   "at": "apps/web/app/(app)/capture/page.tsx:671",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete",
+   "at": "apps/web/app/(app)/capture/page.tsx:724",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Collection setup",
+   "at": "apps/web/app/(app)/capture/page.tsx:819",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Intake structure",
+   "at": "apps/web/app/(app)/capture/page.tsx:820",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose whether this session follows a required checklist, flexible intake, or location-enabled collection.",
+   "at": "apps/web/app/(app)/capture/page.tsx:824",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Choose a collection plan to give items a role.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1625"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Guided",
+   "at": "apps/web/app/(app)/capture/page.tsx:839",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Checklist required",
+   "at": "apps/web/app/(app)/capture/page.tsx:840",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Flexible",
+   "at": "apps/web/app/(app)/capture/page.tsx:854",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "General intake",
+   "at": "apps/web/app/(app)/capture/page.tsx:855",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Location",
+   "at": "apps/web/app/(app)/capture/page.tsx:873",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Audio Recorder",
+   "at": "apps/web/app/(app)/capture/page.tsx:941",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your browser could not play this audio preview.",
+   "at": "apps/web/app/(app)/capture/page.tsx:957",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "Collection plans could not be loaded. You can capture without one.",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:107"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Start Recording",
+   "at": "apps/web/app/(app)/capture/page.tsx:973",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "An earlier unfinished capture expired and was cleared. Start a new capture below.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1324"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop",
+   "at": "apps/web/app/(app)/capture/page.tsx:981",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:401"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Add to Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:999",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence material management",
+   "at": "apps/web/app/(app)/capture/page.tsx:1010",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Compact review rows surface mapping, status, type, size, and warnings for faster operational scanning.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1014",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "unmapped",
+   "at": "apps/web/app/(app)/capture/page.tsx:1022",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear all mappings",
+   "at": "apps/web/app/(app)/capture/page.tsx:1066",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove pending items",
+   "at": "apps/web/app/(app)/capture/page.tsx:1083",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Remove",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1522"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Preview",
+   "at": "apps/web/app/(app)/capture/page.tsx:1091",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "File",
+   "at": "apps/web/app/(app)/capture/page.tsx:1092",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/app/(app)/capture/page.tsx:1093",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Size",
+   "at": "apps/web/app/(app)/capture/page.tsx:1094",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Role & requirement",
+   "at": "apps/web/app/(app)/capture/page.tsx:1095",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Choose a collection plan to give items a role.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1625"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/capture/page.tsx:1096",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/capture/page.tsx:1097",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Context · Unmapped",
+   "at": "apps/web/app/(app)/capture/page.tsx:1222",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave unmapped or supplemental",
+   "at": "apps/web/app/(app)/capture/page.tsx:1223",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:221"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your notes",
+   "at": "apps/web/app/(app)/capture/page.tsx:1295",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Source (optional)",
+   "at": "apps/web/app/(app)/capture/page.tsx:1332",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Finish or discard the current session to use another source.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1421"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Shown on the evidence record as the item's source context. Not included in the public verification page or report.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1360",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear this evidence session?",
+   "at": "apps/web/app/(app)/capture/page.tsx:1429",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This will remove all staged materials, mapping, private notes, and local review progress. No evidence record has been created yet.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1432",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:1444",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:1455",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Upload operations",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:75",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Upload recovery",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:227",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "failure reason",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "uploaded bytes",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:180",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "server-verified bytes",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:183",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Pause upload",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:198",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline.",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:123",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recover earlier uploads",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "An earlier unfinished capture expired and was cleared. Start a new capture below.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1324"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:284",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Server-verified",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Pause",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:203",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Capture intake progression",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx:48",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Intake plan",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx:56",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Direct Web Capture",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Don&apos;t just upload a screenshot. With the PROOVRA browser extension you can preserve a web page through a server-issued capture session: PROOVRA takes part in the capture, independently checks the bytes it receives, and records how and when the page was captured.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:415"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA records how the page entered the evidence lifecycle. It does not establish that the page&apos;s content is true, who authored it, or that a website is genuine.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:71",
+   "natHasRole": true,
+   "bestScore": 0.36,
+   "bestNat": {
+    "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Install the PROOVRA extension",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:86",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA will capture what is shown on your screen, using Android's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:202"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Learn how Direct Web Capture works",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:94",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss capture readiness panel",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:150",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Screen capture",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1398"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture readiness ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:136",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow criteria satisfied",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:165",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational readiness only. The capture pipeline (hashing, custody, finalization) is governed by the upload flow itself — this panel never blocks finalization.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Capture suggestions",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:85",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss capture suggestions panel",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:117",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Screen capture",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1398"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Suggested next steps ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:115",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:132",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Required mapping progress",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Requirements",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:45",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required mapped",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:89",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional mapped",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Unmapped materials",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Finish gate",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Worth doing before you finish",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:187"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepts",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:153",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Materials to re-attach from the resumed draft",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:54",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "material",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:66",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to re-attach",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:66",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This draft kept each file&apos;s name, type and requirement mapping. File contents are never stored before Review &amp; Sign, so the files themselves have to be added again — mappings below are for reference.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:69",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Dismiss",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Evidence intake actions",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence capture",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:94",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Add source files",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Upload, capture, or record materials for this session.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:97",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Drag and drop files or folders into this workspace.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:143",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:415"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Mapping, integrity checks, and readiness warnings update as soon as materials are staged.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:147",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Readiness ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:135",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Next:",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:148",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "All workflow criteria satisfied for this intake. Finalize when ready.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:160",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "uploaded and ready to seal.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:409"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Informational only — finalization is governed by the upload flow.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:171",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:401"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Session activity",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "event",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:64",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No activity recorded in this session yet.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:77",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Still unmapped:",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureFinalReadiness.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Session final actions",
+   "at": "apps/web/components/capture-v2/CaptureBottomBar.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear Session",
+   "at": "apps/web/components/capture-v2/CaptureBottomBar.tsx:58",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "INPUT",
+   "label": "Add investigator, legal, insurance, or internal review context.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:318",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Context note",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1630"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Session status",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:139",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Operations command center",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Mapped",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Blockers",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:201",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Warnings",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:205",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Session metadata",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Session ID",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:232",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Template",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:236",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Mode",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:240",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Total size",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:244",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrity preparation",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:252",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Fingerprint",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:258",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Custody",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:262",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Package",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:266",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "After finalization",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Location",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:270",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "AI advisory review",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:277",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata-only quality control. It may surface missing mappings or client-side risk signals, but it does not determine authenticity, truth, authorship, legal admissibility, or final outcome.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:281",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Private note",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:313",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Visible only inside the authenticated app. Excluded from public verification, reports, and verification packages.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:316",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:221"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Location was not granted. The current session will continue without GPS metadata unless the selected plan requires it.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:331",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Blockers",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Warnings",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:131",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No blockers",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:109",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No warnings",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "more",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "AI Review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:386",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "% required coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:412",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Materials",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:415",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "with location signal",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:417",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:420",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "AI flag(s)",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:422",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "AI assistant unavailable. Continue capture and finish normally.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:434",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Advisory workflow gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:440",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Run after mapping evidence. The review checks coverage, metadata signals, and suggested next actions before the human Review & Sign decision.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:442",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "AI workflow quality control",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:476",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Session readiness review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:477",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Advisory metadata-based review only. This assistant does not determine factual truth, authenticity, authorship, or legal admissibility.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:479",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewing workflow…",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:496",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking metadata, mappings, missing requirements, and risk flags.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "AI unavailable",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:501",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Current QA state",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:508",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Finish or discard the current session to use another source.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1421"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Required coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:512",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:516",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow note(s).",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:529",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:533",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "metadata flag(s).",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:534",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Human gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:538",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer confirmation is still required.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:539",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage requirements",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:545",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:554",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:565",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow next actions",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:577",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Resolve before final review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:582",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Worth doing before you finish",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:187"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended QA check",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:593",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Informational",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:604",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal limitation",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:616",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "AI advisory is not saved.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This review runs against your session metadata only (uploaded contents are never sent). Output is not persisted on the evidence record, the report, or the verification package. Re-run to see fresh guidance after editing materials.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:643",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "REC",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:76",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Flash",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:93",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Flip",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:103",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "added",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Take photos continuously. Each shot is added automatically.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1453"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture repeatedly to add multiple photos into one evidence record.",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:116",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Record a clip, it will be auto-added to the same evidence session.",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:120",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:379"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Recording…",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:389"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Add to Evidence Session",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:137",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Record",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:379"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop & Add",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:155",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   }
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1306"
+  },
+  {
+   "role": "INPUT",
+   "label": "Include location metadata",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1373"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Screen capture",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1398"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Continuous screen capture",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1404"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Screen capture",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1412"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Capture Photo",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1454"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close Camera",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1462"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Add Another Document",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1530"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Record Another Audio",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1532"
+  },
+  {
+   "role": "BADGE",
+   "label": "Chosen",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1617"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Context note",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1629"
+  },
+  {
+   "role": "INPUT",
+   "label": "Context note",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1630"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1639"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open Settings",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1652"
+  },
+  {
+   "role": "TEXT",
+   "label": "An earlier unfinished capture expired and was cleared. Start a new capture below.",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1324"
+  },
+  {
+   "role": "TEXT",
+   "label": "Include location metadata",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+  },
+  {
+   "role": "TEXT",
+   "label": "Other capture sources",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1394"
+  },
+  {
+   "role": "TEXT",
+   "label": "Finish or discard the current session to use another source.",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1421"
+  },
+  {
+   "role": "TEXT",
+   "label": "Microphone Capture",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1429"
+  },
+  {
+   "role": "TEXT",
+   "label": "Auto-add mode",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+  },
+  {
+   "role": "TEXT",
+   "label": "Take photos continuously. Each shot is added automatically.",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1453"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture Session",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+  },
+  {
+   "role": "TEXT",
+   "label": "Describe",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1519"
+  },
+  {
+   "role": "TEXT",
+   "label": "What is this item?",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1595"
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose a collection plan to give items a role.",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1625"
+  },
+  {
+   "role": "TEXT",
+   "label": "No evidence yet.",
+   "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Collection plan",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:206"
+  },
+  {
+   "role": "LIST",
+   "label": "No plan",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:207"
+  },
+  {
+   "role": "BADGE",
+   "label": "Selected",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:219"
+  },
+  {
+   "role": "TEXT",
+   "label": "Collection plan",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+  },
+  {
+   "role": "TEXT",
+   "label": "Collection plans could not be loaded. You can capture without one.",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:107"
+  },
+  {
+   "role": "TEXT",
+   "label": "Worth doing before you finish",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:187"
+  },
+  {
+   "role": "TEXT",
+   "label": "None of these stops you finishing.",
+   "at": "apps/mobile/src/ui/capture-plan-sections.tsx:201"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available here",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:184"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:184"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Android only",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:191"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:191"
+  },
+  {
+   "role": "SECTION",
+   "label": "Direct Screen Capture",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:198"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Start Screen Capture",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:211"
+  },
+  {
+   "role": "BADGE",
+   "label": "Screen capture active",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:218"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Capture Frame",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:223"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Stop &amp; Review",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:224"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Add to capture session",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:234"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Go to Capture",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:249"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Capture Another",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:250"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try Again",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:257"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back to Capture",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:258"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA will capture what is shown on your screen, using Android's own screen-capture permission. Before it starts:",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:202"
+  },
+  {
+   "role": "TEXT",
+   "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+  },
+  {
+   "role": "TEXT",
+   "label": "Captured",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:219"
+  },
+  {
+   "role": "TEXT",
+   "label": "frame(s).",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:219"
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:221"
+  },
+  {
+   "role": "TEXT",
+   "label": "frame(s) captured.",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:230"
+  },
+  {
+   "role": "TEXT",
+   "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review and finish this session in Capture. It is not evidence until you do.",
+   "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available here",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:361"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:361"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available on this device",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:368"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:368"
+  },
+  {
+   "role": "SECTION",
+   "label": "Continuous Screen Capture",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:375"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Start Continuous Capture",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:391"
+  },
+  {
+   "role": "BADGE",
+   "label": "Continuous capture active",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:398"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Stop &amp; Review",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:403"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Finish &amp; Sign",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:417"
+  },
+  {
+   "role": "BUTTON",
+   "label": "View Evidence",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:429"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Capture Another",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:430"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Done",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:431"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try Again",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:438"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back to Capture",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:439"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:379"
+  },
+  {
+   "role": "TEXT",
+   "label": "A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:389"
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:401"
+  },
+  {
+   "role": "TEXT",
+   "label": "segment(s) recorded,",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:409"
+  },
+  {
+   "role": "TEXT",
+   "label": "uploaded and ready to seal.",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:409"
+  },
+  {
+   "role": "TEXT",
+   "label": "Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+   "at": "apps/mobile/app/(stack)/continuous-capture.tsx:415"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_hooks\\useCaptureSessionOrchestration.ts",
+   "name": "CaptureSessionAddFiles"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "SessionItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "CollectionPlanTemplate"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "ChecklistStep"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workflow-types.ts",
+   "name": "WorkflowTemplate"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workflow-types.ts",
+   "name": "WorkflowRule"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workflow-types.ts",
+   "name": "WorkflowWorkspaceCategory"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workflow-types.ts",
+   "name": "WorkflowPlanMode"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workflow-types.ts",
+   "name": "WorkflowWorkspaceRole"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "EvidenceType"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "CameraMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "FacingMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "AudioRecorderState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\types.ts",
+   "name": "UploadProgressSnapshot"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\network.ts",
+   "name": "NetworkSnapshot"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\recovery.ts",
+   "name": "RecoveryReport"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\types.ts",
+   "name": "ClientUploadSessionState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\types.ts",
+   "name": "ClientFailureReason"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\types.ts",
+   "name": "ClientPartProgress"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\api.ts",
+   "name": "ApiErrorImpl"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\telemetry.ts",
+   "name": "UploadTelemetryEmitter"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\persistence.ts",
+   "name": "UploadPersistence"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\persistence.ts",
+   "name": "PersistedUploadSession"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\feature-flag.ts",
+   "name": "UploadRouting"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextActiveSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "SessionTimelineEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "SessionItemClientSignals"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "BillingWallLike"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_hooks\\useResumableUploads.ts",
+   "name": "UseResumableUploadsApi"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\feedback\\toSafeUserError.ts",
+   "name": "SafeUserError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\ui-legacy.tsx",
+   "name": "ToastOptions"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\types.ts",
+   "name": "ItemQualityStatus"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\uploads\\recovery.ts",
+   "name": "RecoveryEntry"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_lib\\captureReadiness.ts",
+   "name": "CaptureReadinessSummary"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "CaptureCapabilities"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "resolveWebCaptureCapabilities"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "WebPlatformSignals"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\capture\\_hooks\\useCaptureDraftList.ts",
+   "name": "CaptureDraftDetail"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\capture-plan.ts",
+   "name": "CollectionPlanTemplate"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\capture-plan.ts",
+   "name": "PlannedItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\direct-capture.ts",
+   "name": "DirectCaptureSession"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\screen-acquisition.ts",
+   "name": "ScreenAcquisitionMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\screen-acquisition.ts",
+   "name": "MixedOriginPrompt"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\capture-session-store.ts",
+   "name": "PersistedCaptureSession"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\direct-capture.ts",
+   "name": "DirectCaptureItemSource"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\domain-enums.generated.ts",
+   "name": "EvidenceType"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\modules\\proovra-screen-capture\\index.ts",
+   "name": "ScreenCaptureResult"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\direct-capture.ts",
+   "name": "DirectCaptureSession"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\capture-draft.ts",
+   "name": "DraftItemInput"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\continuous-capture.ts",
+   "name": "DeclaredSegment"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\modules\\proovra-screen-capture\\index.ts",
+   "name": "ScreenContinuousResult"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\modules\\proovra-screen-capture\\index.ts",
+   "name": "ScreenSegment"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "SCREEN_CONTINUOUS_STREAM_BOUNDS"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\direct-capture.ts",
+   "name": "DirectCaptureSession"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\screen-acquisition.ts",
+   "name": "ScreenAcquisitionMode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\capture\\capture-draft.ts",
+   "name": "DraftItemInput"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

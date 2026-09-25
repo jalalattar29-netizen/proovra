@@ -1,0 +1,628 @@
+{
+ "route": "/cases",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/cases/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(tabs)/cases.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 44,
+   "labelled": 60,
+   "unboundExports": 10
+  },
+  "native": {
+   "files": 24,
+   "labelled": 11,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 5,
+  "unpaired": 55,
+  "extraInNative": 8,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Create case",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/cases-experience/CasesIndex.tsx:435",
+   "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+  },
+  {
+   "label": "No cases yet",
+   "webRole": "TEXT",
+   "natRole": "STATE_EMPTY",
+   "web": "apps/web/components/cases-experience/CasesIndex.tsx:901",
+   "nat": "apps/mobile/app/(tabs)/cases.tsx:179"
+  },
+  {
+   "label": "Create case",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/cases-experience/CasesIndex.tsx:912",
+   "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+  },
+  {
+   "label": "Create case",
+   "webRole": "DIALOG",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:137",
+   "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+  },
+  {
+   "label": "Case name",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:197",
+   "nat": "apps/mobile/app/(tabs)/cases.tsx:140"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Filter by status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:604",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Search cases, owners, IDs, or references",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:647",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Search cases",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:150"
+   }
+  },
+  {
+   "role": "SELECT",
+   "label": "Risk level",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:667",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Select all cases in view",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1019",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search cases",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:150"
+   }
+  },
+  {
+   "role": "SELECT",
+   "label": "Bulk action",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1033",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Reason for this bulk action",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1046",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "gap",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1281",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "incident",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1284",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "overdue",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1287",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "gov block",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1290",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Case actions",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1521",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Create case",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:143"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:378",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Group related evidence into simple workspaces for incidents, claims, projects, or reviews.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:390",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshed",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:404",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Updating…",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:412",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your cases",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1781",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Investigation Matters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1804",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Investigation Matters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1837",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Matter queue temporarily unavailable",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1839",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Workspace matter metrics are unavailable right now.",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:134"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1844",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Any risk",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:677",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create a case to group related evidence for an incident, claim, project, or review.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:903",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No cases match these filters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:921",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Try clearing filters or searching for a different case name.",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:923",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:931",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Case",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:956",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:957",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:958",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:959",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Readiness",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:960",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last updated",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:961",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1067",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "applied",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1074",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No records",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1255",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal preservation",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1294",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Unassigned",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk:",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1619",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1547",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Rename",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1550",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Change status",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1553",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Archive",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1562",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1571",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Clear search",
+   "at": "apps/web/components/ui/FilterBar.tsx:256",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. Insurance claim #4823",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:199",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You can rename the case from its workspace at any time. Evidence, assignments, and comments are added after creation.",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:226",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Workspace matter metrics are unavailable right now.",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:134"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Request ID:",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "INPUT",
+   "label": "e.g. Site inspection — Unit 4",
+   "at": "apps/mobile/app/(tabs)/cases.tsx:141"
+  },
+  {
+   "role": "INPUT",
+   "label": "Search cases",
+   "at": "apps/mobile/app/(tabs)/cases.tsx:150"
+  },
+  {
+   "role": "BUTTON",
+   "label": "+ New case",
+   "at": "apps/mobile/app/(tabs)/cases.tsx:179"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No matches",
+   "at": "apps/mobile/app/(tabs)/cases.tsx:181"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace matter metrics are unavailable right now.",
+   "at": "apps/mobile/app/(tabs)/cases.tsx:134"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline — showing the latest available data.",
+   "at": "apps/mobile/src/ui/shell.tsx:109"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextEnvelope"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextPersonalSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\cases-experience\\types.ts",
+   "name": "MatterQueueEnvelope"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\cases-experience\\types.ts",
+   "name": "MatterRiskLevel"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\cases-experience\\types.ts",
+   "name": "MatterQueueItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\app-primitives\\AppStatusBadge.tsx",
+   "name": "AppTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\ui\\Badge.tsx",
+   "name": "BadgeTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\dirtyWorkRegistry.ts",
+   "name": "useDirtyWorkModule"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\case-workspace.ts",
+   "name": "CasesSummaryState"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

@@ -1,0 +1,744 @@
+{
+ "route": "/inbox",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/inbox/page.tsx",
+ "nativeEntry": "apps/mobile/app/(tabs)/notifications.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 166,
+   "elements": 362,
+   "texts": 55,
+   "distinctTexts": 50,
+   "handlers": 66,
+   "conditionals": 1410,
+   "apiPaths": 5,
+   "distinctApi": 5,
+   "styleRefs": 253,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "lucide-react",
+    "react-dom",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 146,
+   "elements": 196,
+   "texts": 32,
+   "distinctTexts": 26,
+   "handlers": 44,
+   "conditionals": 1137,
+   "apiPaths": 10,
+   "distinctApi": 9,
+   "styleRefs": 218,
+   "stylesheetRules": 96,
+   "themeTokens": 260,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 54,
+  "natLabelled": 30,
+  "paired": 3,
+  "roleDiff": 2,
+  "missing": 49,
+  "extraInNative": 22,
+  "webUnlabelled": 347,
+  "missingWithRolePresent": 48,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "×",
+     "web": "apps/web/components/ui-legacy.tsx:211",
+     "nat": "apps/mobile/src/toast-context.tsx:119"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Notifications",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/inbox/page.tsx:1253",
+     "nat": "apps/mobile/app/(tabs)/notifications.tsx:156"
+    },
+    {
+     "label": "Notifications",
+     "webRole": "BOX",
+     "natRole": "SECTION",
+     "web": "apps/web/components/ui-legacy.tsx:121",
+     "nat": "apps/mobile/app/(tabs)/notifications.tsx:156"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Notification summary",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1300",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notification filters and sorting",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1414",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Filters",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1479",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Active filters",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1624",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "You're all caught up",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1744",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Some sources could not be read, so this may not be everything.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1366",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archived notifications are not available in this environment yet.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1381",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Filters",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1469",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1501",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archived",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1513",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1566",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1585",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Done",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1593",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sort",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1602",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear all",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1654",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Some sources were capped:",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1690",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Open the relevant console for the full list.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1698",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading inbox…",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1708",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Couldn’t load inbox.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1716",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1734",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No archived notifications.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1781",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archiving a notification files it here and takes it out of your active list.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1783",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No notifications match these filters.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1790",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Try changing or clearing the active filters.",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1793",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1805",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No longer active",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1916",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archived",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1924",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reminder set for",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1930",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1964",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Mark as unread",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1978",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Mark as read",
+     "at": "apps/web/app/(app)/inbox/page.tsx:1991",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unarchive",
+     "at": "apps/web/app/(app)/inbox/page.tsx:2008",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archive",
+     "at": "apps/web/app/(app)/inbox/page.tsx:2022",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "LIST",
+     "label": "Notification preferences",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:165"
+    },
+    {
+     "role": "TAB",
+     "label": "Show",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:170"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear filter",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:190"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:224"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Later",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:237"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Remind me later",
+     "at": "apps/mobile/app/(tabs)/notifications.tsx:249"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:173"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Resolving workspace",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:177"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading preferences",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:180"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No notification categories are published.",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:188"
+    },
+    {
+     "role": "BADGE",
+     "label": "Always on",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:218"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Quiet hours",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:258"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading quiet hours",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:259"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Quiet hours are not available here.",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:263"
+    },
+    {
+     "role": "INPUT",
+     "label": "Pause email during quiet hours",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:292"
+    },
+    {
+     "role": "TEXT",
+     "label": "Pause email during quiet hours",
+     "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 933,
+  "webClassesUnresolved": 1,
+  "webNonLiteralClass": 19,
+  "webCompetingRules": 55,
+  "webDistinctUnresolvedClasses": 1,
+  "natPropsResolved": 270,
+  "natTokenUnresolved": 80,
+  "webDistinctColors": 55,
+  "natDistinctColors": 19,
+  "sharedColors": 10,
+  "webOnlyColors": 45,
+  "webOnlyColorSample": [
+   "rgba(91, 79, 233, 0.1)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(91, 79, 233, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.6)",
+   "rgba(15, 23, 42, 0.03)",
+   "rgba(15, 23, 42, 0.08)",
+   "#172033",
+   "#344054",
+   "#667085",
+   "rgba(15, 23, 42, 0.10)",
+   "rgba(255, 255, 255, 0.70)",
+   "#d9c7fb",
+   "rgba(107, 91, 255, 0.28)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "#f1f4f9",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(99, 91, 255, 0.08)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "#94a3b8",
+   "rgba(15, 23, 42, 0.06)",
+   "#475569",
+   "rgba(15, 23, 42, 0.14)",
+   "#0f172a",
+   "rgba(15, 23, 42, 0.09)",
+   "#dc2626"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1410,
+  "natConditionals": 1137,
+  "webStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 66,
+  "natHandlers": 44,
+  "webHandlerSample": [
+   "onClick=() => void load() @apps/web/app/(app)/inbox/page.tsx:1262",
+   "onClick=() => selectMetric(metric.key) @apps/web/app/(app)/inbox/page.tsx:1328",
+   "onClick=() => selectMetric(key) @apps/web/app/(app)/inbox/page.tsx:1432",
+   "onClick=() => setFiltersOpen((v) => !v) @apps/web/app/(app)/inbox/page.tsx:1457",
+   "onPointerDownOutside=() => setFiltersOpen(false) @apps/web/app/(app)/inbox/page.tsx:1479",
+   "onClick=toggleArchived @apps/web/app/(app)/inbox/page.tsx:1503",
+   "onClick=() => selectAdvancedFilter(key) @apps/web/app/(app)/inbox/page.tsx:1531",
+   "onChange=(v) => setWorkspaceFilter(v) @apps/web/app/(app)/inbox/page.tsx:1568",
+   "onClick=clearAllFilters @apps/web/app/(app)/inbox/page.tsx:1578",
+   "onClick=closeFilters @apps/web/app/(app)/inbox/page.tsx:1587",
+   "onChange=(v) => setSort(v as InboxSort) @apps/web/app/(app)/inbox/page.tsx:1604",
+   "onClick=chip.clear @apps/web/app/(app)/inbox/page.tsx:1634",
+   "onClick=clearAllFilters @apps/web/app/(app)/inbox/page.tsx:1648",
+   "onClick=() => void load() @apps/web/app/(app)/inbox/page.tsx:1728",
+   "onClick=clearAllFilters @apps/web/app/(app)/inbox/page.tsx:1799",
+   "onClick=() => { // Opening an item implicitly marks it // read. Fire @apps/web/app/(app)/inbox/page.tsx:1942",
+   "onClick=() => void markUnread(item) @apps/web/app/(app)/inbox/page.tsx:1968",
+   "onClick=() => void markRead(item) @apps/web/app/(app)/inbox/page.tsx:1981",
+   "onClick=() => void unarchiveItem(item) @apps/web/app/(app)/inbox/page.tsx:1998",
+   "onClick=() => void archiveItem(item) @apps/web/app/(app)/inbox/page.tsx:2012",
+   "onClick=() => void loadMore() @apps/web/app/(app)/inbox/page.tsx:2047",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=onClick @apps/web/components/ui/Card.tsx:250",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124"
+  ],
+  "natHandlerSample": [
+   "onPress=() => void markAllRead() @apps/mobile/app/(tabs)/notifications.tsx:158",
+   "onPress=() => router.push(\"/(stack)/settings/notifications\") @apps/mobile/app/(tabs)/notifications.tsx:165",
+   "onChange=setFilter @apps/mobile/app/(tabs)/notifications.tsx:170",
+   "onRetry=load @apps/mobile/app/(tabs)/notifications.tsx:179",
+   "onPress=() => setFilter(\"all\") @apps/mobile/app/(tabs)/notifications.tsx:190",
+   "onPress=() => open(item) @apps/mobile/app/(tabs)/notifications.tsx:205",
+   "onPress=() => void act(item, item.isRead ? \"unread\" : \"read\") @apps/mobile/app/(tabs)/notifications.tsx:218",
+   "onPress=() => void act(item, \"archive\") @apps/mobile/app/(tabs)/notifications.tsx:224",
+   "onPress=() => setSnoozing(item) @apps/mobile/app/(tabs)/notifications.tsx:237",
+   "onClose=() => setSnoozing(null) @apps/mobile/app/(tabs)/notifications.tsx:249",
+   "onPress=() => void snooze(choice.hours) @apps/mobile/app/(tabs)/notifications.tsx:258",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => onDismiss(toast.id) @apps/mobile/src/toast-context.tsx:115",
+   "onDismiss=onDismiss @apps/mobile/src/toast-context.tsx:135",
+   "onDismiss=removeToast @apps/mobile/src/toast-context.tsx:171",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/settings/notifications.tsx:173",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/settings/notifications.tsx:184",
+   "onValueChange=(next) => void toggle(row.type, cell.channel, next, cell.fre @apps/mobile/app/(stack)/settings/notifications.tsx:220",
+   "onPress=() => void setFrequency(row.type, f, f !== \"OFF\") @apps/mobile/app/(stack)/settings/notifications.tsx:239",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/settings/notifications.tsx:271",
+   "onValueChange=(next) => void saveSchedule({ ...schedule.schedule, quietHou @apps/mobile/app/(stack)/settings/notifications.tsx:292"
+  ]
+ },
+ "level8": {
+  "webApi": 5,
+  "natApi": 9,
+  "shared": 4,
+  "onlyWeb": 1,
+  "onlyNative": 6,
+  "onlyWebList": [
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/me/inbox/mark-all-read",
+   "/v1/me/notification-preferences?teamId=${…}",
+   "/v1/me/notification-preferences",
+   "/v1/me/notification-schedule?teamId=${…}",
+   "/v1/me/notification-schedule",
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/me/inbox?${…}",
+   "/v1/me/inbox",
+   "/v1/me/inbox/items/${…}",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/me/inbox?${…}": "apps/web/app/(app)/inbox/page.tsx:928",
+   "/v1/me/inbox": "apps/web/app/(app)/inbox/page.tsx:928",
+   "/v1/me/inbox/items/${…}": "apps/web/app/(app)/inbox/page.tsx:1063",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/me/inbox?pageSize=50": "apps/mobile/app/(tabs)/notifications.tsx:55",
+   "/v1/me/inbox/items/${…}": "apps/mobile/src/product/inbox.ts:85",
+   "/v1/me/inbox/mark-all-read": "apps/mobile/app/(tabs)/notifications.tsx:139",
+   "/v1/me/notification-preferences?teamId=${…}": "apps/mobile/src/product/notification-preferences.ts:63",
+   "/v1/me/notification-preferences": "apps/mobile/src/product/notification-preferences.ts:66",
+   "/v1/me/notification-schedule?teamId=${…}": "apps/mobile/src/product/notification-preferences.ts:69",
+   "/v1/me/notification-schedule": "apps/mobile/src/product/notification-preferences.ts:72",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

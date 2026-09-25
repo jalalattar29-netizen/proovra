@@ -126,3 +126,18 @@ test("bare unknown object with no status/code ≈ network (offline), never a cra
   assert.equal(e.kind, "network");
   assert.equal(typeof e.message, "string");
 });
+
+test("an unmapped refusal (409/422) is the web 4xx bucket, not 'Please try again'", () => {
+  for (const status of [409, 422]) {
+    const s = toSafeUserError({ status, error: { code: "SOMETHING_UNMAPPED", message: "internal detail" } });
+    assert.equal(s.title, "We couldn’t complete that action");
+    assert.equal(s.message, "Please review your input and try again.");
+  }
+  // 5xx keeps its own bucket.
+  assert.equal(toSafeUserError({ status: 503 }).message, "We hit a problem on our side. Please try again.");
+});
+
+test("a bare 429 is the rate-limit answer (web fromStatus(429)), never the 4xx review sentence", () => {
+  const e = toSafeUserError({ status: 429 });
+  assert.equal(e.message, "Please wait a moment and try again.");
+});

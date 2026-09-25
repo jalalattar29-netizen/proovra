@@ -1,0 +1,598 @@
+{
+ "route": "/trust",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/trust/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/trust-center.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 14,
+   "labelled": 57,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 20,
+   "labelled": 15,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 1,
+  "roleDiffers": 3,
+  "unpaired": 53,
+  "extraInNative": 13,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [
+  {
+   "role": "BUTTON",
+   "webLabel": "Close menu",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "webClass": "flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] text-[#0F172A]",
+   "webStyle": null,
+   "natStyle": "styles.scrim",
+   "natTag": "Pressable"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Trust Center",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/trust/page.tsx:549",
+   "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+  },
+  {
+   "label": "Trust Center",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/trust/page.tsx:1350",
+   "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+  },
+  {
+   "label": "Trust Center",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Trust, security, privacy, and",
+   "at": "apps/web/app/trust/page.tsx:554",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "verification documentation.",
+   "at": "apps/web/app/trust/page.tsx:559",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Understand how PROOVRA records evidence integrity, custody context, verification materials, AI boundaries, security posture, privacy controls, and governance documentation — and where to review the policies behind each area.",
+   "at": "apps/web/app/trust/page.tsx:566",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review documentation",
+   "at": "apps/web/app/trust/page.tsx:594",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contact sales",
+   "at": "apps/web/app/trust/page.tsx:601",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust boundary",
+   "at": "apps/web/app/trust/page.tsx:621",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA records — and what it does not decide.",
+   "at": "apps/web/app/trust/page.tsx:622",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA is a digital evidence operations platform designed to help organizations capture, preserve, review, verify, govern, and share digital evidence through structured Evidence Records, custody visibility, verification materials, and reviewer-ready outputs.",
+   "at": "apps/web/app/trust/page.tsx:624",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA records",
+   "at": "apps/web/app/trust/page.tsx:641",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA does not decide",
+   "at": "apps/web/app/trust/page.tsx:669",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust boundary",
+   "at": "apps/web/app/trust/page.tsx:711",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA exposes recorded technical and operational context for review. Courts, regulators, investigators, insurers, employers, experts, reviewers, and customers remain responsible for factual, legal, procedural, and expert determinations.",
+   "at": "apps/web/app/trust/page.tsx:717",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust foundations",
+   "at": "apps/web/app/trust/page.tsx:740",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The trust areas behind PROOVRA.",
+   "at": "apps/web/app/trust/page.tsx:741",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA&apos;s Trust Center organizes the platform&apos;s public documentation around the areas security, legal, procurement, and review teams usually need to evaluate.",
+   "at": "apps/web/app/trust/page.tsx:743",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust flow",
+   "at": "apps/web/app/trust/page.tsx:850",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "How trust context travels through the evidence workflow.",
+   "at": "apps/web/app/trust/page.tsx:853",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust in PROOVRA is not a single claim. It is a set of recorded context that follows evidence from intake to review, reporting, governance, and external inspection.",
+   "at": "apps/web/app/trust/page.tsx:859",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "This section could not be read. The other sections are unaffected.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Step",
+   "at": "apps/web/app/trust/page.tsx:904",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Documentation hub",
+   "at": "apps/web/app/trust/page.tsx:939",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The documents behind PROOVRA&apos;s trust posture.",
+   "at": "apps/web/app/trust/page.tsx:940",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Use this hub to review PROOVRA&apos;s privacy, security, evidence, governance, support, and legal documentation. These documents are written for customers, reviewers, legal teams, procurement teams, and security evaluators.",
+   "at": "apps/web/app/trust/page.tsx:942",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise evaluation",
+   "at": "apps/web/app/trust/page.tsx:1043",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Built for security, legal, and procurement review.",
+   "at": "apps/web/app/trust/page.tsx:1049",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise buyers often need to review more than product features. PROOVRA&apos;s public Trust Center helps security, privacy, legal, procurement, and operational stakeholders evaluate the platform&apos;s posture before and during adoption.",
+   "at": "apps/web/app/trust/page.tsx:1055",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Start enterprise review",
+   "at": "apps/web/app/trust/page.tsx:1066",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Support Center",
+   "at": "apps/web/app/trust/page.tsx:1077",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Transparency commitments",
+   "at": "apps/web/app/trust/page.tsx:1158",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What we publish — and what we avoid.",
+   "at": "apps/web/app/trust/page.tsx:1161",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA publishes",
+   "at": "apps/web/app/trust/page.tsx:1188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA avoids",
+   "at": "apps/web/app/trust/page.tsx:1228",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request paths",
+   "at": "apps/web/app/trust/page.tsx:1261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Use the right path for sensitive requests.",
+   "at": "apps/web/app/trust/page.tsx:1262",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "These routes exist so privacy, abuse, legal, and procurement requests reach the right team with the right context.",
+   "at": "apps/web/app/trust/page.tsx:1264",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open path",
+   "at": "apps/web/app/trust/page.tsx:1304",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Need to review PROOVRA for your organization?",
+   "at": "apps/web/app/trust/page.tsx:1356",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Use the Trust Center to review privacy, security, verification, AI, governance, legal, and support documentation. For enterprise security review, procurement, deployment, or legal evaluation, contact the PROOVRA team.",
+   "at": "apps/web/app/trust/page.tsx:1362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Contact sales",
+   "at": "apps/web/app/trust/page.tsx:1373",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support Center",
+   "at": "apps/web/app/trust/page.tsx:1380",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View Verification Methodology",
+   "at": "apps/web/app/trust/page.tsx:1391",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:109"
+  },
+  {
+   "role": "BADGE",
+   "label": "What PROOVRA does not claim",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:137"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "How PROOVRA works",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:143"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Loading…",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:183"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Not included in your plan",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:185"
+  },
+  {
+   "role": "BADGE",
+   "label": "Unavailable",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:192"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:196"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing published yet",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:204"
+  },
+  {
+   "role": "TEXT",
+   "label": "Limitations",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:165"
+  },
+  {
+   "role": "TEXT",
+   "label": "This section could not be read. The other sections are unaffected.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+  },
+  {
+   "role": "TEXT",
+   "label": "This is the only version on record.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustSectionState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticle"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticleVersion"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

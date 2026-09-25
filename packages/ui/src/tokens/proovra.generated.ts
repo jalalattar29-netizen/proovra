@@ -44,6 +44,7 @@ export const proovraInk = {
   secondary: "#475569",
   muted: "#94A3B8",
   inverse: "#F8FAFC",
+  onAccent: "#ffffff",
 } as const;
 
 /** The brand accent ramp. */

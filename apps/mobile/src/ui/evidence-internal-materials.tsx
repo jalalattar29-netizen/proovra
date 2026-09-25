@@ -42,6 +42,7 @@ import {
 import {
   ANNOTATION_BODY_MAX,
   INTERNAL_MATERIALS_BOUNDARY,
+  PRIVATE_NOTES_BOUNDARY,
   LEGAL_NOTE_MAX,
   annotationAnchorLabel,
   annotationTypeLabel,
@@ -86,7 +87,10 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
 
   const [noteDraft, setNoteDraft] = useState("");
   const [noteType, setNoteType] = useState<string>("GENERAL");
-  const [typePicker, setTypePicker] = useState(false);
+  // Which draft the type sheet sets: the new note or the one being edited.
+  const [typePicker, setTypePicker] = useState<"new" | "edit" | null>(null);
+  // T-12 — editing an existing note (LegalNotesPanel.tsx:112; PATCH …/legal-notes/:id).
+  const [editing, setEditing] = useState<{ id: string; body: string; noteType: string } | null>(null);
   const [annotationDraft, setAnnotationDraft] = useState("");
 
   const load = useCallback(async () => {
@@ -150,6 +154,29 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
     [evidenceId, load],
   );
 
+  const saveEdit = useCallback(async () => {
+    if (!editing) return;
+    const invalid = validateLegalNote(editing.body);
+    if (invalid) {
+      setMessage(invalid);
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await apiFetch(buildLegalNotePath(evidenceId, editing.id), {
+        method: "PATCH",
+        body: JSON.stringify(buildLegalNoteBody(editing.body, editing.noteType)),
+      });
+      setEditing(null);
+      await load();
+    } catch (err) {
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [evidenceId, editing, load]);
+
   const addAnnotation = useCallback(async () => {
     const invalid = validateAnnotation(annotationDraft);
     if (invalid) {
@@ -190,6 +217,11 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
 
   return (
     <ProovraSection title="Internal materials">
+      {/* The web's Boundary callout on private notes (EvidenceReviewTab.tsx:287). */}
+      <View testID="private-notes-boundary">
+        <ProovraText variant="label" weight="semibold">Boundary</ProovraText>
+        <ProovraText variant="label" color={theme.color.ink.secondary}>{PRIVATE_NOTES_BOUNDARY}</ProovraText>
+      </View>
       {/* Leads the section. A note beside hashes reads as part of the record. */}
       <ProovraText variant="label" color={theme.color.ink.muted}>
         {INTERNAL_MATERIALS_BOUNDARY}
@@ -204,6 +236,9 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
       {/* -------------------------------------------------------- legal notes */}
       <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
         Legal notes
+      </ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.muted}>
+        Legal notes are internal workspace notes. They do not determine legal outcome or evidentiary weight.
       </ProovraText>
 
       {notes.status === "loading" ? null : notes.status === "failed" ? (
@@ -226,7 +261,7 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
             <ProovraListRow
               title="Note type"
               subtitle={legalNoteTypeLabel(noteType)}
-              onPress={() => setTypePicker(true)}
+              onPress={() => setTypePicker("new")}
             />
             <ProovraFormField label="Note">
               <ProovraInput
@@ -268,15 +303,51 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
                       label={legalNoteTypeLabel(n.noteType)}
                       tone={legalNoteIsPrivileged(n.noteType) ? "risk" : "governance"}
                     />
-                    <ProovraButton
-                      label="Delete"
-                      variant="ghost"
-                      fullWidth={false}
-                      loading={busy}
-                      onPress={() => void deleteNote(n)}
-                    />
+                    <View style={{ flexDirection: "row", gap: theme.space.s1 }}>
+                      <ProovraButton
+                        label="Edit"
+                        accessibilityLabel={`Edit legal note: ${legalNoteTypeLabel(n.noteType)}`}
+                        variant="ghost"
+                        fullWidth={false}
+                        disabled={busy}
+                        onPress={() => setEditing({ id: n.id, body: n.body, noteType: n.noteType })}
+                      />
+                      <ProovraButton
+                        label="Delete"
+                        variant="ghost"
+                        fullWidth={false}
+                        loading={busy}
+                        onPress={() => void deleteNote(n)}
+                      />
+                    </View>
                   </View>
-                  <ProovraText variant="bodySm">{n.body}</ProovraText>
+                  {editing?.id === n.id ? (
+                    <View style={{ gap: theme.space.s2 }}>
+                      <ProovraListRow
+                        title="Legal note type"
+                        subtitle={legalNoteTypeLabel(editing.noteType)}
+                        onPress={() => setTypePicker("edit")}
+                      />
+                      <ProovraInput
+                        value={editing.body}
+                        onChangeText={(t) => setEditing((e) => (e ? { ...e, body: t } : e))}
+                        multiline
+                        accessibilityLabel="Edit legal note text"
+                      />
+                      <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
+                        <ProovraButton
+                          label="Save"
+                          fullWidth={false}
+                          loading={busy}
+                          disabled={validateLegalNote(editing.body) !== null}
+                          onPress={() => void saveEdit()}
+                        />
+                        <ProovraButton label="Cancel" variant="ghost" fullWidth={false} onPress={() => setEditing(null)} />
+                      </View>
+                    </View>
+                  ) : (
+                    <ProovraText variant="bodySm">{n.body}</ProovraText>
+                  )}
                   <ProovraText variant="label" color={theme.color.ink.muted}>
                     {[
                       // A raw user id is not an author.
@@ -296,6 +367,9 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
       {/* -------------------------------------------------------- annotations */}
       <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
         Annotations
+      </ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.muted}>
+        Annotations are reviewer notes layered over the review surface. They do not modify preserved evidence.
       </ProovraText>
 
       {annotations.status === "loading" ? null : annotations.status === "failed" ? (
@@ -335,7 +409,7 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
               An annotation written here is about the record, not a point on the media.
             </ProovraText>
             <ProovraButton
-              label="Add annotation"
+              label="Add Text Annotation"
               loading={busy}
               disabled={validateAnnotation(annotationDraft) !== null}
               onPress={() => void addAnnotation()}
@@ -386,18 +460,22 @@ export function EvidenceInternalMaterials({ evidenceId }: { evidenceId: string }
         <ProovraLoadingState label="Loading internal materials" />
       ) : null}
 
-      <ProovraSheet visible={typePicker} title="Note type" onClose={() => setTypePicker(false)}>
-        {EVIDENCE_LEGAL_NOTE_TYPES.map((t) => (
-          <ProovraListRow
-            key={t}
-            title={legalNoteTypeLabel(t)}
-            subtitle={t === noteType ? "Current" : undefined}
-            onPress={() => {
-              setNoteType(t);
-              setTypePicker(false);
-            }}
-          />
-        ))}
+      <ProovraSheet visible={typePicker !== null} title="Note type" onClose={() => setTypePicker(null)}>
+        {EVIDENCE_LEGAL_NOTE_TYPES.map((t) => {
+          const current = typePicker === "edit" ? editing?.noteType : noteType;
+          return (
+            <ProovraListRow
+              key={t}
+              title={legalNoteTypeLabel(t)}
+              subtitle={t === current ? "Current" : undefined}
+              onPress={() => {
+                if (typePicker === "edit") setEditing((e) => (e ? { ...e, noteType: t } : e));
+                else setNoteType(t);
+                setTypePicker(null);
+              }}
+            />
+          );
+        })}
       </ProovraSheet>
     </ProovraSection>
   );

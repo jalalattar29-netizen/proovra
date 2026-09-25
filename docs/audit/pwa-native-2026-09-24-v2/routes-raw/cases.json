@@ -1,0 +1,974 @@
+{
+ "route": "/cases",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/cases/page.tsx",
+ "nativeEntry": "apps/mobile/app/(tabs)/cases.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 172,
+   "elements": 489,
+   "texts": 108,
+   "distinctTexts": 98,
+   "handlers": 99,
+   "conditionals": 1421,
+   "apiPaths": 11,
+   "distinctApi": 6,
+   "styleRefs": 335,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "zod",
+    "react-dom",
+    "lucide-react"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 156,
+   "texts": 18,
+   "distinctTexts": 15,
+   "handlers": 33,
+   "conditionals": 1094,
+   "apiPaths": 7,
+   "distinctApi": 5,
+   "styleRefs": 188,
+   "stylesheetRules": 87,
+   "themeTokens": 260,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "expo-secure-store",
+    "zod",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 105,
+  "natLabelled": 18,
+  "paired": 4,
+  "roleDiff": 5,
+  "missing": 96,
+  "extraInNative": 10,
+  "webUnlabelled": 454,
+  "missingWithRolePresent": 93,
+  "missingWithRoleAbsent": 3,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "web": "apps/web/components/cases-experience/CasesIndex.tsx:1067",
+     "nat": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Create case",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/cases-experience/CasesIndex.tsx:435",
+     "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+    },
+    {
+     "label": "No cases yet",
+     "webRole": "TEXT",
+     "natRole": "STATE_EMPTY",
+     "web": "apps/web/components/cases-experience/CasesIndex.tsx:901",
+     "nat": "apps/mobile/app/(tabs)/cases.tsx:179"
+    },
+    {
+     "label": "Create case",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/cases-experience/CasesIndex.tsx:912",
+     "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+    },
+    {
+     "label": "Create case",
+     "webRole": "DIALOG",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:137",
+     "nat": "apps/mobile/app/(tabs)/cases.tsx:143"
+    },
+    {
+     "label": "Case name",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:197",
+     "nat": "apps/mobile/app/(tabs)/cases.tsx:140"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Filter by status",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:604",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search cases, owners, IDs, or references",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:647",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Risk level",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:667",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "Select all cases in view",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1019",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Bulk action",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1033",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "Reason for this bulk action",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1046",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "gap",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1281",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "incident",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1284",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "overdue",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1287",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "gov block",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1290",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Case actions",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cases",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:378",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Group related evidence into simple workspaces for incidents, claims, projects, or reviews.",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:390",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refreshed",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:404",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Updating…",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:412",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Any risk",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:677",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create a case to group related evidence for an incident, claim, project, or review.",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:903",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No cases match these filters",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:921",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Try clearing filters or searching for a different case name.",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:923",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear filters",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:931",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:956",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:957",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Owner",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:958",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:959",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Readiness",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:960",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Last updated",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:961",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "applied",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1074",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No records",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1255",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Legal preservation",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1294",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1360",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unassigned",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1362",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1547",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Rename",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1550",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Change status",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1553",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archive",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1562",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Delete",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1571",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Risk:",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1619",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your cases",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your cases",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1781",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Investigation Matters",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1804",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Investigation Matters",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1837",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Matter queue temporarily unavailable",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1839",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:1844",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g. Insurance claim #4823",
+     "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:199",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:162",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You can rename the case from its workspace at any time. Evidence, assignments, and comments are added after creation.",
+     "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:226",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request ID:",
+     "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx:91",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Change case status",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:113",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Operator-readable reason. Helps future readers understand the timeline.",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:128",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This updates case organization only. Linked evidence, reports, verification packages, notes, custody history, and audit records remain unchanged.",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:156",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This change is audited. If the case has an active legal hold, the backend will reject transitions to Closed or Archived with a clear explanation.",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:161",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason (optional, ≤ 400 characters)",
+     "at": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:168",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Link evidence to this matter",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:224",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search evidence by title",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:255",
+     "natHasRole": true
+    },
+    {
+     "role": "LIST",
+     "label": "Workspace evidence",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:288",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Why is this evidence linked to the matter?",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:450",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:239",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading evidence…",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:275",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No evidence matches the search.",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Already linked",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:343",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Link role",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:431",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason / note (optional, ≤ 400 characters)",
+     "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:448",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Add assignment",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:220",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search by name or email",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "LIST",
+     "label": "Workspace members",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:300",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Why this assignment? Any handoff notes?",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:434",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:235",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading workspace members…",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:287",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No workspace members match the search.",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:297",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:407",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This user already holds the",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:427",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "role on this case.",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:427",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Note (optional, ≤ 400 characters)",
+     "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:432",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss contextual help",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Help ·",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Hide",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "INPUT",
+     "label": "e.g. Site inspection — Unit 4",
+     "at": "apps/mobile/app/(tabs)/cases.tsx:141"
+    },
+    {
+     "role": "INPUT",
+     "label": "Search cases",
+     "at": "apps/mobile/app/(tabs)/cases.tsx:150"
+    },
+    {
+     "role": "BUTTON",
+     "label": "+ New case",
+     "at": "apps/mobile/app/(tabs)/cases.tsx:179"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No matches",
+     "at": "apps/mobile/app/(tabs)/cases.tsx:181"
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace matter metrics are unavailable right now.",
+     "at": "apps/mobile/app/(tabs)/cases.tsx:134"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 1142,
+  "webClassesUnresolved": 24,
+  "webNonLiteralClass": 19,
+  "webCompetingRules": 72,
+  "webDistinctUnresolvedClasses": 13,
+  "natPropsResolved": 243,
+  "natTokenUnresolved": 78,
+  "webDistinctColors": 66,
+  "natDistinctColors": 19,
+  "sharedColors": 7,
+  "webOnlyColors": 59,
+  "webOnlyColorSample": [
+   "#172033",
+   "rgba(91, 79, 233, 0.1)",
+   "rgba(73, 184, 255, 0.08)",
+   "rgba(91, 79, 233, 0.16)",
+   "rgba(255, 255, 255, 0.8)",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(255, 255, 255, 0.42)",
+   "#5f6878",
+   "#d9c7fb",
+   "rgba(124, 58, 237, 0.08)",
+   "#8793a6",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(255, 255, 255, 0.68)",
+   "#beb4ff",
+   "rgba(124, 58, 237, 0.12)",
+   "rgba(15, 23, 42, 0.045)",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "#5f6b7d",
+   "rgba(15, 23, 42, 0.05)",
+   "rgba(124, 58, 237, 0.35)",
+   "#ea580c",
+   "rgba(22, 122, 91, 0.16)",
+   "#eef1f6",
+   "rgba(15, 23, 42, 0.10)",
+   "rgba(124, 58, 237, 0.06)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "rgba(15, 23, 42, 0.06)",
+   "#475569",
+   "#f2ecfe",
+   "rgba(15, 23, 42, 0.42)"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1421,
+  "natConditionals": 1094,
+  "webStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 99,
+  "natHandlers": 33,
+  "webHandlerSample": [
+   "onRetry=reload @apps/web/components/cases-experience/CasesIndex.tsx:299",
+   "onClick=() => setCreateOpen(true) @apps/web/components/cases-experience/CasesIndex.tsx:426",
+   "onChange=setFilters @apps/web/components/cases-experience/CasesIndex.tsx:455",
+   "onClearFilters=() => setFilters(DEFAULT_FILTERS) @apps/web/components/cases-experience/CasesIndex.tsx:462",
+   "onCreateCase=() => setCreateOpen(true) @apps/web/components/cases-experience/CasesIndex.tsx:462",
+   "onReload=reload @apps/web/components/cases-experience/CasesIndex.tsx:462",
+   "onClose=() => setCreateOpen(false) @apps/web/components/cases-experience/CasesIndex.tsx:478",
+   "onCreated=(newCase) => { setCreateOpen(false); // The matter-queue env @apps/web/components/cases-experience/CasesIndex.tsx:478",
+   "onClick=() => set(\"status\", seg.value as CaseStatus | \"\") @apps/web/components/cases-experience/CasesIndex.tsx:613",
+   "onChange=(e) => set(\"search\", e.target.value) @apps/web/components/cases-experience/CasesIndex.tsx:647",
+   "onChange=(e) => set(\"riskLevel\", e.target.value as MatterRiskLevel |  @apps/web/components/cases-experience/CasesIndex.tsx:667",
+   "onClick=onCreateCase @apps/web/components/cases-experience/CasesIndex.tsx:906",
+   "onClick=onClearFilters @apps/web/components/cases-experience/CasesIndex.tsx:925",
+   "onToggleAll=toggleAll @apps/web/components/cases-experience/CasesIndex.tsx:942",
+   "onClear=clearSelection @apps/web/components/cases-experience/CasesIndex.tsx:942",
+   "onRun=runBulkAction @apps/web/components/cases-experience/CasesIndex.tsx:942",
+   "onToggleSelect=toggleOne @apps/web/components/cases-experience/CasesIndex.tsx:966",
+   "onReload=onReload @apps/web/components/cases-experience/CasesIndex.tsx:966",
+   "onChange=onToggleAll @apps/web/components/cases-experience/CasesIndex.tsx:1019",
+   "onChange=(e) => setAction(e.target.value as BulkAction) @apps/web/components/cases-experience/CasesIndex.tsx:1033",
+   "onChange=(e) => setReason(e.target.value) @apps/web/components/cases-experience/CasesIndex.tsx:1046",
+   "onClick=() => void onRun(action, reason) @apps/web/components/cases-experience/CasesIndex.tsx:1056",
+   "onClick=onClear @apps/web/components/cases-experience/CasesIndex.tsx:1066",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/cases-experience/CasesIndex.tsx:1151",
+   "onChange=() => onToggleSelect?.(row.id) @apps/web/components/cases-experience/CasesIndex.tsx:1156",
+   "onClick=() => router.push(`/cases/${row.id}`) @apps/web/components/cases-experience/CasesIndex.tsx:1181",
+   "onKeyDown=(e) => { if (e.key === \"Enter\" || e.key === \" \") { e.prevent @apps/web/components/cases-experience/CasesIndex.tsx:1181",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/cases-experience/CasesIndex.tsx:1200",
+   "onReload=onReload @apps/web/components/cases-experience/CasesIndex.tsx:1318",
+   "onClick=(e) => { e.preventDefault(); e.stopPropagation(); setOpen((o @apps/web/components/cases-experience/CasesIndex.tsx:1521",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/cases-experience/CasesIndex.tsx:1541",
+   "onClick=() => go(`/cases/${caseId}`) @apps/web/components/cases-experience/CasesIndex.tsx:1546",
+   "onClick=() => go(`/cases/${caseId}?tab=settings`) @apps/web/components/cases-experience/CasesIndex.tsx:1549",
+   "onClick=() => go(`/cases/${caseId}?tab=settings`) @apps/web/components/cases-experience/CasesIndex.tsx:1552",
+   "onClick=() => void archive() @apps/web/components/cases-experience/CasesIndex.tsx:1555",
+   "onClick=() => void del() @apps/web/components/cases-experience/CasesIndex.tsx:1565",
+   "onClick=onRetry @apps/web/components/cases-experience/CasesIndex.tsx:1843",
+   "onClose=handleClose @apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:137",
+   "onClick=handleClose @apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:145",
+   "onSubmit=handleSubmit @apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:186",
+   "onChange=(e) => setName(e.target.value) @apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:199",
+   "onClick=(e) => { if (e.target === e.currentTarget && !dismissDisable @apps/web/components/cases-experience/matter-modals/Modal.tsx:200",
+   "onClick=onClose @apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClose=onClose @apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx:76",
+   "onClick=onClose @apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx:84",
+   "onClick=() => void handleConfirm() @apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx:93",
+   "onClose=onClose @apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:113",
+   "onClick=onClose @apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:121",
+   "onClick=() => void handleSubmit() @apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:130",
+   "onChange=(e) => setReason(e.target.value) @apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx:170",
+   "onClose=onClose @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:224",
+   "onClick=onClose @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:232",
+   "onClick=() => void handleSubmit() @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:241",
+   "onChange=(e) => setSearch(e.target.value) @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:255",
+   "onClick=() => setSelectedEvidenceId(ev.id) @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:303",
+   "onClick=() => void loadMore() @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:414",
+   "onChange=(e) => setRole(e.target.value as EvidenceLinkRole) @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:432",
+   "onChange=(e) => setReason(e.target.value) @apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:450"
+  ],
+  "natHandlerSample": [
+   "onPress=() => setCreating((v) => !v) @apps/mobile/app/(tabs)/cases.tsx:122",
+   "onChangeText=setNewName @apps/mobile/app/(tabs)/cases.tsx:141",
+   "onSubmitEditing=() => void create() @apps/mobile/app/(tabs)/cases.tsx:141",
+   "onPress=() => void create() @apps/mobile/app/(tabs)/cases.tsx:143",
+   "onChangeText=setQuery @apps/mobile/app/(tabs)/cases.tsx:150",
+   "onPress=() => setStatusFilter(f) @apps/mobile/app/(tabs)/cases.tsx:157",
+   "onRetry=load @apps/mobile/app/(tabs)/cases.tsx:177",
+   "onPress=() => setCreating(true) @apps/mobile/app/(tabs)/cases.tsx:179",
+   "onPress=() => router.push(`/case/${c.id}`) @apps/mobile/app/(tabs)/cases.tsx:185",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 6,
+  "natApi": 5,
+  "shared": 3,
+  "onlyWeb": 3,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/cases/matter-queue?${…}",
+   "/v1/cases/bulk",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/cases/summary",
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/cases/${…}",
+   "/v1/cases",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/cases/matter-queue?${…}": "apps/web/components/cases-experience/CasesIndex.tsx:238",
+   "/v1/cases/bulk": "apps/web/components/cases-experience/CasesIndex.tsx:842",
+   "/v1/cases/${…}": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:145",
+   "/v1/cases": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:107",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/cases": "apps/mobile/app/(tabs)/cases.tsx:80",
+   "/v1/cases/summary": "apps/mobile/src/product/case-workspace.ts:112",
+   "/v1/cases/${…}": "apps/mobile/src/product/case-workspace.ts:330",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

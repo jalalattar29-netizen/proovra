@@ -1,0 +1,1518 @@
+{
+ "route": "/operations",
+ "disposition": "NO_NATIVE_SCREEN",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Operations",
+   "at": "apps/web/app/(app)/operations/page.tsx:1449",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Conditions in",
+   "at": "apps/web/app/(app)/operations/page.tsx:1458",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Updated",
+   "at": "apps/web/app/(app)/operations/page.tsx:1464",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Grouped",
+   "at": "apps/web/app/(app)/operations/page.tsx:1753",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "All conditions",
+   "at": "apps/web/app/(app)/operations/page.tsx:1765",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading operational conditions…",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:44",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace operations are clear",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:63",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "There are no unresolved operational conditions requiring action in this workspace.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:65",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence library",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:70",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace overview",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:73",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "No operational conditions match these filters",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:84",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "This workspace may still have unresolved work. Widen the filters to see it.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:86",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:91",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operations isn&apos;t available for this workspace",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:134",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "could not be loaded.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:162",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Anything shown below may be incomplete.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:163",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:168",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational conditions are temporarily unavailable",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:187",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Try again",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:192",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Dismiss",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:220",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshing…",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:230",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preparing workspace operations",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:266",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "This workspace hasn&apos;t been checked for operational conditions yet. The first check is running now — this page will update when it finishes.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:268",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshing operational conditions…",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:281",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:326",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "The conditions below are what could be found, not necessarily all of them. This workspace can&apos;t be reported as clear until a complete check succeeds.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:328",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking again won&apos;t change this — the app and its data store don&apos;t currently match, so the same checks will fail until that is corrected. Contact whoever manages this deployment.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:335",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check again",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:343",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "The last check didn&apos;t finish.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:364",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "It started but stopped before completing, so anything below may be out of date. A new check can be started now.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:366",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check again",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:372",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "The last check for operational conditions failed.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:417",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Anything below is from an earlier check and may be out of date.",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:419",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Try again",
+   "at": "apps/web/app/(app)/operations/_components/States.tsx:425",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Queue summary",
+   "at": "apps/web/app/(app)/operations/_components/QueueSummary.tsx:81",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:132",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this is",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:144",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Source",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:147",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Conditions",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:158",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Affected",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:168",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Threshold",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:178",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(critical at",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:184",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:185",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Elapsed",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:195",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Source observations",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:209",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Observed in",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:211",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "checks",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:211",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Metric freshness",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:216",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last confirmed",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:218",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ". The most recent attempt to read this source did not complete, so the values above are the last ones observed.",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:218",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "First seen",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:225",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:229",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:229",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last seen",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:234",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:238",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:238",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Affected records",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:249",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "No individual records to show for this group.",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:259",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:281",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:287",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "owned",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:288",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:299",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open record",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:305",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading affected records…",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:316",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "View more affected records",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:327",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:202",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:217",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:228",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:249",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "threshold",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:254",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:266",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "last confirmed",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:271",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:276",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:289",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "owned",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:291",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:296",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "last seen",
+   "at": "apps/web/app/(app)/operations/_components/GroupSurface.tsx:301",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Observed in",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:195",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "checks",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:195",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:265",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:275",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:281",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "last confirmed",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:283",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:291",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational conditions in this workspace",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:326",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Select",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:332",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Severity",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:336",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Condition",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:338",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:341",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "First seen",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:345",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Latest activity",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:348",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:364",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:367",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:489",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "First seen",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:496",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Latest activity",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:502",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Views",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:94",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:98",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Shared",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:119",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Share with this workspace",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:212",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:224",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Save this view",
+   "at": "apps/web/app/(app)/operations/_components/SavedViews.tsx:235",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm:",
+   "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close condition details",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:222",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Provider",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:605",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Job",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:608",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Request",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:611",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Trace",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:614",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "What happened",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:237",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "—",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:242",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "What you can do",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:280",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Starting…",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:337",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "This runs in the background; this condition closes on its own once the record recovers.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:348",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "How much",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:402",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(at least — the read was bounded)",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:412",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(critical at",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:421",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:425",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:435",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:436",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:444",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:444",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "— the most recent check could not reach this source, so this is the last confirmed value.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:452",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "When",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:462",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:467",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:467",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "(",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:473",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ")",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:473",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Observed in",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:482",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "checks",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:482",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Ownership",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:524",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "History",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:542",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading history…",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:545",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "The history could not be loaded, so what is shown here is not the full record.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:552",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing has happened to this condition since it opened.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:557",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Older history exists beyond what is shown here.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:581",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Technical references",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:598",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Identifiers to quote if you contact support about this condition.",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:601",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Acknowledge",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:647",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Resolve",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:658",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop notifying",
+   "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:669",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:77",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:97",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Take it",
+   "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:119",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Nobody else in this workspace can take operational work yet.",
+   "at": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx:125",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BOX",
+   "label": "Step-up confirmation",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:488",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:525",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preparing your verification…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:543",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:552",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:567",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Settings → Security",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:571",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ", then start this action again.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:573",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:582",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:658",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm + retry",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:666",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirmed — retrying the original action…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:674",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:696",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Start again",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "INPUT",
+   "label": "Search operational conditions",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:132",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by lifecycle status",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:145",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by severity",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:160",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by the part of the product that produced the condition",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:177",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by who owns the condition",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:195",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sort conditions",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:209",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Filter by time commitment",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:231",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear filters",
+   "at": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx:267",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BOX",
+   "label": "Actions for the selected conditions",
+   "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:86",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "SELECT",
+   "label": "Assign the selected conditions to",
+   "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:124",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Acknowledge",
+   "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:105",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop notifying",
+   "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:116",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear selection",
+   "at": "apps/web/app/(app)/operations/_components/BulkToolbar.tsx:159",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BOX",
+   "label": "Notifications",
+   "at": "apps/web/components/ui-legacy.tsx:121",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close modal",
+   "at": "apps/web/components/ui-legacy.tsx:210",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "×",
+   "at": "apps/web/components/ui-legacy.tsx:211",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Select...",
+   "at": "apps/web/components/ui-legacy.tsx:367",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss notification",
+   "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Clear search",
+   "at": "apps/web/components/ui/FilterBar.tsx:256",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "✕",
+   "at": "apps/web/components/ui/FilterBar.tsx:284",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "No records to display.",
+   "at": "apps/web/components/ui/DataTable.tsx:244",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  }
+ ]
+}

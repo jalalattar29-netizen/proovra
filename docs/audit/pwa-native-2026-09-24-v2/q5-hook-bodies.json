@@ -1,0 +1,153 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "resolved": [
+  {
+   "name": "loadWorkflowEvents",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 219,
+   "effects": [
+    "API",
+    "STATE"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/reviewer-workflow/events"
+   ],
+   "bodyLines": 26
+  },
+  {
+   "name": "loadWorkspace",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 270,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/review-workspace",
+    "/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}"
+   ],
+   "bodyLines": 57
+  },
+  {
+   "name": "openOriginal",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 568,
+   "effects": [
+    "API",
+    "NAV"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/original"
+   ],
+   "bodyLines": 18
+  },
+  {
+   "name": "downloadOriginal",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 587,
+   "effects": [
+    "API",
+    "NAV"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/original"
+   ],
+   "bodyLines": 29
+  },
+  {
+   "name": "restoreTrash",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 718,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/restore"
+   ],
+   "bodyLines": 17
+  },
+  {
+   "name": "removeCase",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 758,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "endpoints": [
+    "/v1/cases/${workspace.relationships.caseId}/evidence/${evidenceId}"
+   ],
+   "bodyLines": 16
+  },
+  {
+   "name": "handleRemoveRelationship",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 519,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/relationships/${relationshipId}"
+   ],
+   "bodyLines": 23
+  },
+  {
+   "name": "downloadReport",
+   "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
+   "line": 104,
+   "effects": [
+    "API",
+    "NAV"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/report/latest"
+   ],
+   "bodyLines": 19
+  },
+  {
+   "name": "downloadVerificationPackage",
+   "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
+   "line": 126,
+   "effects": [
+    "API",
+    "NAV"
+   ],
+   "endpoints": [
+    "/v1/evidence/${evidenceId}/verification-package"
+   ],
+   "bodyLines": 148
+  },
+  {
+   "name": "links.onUnlink",
+   "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+   "line": 999,
+   "effects": [
+    "STATE"
+   ],
+   "endpoints": [],
+   "memberBinding": true
+  },
+  {
+   "name": "handlers.onToggleMark",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 47,
+   "effects": [],
+   "endpoints": [],
+   "memberBinding": true
+  },
+  {
+   "name": "handlers.onOpen",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 42,
+   "effects": [],
+   "endpoints": [],
+   "memberBinding": true
+  }
+ ]
+}

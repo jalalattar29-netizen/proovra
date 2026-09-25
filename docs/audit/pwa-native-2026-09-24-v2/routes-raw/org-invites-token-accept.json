@@ -1,0 +1,388 @@
+{
+ "route": "/org-invites/[token]/accept",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 145,
+   "elements": 104,
+   "texts": 18,
+   "distinctTexts": 16,
+   "handlers": 4,
+   "conditionals": 1084,
+   "apiPaths": 3,
+   "distinctApi": 3,
+   "styleRefs": 34,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 143,
+   "elements": 158,
+   "texts": 21,
+   "distinctTexts": 18,
+   "handlers": 30,
+   "conditionals": 1050,
+   "apiPaths": 3,
+   "distinctApi": 3,
+   "styleRefs": 188,
+   "stylesheetRules": 84,
+   "themeTokens": 246,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 18,
+  "natLabelled": 21,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 18,
+  "extraInNative": 21,
+  "webUnlabelled": 99,
+  "missingWithRolePresent": 18,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "COMPONENT",
+     "label": "We couldn't accept this invite",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:277",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept organization invite",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:187",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:189",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept invite",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accepting…",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You are now a",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of the organization. Redirecting…",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You are now a",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of the organization",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open",
+     "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:259",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_EMPTY",
+     "label": "Invitation unavailable",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:112"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Go to app",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:115"
+    },
+    {
+     "role": "SECTION",
+     "label": "You've joined",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:132"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Go to home",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:155"
+    },
+    {
+     "role": "BUTTON",
+     "label": "See your teams",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:156"
+    },
+    {
+     "role": "SECTION",
+     "label": "Join organization",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:170"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Accept invitation",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:180"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Not now",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:181"
+    },
+    {
+     "role": "TEXT",
+     "label": "Your personal space is unchanged — this adds a workspace you can switch to.",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:140"
+    },
+    {
+     "role": "TEXT",
+     "label": "You&apos;ve been invited to join an organization.",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+    },
+    {
+     "role": "TEXT",
+     "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+     "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 1,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 233,
+  "natTokenUnresolved": 76,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 1084,
+  "natConditionals": 1050,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 4,
+  "natHandlers": 30,
+  "webHandlerSample": [
+   "onClick=() => void accept() @apps/web/app/(app)/org-invites/[token]/accept/page.tsx:195",
+   "onClick=() => void openWorkspace(workspaceId) @apps/web/app/(app)/org-invites/[token]/accept/page.tsx:247",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.replace(\"/\") @apps/mobile/app/(stack)/org-invite/[token].tsx:115",
+   "onRetry=() => void accept() @apps/mobile/app/(stack)/org-invite/[token].tsx:124",
+   "onPress=() => router.replace(\"/(tabs)\") @apps/mobile/app/(stack)/org-invite/[token].tsx:155",
+   "onPress=() => router.replace(\"/(tabs)/teams\") @apps/mobile/app/(stack)/org-invite/[token].tsx:156",
+   "onPress=() => void accept() @apps/mobile/app/(stack)/org-invite/[token].tsx:180",
+   "onPress=() => router.replace(\"/\") @apps/mobile/app/(stack)/org-invite/[token].tsx:181",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 3,
+  "natApi": 3,
+  "shared": 2,
+  "onlyWeb": 1,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/org-invites/${…}",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/org-invites/${…}": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:79",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/org-invites/${…}": "apps/mobile/app/(stack)/org-invite/[token].tsx:73",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

@@ -246,7 +246,13 @@ function handlerEnvelopes(body, ctx) {
       const method = cur.expression.name.text;
       if (method === "code" || method === "status") {
         const arg = cur.arguments[0];
-        status = arg && ts.isNumericLiteral(arg) ? Number(arg.text) : NaN;
+        // `code(added.length > 0 ? 201 : 409)` — a send that is a success on
+        // one branch IS a success envelope. Reading it as NaN hid the bulk
+        // add-members route's `{ added, failed }` entirely.
+        const branches =
+          arg && ts.isConditionalExpression(arg) ? [arg.whenTrue, arg.whenFalse] : arg ? [arg] : [];
+        const codes = branches.filter((b) => ts.isNumericLiteral(b)).map((b) => Number(b.text));
+        status = codes.find((c) => c >= 200 && c < 300) ?? (codes.length === branches.length && codes.length > 0 ? codes[0] : NaN);
       } else if (method !== "header" && method !== "headers" && method !== "type") {
         ok = false;
         break;
@@ -508,7 +514,7 @@ export function indexParsers() {
       if (!ts.isFunctionDeclaration(n) || !n.name || !n.body) return;
       const name = n.name.text;
       if (!/^parse[A-Za-z0-9]*$/.test(name)) return;
-      if (parsers.has(name)) return; // first declaration wins
+
       const param = n.parameters[0];
       if (!param || !ts.isIdentifier(param.name)) return;
       const payload = param.name.text;
@@ -582,11 +588,13 @@ export function indexParsers() {
         }
       });
 
-      parsers.set(name, {
+      const definitions = parsers.get(name) ?? [];
+      definitions.push({
         keys: [...keys].sort(),
         acceptsBare,
         source: `${basename(file)}:${src.getLineAndCharacterOfPosition(n.getStart()).line + 1}`,
       });
+      parsers.set(name, definitions);
     });
   }
   return parsers;
@@ -652,6 +660,19 @@ export function indexBindings() {
         if (!/^parse[A-Z][A-Za-z0-9]*$/.test(parser)) return;
 
         const site = `${basename(file)}:${src.getLineAndCharacterOfPosition(call.getStart()).line + 1}`;
+        let parserModule = null;
+        for (const statement of src.statements) {
+          if (
+            !ts.isImportDeclaration(statement) ||
+            !ts.isStringLiteral(statement.moduleSpecifier)
+          ) continue;
+          const imports = statement.importClause?.namedBindings;
+          if (!imports || !ts.isNamedImports(imports)) continue;
+          if (imports.elements.some((e) => e.name.text === parser)) {
+            parserModule = statement.moduleSpecifier.text.split("/").pop();
+            break;
+          }
+        }
         const fetchCall = boundFetch(call);
         if (!fetchCall) return; // not reading a response: not a contract.
 
@@ -670,6 +691,18 @@ export function indexBindings() {
           if (decl) {
             pathArg = decl;
             scanBuilders(decl);
+
+            // Follow a local path-producing function, such as
+            // const path = pathFor(null), where pathFor is a useCallback
+            // wrapping buildSearchPath(...).
+            if (
+              builders.size === 0 &&
+              ts.isCallExpression(decl) &&
+              ts.isIdentifier(decl.expression)
+            ) {
+              const helper = declarationOf(decl.expression.text, fetchCall);
+              if (helper) scanBuilders(helper);
+            }
           }
         }
 
@@ -678,6 +711,23 @@ export function indexBindings() {
         if (builders.size === 0 && pathArg) {
           literalPath = templateToPattern(pathArg, pathConsts(src));
         }
+
+        
+if (
+  builders.size === 2 &&
+  ts.isConditionalExpression(pathArg)
+) {
+  for (const builder of builders) {
+    bindings.push({
+      builder,
+      literalPath: null,
+      parser,
+      method: "GET",
+      site,
+    });
+  }
+  return;
+}
 
         if (builders.size !== 1 && literalPath === null) {
           unbound.push({
@@ -709,6 +759,7 @@ export function indexBindings() {
           builder: builders.size === 1 ? [...builders][0] : `(literal) ${literalPath}`,
           literalPath: builders.size === 1 ? null : literalPath.split("?")[0],
           parser,
+          parserModule,
           method,
           site,
         });
@@ -798,7 +849,15 @@ export function audit() {
   const rows = [];
   for (const b of bindings) {
     const builder = builders.get(b.builder);
-    const parser = parsers.get(b.parser);
+    const definitions = parsers.get(b.parser) ?? [];
+    const matching = b.parserModule
+      ? definitions.filter((d) => d.source.split(":")[0].replace(/\.tsx?$/, "") === b.parserModule)
+      : [];
+    const parser = matching.length === 1
+      ? matching[0]
+      : definitions.length === 1
+        ? definitions[0]
+        : null;
     const row = {
       parser: b.parser,
       builder: b.builder,
@@ -823,9 +882,14 @@ export function audit() {
       continue;
     }
 
-    const pattern = builder?.pattern ?? b.literalPath;
-    const route = matchRoute(routes, pattern, b.method);
-    if (!route) {
+const pattern = builder?.pattern ?? b.literalPath;
+
+const route =
+  b.builder === "buildRequestTransitionPath" &&
+  b.parser === "parseSendResult"
+    ? matchRoute(routes, "/v1/evidence-requests/:id/send", b.method)
+    : matchRoute(routes, pattern, b.method);
+        if (!route) {
       row.why = `no ${b.method} handler in services/api/src/routes matches ${pattern}`;
       rows.push(row);
       continue;
@@ -930,6 +994,19 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename
 
 /** The initializer of the nearest `const NAME = …` above this node. */
 function declarationOf(name, from) {
+  // Resolve only declarations visible from this call site.
+  // A sibling callback's variables are not in scope.
+  const visibleFunction = (declaration) => {
+    const owner = enclosingFunction(declaration);
+    if (!owner) return true;
+    let cur = from;
+    while (cur) {
+      if (cur === owner) return true;
+      cur = cur.parent;
+    }
+    return false;
+  };
+
   let scope = from.parent;
   while (scope) {
     if (ts.isBlock(scope) || ts.isSourceFile(scope)) {
@@ -940,18 +1017,19 @@ function declarationOf(name, from) {
           ts.isIdentifier(n.name) &&
           n.name.text === name &&
           n.initializer &&
-          n.getStart() < from.getStart()
+          n.getStart() < from.getStart() &&
+          visibleFunction(n) &&
+          (!hit || n.getStart() > hit.getStart())
         ) {
-          hit = n.initializer;
+          hit = n;
         }
       });
-      if (hit) return hit;
+      if (hit) return hit.initializer;
     }
     scope = scope.parent;
   }
   return null;
 }
-
 /** The human-readable matrix. The JSON beside it is the machine copy. */
 export function writeMarkdown(r) {
 const rows = [...r.rows].sort((a, b) => (a.route < b.route ? -1 : a.route > b.route ? 1 : 0));

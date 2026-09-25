@@ -1,0 +1,2220 @@
+{
+ "route": "/capture",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/capture/page.tsx:675",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "web": "apps/web/app/(app)/capture/page.tsx:1280",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1522",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "Uploaded",
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:181",
+   "nat": "apps/mobile/app/(stack)/continuous-capture.tsx:399",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/components/ai/CaptureAiAssistant.tsx:489",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:65",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "unfinished capture session",
+   "natLabel": "An unfinished capture with",
+   "score": 0.67,
+   "web": "apps/web/app/(app)/capture/page.tsx:638",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Unfinished capture drafts",
+   "natLabel": "An unfinished capture with",
+   "score": 0.67,
+   "web": "apps/web/app/(app)/capture/page.tsx:670",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "staged item",
+   "natLabel": "item",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/capture/page.tsx:685",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1314",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/capture/page.tsx:714",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "BUTTON",
+   "webLabel": "Resume upload",
+   "natLabel": "Resume",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:189",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1317",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "BUTTON",
+   "webLabel": "Cancel upload",
+   "natLabel": "Cancel",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:207",
+   "nat": "apps/mobile/app/(stack)/screen-capture.tsx:212",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:268",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Resume",
+   "natLabel": "Resume your capture?",
+   "score": 0.5,
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:194",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1312",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "label": "Discard",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/capture/page.tsx:992",
+   "nat": "apps/mobile/app/(stack)/capture.tsx:1318",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/uploads/UploadOperationsPanel.tsx:212",
+   "nat": "apps/mobile/app/(stack)/screen-capture.tsx:212",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "INPUT",
+   "label": "Upload evidence files",
+   "at": "apps/web/app/(app)/capture/page.tsx:569",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Upload evidence folder",
+   "at": "apps/web/app/(app)/capture/page.tsx:589",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Unfinished capture sessions",
+   "at": "apps/web/app/(app)/capture/page.tsx:631",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Capture Evidence",
+   "at": "apps/web/app/(app)/capture/page.tsx:758",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close audio recorder",
+   "at": "apps/web/app/(app)/capture/page.tsx:944",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:223"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Close\" at apps/mobile/src/ui/capture-plan-sections.tsx:223 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "BOX",
+   "label": "Bulk actions",
+   "at": "apps/web/app/(app)/capture/page.tsx:1051",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add a note about this material (private to you).",
+   "at": "apps/web/app/(app)/capture/page.tsx:1298",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Context note",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1630"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g. Phone camera, on-site",
+   "at": "apps/web/app/(app)/capture/page.tsx:1334",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You have",
+   "at": "apps/web/app/(app)/capture/page.tsx:638",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Resume restores template, mappings, notes, and item metadata. For privacy and browser-security reasons, the original file binaries cannot be restored automatically — you must re-attach the actual files before finalization.",
+   "at": "apps/web/app/(app)/capture/page.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "item",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1314"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Drafts (",
+   "at": "apps/web/app/(app)/capture/page.tsx:655",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Resume draft metadata, then re-attach files before Review & Sign.",
+   "at": "apps/web/app/(app)/capture/page.tsx:671",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete",
+   "at": "apps/web/app/(app)/capture/page.tsx:724",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Collection setup",
+   "at": "apps/web/app/(app)/capture/page.tsx:819",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Collection plan\" at apps/mobile/src/ui/capture-plan-sections.tsx:103 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Intake structure",
+   "at": "apps/web/app/(app)/capture/page.tsx:820",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose whether this session follows a required checklist, flexible intake, or location-enabled collection.",
+   "at": "apps/web/app/(app)/capture/page.tsx:824",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Choose a collection plan to give items a role.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1625"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Guided",
+   "at": "apps/web/app/(app)/capture/page.tsx:839",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Checklist required",
+   "at": "apps/web/app/(app)/capture/page.tsx:840",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Flexible",
+   "at": "apps/web/app/(app)/capture/page.tsx:854",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "General intake",
+   "at": "apps/web/app/(app)/capture/page.tsx:855",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Location",
+   "at": "apps/web/app/(app)/capture/page.tsx:873",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Audio Recorder",
+   "at": "apps/web/app/(app)/capture/page.tsx:941",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your browser could not play this audio preview.",
+   "at": "apps/web/app/(app)/capture/page.tsx:957",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "Collection plans could not be loaded. You can capture without one.",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:107"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.15)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Start Recording",
+   "at": "apps/web/app/(app)/capture/page.tsx:973",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "An earlier unfinished capture expired and was cleared. Start a new capture below.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1324"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop",
+   "at": "apps/web/app/(app)/capture/page.tsx:981",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:401"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Add to Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:999",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence material management",
+   "at": "apps/web/app/(app)/capture/page.tsx:1010",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Compact review rows surface mapping, status, type, size, and warnings for faster operational scanning.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1014",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "unmapped",
+   "at": "apps/web/app/(app)/capture/page.tsx:1022",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear all mappings",
+   "at": "apps/web/app/(app)/capture/page.tsx:1066",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove pending items",
+   "at": "apps/web/app/(app)/capture/page.tsx:1083",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Remove",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1522"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Remove\" at apps/mobile/app/(stack)/capture.tsx:1522 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Preview",
+   "at": "apps/web/app/(app)/capture/page.tsx:1091",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "File",
+   "at": "apps/web/app/(app)/capture/page.tsx:1092",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/app/(app)/capture/page.tsx:1093",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Size",
+   "at": "apps/web/app/(app)/capture/page.tsx:1094",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "EXTRACTOR_ARTIFACT",
+   "why": "extracted label is the prop name \"Size\""
+  },
+  {
+   "role": "TEXT",
+   "label": "Role & requirement",
+   "at": "apps/web/app/(app)/capture/page.tsx:1095",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Choose a collection plan to give items a role.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1625"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/capture/page.tsx:1096",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/capture/page.tsx:1097",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Context · Unmapped",
+   "at": "apps/web/app/(app)/capture/page.tsx:1222",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave unmapped or supplemental",
+   "at": "apps/web/app/(app)/capture/page.tsx:1223",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:221"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your notes",
+   "at": "apps/web/app/(app)/capture/page.tsx:1295",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Source (optional)",
+   "at": "apps/web/app/(app)/capture/page.tsx:1332",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Finish or discard the current session to use another source.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1421"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Shown on the evidence record as the item's source context. Not included in the public verification page or report.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1360",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear this evidence session?",
+   "at": "apps/web/app/(app)/capture/page.tsx:1429",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "This will remove all staged materials, mapping, private notes, and local review progress. No evidence record has been created yet.",
+   "at": "apps/web/app/(app)/capture/page.tsx:1432",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.17)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:1444",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear Session",
+   "at": "apps/web/app/(app)/capture/page.tsx:1455",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no STATE_ERROR element at all"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Upload operations",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:75",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Upload recovery",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:227",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "failure reason",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "uploaded bytes",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:180",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "server-verified bytes",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:183",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Pause upload",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:198",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline.",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:123",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recover earlier uploads",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "An earlier unfinished capture expired and was cleared. Start a new capture below.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1324"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:284",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Server-verified",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Pause",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:203",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Capture intake progression",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx:48",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Intake plan",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx:56",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Collection plan\" at apps/mobile/src/ui/capture-plan-sections.tsx:103 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Direct Web Capture",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Resume your capture?\" at apps/mobile/app/(stack)/capture.tsx:1312 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Don&apos;t just upload a screenshot. With the PROOVRA browser extension you can preserve a web page through a server-issued capture session: PROOVRA takes part in the capture, independently checks the bytes it receives, and records how and when the page was captured.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:415"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA records how the page entered the evidence lifecycle. It does not establish that the page&apos;s content is true, who authored it, or that a website is genuine.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:71",
+   "natHasRole": true,
+   "bestScore": 0.36,
+   "bestNat": {
+    "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.\" at apps/mobile/app/(stack)/screen-capture.tsx:209 scores 0.36 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Install the PROOVRA extension",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:86",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA will capture what is shown on your screen, using Android's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:202"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.07)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Learn how Direct Web Capture works",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:94",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss capture readiness panel",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:150",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Screen capture",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1398"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture readiness ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:136",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Resume your capture?\" at apps/mobile/app/(stack)/capture.tsx:1312 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow criteria satisfied",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:165",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational readiness only. The capture pipeline (hashing, custody, finalization) is governed by the upload flow itself — this panel never blocks finalization.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "BOX",
+   "label": "Capture suggestions",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:85",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss capture suggestions panel",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:117",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Screen capture",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1398"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Suggested next steps ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:115",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx:132",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Required mapping progress",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Requirements",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:45",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required mapped",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:89",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional mapped",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unmapped materials",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Finish gate",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Worth doing before you finish",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:187"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepts",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:153",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Materials to re-attach from the resumed draft",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:54",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "material",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:66",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "to re-attach",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:66",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This draft kept each file&apos;s name, type and requirement mapping. File contents are never stored before Review &amp; Sign, so the files themselves have to be added again — mappings below are for reference.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:69",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.07)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Dismiss",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Evidence intake actions",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:106",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence capture",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:94",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Add source files",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:95",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.2)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Upload, capture, or record materials for this session.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:97",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.4 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Drag and drop files or folders into this workspace.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:143",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:415"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.03)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Mapping, integrity checks, and readiness warnings update as soon as materials are staged.",
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:147",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Readiness ·",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:135",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Next:",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:148",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "All workflow criteria satisfied for this intake. Finalize when ready.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:160",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "uploaded and ready to seal.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:409"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Informational only — finalization is governed by the upload flow.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx:171",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:401"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Session activity",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "event",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:64",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No activity recorded in this session yet.",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:77",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"No evidence yet.\" at apps/mobile/app/(stack)/capture.tsx:1659 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Still unmapped:",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureFinalReadiness.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Session final actions",
+   "at": "apps/web/components/capture-v2/CaptureBottomBar.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Clear Session",
+   "at": "apps/web/components/capture-v2/CaptureBottomBar.tsx:58",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add investigator, legal, insurance, or internal review context.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:318",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Context note",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1630"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Session status",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:139",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operations command center",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Mapped",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Blockers",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:201",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Warnings",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:205",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Session metadata",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Session ID",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:232",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Template",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:236",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Mode",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:240",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Total size",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:244",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrity preparation",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:252",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:232"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Fingerprint",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:258",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Custody",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:262",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Package",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:266",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "After finalization",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Location",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:270",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI advisory review",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:277",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata-only quality control. It may surface missing mappings or client-side risk signals, but it does not determine authenticity, truth, authorship, legal admissibility, or final outcome.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:281",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Private note",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:313",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Visible only inside the authenticated app. Excluded from public verification, reports, and verification packages.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:316",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:221"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Location was not granted. The current session will continue without GPS metadata unless the selected plan requires it.",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:331",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Blockers",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Warnings",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:131",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No blockers",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:109",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No warnings",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"No evidence yet.\" at apps/mobile/app/(stack)/capture.tsx:1659 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "more",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI Review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:386",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "% required coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:412",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Materials",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:415",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "with location signal",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:417",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Include location metadata\" at apps/mobile/app/(stack)/capture.tsx:1372 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:420",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI flag(s)",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:422",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI assistant unavailable. Continue capture and finish normally.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:434",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.15)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Advisory workflow gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:440",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Run after mapping evidence. The review checks coverage, metadata signals, and suggested next actions before the human Review & Sign decision.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:442",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI workflow quality control",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:476",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Session readiness review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:477",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Advisory metadata-based review only. This assistant does not determine factual truth, authenticity, authorship, or legal admissibility.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:479",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewing workflow…",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:496",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking metadata, mappings, missing requirements, and risk flags.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI unavailable",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:501",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Current QA state",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:508",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Finish or discard the current session to use another source.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1421"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.11)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required coverage",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:512",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:516",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow note(s).",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:529",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:533",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Include location metadata\" at apps/mobile/app/(stack)/capture.tsx:1372 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "metadata flag(s).",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:534",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Include location metadata\" at apps/mobile/app/(stack)/capture.tsx:1372 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Human gate",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:538",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer confirmation is still required.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:539",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Coverage requirements",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:545",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Risk signals",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:554",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Metadata review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:565",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Include location metadata\" at apps/mobile/app/(stack)/capture.tsx:1372 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow next actions",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:577",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Resolve before final review",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:582",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Worth doing before you finish",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:187"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended QA check",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:593",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Informational",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:604",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal limitation",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:616",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "AI advisory is not saved.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This review runs against your session metadata only (uploaded contents are never sent). Output is not persisted on the evidence record, the report, or the verification package. Re-run to see fresh guidance after editing materials.",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:643",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "REC",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:76",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Flash",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:93",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Flip",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:103",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "added",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Take photos continuously. Each shot is added automatically.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1453"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture repeatedly to add multiple photos into one evidence record.",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:116",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Review and finish this session in Capture. It is not evidence until you do.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:247"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Record a clip, it will be auto-added to the same evidence session.",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:120",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:379"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.15)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Recording…",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:124",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:389"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Add to Evidence Session",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:137",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Capture Session\" at apps/mobile/app/(stack)/capture.tsx:1486 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Record",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "PROOVRA will record what is shown on your screen as a continuous session, using the device's own screen-capture permission. Before it starts:",
+    "at": "apps/mobile/app/(stack)/continuous-capture.tsx:379"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Stop & Add",
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:155",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Auto-add mode\" at apps/mobile/app/(stack)/capture.tsx:1447 scores 0.25 — plausible counterpart, needs a read"
+  }
+ ]
+}

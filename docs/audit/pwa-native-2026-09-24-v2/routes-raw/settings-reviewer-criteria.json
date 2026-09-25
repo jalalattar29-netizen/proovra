@@ -1,0 +1,805 @@
+{
+ "route": "/settings/reviewer-criteria",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 146,
+   "elements": 183,
+   "texts": 64,
+   "distinctTexts": 54,
+   "handlers": 31,
+   "conditionals": 1165,
+   "apiPaths": 11,
+   "distinctApi": 5,
+   "styleRefs": 98,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 145,
+   "elements": 212,
+   "texts": 50,
+   "distinctTexts": 42,
+   "handlers": 55,
+   "conditionals": 1132,
+   "apiPaths": 8,
+   "distinctApi": 5,
+   "styleRefs": 232,
+   "stylesheetRules": 92,
+   "themeTokens": 270,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 62,
+  "natLabelled": 45,
+  "paired": 4,
+  "roleDiff": 4,
+  "missing": 54,
+  "extraInNative": 36,
+  "webUnlabelled": 170,
+  "missingWithRolePresent": 52,
+  "missingWithRoleAbsent": 2,
+  "samples": {
+   "paired": [
+    {
+     "role": "INPUT",
+     "label": "Criteria set name",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:510",
+     "nat": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:372"
+    },
+    {
+     "role": "INPUT",
+     "label": "Version title",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:511",
+     "nat": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:393"
+    },
+    {
+     "role": "TEXT",
+     "label": "required",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:457",
+     "nat": "apps/mobile/src/ui/criteria-draft-editor.tsx:141"
+    },
+    {
+     "role": "TEXT",
+     "label": "required",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:517",
+     "nat": "apps/mobile/src/ui/criteria-draft-editor.tsx:141"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "key",
+     "webRole": "INPUT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:454",
+     "nat": "apps/mobile/src/ui/criteria-draft-editor.tsx:103"
+    },
+    {
+     "label": "key",
+     "webRole": "INPUT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:514",
+     "nat": "apps/mobile/src/ui/criteria-draft-editor.tsx:103"
+    },
+    {
+     "label": "Reviewer Criteria",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:83",
+     "nat": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:190"
+    },
+    {
+     "label": "Save as new draft",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:438",
+     "nat": "apps/mobile/src/ui/criteria-draft-editor.tsx:331"
+    }
+   ],
+   "missing": [
+    {
+     "role": "SELECT",
+     "label": "Compare from version",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:199",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Compare to version",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:203",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "Draft version title",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:451",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "What the reviewer should inspect",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "What the reviewer should inspect",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:515",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select a workspace.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:79",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Human-authored, versioned criteria that guide reviewers. Published versions are immutable; the Reviewer Copilot may explain criteria but never authors, edits, or publishes them.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:89",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:96",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No criteria sets yet. Create the first one to standardize your reviews.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:99",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Publish v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:117",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Duplicate as v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:123",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retire",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:128",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest: v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:137",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:137",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Version history is unavailable.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:186",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading history…",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:187",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Compare",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:198",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "from…",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:201",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to…",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:204",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:205",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "→ v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Title: “",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "” → “",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "”",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "v",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "created",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Used in",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Copilot run(s) across",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "review(s) by",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "reviewer(s)",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Not used by any Copilot run yet.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:235",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading draft…",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:422",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edit conflict:",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:429",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "this criteria set was changed by someone else",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:429",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "since you loaded it. Your changes were NOT saved.",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:430",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reload latest version",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:433",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overwrite with my changes",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:440",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(&quot;Added/Changed&quot; = in your editor; &quot;Removed&quot; = only in the server version.)",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:446",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:459",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add criterion",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:463",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New criteria set (draft)",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:507",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:519",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add criterion",
+     "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:523",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "New criteria set",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:196"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:204"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Resolving workspace",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:208"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading criteria",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:209"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reviewer criteria are part of reviewer workflows",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:214"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No criteria sets yet",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:226"
+    },
+    {
+     "role": "BUTTON",
+     "label": "New criteria set",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:230"
+    },
+    {
+     "role": "DIALOG",
+     "label": "New criteria set",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:366"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Set name",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:371"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Description (optional)",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:381"
+    },
+    {
+     "role": "INPUT",
+     "label": "Criteria set description",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:382"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create draft",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:405"
+    },
+    {
+     "role": "TEXT",
+     "label": "Published criteria cannot be edited. Duplicate this set to make changes.",
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:358"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Remove",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:92"
+    },
+    {
+     "role": "INPUT",
+     "label": "short-stable-identifier",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:104"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Title",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:112"
+    },
+    {
+     "role": "INPUT",
+     "label": "What the reviewer is being asked",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:113"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Review guidance (optional)",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:122"
+    },
+    {
+     "role": "INPUT",
+     "label": "How a reviewer should judge this",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:123"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Add a criterion",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:151"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading draft",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:297"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Reload latest",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:317"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Save draft",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:377"
+    },
+    {
+     "role": "TEXT",
+     "label": "Someone else changed this draft",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:308"
+    },
+    {
+     "role": "TEXT",
+     "label": "The criterion titles are the same on both sides; the difference is elsewhere in the version.",
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:343"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/mobile/src/toast-context.tsx:119"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 541,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 3,
+  "webCompetingRules": 20,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 261,
+  "natTokenUnresolved": 85,
+  "webDistinctColors": 15,
+  "natDistinctColors": 19,
+  "sharedColors": 3,
+  "webOnlyColors": 12,
+  "webOnlyColorSample": [
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(255, 255, 255, 0.70)",
+   "#667085",
+   "rgba(168, 102, 18, 0.24)",
+   "rgba(255, 255, 255, 0.42)",
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(15, 23, 42, 0.04)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(15, 23, 42, 0.05)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1165,
+  "natConditionals": 1132,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 31,
+  "natHandlers": 55,
+  "webHandlerSample": [
+   "onClick=() => setShowCreate((v) => !v) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:84",
+   "onCreated=() => { setShowCreate(false); void load(); } @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:94",
+   "onClick=() => setEditId(editId === s.id ? null : s.id) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:113",
+   "onClick=() => void act(s.id, \"publish\") @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:116",
+   "onClick=() => void act(s.id, \"duplicate\") @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:122",
+   "onClick=() => void act(s.id, \"retire\") @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:127",
+   "onClick=() => setHistoryId(historyId === s.id ? null : s.id) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:131",
+   "onSaved=() => { setEditId(null); void load(); } @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:142",
+   "onChange=(e) => setCompareA(e.target.value ? Number(e.target.value) : @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:199",
+   "onChange=(e) => setCompareB(e.target.value ? Number(e.target.value) : @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:203",
+   "onClick=() => void reloadLatest() @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:433",
+   "onClick=() => setShowCompare((v) => !v) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:434",
+   "onClick=() => void saveAsNewDraft() @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:438",
+   "onClick=() => void save(null) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:440",
+   "onChange=(e) => setTitle(e.target.value) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:451",
+   "onChange=(e) => updateRow(i, { key: e.target.value }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:454",
+   "onChange=(e) => updateRow(i, { title: e.target.value }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:455",
+   "onChange=(e) => updateRow(i, { required: e.target.checked }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:457",
+   "onClick=() => setRows((prev) => (prev ? prev.filter((_, idx) => idx  @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:459",
+   "onClick=() => setRows((prev) => (prev ? [...prev, { key: \"\", title:  @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:463",
+   "onClick=() => void save(baseUpdatedAt) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:464",
+   "onChange=(e) => setName(e.target.value) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:510",
+   "onChange=(e) => setTitle(e.target.value) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:511",
+   "onChange=(e) => updateRow(i, { key: e.target.value }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:514",
+   "onChange=(e) => updateRow(i, { title: e.target.value }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:515",
+   "onChange=(e) => updateRow(i, { required: e.target.checked }) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:517",
+   "onClick=() => setRows((prev) => prev.filter((_, idx) => idx !== i)) @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:519",
+   "onClick=() => setRows((prev) => [...prev, { key: \"\", title: \"\", requ @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:523",
+   "onClick=() => void submit() @apps/web/app/(app)/settings/reviewer-criteria/page.tsx:524",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80"
+  ],
+  "natHandlerSample": [
+   "onPress=() => setCreating(true) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:196",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:204",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:222",
+   "onPress=() => setCreating(true) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:230",
+   "onPress=() => setPending({ set, action }) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:277",
+   "onPress=() => setEditing((cur) => (cur === set.id ? null : set.id)) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:294",
+   "onSaved=() => { addToast(\"Draft saved.\", \"success\"); void load(); } @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:301",
+   "onPress=() => { if (usage[set.id]) { setUsage((prev) => { const next @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:314",
+   "onClose=() => setCreating(false) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:366",
+   "onChangeText=setNewName @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:372",
+   "onChangeText=setNewDescription @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:382",
+   "onChangeText=setNewTitle @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:393",
+   "onChange=setNewRows @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:403",
+   "onPress=() => void create() @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:405",
+   "onConfirm=() => void run() @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:413",
+   "onCancel=() => setPending(null) @apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:413",
+   "onPress=() => onChange(list.filter((_, idx) => idx !== i)) @apps/mobile/src/ui/criteria-draft-editor.tsx:92",
+   "onChangeText=(t) => patch(i, { key: t }) @apps/mobile/src/ui/criteria-draft-editor.tsx:104",
+   "onChangeText=(t) => patch(i, { title: t }) @apps/mobile/src/ui/criteria-draft-editor.tsx:113",
+   "onChangeText=(t) => patch(i, { reviewGuidance: t }) @apps/mobile/src/ui/criteria-draft-editor.tsx:123",
+   "onValueChange=(v) => patch(i, { required: v }) @apps/mobile/src/ui/criteria-draft-editor.tsx:142",
+   "onPress=() => onChange([...list, emptyCriterionRow()]) @apps/mobile/src/ui/criteria-draft-editor.tsx:151",
+   "onPress=() => void reloadLatest() @apps/mobile/src/ui/criteria-draft-editor.tsx:317",
+   "onPress=() => setComparing((v) => !v) @apps/mobile/src/ui/criteria-draft-editor.tsx:324",
+   "onPress=() => void saveAsNewDraft() @apps/mobile/src/ui/criteria-draft-editor.tsx:331",
+   "onChangeText=setTitle @apps/mobile/src/ui/criteria-draft-editor.tsx:366",
+   "onChange=(next) => setList(next) @apps/mobile/src/ui/criteria-draft-editor.tsx:375",
+   "onPress=() => void save(baseUpdatedAt) @apps/mobile/src/ui/criteria-draft-editor.tsx:377",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => onDismiss(toast.id) @apps/mobile/src/toast-context.tsx:115",
+   "onDismiss=onDismiss @apps/mobile/src/toast-context.tsx:135",
+   "onDismiss=removeToast @apps/mobile/src/toast-context.tsx:171"
+  ]
+ },
+ "level8": {
+  "webApi": 5,
+  "natApi": 5,
+  "shared": 4,
+  "onlyWeb": 1,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/reviewer-criteria?teamId=${…}",
+   "/v1/reviewer-criteria/${…}",
+   "/v1/reviewer-criteria",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/reviewer-criteria?teamId=${…}": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:46",
+   "/v1/reviewer-criteria/${…}": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:407",
+   "/v1/reviewer-criteria": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:489",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/reviewer-criteria?teamId=${…}": "apps/mobile/src/product/reviewer-criteria.ts:40",
+   "/v1/reviewer-criteria/${…}": "apps/mobile/src/product/reviewer-criteria.ts:243",
+   "/v1/reviewer-criteria": "apps/mobile/src/product/reviewer-criteria.ts:447",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

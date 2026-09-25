@@ -16,7 +16,7 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadWithProviders, renderInProviders, React } from "./support/render.mjs";
+import { loadModule, renderInProviders, React, act } from "./support/render.mjs";
 
 const h = React.createElement;
 let Screen;
@@ -89,7 +89,8 @@ const POPULATED = () => ({
 });
 
 before(async () => {
-  Screen = await loadWithProviders("app/(stack)/evidence-request/[id].tsx");
+  // The expo stub is in the graph so router pushes are observable (Screen.calls).
+  Screen = await loadModule("app/(stack)/evidence-request/[id].tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
 });
 
 beforeEach(() => {
@@ -116,7 +117,8 @@ test("a reviewer's earlier note is shown with the submission it belongs to", asy
 
 test("an anonymous submission is not given an invented name", async () => {
   const r = await render();
-  assert.ok(r.hasText("Contributor"), "the anonymous submission has no label at all");
+  // Web parity (page.tsx:646): the absence reads "External contributor".
+  assert.ok(r.hasText("External contributor"), "the anonymous submission has no label at all");
   assert.ok(
     !r.texts().some((t) => t.includes("aa11bb22")),
     "a raw response id reached the screen where a person belongs",
@@ -126,7 +128,8 @@ test("an anonymous submission is not given an invented name", async () => {
 test("a request with nothing submitted says so, rather than showing an empty frame", async () => {
   routes["/v1/evidence-requests/req-1"] = () => ({ body: REQUEST([]) });
   const r = await render();
-  assert.ok(r.hasText("Nothing has been submitted against this request yet."));
+  // page.tsx:615 — the web empty copy.
+  assert.ok(r.hasText("No responses received yet. Responses appear here once the contributor submits via the intake link."));
 });
 
 test("the submissions section survives a request the reader cannot see deliveries for", async () => {
@@ -145,4 +148,47 @@ test("acceptance is offered as admission to review, never as verification", asyn
   // The status vocabulary is on the screen as the product says it, not as a
   // shorter word a reviewer could read as a finding about the evidence.
   assert.ok(!r.texts().some((t) => t === "Accepted"), "bare 'Accepted' would overstate the act");
+});
+
+test("a retryable delivery is shown in the server's words and can be retried", async () => {
+  routes["/v1/evidence-requests/req-1/deliveries"] = () => ({
+    body: { deliveries: [{ id: "d1", eventType: "REMINDER", status: "FAILED", errorCode: "bounced", retryCount: 1, lastAttemptAtUtc: "2026-09-24T09:00:00.000Z", retryable: true }] },
+  });
+  routes["/v1/evidence-requests/req-1/deliveries/d1/retry"] = () => ({ body: { ok: true } });
+  const r = await render();
+  await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
+  assert.ok(r.texts().some((t) => t.startsWith("reminder · last attempt")), "the delivery was not described");
+  assert.ok(r.hasText("Failed") && r.hasText("(bounced)"));
+  assert.ok(!r.hasText("Recipient"), "the invented 'Recipient' fallback is back");
+  await r.press("Retry reminder");
+  await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
+  assert.ok(requests.some((q) => q.method === "POST" && q.path === "/v1/evidence-requests/req-1/deliveries/d1/retry"));
+});
+
+/* ---- T-14 (page.tsx:580 received, :658 Open evidence) ---- */
+
+test("each requested item says how much of it arrived, what it accepts, and a waiver", async () => {
+  routes["/v1/evidence-requests/req-1"] = () => ({
+    body: {
+      request: {
+        ...REQUEST([RECEIVED]).request,
+        // The server row (prisma EvidenceRequestDeliverable).
+        deliverables: [
+          { id: "d1", title: "Front photo", required: true, status: "PARTIALLY_FULFILLED", fulfilledCount: 1, minCount: 2, maxCount: 4, acceptedKinds: ["PHOTO", "VIDEO"], waivedReason: null },
+          { id: "d2", title: "Invoice", required: false, status: "WAIVED", fulfilledCount: 0, minCount: 1, maxCount: null, acceptedKinds: [], waivedReason: "Not applicable" },
+        ],
+      },
+    },
+  });
+  const r = await render();
+  assert.ok(r.texts().some((t) => t.includes("1 of 2 received (up to 4) · Accepts PHOTO, VIDEO")), r.texts().join(" | "));
+  assert.ok(r.texts().some((t) => t.includes("0 of 1 received · Waived: Not applicable")));
+});
+
+test("a submission with a record opens it", async () => {
+  const r = await render();
+  const open = r.byLabel("Open evidence");
+  assert.equal(open.filter((n) => n.props.onPress).length, 1, "only the response with a record offers it");
+  await act(async () => { open.find((n) => n.props.onPress).props.onPress(); });
+  assert.equal(Screen.calls.push.at(-1), "/evidence/ev-1");
 });

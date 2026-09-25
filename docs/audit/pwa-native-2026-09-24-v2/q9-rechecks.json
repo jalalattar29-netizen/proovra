@@ -1,0 +1,4743 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "presentElsewhere": {
+  "total": 897,
+  "onCounterpart": 371,
+  "oneHop": 69,
+  "unreachable": 457,
+  "tooShort": 0,
+  "unreachableSample": [
+   {
+    "route": "/auth/callback/ui",
+    "role": "TEXT",
+    "label": "Authentication",
+    "at": "apps/web/app/auth/callback/ui/page.tsx:394",
+    "livesIn": [
+     "apps/mobile/app/(stack)/mfa.tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/src/auth/use-auth-flow.ts"
+    ]
+   },
+   {
+    "route": "/auth/mfa-challenge",
+    "role": "TEXT",
+    "label": "Return to sign in",
+    "at": "apps/web/app/auth/mfa-challenge/page.tsx:300",
+    "livesIn": [
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+    ]
+   },
+   {
+    "route": "/auth/mfa-challenge",
+    "role": "TEXT",
+    "label": "Workspace",
+    "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:493",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/auth/mfa-challenge",
+    "role": "TEXT",
+    "label": "Retry",
+    "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:677",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/auth/mfa-challenge",
+    "role": "TEXT",
+    "label": "Your recovery request",
+    "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:710",
+    "livesIn": [
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+    ]
+   },
+   {
+    "route": "/auth/mfa-challenge",
+    "role": "TEXT",
+    "label": "Expires",
+    "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:713",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/auth/mfa-recovery/verify",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:335",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/auth/verify-email",
+    "role": "COMPONENT",
+    "label": "Email sent",
+    "at": "apps/web/app/auth/verify-email/page.tsx:424",
+    "livesIn": [
+     "apps/mobile/src/ui/mfa-recovery-request.tsx"
+    ]
+   },
+   {
+    "route": "/auth/verify-email",
+    "role": "TEXT",
+    "label": "Email verified",
+    "at": "apps/web/app/auth/verify-email/page.tsx:318",
+    "livesIn": [
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+    ]
+   },
+   {
+    "route": "/auth/verify-email",
+    "role": "TEXT",
+    "label": "Email address",
+    "at": "apps/web/app/auth/verify-email/page.tsx:364",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx",
+     "apps/mobile/src/product/portal.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Buying",
+    "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:416",
+    "livesIn": [
+     "apps/mobile/src/product/billing.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Total",
+    "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:434",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Capacity",
+    "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:468",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/teams.tsx",
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-settings.tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "CARD",
+    "label": "Agreement",
+    "at": "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx:231",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/settings.tsx",
+     "apps/mobile/src/product/support.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Above the",
+    "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:640",
+    "livesIn": [
+     "apps/mobile/app/(stack)/search.tsx",
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/search.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "existing evidence",
+    "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:687",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:442",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Method",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:469",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Amount",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:470",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/billing.ts",
+     "apps/mobile/src/product/home-dashboard.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Status",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:471",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Actions",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:475",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Re-check",
+    "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:562",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/src/auth/legal-gate.ts",
+     "apps/mobile/src/product/collaboration.ts"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Close",
+    "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:87",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "TEXT",
+    "label": "Change plan",
+    "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:180",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/billing",
+    "role": "BUTTON",
+    "label": "Close",
+    "at": "apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:190",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "COMPONENT",
+    "label": "Capture Evidence",
+    "at": "apps/web/app/(app)/capture/page.tsx:758",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "BOX",
+    "label": "Bulk actions",
+    "at": "apps/web/app/(app)/capture/page.tsx:1051",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-library.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "You have",
+    "at": "apps/web/app/(app)/capture/page.tsx:638",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/privacy.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "unmapped",
+    "at": "apps/web/app/(app)/capture/page.tsx:1022",
+    "livesIn": [
+     "apps/mobile/src/errors/safe-error.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "You're offline.",
+    "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:123",
+    "livesIn": [
+     "apps/mobile/src/ui/shell.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Pause",
+    "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:203",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/src/DeepLinkGate.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Requirements",
+    "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:45",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/src/product/account-security.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Dismiss",
+    "at": "apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx:80",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Evidence capture",
+    "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:94",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Session activity",
+    "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:61",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Required",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:191",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Mapped",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:197",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Blockers",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:201",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Warnings",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:205",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts",
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Session ID",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:232",
+    "livesIn": [
+     "apps/mobile/src/portal/portal-session.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Fingerprint",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:258",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/verify.tsx",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Private note",
+    "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:313",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "COMPONENT",
+    "label": "Blockers",
+    "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:122",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "COMPONENT",
+    "label": "Warnings",
+    "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:131",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts",
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "No blockers",
+    "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:109",
+    "livesIn": [
+     "apps/mobile/src/product/closure.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Workflow",
+    "at": "apps/web/components/ai/CaptureAiAssistant.tsx:405",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Coverage",
+    "at": "apps/web/components/ai/CaptureAiAssistant.tsx:410",
+    "livesIn": [
+     "apps/mobile/src/product/derived-review.ts",
+     "apps/mobile/src/ui/derived-review-tab.tsx"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Signals",
+    "at": "apps/web/components/ai/CaptureAiAssistant.tsx:420",
+    "livesIn": [
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Informational",
+    "at": "apps/web/components/ai/CaptureAiAssistant.tsx:604",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts"
+    ]
+   },
+   {
+    "route": "/capture",
+    "role": "TEXT",
+    "label": "Recording…",
+    "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:124",
+    "livesIn": []
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Linked evidence",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1108",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Active assignments",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1121",
+    "livesIn": [
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Supporting",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1462",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/product/capture-plan.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Related",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1463",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(tabs)/cases.tsx",
+     "apps/mobile/app/(tabs)/index.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Duplicate",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1464",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Derived",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1465",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "CARD",
+    "label": "Context",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1466",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "STATE_EMPTY",
+    "label": "No assignments yet",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:2041",
+    "livesIn": [
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Priority",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:857",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Sampled",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1139",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/home-operations.ts",
+     "apps/mobile/src/ui/home-operations-sections.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Evidence requests (",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1284",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Loading requests…",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1293",
+    "livesIn": []
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "% complete",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1319",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "blockers).",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1575",
+    "livesIn": [
+     "apps/mobile/src/product/account-privacy.ts",
+     "apps/mobile/src/product/closure.ts",
+     "apps/mobile/src/product/collaboration.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Sampled",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1697",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/home-operations.ts",
+     "apps/mobile/src/ui/home-operations-sections.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "History (",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:2079",
+    "livesIn": [
+     "apps/mobile/src/ui/collaboration-settings.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Lifecycle states",
+    "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:2147",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Loading evidence…",
+    "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:275",
+    "livesIn": []
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Already linked",
+    "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:343",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "BOX",
+    "label": "Breadcrumb",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:617",
+    "livesIn": [
+     "apps/mobile/src/sentry.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "BOX",
+    "label": "Overview",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:840",
+    "livesIn": [
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "BOX",
+    "label": "Reports & Packages",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1796",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/src/product/home-dashboard.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Last updated",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:704",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal/index.tsx",
+     "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "apps/mobile/src/product/legal.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Generate report",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:928",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "What needs attention",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:964",
+    "livesIn": [
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Notes are private workspace notes. They do not change the recorded evidence integrity state.",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2098",
+    "livesIn": [
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Case status",
+    "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2472",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Governance summary",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:110",
+    "livesIn": [
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Retention",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:148",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Destruction",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:186",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/src/product/domain-display.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Exports",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:209",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/account-privacy.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Retention policy:",
+    "at": "apps/web/components/governance/LifecycleStateBadge.tsx:175",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Sampled",
+    "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:234",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/home-operations.ts",
+     "apps/mobile/src/ui/home-operations-sections.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Recommended:",
+    "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:300",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Team",
+    "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:513",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Assignee",
+    "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:531",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Priority",
+    "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:551",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "LIST",
+    "label": "Workspace members",
+    "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:300",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Readiness:",
+    "at": "apps/web/app/(app)/cases/components/SiuPanel.tsx:556",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/src/auth-context.tsx",
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Readiness",
+    "at": "apps/web/app/(app)/cases/components/SiuPanel.tsx:591",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/src/auth-context.tsx",
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Verification Packages",
+    "at": "apps/web/app/(app)/cases/components/SiuPanel.tsx:593",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Warnings",
+    "at": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx:733",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts",
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Exports",
+    "at": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx:735",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/account-privacy.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Template",
+    "at": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx:769",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "COMPONENT",
+    "label": "Processing",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:481",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "apps/mobile/app/(stack)/settings/ai.tsx",
+     "apps/mobile/app/(tabs)/settings.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "COMPONENT",
+    "label": "Retention",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:484",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Before you run",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:473",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Metadata only",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:479",
+    "livesIn": [
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Not sent",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:480",
+    "livesIn": [
+     "apps/mobile/src/product/account-security.ts",
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "TEXT",
+    "label": "Metadata only",
+    "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:606",
+    "livesIn": [
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "LIST",
+    "label": "Case status",
+    "at": "apps/web/components/cases-experience/simple-case-detail/CaseStatusSelect.tsx:370",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/cases/[id]",
+    "role": "BUTTON",
+    "label": "Case status",
+    "at": "apps/web/components/cases-experience/simple-case-detail/CaseStatusSelect.tsx:466",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "COMPONENT",
+    "label": "incident",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1284",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/product/capture-plan.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "COMPONENT",
+    "label": "overdue",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1287",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Your cases",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Your cases",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1781",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:931",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Owner",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:958",
+    "livesIn": [
+     "apps/mobile/app/(stack)/auth.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Readiness",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:960",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/src/auth-context.tsx",
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Last updated",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:961",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal/index.tsx",
+     "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "apps/mobile/src/product/legal.ts"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Clear",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1067",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/portal/[token].tsx",
+     "apps/mobile/app/(stack)/reports.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "applied",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1074",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/organizations/index.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "No records",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1255",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Unassigned",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1362",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx",
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Risk:",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1619",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Open",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1547",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Rename",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1550",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Change status",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1553",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Archive",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1562",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Delete",
+    "at": "apps/web/components/cases-experience/CasesIndex.tsx:1571",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "BUTTON",
+    "label": "Clear search",
+    "at": "apps/web/components/ui/FilterBar.tsx:256",
+    "livesIn": [
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "TEXT",
+    "label": "Request ID:",
+    "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:257",
+    "livesIn": [
+     "apps/mobile/src/api.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/cases",
+    "role": "BUTTON",
+    "label": "Close",
+    "at": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/invites/[token]/accept",
+    "role": "CARD",
+    "label": "Too many attempts",
+    "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:369",
+    "livesIn": [
+     "apps/mobile/src/product/account-security.ts",
+     "apps/mobile/src/product/portal.ts",
+     "apps/mobile/src/ui/step-up-sheet.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/invites/[token]/accept",
+    "role": "TEXT",
+    "label": "Request id:",
+    "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:604",
+    "livesIn": [
+     "apps/mobile/src/api.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "BOX",
+    "label": "Breadcrumb",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:524",
+    "livesIn": [
+     "apps/mobile/src/sentry.ts"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Request id:",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:405",
+    "livesIn": [
+     "apps/mobile/src/api.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Archived",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:637",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Your role:",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:678",
+    "livesIn": [
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Upgrade",
+    "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Target type",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:206",
+    "livesIn": [
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Assignee",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:282",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "Due date",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:311",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams/[teamId]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx:325",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "across",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:521",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Unassigned",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:538",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx",
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Needs attention",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:554",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/src/product/home-dashboard.ts",
+     "apps/mobile/src/product/home-metrics.ts"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Request id:",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1422",
+    "livesIn": [
+     "apps/mobile/src/api.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Overdue",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:820",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Your role",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:826",
+    "livesIn": [
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Settings",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1122",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Description (optional)",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1540",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Template",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1553",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Request id:",
+    "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1598",
+    "livesIn": [
+     "apps/mobile/src/api.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/collaboration-teams",
+    "role": "TEXT",
+    "label": "Upgrade",
+    "at": "apps/web/components/billing/PlanLimitBadge.tsx:151",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "BOX",
+    "label": "Breadcrumb",
+    "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1096",
+    "livesIn": [
+     "apps/mobile/src/sentry.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Due date",
+    "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1548",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "What needs attention",
+    "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1972",
+    "livesIn": [
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Confidence:",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:223",
+    "livesIn": [
+     "apps/mobile/src/product/derived-review.ts",
+     "apps/mobile/src/product/operations.ts",
+     "apps/mobile/src/ui/derived-review-tab.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Governance summary",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:110",
+    "livesIn": [
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Destruction",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:186",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/src/product/domain-display.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Exports",
+    "at": "apps/web/components/governance/GovernanceSummary.tsx:209",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/account-privacy.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Retention policy:",
+    "at": "apps/web/components/governance/LifecycleStateBadge.tsx:175",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Review state",
+    "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:226",
+    "livesIn": [
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Boundary",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:427",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Boundary",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:451",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "actor",
+    "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:414",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "apps/mobile/app/(stack)/mfa.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Boundary",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:287",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "This record has been destroyed",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:438",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Metadata only",
+    "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:246",
+    "livesIn": [
+     "apps/mobile/src/product/operations.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Reviewer Workflow",
+    "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:60",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+     "apps/mobile/src/product/reviewer-workflow.ts",
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Due date",
+    "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:100",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Last reviewed",
+    "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:104",
+    "livesIn": [
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Structure",
+    "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:123",
+    "livesIn": [
+     "apps/mobile/src/product/legal.ts",
+     "apps/mobile/src/product/notification-preferences.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "assigned to",
+    "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:229",
+    "livesIn": [
+     "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+     "apps/mobile/app/(stack)/portal/[token].tsx",
+     "apps/mobile/src/product/notification-preferences.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "unassigned",
+    "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:232",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx",
+     "apps/mobile/src/ui/reviewer-workflow-panel.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Duplicate detection is limited to accessible records and recorded hashes or metadata.",
+    "at": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:228",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Assignee",
+    "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:531",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "This creates a",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:149",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "CARD",
+    "label": "Verification Packages",
+    "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:309",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Boundary",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx:50",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Coverage",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:127",
+    "livesIn": [
+     "apps/mobile/src/product/derived-review.ts",
+     "apps/mobile/src/ui/derived-review-tab.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Limitations:",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:135",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/portal/[token].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "points",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:231",
+    "livesIn": [
+     "apps/mobile/src/auth/auth-api.ts",
+     "apps/mobile/src/product/account-security.ts",
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "points",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:272",
+    "livesIn": [
+     "apps/mobile/src/auth/auth-api.ts",
+     "apps/mobile/src/product/account-security.ts",
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "CARD",
+    "label": "Chain of Custody",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:339",
+    "livesIn": [
+     "apps/mobile/app/verify.tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "CARD",
+    "label": "Location",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx:76",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Dimensions",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:140",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/product/evidence-library.ts",
+     "apps/mobile/src/theme/responsive.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Duration",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:141",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(tabs)/notifications.tsx",
+     "apps/mobile/modules/proovra-screen-capture/index.ts"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "COMPONENT",
+    "label": "Pages",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:142",
+    "livesIn": [
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/operations/quotas.tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx"
+    ]
+   },
+   {
+    "route": "/evidence/[id]",
+    "role": "TEXT",
+    "label": "Due date",
+    "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:123",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/evidence-requests/[id]",
+    "role": "BADGE",
+    "label": "Needs more info",
+    "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:410",
+    "livesIn": [
+     "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+     "apps/mobile/src/product/portal.ts"
+    ]
+   },
+   {
+    "route": "/evidence-requests/[id]",
+    "role": "TEXT",
+    "label": "received",
+    "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+    "livesIn": [
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/src/product/domain-enums.generated.ts",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/evidence-requests/[id]",
+    "role": "TEXT",
+    "label": "Open evidence",
+    "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:658",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/evidence-requests/[id]",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:726",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/evidence",
+    "role": "BADGE",
+    "label": "Evidence type",
+    "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:145",
+    "livesIn": [
+     "apps/mobile/src/capture/capture-draft.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/evidence",
+    "role": "BADGE",
+    "label": "Retention",
+    "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:214",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/evidence",
+    "role": "TEXT",
+    "label": "New Case",
+    "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx:65",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/cases.tsx"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Start again",
+    "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/src/continuous-capture-flow.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "COMPONENT",
+    "label": "Suspended",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:1058",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/index.tsx",
+     "apps/mobile/src/product/home-metrics.ts",
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "COMPONENT",
+    "label": "Reports ready",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:737",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/src/product/evidence-library.ts",
+     "apps/mobile/src/product/home-operations.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "COMPONENT",
+    "label": "Packages ready",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:738",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/src/product/reports.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "CARD",
+    "label": "Team work",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:1704",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "COMPONENT",
+    "label": "Awaiting review",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:1710",
+    "livesIn": [
+     "apps/mobile/src/product/case-workspace.ts",
+     "apps/mobile/src/product/home-dashboard.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "COMPONENT",
+    "label": "Members",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:1712",
+    "livesIn": [
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/index.tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Create case",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:411",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/cases.tsx"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Legal hold",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:455",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "verification page",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:1054",
+    "livesIn": [
+     "apps/mobile/src/product/support.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Package ready",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:786",
+    "livesIn": [
+     "apps/mobile/src/product/reports.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Open →",
+    "at": "apps/web/components/home-experience/HomeSections.tsx:656",
+    "livesIn": [
+     "apps/mobile/src/continuous-capture.ts",
+     "apps/mobile/src/screen-capture.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "What needs attention",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:558",
+    "livesIn": [
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Checking…",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:580",
+    "livesIn": []
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "All clear",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:614",
+    "livesIn": [
+     "apps/mobile/src/product/home-dashboard.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "tracked",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+    "livesIn": [
+     "apps/mobile/src/upload-utils.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Preserved files",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1101",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/home",
+    "role": "TEXT",
+    "label": "Evidence activity",
+    "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:726",
+    "livesIn": [
+     "apps/mobile/src/product/home-operations.ts",
+     "apps/mobile/src/ui/home-operations-sections.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Status",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1501",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Archived",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1513",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1585",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Done",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1593",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1805",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "No longer active",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1916",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Archived",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1924",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/inbox",
+    "role": "TEXT",
+    "label": "Unarchive",
+    "at": "apps/web/app/(app)/inbox/page.tsx:2008",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Dismiss",
+    "at": "apps/web/app/(app)/intake-links/_components/States.tsx:267",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/intake-links/_components/States.tsx:152",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:187",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Request",
+    "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:581",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Delivery",
+    "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:586",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx",
+     "apps/mobile/src/deep-link.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Timeline",
+    "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:588",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Actions",
+    "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:591",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Latest",
+    "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:369",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "BOX",
+    "label": "Pagination",
+    "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:32",
+    "livesIn": [
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Previous",
+    "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:58",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Page",
+    "at": "apps/web/app/(app)/intake-links/_components/Pagination.tsx:61",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Continue",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:459",
+    "livesIn": [
+     "apps/mobile/app/(stack)/auth.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "COMPONENT",
+    "label": "Display name",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:423",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/settings.tsx",
+     "apps/mobile/src/product/case-workspace.ts",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "COMPONENT",
+    "label": "Request",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:658",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "COMPONENT",
+    "label": "Delivery",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:670",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx",
+     "apps/mobile/src/deep-link.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "(required)",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/fields.tsx:44",
+    "livesIn": [
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Sent via",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:127",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Goes to",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:142",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts",
+     "apps/mobile/src/ui/collaboration-work.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Channel",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:148",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Subject",
+    "at": "apps/web/app/(app)/intake-links/_components/wizard/MessagePreview.tsx:162",
+    "livesIn": [
+     "apps/mobile/src/product/support.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Secure link",
+    "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:188",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Done",
+    "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:289",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Overview",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:64",
+    "livesIn": [
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Request",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:83",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Link type",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:90",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Not set",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:94",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx",
+     "apps/mobile/src/product/reviewer-workflow.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Channel",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:118",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Delivery",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:149",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx",
+     "apps/mobile/src/deep-link.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "attempt",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:157",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+     "apps/mobile/src/continuous-capture.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "across",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:158",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "channel",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:159",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Activity",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:180",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx",
+     "apps/mobile/app/(tabs)/index.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "evidence record",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:206",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "produced.",
+    "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:207",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/reports.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Retrying…",
+    "at": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:177",
+    "livesIn": []
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "evidence record",
+    "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:125",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/intake-links",
+    "role": "TEXT",
+    "label": "Open evidence",
+    "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:183",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/intake/[token]",
+    "role": "TEXT",
+    "label": "Display name",
+    "at": "apps/web/app/intake/[token]/page.tsx:1172",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/settings.tsx",
+     "apps/mobile/src/product/case-workspace.ts",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/intake/[token]",
+    "role": "TEXT",
+    "label": "Accepts:",
+    "at": "apps/web/components/intake/IntakeChecklist.tsx:246",
+    "livesIn": [
+     "apps/mobile/app/(stack)/invite/[token].tsx",
+     "apps/mobile/app/(stack)/org-invite/[token].tsx",
+     "apps/mobile/app/(stack)/portal/accept/[grantId].tsx"
+    ]
+   },
+   {
+    "route": "/intake/[token]",
+    "role": "TEXT",
+    "label": "Completion",
+    "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:64",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/invite/[token]",
+    "role": "TEXT",
+    "label": "Organization",
+    "at": "apps/web/app/invite/[token]/page.tsx:444",
+    "livesIn": [
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+    ]
+   },
+   {
+    "route": "/invite/[token]",
+    "role": "TEXT",
+    "label": "Expires",
+    "at": "apps/web/app/invite/[token]/page.tsx:458",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/invite/[token]",
+    "role": "TEXT",
+    "label": "Support",
+    "at": "apps/web/app/invite/[token]/page.tsx:502",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/screen-capture.tsx"
+    ]
+   },
+   {
+    "route": "/login",
+    "role": "TEXT",
+    "label": "workspace.",
+    "at": "apps/web/app/login/page.tsx:724",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/login",
+    "role": "TEXT",
+    "label": "Terms of Service",
+    "at": "apps/web/app/login/page.tsx:982",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal-acceptance.tsx",
+     "apps/mobile/app/(tabs)/settings.tsx"
+    ]
+   },
+   {
+    "route": "/login",
+    "role": "TEXT",
+    "label": "Cookie Policy",
+    "at": "apps/web/app/login/page.tsx:990",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal-acceptance.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Status",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1501",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Archived",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1513",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1585",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Done",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1593",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1805",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "No longer active",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1916",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Archived",
+    "at": "apps/web/app/(app)/inbox/page.tsx:1924",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/notifications",
+    "role": "TEXT",
+    "label": "Unarchive",
+    "at": "apps/web/app/(app)/inbox/page.tsx:2008",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/operations/quotas",
+    "role": "TEXT",
+    "label": "used ·",
+    "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/org-invites/[token]/accept",
+    "role": "TEXT",
+    "label": "Accepting…",
+    "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:212",
+    "livesIn": []
+   },
+   {
+    "route": "/org-invites/[token]/accept",
+    "role": "TEXT",
+    "label": "You are now a",
+    "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/org-invites/[token]/accept",
+    "role": "TEXT",
+    "label": "You are now a",
+    "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/org-invites/[token]/accept",
+    "role": "TEXT",
+    "label": "Open",
+    "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:259",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "CARD",
+    "label": "Settings",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:791",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "INPUT",
+    "label": "https://",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:877",
+    "livesIn": [
+     "apps/mobile/app/verify.tsx",
+     "apps/mobile/src/deep-link.ts"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Settings",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:670",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Workspace administration",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:681",
+    "livesIn": [
+     "apps/mobile/app/(stack)/spaces.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:826",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:838",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:849",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "(optional)",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:876",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "pending invite",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:967",
+    "livesIn": [
+     "apps/mobile/src/product/collaboration.ts"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "personal",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1057",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Personal Space",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1185",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/org-invite/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "in the page header.",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1233",
+    "livesIn": [
+     "apps/mobile/src/product/legal.ts"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1812",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1849",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "to confirm.",
+    "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1576",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Suspend…",
+    "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:154",
+    "livesIn": []
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Resume",
+    "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:167",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/legal-acceptance.tsx"
+    ]
+   },
+   {
+    "route": "/organizations/[id]",
+    "role": "TEXT",
+    "label": "Suspend",
+    "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:195",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/index.tsx",
+     "apps/mobile/src/product/home-metrics.ts",
+     "apps/mobile/src/product/organizations.ts"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Create a workspace",
+    "at": "apps/web/app/(app)/organizations/page.tsx:283",
+    "livesIn": [
+     "apps/mobile/app/(stack)/spaces.tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Close",
+    "at": "apps/web/app/(app)/organizations/page.tsx:291",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Cancel",
+    "at": "apps/web/app/(app)/organizations/page.tsx:352",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Workspace administration",
+    "at": "apps/web/app/(app)/organizations/page.tsx:413",
+    "livesIn": [
+     "apps/mobile/app/(stack)/spaces.tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "you joined",
+    "at": "apps/web/app/(app)/organizations/page.tsx:511",
+    "livesIn": [
+     "apps/mobile/app/(stack)/org-invite/[token].tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Open",
+    "at": "apps/web/app/(app)/organizations/page.tsx:523",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Workspace admin",
+    "at": "apps/web/app/(app)/organizations/page.tsx:531",
+    "livesIn": [
+     "apps/mobile/app/(stack)/spaces.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx",
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/organizations",
+    "role": "TEXT",
+    "label": "Workspace administration",
+    "at": "apps/web/app/(app)/organizations/page.tsx:553",
+    "livesIn": [
+     "apps/mobile/app/(stack)/spaces.tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]",
+    "role": "TEXT",
+    "label": "Confirm it is you",
+    "at": "apps/web/app/portal/[token]/page.tsx:113",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]",
+    "role": "TEXT",
+    "label": "Status",
+    "at": "apps/web/app/portal/[token]/page.tsx:304",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]/work/[workflowId]",
+    "role": "BOX",
+    "label": "Evidence preview",
+    "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:361",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]/work/[workflowId]",
+    "role": "TEXT",
+    "label": "Confirm it is you",
+    "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:279",
+    "livesIn": [
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]/work/[workflowId]",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:309",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]/work/[workflowId]",
+    "role": "TEXT",
+    "label": "Retry",
+    "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:478",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/portal/[token]/work/[workflowId]",
+    "role": "TEXT",
+    "label": "Reply",
+    "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:705",
+    "livesIn": [
+     "apps/mobile/app/(stack)/support.tsx",
+     "apps/mobile/src/ui/discussion-section.tsx",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/pricing",
+    "role": "TEXT",
+    "label": "Included",
+    "at": "apps/web/app/pricing/page.tsx:997",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/pricing",
+    "role": "TEXT",
+    "label": "Included",
+    "at": "apps/web/app/pricing/page.tsx:1083",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/pricing",
+    "role": "TEXT",
+    "label": "Pay-Per-Evidence",
+    "at": "apps/web/app/pricing/page.tsx:1262",
+    "livesIn": [
+     "apps/mobile/src/product/pricing.ts"
+    ]
+   },
+   {
+    "route": "/pricing",
+    "role": "TEXT",
+    "label": "Team",
+    "at": "apps/web/app/pricing/page.tsx:1268",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Email address",
+    "at": "apps/web/app/register/page.tsx:1118",
+    "livesIn": [
+     "apps/mobile/app/(stack)/workspace-people.tsx",
+     "apps/mobile/src/product/portal.ts",
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Enter a valid email address.",
+    "at": "apps/web/app/register/page.tsx:1176",
+    "livesIn": [
+     "apps/mobile/src/ui/index.tsx"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Password strength",
+    "at": "apps/web/app/register/page.tsx:1362",
+    "livesIn": [
+     "apps/mobile/src/ui/password-rules.tsx"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Passwords do not match.",
+    "at": "apps/web/app/register/page.tsx:1483",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx",
+     "apps/mobile/src/product/account-security.ts"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Terms of Service",
+    "at": "apps/web/app/register/page.tsx:1518",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal-acceptance.tsx",
+     "apps/mobile/app/(tabs)/settings.tsx"
+    ]
+   },
+   {
+    "route": "/register",
+    "role": "TEXT",
+    "label": "Cookie Policy",
+    "at": "apps/web/app/register/page.tsx:1534",
+    "livesIn": [
+     "apps/mobile/app/(stack)/legal-acceptance.tsx"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "BOX",
+    "label": "Pagination",
+    "at": "apps/web/components/reports-experience/ReportsIndex.tsx:745",
+    "livesIn": [
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "COMPONENT",
+    "label": "Temporarily unavailable",
+    "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1534",
+    "livesIn": [
+     "apps/mobile/src/product/ai-assistance.ts",
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/product/portal.ts"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "TEXT",
+    "label": "Integrity:",
+    "at": "apps/web/components/reports-experience/ReportsIndex.tsx:859",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "TEXT",
+    "label": "Customer:",
+    "at": "apps/web/components/reports-experience/ReportsIndex.tsx:884",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/index.tsx"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "TEXT",
+    "label": "Needs a workspace association",
+    "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1219",
+    "livesIn": [
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/reports",
+    "role": "BUTTON",
+    "label": "Clear search",
+    "at": "apps/web/components/ui/FilterBar.tsx:256",
+    "livesIn": [
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/reset-password",
+    "role": "TEXT",
+    "label": "Password strength",
+    "at": "apps/web/app/reset-password/page.tsx:458",
+    "livesIn": [
+     "apps/mobile/src/ui/password-rules.tsx"
+    ]
+   },
+   {
+    "route": "/reset-password",
+    "role": "TEXT",
+    "label": "Confirm new password",
+    "at": "apps/web/app/reset-password/page.tsx:497",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/reset-password",
+    "role": "TEXT",
+    "label": "Back to sign in",
+    "at": "apps/web/app/reset-password/page.tsx:607",
+    "livesIn": [
+     "apps/mobile/app/(stack)/forgot-password.tsx",
+     "apps/mobile/app/(stack)/register.tsx",
+     "apps/mobile/app/(stack)/verify-email.tsx"
+    ]
+   },
+   {
+    "route": "/reset-password",
+    "role": "TEXT",
+    "label": "Back to sign in",
+    "at": "apps/web/app/reset-password/page.tsx:677",
+    "livesIn": [
+     "apps/mobile/app/(stack)/forgot-password.tsx",
+     "apps/mobile/app/(stack)/register.tsx",
+     "apps/mobile/app/(stack)/verify-email.tsx"
+    ]
+   },
+   {
+    "route": "/reset-password",
+    "role": "TEXT",
+    "label": "Back to sign in",
+    "at": "apps/web/app/reset-password/page.tsx:729",
+    "livesIn": [
+     "apps/mobile/app/(stack)/forgot-password.tsx",
+     "apps/mobile/app/(stack)/register.tsx",
+     "apps/mobile/app/(stack)/verify-email.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Sort",
+    "at": "apps/web/app/(app)/search/page.tsx:1985",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "apps/mobile/app/(stack)/portal/[token].tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Document type",
+    "at": "apps/web/app/(app)/search/page.tsx:1994",
+    "livesIn": [
+     "apps/mobile/src/product/search.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Lifecycle",
+    "at": "apps/web/app/(app)/search/page.tsx:2042",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Saved views",
+    "at": "apps/web/app/(app)/search/page.tsx:2145",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx",
+     "apps/mobile/src/product/evidence-library.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "BUTTON",
+    "label": "Rename",
+    "at": "apps/web/app/(app)/search/page.tsx:2177",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "BUTTON",
+    "label": "Delete",
+    "at": "apps/web/app/(app)/search/page.tsx:2187",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Signals",
+    "at": "apps/web/app/(app)/search/page.tsx:2756",
+    "livesIn": [
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Workflow",
+    "at": "apps/web/app/(app)/search/page.tsx:2785",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Workflow step",
+    "at": "apps/web/app/(app)/search/page.tsx:2806",
+    "livesIn": [
+     "apps/mobile/src/product/search.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Timeline",
+    "at": "apps/web/app/(app)/search/page.tsx:2860",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/src/product/evidence-requests.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Duplicates",
+    "at": "apps/web/app/(app)/search/page.tsx:2875",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/capture/capture-session-store.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Related evidence",
+    "at": "apps/web/app/(app)/search/page.tsx:2895",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(tabs)/cases.tsx",
+     "apps/mobile/app/(tabs)/index.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Lifecycle",
+    "at": "apps/web/app/(app)/search/page.tsx:2903",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Review",
+    "at": "apps/web/app/(app)/search/page.tsx:2908",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Workflow",
+    "at": "apps/web/app/(app)/search/page.tsx:2909",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Retention",
+    "at": "apps/web/app/(app)/search/page.tsx:2911",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/product/domain-display.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "COMPONENT",
+    "label": "Legal hold",
+    "at": "apps/web/app/(app)/search/page.tsx:2912",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/errors/safe-error.ts",
+     "apps/mobile/src/product/case-workspace.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Summary",
+    "at": "apps/web/app/(app)/search/page.tsx:2917",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "SECTION",
+    "label": "Related evidence",
+    "at": "apps/web/app/(app)/search/page.tsx:2923",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(tabs)/cases.tsx",
+     "apps/mobile/app/(tabs)/index.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Records",
+    "at": "apps/web/app/(app)/search/page.tsx:1946",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Until",
+    "at": "apps/web/app/(app)/search/page.tsx:2097",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/search/page.tsx:2134",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/search/page.tsx:2156",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "chunk",
+    "at": "apps/web/app/(app)/search/page.tsx:3282",
+    "livesIn": [
+     "apps/mobile/src/upload-utils.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "across",
+    "at": "apps/web/app/(app)/search/page.tsx:3283",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/trust-center.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/search/page.tsx:2925",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Person",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:206",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Returned",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:209",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(tabs)/evidence.tsx",
+     "apps/mobile/src/continuous-capture.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Withheld",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:210",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/capture/screen-acquisition.ts",
+     "apps/mobile/src/product/account-security.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Outcome",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:211",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "apps/mobile/app/(stack)/org-invite/[token].tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "chars",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:227",
+    "livesIn": [
+     "apps/mobile/src/upload-utils.ts"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Completed",
+    "at": "apps/web/components/search/SearchAuditLogPanel.tsx:248",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx"
+    ]
+   },
+   {
+    "route": "/search",
+    "role": "TEXT",
+    "label": "Clear filters",
+    "at": "apps/web/app/(app)/search/components/SearchStates.tsx:116",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx"
+    ]
+   },
+   {
+    "route": "/settings/legal/[slug]",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/settings/legal/[slug]",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/settings/legal/[slug]",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "Loading…",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:96",
+    "livesIn": [
+     "apps/mobile/app/(stack)/trust-center.tsx",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "since you loaded it. Your changes were NOT saved.",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:430",
+    "livesIn": [
+     "apps/mobile/src/product/reviewer-criteria.ts"
+    ]
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "Loading history…",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:187",
+    "livesIn": []
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "Compare",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:198",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/src/direct-capture.ts"
+    ]
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "from…",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:200",
+    "livesIn": []
+   },
+   {
+    "route": "/settings/reviewer-criteria",
+    "role": "TEXT",
+    "label": "Title: “",
+    "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:212",
+    "livesIn": []
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Checking…",
+    "at": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx:134",
+    "livesIn": []
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Connect",
+    "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:998",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/screen-capture.tsx",
+     "apps/mobile/app/(tabs)/index.tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Current session",
+    "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1760",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/src/product/account-security.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Restricted",
+    "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1765",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/evidence.tsx",
+     "apps/mobile/src/product/case-workspace.ts",
+     "apps/mobile/src/product/evidence-library.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Resource:",
+    "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2080",
+    "livesIn": [
+     "apps/mobile/modules/proovra-screen-capture/index.ts",
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/DeepLinkGate.tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Phone number",
+    "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:738",
+    "livesIn": [
+     "apps/mobile/src/product/notification-preferences.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Verification code",
+    "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:854",
+    "livesIn": [
+     "apps/mobile/app/(stack)/portal/[token].tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Start over",
+    "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:949",
+    "livesIn": [
+     "apps/mobile/src/screen-capture-flow.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Start over",
+    "at": "apps/web/components/notifications/ContactChannelVerificationCard.tsx:455",
+    "livesIn": [
+     "apps/mobile/src/screen-capture-flow.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Code sent to",
+    "at": "apps/web/components/notifications/ContactChannelVerificationCard.tsx:464",
+    "livesIn": [
+     "apps/mobile/src/product/portal.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Verification code",
+    "at": "apps/web/components/notifications/ContactChannelVerificationCard.tsx:473",
+    "livesIn": [
+     "apps/mobile/app/(stack)/portal/[token].tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Reload latest",
+    "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:409",
+    "livesIn": [
+     "apps/mobile/src/ui/criteria-draft-editor.tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Save changes",
+    "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:618",
+    "livesIn": [
+     "apps/mobile/src/ui/collaboration-settings.tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Reload latest",
+    "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:721",
+    "livesIn": [
+     "apps/mobile/src/ui/criteria-draft-editor.tsx"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Opt-in",
+    "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:122",
+    "livesIn": [
+     "apps/mobile/app/_layout.tsx",
+     "apps/mobile/src/privacy/telemetry-consent.ts"
+    ]
+   },
+   {
+    "route": "/settings",
+    "role": "TEXT",
+    "label": "Your role",
+    "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:238",
+    "livesIn": [
+     "apps/mobile/src/product/ai-assistance.ts"
+    ]
+   },
+   {
+    "route": "/share/[id]",
+    "role": "TEXT",
+    "label": "Evidence ID:",
+    "at": "apps/web/app/share/[id]/page.tsx:66",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx"
+    ]
+   },
+   {
+    "route": "/support",
+    "role": "TEXT",
+    "label": "Get the",
+    "at": "apps/web/app/support/page.tsx:367",
+    "livesIn": [
+     "apps/mobile/src/product/mfa-recovery.ts",
+     "apps/mobile/src/ui/mfa-recovery-request.tsx"
+    ]
+   },
+   {
+    "route": "/support",
+    "role": "TEXT",
+    "label": "Step 1",
+    "at": "apps/web/app/support/page.tsx:533",
+    "livesIn": [
+     "apps/mobile/src/errors/safe-error.ts"
+    ]
+   },
+   {
+    "route": "/support",
+    "role": "TEXT",
+    "label": "Support Policy",
+    "at": "apps/web/app/support/page.tsx:1125",
+    "livesIn": [
+     "apps/mobile/src/product/support.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Active members",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1395",
+    "livesIn": [
+     "apps/mobile/src/deep-link.ts",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Seats available",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1439",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Open Cases",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1455",
+    "livesIn": [
+     "apps/mobile/src/product/home-dashboard.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Recent activity",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1704",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/discussion.ts",
+     "apps/mobile/src/ui/home-operations-sections.tsx"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Workspace lifecycle",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1769",
+    "livesIn": [
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "by email",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/app/(tabs)/settings.tsx",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Billing",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:1978",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/support.tsx"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Loading cases…",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:2097",
+    "livesIn": []
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Remove",
+    "at": "apps/web/app/(app)/teams/[id]/page.tsx:2171",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Remove",
+    "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:476",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Showing",
+    "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/capture-plan.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "to confirm.",
+    "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "apps/mobile/src/product/workspace-people.ts"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "granted",
+    "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:336",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/org-invite/[token].tsx"
+    ]
+   },
+   {
+    "route": "/teams/[id]",
+    "role": "TEXT",
+    "label": "Capability",
+    "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:339",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "COMPONENT",
+    "label": "Trust documentation",
+    "at": "apps/web/app/(app)/trust-center/_section-list.tsx:162",
+    "livesIn": [
+     "apps/mobile/src/product/trust-center.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "Capability",
+    "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:118",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "Provider",
+    "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:119",
+    "livesIn": [
+     "apps/mobile/app/(stack)/auth.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/_layout.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "Opt-in",
+    "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:122",
+    "livesIn": [
+     "apps/mobile/app/_layout.tsx",
+     "apps/mobile/src/privacy/telemetry-consent.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/ai-disclosure",
+    "role": "TEXT",
+    "label": "Status",
+    "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:123",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/methodology",
+    "role": "COMPONENT",
+    "label": "Trust documentation",
+    "at": "apps/web/app/(app)/trust-center/_section-list.tsx:162",
+    "livesIn": [
+     "apps/mobile/src/product/trust-center.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/methodology",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/methodology",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/methodology",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/security",
+    "role": "COMPONENT",
+    "label": "Trust documentation",
+    "at": "apps/web/app/(app)/trust-center/_section-list.tsx:162",
+    "livesIn": [
+     "apps/mobile/src/product/trust-center.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/security",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/security",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/security",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "COMPONENT",
+    "label": "Trust documentation",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:98",
+    "livesIn": [
+     "apps/mobile/src/product/trust-center.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Retry",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:184",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Components",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:215",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Component",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:219",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence-requests.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Health",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:220",
+    "livesIn": [
+     "apps/mobile/app/(tabs)/index.tsx",
+     "apps/mobile/src/product/home-dashboard.ts",
+     "apps/mobile/src/product/home-operations.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Description",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:221",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Components",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:259",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "None.",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:312",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Components:",
+    "at": "apps/web/app/(app)/trust-center/status/page.tsx:335",
+    "livesIn": [
+     "apps/mobile/app/(stack)/reports.tsx",
+     "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "apps/mobile/app/(stack)/settings/security.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/status",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "COMPONENT",
+    "label": "Trust documentation",
+    "at": "apps/web/app/(app)/trust-center/subprocessors/page.tsx:105",
+    "livesIn": [
+     "apps/mobile/src/product/trust-center.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "TEXT",
+    "label": "Region",
+    "at": "apps/web/app/(app)/trust-center/subprocessors/page.tsx:173",
+    "livesIn": [
+     "apps/mobile/src/product/derived-review.ts",
+     "apps/mobile/src/product/domain-enums.generated.ts",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "TEXT",
+    "label": "Effective",
+    "at": "apps/web/app/(app)/trust-center/subprocessors/page.tsx:177",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "apps/mobile/app/(stack)/workspace-people.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "TEXT",
+    "label": "Docs",
+    "at": "apps/web/app/(app)/trust-center/subprocessors/page.tsx:178",
+    "livesIn": [
+     "apps/mobile/app/(stack)/operations/batch-analysis.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "BOX",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:371",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "TEXT",
+    "label": "Applies to",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:356",
+    "livesIn": [
+     "apps/mobile/app/(stack)/settings/notifications.tsx"
+    ]
+   },
+   {
+    "route": "/trust-center/subprocessors",
+    "role": "TEXT",
+    "label": "On this page",
+    "at": "apps/web/components/legal/LegalDocumentShell.tsx:382",
+    "livesIn": [
+     "apps/mobile/src/product/external-intake.ts",
+     "apps/mobile/src/ui/patterns.tsx"
+    ]
+   },
+   {
+    "route": "/trust",
+    "role": "TEXT",
+    "label": "Step",
+    "at": "apps/web/app/trust/page.tsx:904",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Integrity",
+    "at": "apps/web/app/verify/[token]/page.tsx:6365",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Custody Chain",
+    "at": "apps/web/app/verify/[token]/page.tsx:6375",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/reports.tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "CARD",
+    "label": "Custody Chain",
+    "at": "apps/web/app/verify/[token]/page.tsx:6782",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/app/(stack)/reports.tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Token:",
+    "at": "apps/web/app/verify/[token]/page.tsx:4578",
+    "livesIn": [
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "TxID:",
+    "at": "apps/web/app/verify/[token]/page.tsx:5532",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Duration:",
+    "at": "apps/web/app/verify/[token]/page.tsx:6057",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(tabs)/notifications.tsx",
+     "apps/mobile/modules/proovra-screen-capture/index.ts"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Original:",
+    "at": "apps/web/app/verify/[token]/page.tsx:6075",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Primary evidence item",
+    "at": "apps/web/app/verify/[token]/page.tsx:6217",
+    "livesIn": [
+     "apps/mobile/src/product/capture-plan.ts"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Actions",
+    "at": "apps/web/app/verify/[token]/page.tsx:6879",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "Copy",
+    "at": "apps/web/app/verify/[token]/page.tsx:536",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/collaboration-team/[id].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Submitted through",
+    "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:153",
+    "livesIn": [
+     "apps/mobile/src/capture/capture-draft.ts"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Submission",
+    "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:155",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "apps/mobile/app/(stack)/intake/capture.tsx",
+     "apps/mobile/app/(stack)/intake-links.tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Consent",
+    "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:156",
+    "livesIn": [
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/intake/[token].tsx",
+     "apps/mobile/app/(stack)/screen-capture.tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "COMPONENT",
+    "label": "Device",
+    "at": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx:173",
+    "livesIn": [
+     "apps/mobile/app/(stack)/capture.tsx",
+     "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "apps/mobile/app/(stack)/evidence/[id].tsx"
+    ]
+   },
+   {
+    "route": "/verify/[token]",
+    "role": "TEXT",
+    "label": "original file",
+    "at": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:129",
+    "livesIn": [
+     "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "apps/mobile/src/product/ai-assistance.ts",
+     "apps/mobile/src/product/evidence-detail.ts"
+    ]
+   },
+   {
+    "route": "/verify",
+    "role": "TEXT",
+    "label": "Out of scope",
+    "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:79",
+    "livesIn": [
+     "apps/mobile/src/product/billing.ts"
+    ]
+   },
+   {
+    "route": "/workspaces",
+    "role": "TEXT",
+    "label": "Hide",
+    "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+    "livesIn": [
+     "apps/mobile/app/(stack)/billing.tsx",
+     "apps/mobile/app/(stack)/case/[id].tsx",
+     "apps/mobile/app/(stack)/organizations/[id].tsx"
+    ]
+   }
+  ]
+ },
+ "enterpriseExclusions": [
+  {
+   "file": "apps/web/components/command-center/CommandCenter.tsx",
+   "occurrences": 316,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "file": "apps/web/components/command-center/CommandCenterQuickActions.tsx",
+   "occurrences": 1,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "file": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx",
+   "occurrences": 37,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx",
+   "occurrences": 22,
+   "routes": [
+    "/workspaces"
+   ]
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx",
+   "occurrences": 72,
+   "routes": [
+    "/workspaces"
+   ]
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx",
+   "occurrences": 14,
+   "routes": [
+    "/workspaces"
+   ]
+  }
+ ],
+ "shellExclusions": [
+  {
+   "file": "apps/web/components/marketing/MarketingHeader.tsx",
+   "occurrences": 75,
+   "routes": [
+    "/auth/verify-email",
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/login",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]",
+    "/support",
+    "/trust",
+    "/verify"
+   ]
+  },
+  {
+   "file": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx",
+   "occurrences": 22,
+   "routes": [
+    "/auth/verify-email",
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/login",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]",
+    "/support",
+    "/trust",
+    "/verify"
+   ]
+  },
+  {
+   "file": "apps/web/components/marketing/EnterpriseFooter.tsx",
+   "occurrences": 35,
+   "routes": [
+    "/legal/[slug]",
+    "/pricing",
+    "/share/[id]",
+    "/support",
+    "/trust",
+    "/verify"
+   ]
+  },
+  {
+   "file": "apps/web/components/marketing/ForgotPasswordModal.tsx",
+   "occurrences": 13,
+   "routes": [
+    "/login"
+   ]
+  }
+ ]
+}

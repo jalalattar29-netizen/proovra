@@ -1,0 +1,1075 @@
+{
+ "route": "/workspaces",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/workspaces/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/spaces.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "ENTERPRISE",
+ "policy": "redirect",
+ "borderline": true,
+ "trees": {
+  "web": {
+   "files": 153,
+   "elements": 408,
+   "texts": 129,
+   "distinctTexts": 112,
+   "handlers": 9,
+   "conditionals": 1174,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 267,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "next/link",
+    "react",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 143,
+   "elements": 166,
+   "texts": 24,
+   "distinctTexts": 21,
+   "handlers": 35,
+   "conditionals": 1070,
+   "apiPaths": 3,
+   "distinctApi": 3,
+   "styleRefs": 190,
+   "stylesheetRules": 92,
+   "themeTokens": 245,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 127,
+  "natLabelled": 23,
+  "paired": 0,
+  "roleDiff": 2,
+  "missing": 125,
+  "extraInNative": 21,
+  "webUnlabelled": 399,
+  "missingWithRolePresent": 124,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [],
+   "roleDiff": [
+    {
+     "label": "Spaces",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:51",
+     "nat": "apps/mobile/app/(stack)/spaces.tsx:126"
+    },
+    {
+     "label": "Organizations",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:62",
+     "nat": "apps/mobile/app/(stack)/spaces.tsx:221"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Operational breadcrumb",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:120",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:50",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your Personal Space is private to you. Organizations are collaborative tenants — members, roles, governance, and billing live there. For org-level governance (members, invites, audit timeline), open",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:53",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:64",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Personal Space",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:79",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Personal Space",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:87",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage billing",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:108",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open Personal Space",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:115",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organizations ·",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:128",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You're not in any organizations yet.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:148",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "An organization is set up with our team as part of an Enterprise agreement. Everything else — your evidence, your collaboration teams and your plan — lives in your Personal Workspace.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:150",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:180",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:184",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:187",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage governance",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:216",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View all organizations",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:250",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Account billing",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Legacy workspace diagnostics ·",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:270",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "We detected",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "workspace",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "that look like an older personal workspace created before the Personal Space model existed. These rows are NOT removed automatically. Please review them — if you no longer need a row, archive it from its team detail page.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:275",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:315",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss contextual help",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Help ·",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Hide",
+     "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Workspace admin tabs",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:144",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "pending invite",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:150",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:163",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:166",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refreshed",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:169",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overview",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overview",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:238",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Members",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:243",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Admins / Owner",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:247",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Pending invites",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cases",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence records",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:261",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace owner:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· Created",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage billing",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:271",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage integrations",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:273",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Access & Roles",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:297",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Access & Roles ·",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:306",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No active members.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:309",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Joined",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:338",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Last seen",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:342",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Pending invites ·",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invited",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:374",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Expires",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:377",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Member invite + role-change actions are performed on the legacy /teams/[id] surface (audited). This panel is read-only.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:393",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role Permission Matrix",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:432",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Product-level summary. Backend permissions remain authoritative — capabilities marked \"partial\" depend on workspace policy (step-up flags, governance gates, role grants).",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:435",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capability",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:442",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "OWNER",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:443",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "ADMIN",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:444",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "MEMBER",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:445",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "VIEWER",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:446",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance Snapshot",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:479",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance Snapshot",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:495",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Policy source:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:506",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· Report downloads:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:512",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· Package downloads:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:516",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· Public verify:",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:520",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open governance control plane",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:525",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrations Posture",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:547",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrations Posture",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:557",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "API credentials",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:562",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Webhook endpoints",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:566",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Failed deliveries · 24h",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Secrets are never surfaced here.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:578",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage in Integrations",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:579",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing & Seats",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:604",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing & Seats",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:614",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Plan",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:619",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Billing status",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:623",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:627",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Seats used",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:629",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Over seat limit",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:637",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open billing",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:642",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· This panel reads from the workspace billing row — it does not change billing state.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:646",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational Accountability",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:662",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Queued",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:668",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:672",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overdue",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:680",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open escalations",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:690",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No recent team activity recorded yet.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:696",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "by",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:710",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:715",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer workload links to",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:730",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer Ops",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:731",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:772",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading workspace…",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:773",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:798",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:818",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace not found",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:819",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace Administration",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:831",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Temporarily unavailable",
+     "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:832",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Filter by action",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Filter by outcome",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:129",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Audit history",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:113",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Every event is recorded against this workspace with a tamper-evident integrity chain. Filters run on the server.",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:115",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Any outcome",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:135",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Success",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:136",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Denied",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:137",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Error",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:138",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Export",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:146",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "When (UTC)",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:162",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Action",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:163",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Outcome",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:164",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Resource",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:165",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Load more",
+     "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:191",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BADGE",
+     "label": "Working here",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:82"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:131"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading your spaces",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:140"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:147"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "You do not have a Personal Space",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:161"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Your workspaces",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:170"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Organization workspaces",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:185"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "You are not in any organization workspace.",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:187"
+    },
+    {
+     "role": "BUTTON",
+     "label": "People in this workspace",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:226"
+    },
+    {
+     "role": "TEXT",
+     "label": "Switch",
+     "at": "apps/mobile/app/(stack)/spaces.tsx:85"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/mobile/src/toast-context.tsx:119"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 314,
+  "webClassesUnresolved": 159,
+  "webNonLiteralClass": 2,
+  "webCompetingRules": 15,
+  "webDistinctUnresolvedClasses": 23,
+  "natPropsResolved": 261,
+  "natTokenUnresolved": 75,
+  "webDistinctColors": 15,
+  "natDistinctColors": 19,
+  "sharedColors": 3,
+  "webOnlyColors": 12,
+  "webOnlyColorSample": [
+   "#172033",
+   "rgba(15, 23, 42, 0.05)",
+   "#5f6b7d",
+   "rgba(255, 255, 255, 0.5)",
+   "rgba(255, 255, 255, 0.38)",
+   "rgba(15, 23, 42, 0.025)",
+   "rgba(124, 58, 237, 0.35)",
+   "#e2e8f0",
+   "#f1f5f9",
+   "rgba(15, 23, 42, 0.045)",
+   "rgba(255, 255, 255, 0.64)",
+   "#64748b"
+  ],
+  "sharedColorSample": [
+   "rgba(15, 23, 42, 0.06)",
+   "#475569",
+   "#ffffff"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1174,
+  "natConditionals": 1070,
+  "webStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 9,
+  "natHandlers": 35,
+  "webHandlerSample": [
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=() => setExpanded((p) => !p) @apps/web/components/contextual-help/ContextualHelp.tsx:172",
+   "onClick=dismiss @apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "onClick=() => setTab(t.key) @apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:178",
+   "onChange=(e) => setAction(e.target.value) @apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:121",
+   "onChange=(e) => setOutcome(e.target.value as OutcomeFilter) @apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:129",
+   "onClick=() => void exportAudit() @apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:140",
+   "onClick=() => void load(nextCursor) @apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:184"
+  ],
+  "natHandlerSample": [
+   "onPress=active || busy ? undefined : onSwitch @apps/mobile/app/(stack)/spaces.tsx:74",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/spaces.tsx:131",
+   "onRetry=refresh @apps/mobile/app/(stack)/spaces.tsx:142",
+   "onSwitch=() => void switchTo(view.personal as Space) @apps/mobile/app/(stack)/spaces.tsx:150",
+   "onSwitch=() => void switchTo(s) @apps/mobile/app/(stack)/spaces.tsx:173",
+   "onSwitch=() => void switchTo(s) @apps/mobile/app/(stack)/spaces.tsx:194",
+   "onPress=() => router.push(\"/organizations\") @apps/mobile/app/(stack)/spaces.tsx:221",
+   "onPress=() => router.push(\"/workspace-people\") @apps/mobile/app/(stack)/spaces.tsx:226",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onPress=() => onDismiss(toast.id) @apps/mobile/src/toast-context.tsx:115",
+   "onDismiss=onDismiss @apps/mobile/src/toast-context.tsx:135",
+   "onDismiss=removeToast @apps/mobile/src/toast-context.tsx:171"
+  ]
+ },
+ "level8": {
+  "webApi": 4,
+  "natApi": 3,
+  "shared": 2,
+  "onlyWeb": 2,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/teams/workspace-admin?teamId=${…}",
+   "/v1/audit/tenant?${…}"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "webApiWhere": {
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/teams/workspace-admin?teamId=${…}": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:73",
+   "/v1/audit/tenant?${…}": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:54"
+  },
+  "natApiWhere": {
+   "/v1/platform/context/switch-workspace": "apps/mobile/src/product/spaces.ts:47",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

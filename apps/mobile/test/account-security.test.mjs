@@ -119,18 +119,20 @@ test("recovery codes are not flagged low when there is no second factor at all",
 test("sessions surface only what the server disclosed, and put this device first", () => {
   const inv = A.parseSessions({
     sessions: [
-      { id: "s1", isCurrent: false, uaPreview: "Firefox on Windows", ipPreview: "198.51.100.x", countryCode: "DE", lastSeenAtUtc: "2026-02-01T00:00:00.000Z" },
+      { id: "s1", isCurrent: false, uaPreview: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0", ipPreview: "198.51.100.x", countryCode: "DE", lastSeenAtUtc: "2026-02-01T00:00:00.000Z" },
       { id: "s2", isCurrent: true, uaPreview: "PROOVRA iOS", lastSeenAtUtc: "2026-02-02T00:00:00.000Z" },
     ],
   });
   assert.equal(inv.sessions[0].id, "s2", "the current session anchors the list");
-  assert.equal(inv.sessions[1].deviceLabel, "Firefox on Windows · 198.51.100.x · DE");
+  // UPDATED (web parity, sessionPresentation.ts): a DESCRIBED device; the raw previews are kept for Technical details.
+  assert.equal(inv.sessions[1].deviceLabel, "Firefox on Windows");
+  assert.equal(inv.sessions[1].ipPreview, "198.51.100.x");
   assert.equal(inv.otherCount, 1, "this is what 'sign out others' acts on");
 });
 
 test("a session the server described with nothing still renders identifiably", () => {
   const inv = A.parseSessions({ sessions: [{ id: "s1" }] });
-  assert.equal(inv.sessions[0].deviceLabel, "Unrecognised device");
+  assert.equal(inv.sessions[0].deviceLabel, "Unknown device");
 });
 
 test("quarantined and SSO sessions are distinguished", () => {
@@ -277,4 +279,48 @@ test("each enrolment failure names its own next step", () => {
   assert.match(A.enrollFailureMessage("CODE_INVALID"), /30 seconds/);
   assert.match(A.enrollFailureMessage("NOT_FOUND"), /Start again/);
   assert.match(A.enrollFailureMessage("RATE_LIMITED"), /Wait/);
+});
+
+test("the server's real row is keyed by `action` (dotted), with outcome and severity", () => {
+  // identity-security.routes.ts sends { id, action, severity, outcome, occurredAtUtc, ipPreview }.
+  const present = { title: (a) => ({ title: a === "auth.google_login" ? "Signed in with Google" : "?" }), outcome: (o) => (o === "failure" ? "Failed" : o ? "Succeeded" : null) };
+  const e = A.parseSecurityEvents(
+    { events: [
+      { id: "1", action: "auth.google_login", severity: "info", outcome: "success", occurredAtUtc: "2026-09-24T09:00:00.000Z", ipPreview: "10.0.0.1" },
+      { id: "2", action: "identity_security.password_change", severity: "warning", outcome: "failure" },
+    ] },
+    present,
+  );
+  assert.equal(e[0].label, "Signed in with Google", "every row read 'Security event'");
+  assert.equal(e[0].detail, "Succeeded · 10.0.0.1");
+  assert.equal(e[0].atIso, "2026-09-24T09:00:00.000Z");
+  assert.equal(e[1].tone, "risk", "a failed security action did not read as a risk");
+  // Without the shared presenter the namespace is still dropped, never shown raw.
+  assert.equal(A.parseSecurityEvents({ events: [{ id: "3", action: "identity_security.password_change" }] })[0].label, "Password Change");
+});
+
+/* ---- WEB PARITY (sessionPresentation.ts / loginMethodsSummary.ts) ---- */
+
+test("describeUserAgent names browser and platform, never echoing the raw UA", () => {
+  assert.equal(A.describeUserAgent("Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/126.0 Safari/537.36 Edg/126.0"), "Edge on Windows");
+  assert.equal(A.describeUserAgent("Mozilla/5.0 (Linux; Android 14) Chrome/126.0 Mobile Safari/537.36"), "Chrome on Android");
+  assert.equal(A.describeUserAgent(null), "Unknown device");
+  assert.equal(A.describeUserAgent("curl/8"), "Unknown device");
+});
+
+test("presentLocation refuses private networks and placeholder codes", () => {
+  assert.equal(A.presentLocation("DE", "172.18.0.x"), null);
+  assert.equal(A.presentLocation("??", "203.0.113.x"), null);
+  assert.equal(A.presentLocation(null, null), null);
+});
+
+test("presentSignInRows: three rows, and the last usable method is protected", () => {
+  const rows = A.presentSignInRows({ passwordConfigured: false, usableMethods: 1, legacyProvider: null, links: [{ id: "l1", provider: "APPLE", linkedAtUtc: "x", lastUsedAtUtc: null }] });
+  assert.deepEqual(rows.map((r) => [r.key, r.status, r.action]), [
+    ["password", "not_connected", "add_password"],
+    ["google", "not_connected", "connect"],
+    ["apple", "connected", "disconnect"],
+  ]);
+  assert.equal(rows[2].disconnectBlocked, true);
+  assert.equal(A.summarizeSignInMethods({ passwordConfigured: true, links: [{ provider: "GOOGLE" }] }), "Google · Password");
 });

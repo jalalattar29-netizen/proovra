@@ -66,6 +66,12 @@ export interface PersistedCaptureSession {
    * seals it; see `screenSealPath`.
    */
   acquisition?: PersistedScreenAcquisition | null;
+  /**
+   * The canonical `/v1/capture/sessions` DRAFT this session stages into.
+   * Kept so a resumed session updates and closes THAT draft, rather than
+   * leaving it behind as an unfinished draft nothing can reach.
+   */
+  draftId?: string | null;
   /** ISO timestamp of the last persist — drives the staleness policy. */
   updatedAtIso: string;
 }
@@ -77,6 +83,7 @@ export interface CaptureSessionInput {
   type: PersistedCaptureType;
   items: Array<Omit<PersistedCapturedItem, never>>;
   acquisition?: PersistedScreenAcquisition | null;
+  draftId?: string | null;
   now?: number;
 }
 
@@ -100,6 +107,7 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
       uploaded: !!it.uploaded,
     })),
     acquisition: input.acquisition ?? null,
+    draftId: input.draftId ?? null,
     updatedAtIso: new Date(now).toISOString(),
   };
 }
@@ -181,6 +189,7 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
     type,
     items,
     acquisition,
+    draftId: typeof o.draftId === "string" && o.draftId ? o.draftId : null,
     updatedAtIso: typeof o.updatedAtIso === "string" ? o.updatedAtIso : new Date(0).toISOString(),
   };
 }

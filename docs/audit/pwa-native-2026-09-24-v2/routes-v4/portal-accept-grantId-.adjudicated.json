@@ -1,0 +1,172 @@
+{
+ "route": "/portal/accept/[grantId]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Welcome to the PROOVRA External Reviewer Portal",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:199",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "You were invited to review evidence on behalf of an external party. Your activity here is audited. PROOVRA records what you observe and decide — it does not assert authenticity of content.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:202",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "Your review access is active. You can open the reviews assigned to you now.",
+    "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation:",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:219",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access ends when the grant expires. Once you sign in, navigate using the dashboard ribbon at the top.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:223",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Your review access is active. You can open the reviews assigned to you now.",
+    "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Single sign-on did not accept this sign-in. You can still continue with the invitation link below.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Your review access is active. You can open the reviews assigned to you now.",
+    "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "We could not find your invitation link in this URL. Please re-open the link from your invitation email, or use the fallback",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:287",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Your review access is active. You can open the reviews assigned to you now.",
+    "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  },
+  {
+   "role": "TEXT",
+   "label": "paste-the-token page",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:295",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Use SSO if your organization is federated with PROOVRA — it validates that the identity who arrives matches the invited reviewer. If you are not sure, \"Open with invitation link\" always works.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:353",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "Your review access is active. You can open the reviews assigned to you now.",
+    "at": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx:104"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.04)"
+  },
+  {
+   "role": "TEXT",
+   "label": "What we will record",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:373",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Every page view inside the portal.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:375",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Annotations, comments, and decisions you submit.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The fact that you opened the portal and from what IP.",
+   "at": "apps/web/app/portal/accept/[grantId]/page.tsx:377",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

@@ -1,0 +1,4270 @@
+{
+ "generatedAt": "2026-09-25T03:21:42.987Z",
+ "foundation": {
+  "fontsLoaded": true,
+  "sidebarArtwork": true,
+  "appShellBackground": true,
+  "authHeroArtwork": true
+ },
+ "matrix": [
+  {
+   "route": "/abuse-reporting",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/abuse-reporting/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/auth",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/auth/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "expoPath": "/auth",
+     "navReferences": 13,
+     "navSample": [
+      "apps/mobile/app/(stack)/forgot-password.tsx",
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/sign-in-heading.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/auth/callback/ui",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/auth/callback/ui/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "expoPath": "/auth",
+     "navReferences": 13,
+     "navSample": [
+      "apps/mobile/app/(stack)/forgot-password.tsx",
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/auth/callback/ui/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/sign-in-heading.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 7,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 3,
+     "VERIFIED_EQUIVALENT": 1,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/auth/mfa-challenge",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/auth/mfa-challenge/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/mfa.tsx",
+     "expoPath": "/mfa",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/src/auth/use-auth-flow.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/auth/mfa-challenge/page.tsx",
+     "CONTENT_FILE:apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/auth-recovery-states.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "ACTUAL_FIX": 6,
+     "VALID_EXCLUSION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/auth/mfa-recovery/verify",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "expoPath": "/mfa-recovery-verify",
+     "navReferences": 0,
+     "navSample": []
+    }
+   ],
+   "reachable": {
+    "navigation": false,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/mfa-recovery-verify.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 3,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "VERIFIED_EQUIVALENT": 1,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/auth/verify-email",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/auth/verify-email/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/verify-email.tsx",
+     "expoPath": "/verify-email",
+     "navReferences": 0,
+     "navSample": []
+    }
+   ],
+   "reachable": {
+    "navigation": false,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/auth-recovery-states.render.test.mjs",
+    "apps/mobile/test/branded-surfaces.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 11,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "VALID_EXCLUSION": 3,
+     "ACTUAL_FIX": 5,
+     "VERIFIED_EQUIVALENT": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/billing",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/billing/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/billing.tsx",
+     "expoPath": "/billing",
+     "navReferences": 8,
+     "navSample": [
+      "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/workspace-people.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "UNREACHABLE:apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:416|/billing",
+     "UNREACHABLE:apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:434|/billing",
+     "UNREACHABLE:apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:468|/billing",
+     "UNREACHABLE:apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:180|/billing",
+     "UNREACHABLE:apps/web/app/(app)/billing/_sections/BillingDrawer.tsx:190|/billing"
+    ]
+   },
+   "data": {
+    "status": "PARTIAL",
+    "open": [
+     "ENDPOINT:/v1/billing/subscription/plan",
+     "ENDPOINT:/v1/billing/credits/checkout/stripe",
+     "ENDPOINT:/v1/billing/credits/checkout/paypal",
+     "ENDPOINT:/v1/billing/storage-addons/checkout/stripe",
+     "ENDPOINT:/v1/billing/storage-addons/checkout/paypal",
+     "ENDPOINT:/v1/billing/checkout/stripe",
+     "ENDPOINT:/v1/billing/checkout/paypal"
+    ]
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/BillingOverview.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/page.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/billing-accounts.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 41,
+    "byClass": {
+     "UNRESOLVED": 11,
+     "PRODUCT_DECISION": 12,
+     "VALID_EXCLUSION": 3,
+     "ACTUAL_FIX": 9,
+     "VERIFIED_EQUIVALENT": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/capture",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/capture/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/capture.tsx",
+     "expoPath": "/capture",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/continuous-capture.tsx",
+      "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+      "apps/mobile/app/(stack)/screen-capture.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/screen-capture.tsx",
+     "expoPath": "/screen-capture",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/capture.tsx",
+      "apps/mobile/src/capture/screen-acquisition.ts"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "expoPath": "/continuous-capture",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/capture.tsx",
+      "apps/mobile/src/capture/screen-acquisition.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "PARTIAL",
+    "open": [
+     "ENDPOINT:/v1/uploads/sessions",
+     "ENDPOINT:/v1/uploads/sessions/${…}"
+    ]
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "16 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/page.tsx",
+     "CONTENT_FILE:apps/web/components/contextual-help/ContextualHelp.tsx",
+     "CONTENT_FILE:apps/web/components/capture-v2/CaptureSessionPanel.tsx",
+     "CONTENT_FILE:apps/web/components/uploads/UploadOperationsPanel.tsx",
+     "CONTENT_FILE:apps/web/components/capture-v2/CaptureRequirements.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx",
+     "CONTENT_FILE:apps/web/components/capture-v2/CaptureDropzone.tsx",
+     "CONTENT_FILE:apps/web/components/capture-v2/CaptureCameraOverlay.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureDraftReattachNotice.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/capture/_lib/CaptureFinalReadiness.tsx",
+     "CONTENT_FILE:apps/web/components/capture-v2/CaptureBottomBar.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/capture-lifecycle.render.test.mjs",
+    "apps/mobile/test/capture-session-status.render.test.mjs",
+    "apps/mobile/test/error-presentation.test.mjs",
+    "apps/mobile/test/mobile-boot-contract.test.mjs"
+   ],
+   "ledger": {
+    "total": 70,
+    "byClass": {
+     "UNRESOLVED": 18,
+     "PRODUCT_DECISION": 17,
+     "VALID_EXCLUSION": 6,
+     "ACTUAL_FIX": 18,
+     "VERIFIED_EQUIVALENT": 11
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/cases",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/cases/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/cases.tsx",
+     "expoPath": "/cases",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/src/product/home-dashboard.ts",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "6 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/cases-experience/CasesIndex.tsx",
+     "CONTENT_FILE:apps/web/components/contextual-help/ContextualHelp.tsx",
+     "CONTENT_FILE:apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/cases-queue.render.test.mjs",
+    "apps/mobile/test/request-id-and-small-gaps.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 46,
+    "byClass": {
+     "UNRESOLVED": 12,
+     "ACTUAL_FIX": 9,
+     "VALID_EXCLUSION": 9,
+     "VERIFIED_EQUIVALENT": 16
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/cases/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/cases/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/case/[id].tsx",
+     "expoPath": "/case/[id]",
+     "navReferences": 6,
+     "navSample": [
+      "apps/mobile/app/(tabs)/cases.tsx",
+      "apps/mobile/src/product/ai-copilot.ts",
+      "apps/mobile/src/product/inbox.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": true
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "NEW:ANDROID-SHARE-URL"
+    ]
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "4 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/governance/GovernanceSummary.tsx",
+     "CONTENT_FILE:apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx",
+     "CONTENT_FILE:apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx",
+     "CONTENT_FILE:apps/web/components/governance/LifecycleStateBadge.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/case-copilot.render.test.mjs",
+    "apps/mobile/test/case-overview.render.test.mjs",
+    "apps/mobile/test/presence.render.test.mjs",
+    "apps/mobile/test/team-responsibility.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 102,
+    "byClass": {
+     "UNRESOLVED": 12,
+     "VALID_EXCLUSION": 51,
+     "ACTUAL_FIX": 27,
+     "VERIFIED_EQUIVALENT": 10,
+     "AUDIT_CORRECTION": 1,
+     "BLOCKED_ON_APPROVAL": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/collaboration-teams",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/collaboration-teams/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/teams.tsx",
+     "expoPath": "/teams",
+     "navReferences": 6,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/org-invite/[token].tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/collaboration-teams-list.render.test.mjs",
+    "apps/mobile/test/collaboration-teams-rollup.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 25,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 1,
+     "ACTUAL_FIX": 15,
+     "VERIFIED_EQUIVALENT": 5
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/collaboration-teams/[teamId]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "expoPath": "/collaboration-team/[id]",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(tabs)/teams.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/collaboration-add-members.render.test.mjs",
+    "apps/mobile/test/create-assignment.render.test.mjs",
+    "apps/mobile/test/request-id-and-small-gaps.render.test.mjs",
+    "apps/mobile/test/team-discussion.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 25,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 3,
+     "VERIFIED_EQUIVALENT": 5,
+     "ACTUAL_FIX": 13
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/collaboration-teams/[teamId]/collaboration",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "expoPath": "/collaboration-team/[id]",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(tabs)/teams.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/collaboration-add-members.render.test.mjs",
+    "apps/mobile/test/create-assignment.render.test.mjs",
+    "apps/mobile/test/request-id-and-small-gaps.render.test.mjs",
+    "apps/mobile/test/team-discussion.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 4,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/collaboration-teams/invites/[token]/accept",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/invite/[token].tsx",
+     "expoPath": "/invite/[token]",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/workspace-invite.ts",
+      "apps/mobile/src/ui/workspace-invite.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/collab-invite-refusal.render.test.mjs",
+    "apps/mobile/test/request-id-and-small-gaps.render.test.mjs",
+    "apps/mobile/test/workspace-invite.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 1,
+     "ACTUAL_FIX": 4,
+     "VERIFIED_EQUIVALENT": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/data-retention",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/data-retention/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/evidence",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/evidence/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/evidence.tsx",
+     "expoPath": "/evidence",
+     "navReferences": 5,
+     "navSample": [
+      "apps/mobile/app/(stack)/operations/index.tsx",
+      "apps/mobile/src/product/home-dashboard.ts",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/EvidenceList.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/evidence-retention.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 17,
+    "byClass": {
+     "UNRESOLVED": 8,
+     "VALID_EXCLUSION": 1,
+     "VERIFIED_EQUIVALENT": 6,
+     "ACTUAL_FIX": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/evidence-requests/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "expoPath": "/evidence-request/[id]",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(stack)/evidence-requests.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/evidence-requests.tsx",
+     "expoPath": "/evidence-requests",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/OperationalBreadcrumb.tsx",
+     "CONTENT_FILE:apps/web/components/notifications/ContextualDeliveryStatus.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/evidence-request-assign.render.test.mjs",
+    "apps/mobile/test/evidence-request-review.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 21,
+    "byClass": {
+     "UNRESOLVED": 7,
+     "VALID_EXCLUSION": 5,
+     "ACTUAL_FIX": 7,
+     "VERIFIED_EQUIVALENT": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/evidence/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "expoPath": "/evidence/[id]",
+     "navReferences": 14,
+     "navSample": [
+      "apps/mobile/app/(stack)/capture.tsx",
+      "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+      "apps/mobile/app/(stack)/intake-links.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": true
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "6 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/page.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+     "CONTENT_FILE:apps/web/components/governance/GovernanceSummary.tsx",
+     "CONTENT_FILE:apps/web/components/operational/RuntimeStatusBanner.tsx",
+     "CONTENT_FILE:apps/web/components/operational/OperationalEmptyState.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+     "CONTENT_FILE:apps/web/components/operational/GovernanceSnapshotPanel.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+     "CONTENT_FILE:apps/web/components/presence/CollisionWarning.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx",
+     "CONTENT_FILE:apps/web/components/governance/LifecycleStateBadge.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-categorization.render.test.mjs",
+    "apps/mobile/test/evidence-attention.render.test.mjs",
+    "apps/mobile/test/evidence-case-assign.render.test.mjs",
+    "apps/mobile/test/evidence-comparison.render.test.mjs",
+    "apps/mobile/test/evidence-copilot.render.test.mjs",
+    "apps/mobile/test/evidence-declarations.render.test.mjs",
+    "apps/mobile/test/evidence-discussion.render.test.mjs",
+    "apps/mobile/test/evidence-export.render.test.mjs",
+    "apps/mobile/test/evidence-linked-requests.render.test.mjs",
+    "apps/mobile/test/evidence-part-metadata.render.test.mjs",
+    "apps/mobile/test/media-intelligence.render.test.mjs",
+    "apps/mobile/test/provenance.render.test.mjs",
+    "apps/mobile/test/review-actions.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 131,
+    "byClass": {
+     "UNRESOLVED": 29,
+     "CONSUMED_BY_NATIVE": 7,
+     "ACTUAL_FIX": 61,
+     "VALID_EXCLUSION": 14,
+     "VERIFIED_EQUIVALENT": 15,
+     "BLOCKED_ON_APPROVAL": 1,
+     "PARTIAL": 1,
+     "AUDIT_CORRECTION": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/forgot-password",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/forgot-password/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/forgot-password.tsx",
+     "expoPath": "/forgot-password",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(stack)/auth.tsx",
+      "apps/mobile/app/(stack)/register.tsx",
+      "apps/mobile/app/(stack)/reset-password.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/forgot-password.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 4,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "ACTUAL_FIX": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/home",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/home/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/index.tsx",
+     "expoPath": "/",
+     "navReferences": 19,
+     "navSample": [
+      "apps/mobile/app/(stack)/capture.tsx",
+      "apps/mobile/app/(stack)/intake/capture.tsx",
+      "apps/mobile/app/(stack)/intake/[token].tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/home-experience/HomeSections.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/contextual-help/ContextualHelp.tsx",
+     "CONTENT_FILE:apps/web/components/home-experience/HomeDashboardSections.tsx",
+     "CONTENT_FILE:apps/web/components/operational/RuntimeStatusBanner.tsx",
+     "CONTENT_FILE:apps/web/components/operational/OperationalEmptyState.tsx",
+     "CONTENT_FILE:apps/web/components/home-experience/SelfServeHomeDashboard.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/header-search.test.mjs",
+    "apps/mobile/test/home-dashboard-states.render.test.mjs",
+    "apps/mobile/test/home-intake.render.test.mjs",
+    "apps/mobile/test/home-sections.render.test.mjs",
+    "apps/mobile/test/home.render.test.mjs",
+    "apps/mobile/test/mobile-boot-contract.test.mjs"
+   ],
+   "ledger": {
+    "total": 50,
+    "byClass": {
+     "UNRESOLVED": 10,
+     "CONSUMED_BY_NATIVE": 4,
+     "ACTUAL_FIX": 17,
+     "VALID_EXCLUSION": 13,
+     "VERIFIED_EQUIVALENT": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/inbox",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/inbox/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/notifications.tsx",
+     "expoPath": "/notifications",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts",
+      "apps/mobile/src/ui/header.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/inbox/page.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/inbox-archive.render.test.mjs",
+    "apps/mobile/test/notifications-filter-empty.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 16,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 6,
+     "VERIFIED_EQUIVALENT": 3,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/intake-links",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/intake-links/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/intake-links.tsx",
+     "expoPath": "/intake-links",
+     "navReferences": 7,
+     "navSample": [
+      "apps/mobile/app/(stack)/intake-link-create.tsx",
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/home-dashboard.ts"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/intake-link-create.tsx",
+     "expoPath": "/intake-link-create",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/intake-links.tsx",
+      "apps/mobile/src/ui/home-intake-pipeline.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/_components/States.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/page.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/intake-links/_components/Pagination.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/intake-links.render.test.mjs",
+    "apps/mobile/test/intake-create.test.mjs"
+   ],
+   "ledger": {
+    "total": 65,
+    "byClass": {
+     "UNRESOLVED": 10,
+     "ACTUAL_FIX": 32,
+     "CONSUMED_BY_NATIVE": 2,
+     "VALID_EXCLUSION": 5,
+     "VERIFIED_EQUIVALENT": 15,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/intake/[token]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/intake/[token]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/intake/[token].tsx",
+     "expoPath": "/intake/[token]",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/deep-link.ts",
+      "apps/mobile/src/product/external-intake.ts",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/intake/[token]/page.tsx",
+     "CONTENT_FILE:apps/web/components/intake/IntakeReReviewBanner.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/intake-checklist.render.test.mjs",
+    "apps/mobile/test/intake-consent.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "VERIFIED_EQUIVALENT": 1,
+     "ACTUAL_FIX": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/intake/[token]/capture",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/intake/[token]/capture/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/intake/capture.tsx",
+     "expoPath": "/intake/capture",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/src/product/external-intake.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/intake/[token]/capture/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/intake-capture.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 5,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "ACTUAL_FIX": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/invite/[token]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/invite/[token]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/invite/[token].tsx",
+     "expoPath": "/invite/[token]",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/workspace-invite.ts",
+      "apps/mobile/src/ui/workspace-invite.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/collab-invite-refusal.render.test.mjs",
+    "apps/mobile/test/request-id-and-small-gaps.render.test.mjs",
+    "apps/mobile/test/workspace-invite.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/legal/[slug]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/legal/[slug]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "expoPath": "/legal",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/legal/[slug].tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "3 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/legal/[slug]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 9,
+    "byClass": {
+     "UNRESOLVED": 5,
+     "VALID_EXCLUSION": 2,
+     "AUDIT_CORRECTION": 1,
+     "VERIFIED_EQUIVALENT": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/login",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/login/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "expoPath": "/auth",
+     "navReferences": 13,
+     "navSample": [
+      "apps/mobile/app/(stack)/forgot-password.tsx",
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal-acceptance.tsx",
+     "expoPath": "/legal-acceptance",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/auth/legal-gate.ts",
+      "apps/mobile/src/auth/use-auth-flow.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/login/page.tsx"
+    ],
+    "localization": "DICTIONARY-BOUND"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/sign-in-heading.render.test.mjs",
+    "apps/mobile/test/legal-acceptance-body.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 11,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 3,
+     "ACTUAL_FIX": 3,
+     "VERIFIED_EQUIVALENT": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/notifications",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/notifications/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/notifications.tsx",
+     "expoPath": "/notifications",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts",
+      "apps/mobile/src/ui/header.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/inbox/page.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/inbox-archive.render.test.mjs",
+    "apps/mobile/test/notifications-filter-empty.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 16,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 6,
+     "VERIFIED_EQUIVALENT": 3,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/operations",
+   "classification": "ENTERPRISE_ONLY",
+   "webEntry": "apps/web/app/(app)/operations/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/index.tsx",
+     "expoPath": "/operations",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(stack)/operations/health.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "4 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ops-console.test.mjs"
+   ],
+   "ledger": {
+    "total": 20,
+    "byClass": {
+     "BLOCKED_ON_APPROVAL": 1,
+     "CONSUMED_BY_NATIVE": 13,
+     "UNRESOLVED": 4,
+     "VERIFIED_EQUIVALENT": 1,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/operations/batch-analysis",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "expoPath": "/operations/batch-analysis",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "NEW:ANDROID-SHARE-URL"
+    ]
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/operations/batch-analysis/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/operations-batch-analysis.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 12,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 3,
+     "CONSUMED_BY_NATIVE": 1,
+     "ACTUAL_FIX": 3,
+     "BLOCKED_ON_APPROVAL": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/operations/health",
+   "classification": "ENTERPRISE_ONLY",
+   "webEntry": "apps/web/app/(app)/operations/health/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/health.tsx",
+     "expoPath": "/operations/health",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/app/(stack)/operations/index.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/ops-health.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ops-console.test.mjs"
+   ],
+   "ledger": {
+    "total": 3,
+    "byClass": {
+     "ACTUAL_FIX": 2,
+     "VERIFIED_EQUIVALENT": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/operations/quotas",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/operations/quotas/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/quotas.tsx",
+     "expoPath": "/operations/quotas",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/operations/quotas/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/operations-quotas.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 9,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 2,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/org-invites/[token]/accept",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+     "expoPath": "/org-invite/[token]",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(stack)/organizations/index.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/org-invites/[token]/accept/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/org-invite-open.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 9,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VERIFIED_EQUIVALENT": 3,
+     "ACTUAL_FIX": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/organizations",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/organizations/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/organizations/index.tsx",
+     "expoPath": "/organizations",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(stack)/org-invite/[token].tsx",
+      "apps/mobile/app/(stack)/spaces.tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/organizations/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/organizations-list.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 15,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "CONSUMED_BY_NATIVE": 1,
+     "VALID_EXCLUSION": 1,
+     "ACTUAL_FIX": 3,
+     "VERIFIED_EQUIVALENT": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/organizations/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/organizations/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "expoPath": "/organizations/[id]",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(stack)/organizations/index.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/organizations/[id]/page.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/org-detail.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 39,
+    "byClass": {
+     "UNRESOLVED": 5,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 22,
+     "CONSUMED_BY_NATIVE": 1,
+     "VERIFIED_EQUIVALENT": 9
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/people",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/people/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/workspace-people.tsx",
+     "expoPath": "/workspace-people",
+     "navReferences": 6,
+     "navSample": [
+      "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+      "apps/mobile/app/(stack)/spaces.tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/external-collaborators.render.test.mjs",
+    "apps/mobile/test/member-removal.render.test.mjs",
+    "apps/mobile/test/role-permissions.render.test.mjs",
+    "apps/mobile/test/workspace-roster-filter.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 4,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/portal",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/portal/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/index.tsx",
+     "expoPath": "/portal",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/src/deep-link.ts",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/external-portal/PortalMfaCodeStep.tsx",
+     "CONTENT_FILE:apps/web/app/portal/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/portal-entry.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 8,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "VALID_EXCLUSION": 2,
+     "CONSUMED_BY_NATIVE": 1,
+     "ACTUAL_FIX": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/portal/[token]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/portal/[token]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/[token].tsx",
+     "expoPath": "/portal/[token]",
+     "navReferences": 5,
+     "navSample": [
+      "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+      "apps/mobile/app/(stack)/portal/index.tsx",
+      "apps/mobile/src/deep-link.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "NEW:PORTAL-TOKEN-IN-PARAMS"
+    ]
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/external-portal/PortalMfaCodeStep.tsx",
+     "CONTENT_FILE:apps/web/app/portal/[token]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/portal-entry.render.test.mjs",
+    "apps/mobile/test/portal-mfa.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 2,
+     "ACTUAL_FIX": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/portal/[token]/work/[workflowId]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+     "expoPath": "/portal/work/[workflowId]",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(stack)/portal/[token].tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "UNREACHABLE:apps/web/app/portal/[token]/work/[workflowId]/page.tsx:361|/portal/[token]/work/[workflowId]"
+    ]
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/external-portal/PortalMfaCodeStep.tsx",
+     "CONTENT_FILE:apps/web/app/portal/[token]/work/[workflowId]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/portal-work.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 10,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "VALID_EXCLUSION": 2,
+     "PRODUCT_DECISION": 1,
+     "VERIFIED_EQUIVALENT": 2,
+     "ACTUAL_FIX": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/portal/accept/[grantId]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/portal/accept/[grantId]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+     "expoPath": "/portal/accept/[grantId]",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/src/deep-link.ts",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/portal.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/external-portal/PortalMfaCodeStep.tsx",
+     "CONTENT_FILE:apps/web/app/portal/accept/[grantId]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/portal-accept.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 6,
+    "byClass": {
+     "UNRESOLVED": 3,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/pricing",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/pricing/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/billing.tsx",
+     "expoPath": "/billing",
+     "navReferences": 8,
+     "navSample": [
+      "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/workspace-people.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/pricing/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/billing-accounts.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 13,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 5,
+     "AUDIT_CORRECTION": 4
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/privacy",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/privacy/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/register",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/register/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/register.tsx",
+     "expoPath": "/register",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/app/(stack)/auth.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/ui/workspace-invite.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/register/page.tsx"
+    ],
+    "localization": "DICTIONARY-BOUND"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/register-consent.render.test.mjs",
+    "apps/mobile/test/register-oauth.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 16,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 3,
+     "CONSUMED_BY_NATIVE": 1,
+     "ACTUAL_FIX": 8,
+     "VERIFIED_EQUIVALENT": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/reports",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/reports/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/reports.tsx",
+     "expoPath": "/reports",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/app/(stack)/billing.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/contextual-help/ContextualHelp.tsx",
+     "CONTENT_FILE:apps/web/components/reports-experience/ReportsIndex.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/reports-rows.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 21,
+    "byClass": {
+     "UNRESOLVED": 5,
+     "ACTUAL_FIX": 7,
+     "VALID_EXCLUSION": 1,
+     "VERIFIED_EQUIVALENT": 8
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/reset-password",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/reset-password/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/reset-password.tsx",
+     "expoPath": "/reset-password",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/reset-password/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/reset-password.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 11,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 3,
+     "ACTUAL_FIX": 4
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/search",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/search/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/search.tsx",
+     "expoPath": "/search",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/index.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/navigation.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/search/page.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/search/components/SearchStates.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/search/components/SearchGuidance.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/search-activity.render.test.mjs",
+    "apps/mobile/test/search-filters.render.test.mjs",
+    "apps/mobile/test/search-inspector.render.test.mjs",
+    "apps/mobile/test/search-readiness.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 51,
+    "byClass": {
+     "UNRESOLVED": 6,
+     "VALID_EXCLUSION": 13,
+     "ACTUAL_FIX": 25,
+     "VERIFIED_EQUIVALENT": 7
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/settings",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/settings/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(tabs)/settings.tsx",
+     "expoPath": "/settings",
+     "navReferences": 5,
+     "navSample": [
+      "apps/mobile/app/(stack)/settings/ai.tsx",
+      "apps/mobile/src/product/ai-assistance.ts",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/security.tsx",
+     "expoPath": "/settings/security",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "expoPath": "/settings/privacy",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/ai.tsx",
+     "expoPath": "/settings/ai",
+     "navReferences": 1,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "expoPath": "/settings/notifications",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/notifications.tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal-acceptance.tsx",
+     "expoPath": "/legal-acceptance",
+     "navReferences": 3,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/auth/legal-gate.ts",
+      "apps/mobile/src/auth/use-auth-flow.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "7 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/AiSection.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/notifications/NotificationPreferencesPanel.tsx",
+     "CONTENT_FILE:apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/RolesSection.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/SettingsOverview.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/AiReadOnlyView.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/PreferencesSection.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/OverviewSection.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/_sections/BillingSection.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/settings-language.render.test.mjs",
+    "apps/mobile/test/contact-factors.render.test.mjs",
+    "apps/mobile/test/identity-links.render.test.mjs",
+    "apps/mobile/test/settings-security.render.test.mjs",
+    "apps/mobile/test/settings-privacy.render.test.mjs",
+    "apps/mobile/test/ai-policy-editor.render.test.mjs",
+    "apps/mobile/test/messaging-contact.render.test.mjs",
+    "apps/mobile/test/legal-acceptance-body.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 67,
+    "byClass": {
+     "UNRESOLVED": 19,
+     "VALID_EXCLUSION": 6,
+     "ACTUAL_FIX": 32,
+     "CONSUMED_BY_NATIVE": 3,
+     "VERIFIED_EQUIVALENT": 6,
+     "PARTIAL": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/settings/legal/[slug]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/settings/legal/[slug]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "4 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 14,
+    "byClass": {
+     "UNRESOLVED": 8,
+     "ACTUAL_FIX": 3,
+     "VALID_EXCLUSION": 1,
+     "AUDIT_CORRECTION": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/settings/reviewer-criteria",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+     "expoPath": "/settings/reviewer-criteria",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/settings/reviewer-criteria/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/criteria-version-history.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 13,
+    "byClass": {
+     "UNRESOLVED": 4,
+     "ACTUAL_FIX": 3,
+     "VERIFIED_EQUIVALENT": 6
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/share/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/share/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "expoPath": "/evidence/[id]",
+     "navReferences": 14,
+     "navSample": [
+      "apps/mobile/app/(stack)/capture.tsx",
+      "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+      "apps/mobile/app/(stack)/intake-links.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/share/[id]/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-categorization.render.test.mjs",
+    "apps/mobile/test/evidence-attention.render.test.mjs",
+    "apps/mobile/test/evidence-case-assign.render.test.mjs",
+    "apps/mobile/test/evidence-comparison.render.test.mjs",
+    "apps/mobile/test/evidence-copilot.render.test.mjs",
+    "apps/mobile/test/evidence-declarations.render.test.mjs",
+    "apps/mobile/test/evidence-discussion.render.test.mjs",
+    "apps/mobile/test/evidence-export.render.test.mjs",
+    "apps/mobile/test/evidence-linked-requests.render.test.mjs",
+    "apps/mobile/test/evidence-part-metadata.render.test.mjs",
+    "apps/mobile/test/media-intelligence.render.test.mjs",
+    "apps/mobile/test/provenance.render.test.mjs",
+    "apps/mobile/test/review-actions.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 6,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/subprocessors",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/subprocessors/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/support",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/support/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/support.tsx",
+     "expoPath": "/support",
+     "navReferences": 7,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 12,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 5,
+     "ACTUAL_FIX": 2,
+     "AUDIT_CORRECTION": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/teams/[id]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/teams/[id]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/workspace-people.tsx",
+     "expoPath": "/workspace-people",
+     "navReferences": 6,
+     "navSample": [
+      "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+      "apps/mobile/app/(stack)/spaces.tsx",
+      "apps/mobile/app/(tabs)/settings.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "2 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/teams/[id]/page.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/external-collaborators.render.test.mjs",
+    "apps/mobile/test/member-removal.render.test.mjs",
+    "apps/mobile/test/role-permissions.render.test.mjs",
+    "apps/mobile/test/workspace-roster-filter.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 42,
+    "byClass": {
+     "UNRESOLVED": 11,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 16,
+     "CONSUMED_BY_NATIVE": 1,
+     "VERIFIED_EQUIVALENT": 12
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/terms",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/terms/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "expoPath": "/legal/[slug]",
+     "navReferences": 9,
+     "navSample": [
+      "apps/mobile/app/(stack)/invite/[token].tsx",
+      "apps/mobile/app/(stack)/legal/index.tsx",
+      "apps/mobile/app/(stack)/register.tsx"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/legal.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 1,
+    "byClass": {
+     "UNRESOLVED": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": false,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/trust/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/app/trust/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 8,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 2,
+     "ACTUAL_FIX": 1,
+     "AUDIT_CORRECTION": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 2,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "ACTUAL_FIX": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center/ai-disclosure",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx",
+     "CONTENT_FILE:apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_section-list.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_version-history.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 19,
+    "byClass": {
+     "UNRESOLVED": 7,
+     "ACTUAL_FIX": 7,
+     "VERIFIED_EQUIVALENT": 3,
+     "VALID_EXCLUSION": 1,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center/methodology",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/methodology/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_section-list.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_version-history.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/methodology/page.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 15,
+    "byClass": {
+     "UNRESOLVED": 7,
+     "ACTUAL_FIX": 2,
+     "VERIFIED_EQUIVALENT": 3,
+     "VALID_EXCLUSION": 1,
+     "AUDIT_CORRECTION": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center/security",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/security/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_section-list.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_version-history.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 13,
+    "byClass": {
+     "UNRESOLVED": 6,
+     "ACTUAL_FIX": 2,
+     "VERIFIED_EQUIVALENT": 3,
+     "VALID_EXCLUSION": 1,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center/status",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/status/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 20,
+    "byClass": {
+     "ACTUAL_FIX": 13,
+     "VALID_EXCLUSION": 3,
+     "UNRESOLVED": 3,
+     "AUDIT_CORRECTION": 1
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/trust-center/subprocessors",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/trust-center/subprocessors/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "expoPath": "/trust-center",
+     "navReferences": 4,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs",
+      "apps/mobile/src/product/support.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "1 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/legal/LegalDocumentShell.tsx",
+     "CONTENT_FILE:apps/web/app/(app)/trust-center/_version-history.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/ai-capability-status.render.test.mjs",
+    "apps/mobile/test/support.render.test.mjs",
+    "apps/mobile/test/trust-live.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 19,
+    "byClass": {
+     "ACTUAL_FIX": 8,
+     "VALID_EXCLUSION": 4,
+     "VERIFIED_EQUIVALENT": 1,
+     "UNRESOLVED": 4,
+     "AUDIT_CORRECTION": 2
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/verify",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/verify/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/verify.tsx",
+     "expoPath": "/verify",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/public-verify-sections.render.test.mjs",
+    "apps/mobile/test/public-verify.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 14,
+    "byClass": {
+     "UNRESOLVED": 1,
+     "VALID_EXCLUSION": 2,
+     "VERIFIED_EQUIVALENT": 2,
+     "ACTUAL_FIX": 6,
+     "AUDIT_CORRECTION": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/verify/[token]",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/verify/[token]/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/verify.tsx",
+     "expoPath": "/verify",
+     "navReferences": 2,
+     "navSample": [
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/native-destinations.mjs"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": true,
+     "android": true,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "PARTIAL",
+    "open": [
+     "NEW:VERIFY-CAPTURE-CONTEXT"
+    ]
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "SOURCE-IMPLEMENTED",
+    "gaps": [],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "AUTOMATED-TESTED",
+    "open": [],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/branded-surfaces.render.test.mjs",
+    "apps/mobile/test/public-verify-sections.render.test.mjs",
+    "apps/mobile/test/public-verify.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 27,
+    "byClass": {
+     "UNRESOLVED": 2,
+     "VALID_EXCLUSION": 3,
+     "ACTUAL_FIX": 18,
+     "VERIFIED_EQUIVALENT": 4
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  },
+  {
+   "route": "/workspaces",
+   "classification": "NATIVE_REQUIRED",
+   "webEntry": "apps/web/app/(app)/workspaces/page.tsx",
+   "native": [
+    {
+     "file": "apps/mobile/app/(stack)/spaces.tsx",
+     "expoPath": "/spaces",
+     "navReferences": 5,
+     "navSample": [
+      "apps/mobile/app/(stack)/organizations/[id].tsx",
+      "apps/mobile/app/(tabs)/settings.tsx",
+      "apps/mobile/src/product/shell-gates.ts"
+     ]
+    }
+   ],
+   "reachable": {
+    "navigation": true,
+    "deepLink": {
+     "ios": false,
+     "android": false,
+     "canonicalScheme": false
+    }
+   },
+   "functional": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "data": {
+    "status": "AUTOMATED-TESTED",
+    "open": []
+   },
+   "visual": {
+    "status": "PARTIAL",
+    "gaps": [
+     "19 open CSS rows"
+    ],
+    "note": "Per-screen visual comparison is not automated; DEVICE-ACCEPTED requires the physical-device gate."
+   },
+   "content": {
+    "status": "PARTIAL",
+    "open": [
+     "CONTENT_FILE:apps/web/components/feedback/ProovraSupportReference.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/PageRouteGate.tsx",
+     "CONTENT_FILE:apps/web/components/contextual-help/ContextualHelp.tsx",
+     "CONTENT_FILE:apps/web/components/navigation/OperationalBreadcrumb.tsx"
+    ],
+    "localization": "EN-ONLY ON WEB (parity)"
+   },
+   "tests": [
+    "apps/mobile/test/workspace-audit.render.test.mjs"
+   ],
+   "ledger": {
+    "total": 33,
+    "byClass": {
+     "UNRESOLVED": 24,
+     "VALID_EXCLUSION": 3,
+     "CONSUMED_BY_NATIVE": 1,
+     "ACTUAL_FIX": 2,
+     "VERIFIED_EQUIVALENT": 3
+    },
+    "recheckFailed": []
+   },
+   "sourceFixed": true,
+   "automatedTested": true,
+   "deviceAccepted": false
+  }
+ ]
+}

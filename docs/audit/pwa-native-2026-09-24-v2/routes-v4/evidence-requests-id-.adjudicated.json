@@ -1,0 +1,535 @@
+{
+ "route": "/evidence-requests/[id]",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:799",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "label": "Reviewer note:",
+   "webRole": "TEXT",
+   "natRole": "INPUT",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:670",
+   "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Back",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:735",
+   "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:167",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "BADGE",
+   "label": "Review-ready",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BADGE",
+   "label": "Required items remaining",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:407",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BADGE",
+   "label": "Needs more info",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "INPUT",
+   "label": "Reviewer note (workspace-internal, optional)",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:447",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Reviewer note",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Reviewer note\" at apps/mobile/app/(stack)/evidence-request/[id].tsx:403 scores 0.4 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading evidence request…",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:326",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence request unavailable",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Return to matter",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Request ·",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:386",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request more information",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:440",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Flag this request as needing more information from the contributor. The contributor's intake page will show a re-request banner pointing at the unfulfilled deliverables. Workspace-internal note below is attached to the audit event.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:442",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Completion",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:487",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Required:",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:518",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional:",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:521",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Deliverables",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This request has no deliverable checklist. It accepts free-form uploads only.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:531",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.08)"
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "received",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Responses received",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:612",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No responses received yet. Responses appear here once the contributor submits via the intake link.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:615",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.07)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open evidence",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:685",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request more",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:694",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reject",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:703",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "← Back to matter",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:727",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Follow-up link created",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:749",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy link",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:792",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Operational breadcrumb",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "FORM",
+   "label": "Assign reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:279",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no FORM element at all"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:280",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Reviewer note (optional)",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:402"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigned reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:207",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "This request is addressed to an internal team member. The assigned reviewer is the person who receives it.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:220",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "The reviewer cannot change on a closed or cancelled request.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:256",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Send to assigned reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Save reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:296",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:307",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Assign a reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "SELECT",
+   "label": "Choose a member",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no SELECT element at all"
+  },
+  {
+   "role": "TEXT",
+   "label": "Search members",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:145",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Search",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace members…",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity timeline",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:722",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:726",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "No events recorded for this request.",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:728",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email delivery for this request",
+   "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "· last attempt",
+   "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:97",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  }
+ ]
+}

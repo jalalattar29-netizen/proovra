@@ -271,12 +271,15 @@ test("the title cascade runs, because rawTitle is null when the column is empty"
   assert.match(byId.matches[0].title, /abcdef12/);
 });
 
-test("the match summary says WHY, including the part count", () => {
+test("the match summary says WHY in the web's words, with the part-level count", () => {
+  // evidence.routes.ts:8091 — matchReasons are lowercase (`exact_hash`, `part_hash`, …);
+  // DuplicateDetectionPanel.tsx:16/:106 — the web labels and `× n` on part_hash.
   const [m] = mod.parseDuplicateReport({
-    groupedMatches: [{ evidenceId: "e1", matchReasons: ["EXACT_HASH"], matchedPartsCount: 3 }],
+    groupedMatches: [{ evidenceId: "e1", matchReasons: ["exact_hash", "part_hash"], matchedPartsCount: 3 }],
   }).matches;
-  assert.match(mod.duplicateMatchSummary(m), /Identical file hash/);
-  assert.match(mod.duplicateMatchSummary(m), /3 matching parts/);
+  assert.equal(mod.duplicateMatchSummary(m), "Exact file hash · Part-level hash × 3");
+  const [meta] = mod.parseDuplicateReport({ groupedMatches: [{ evidenceId: "e2", matchReasons: ["metadata", "fingerprint"] }] }).matches;
+  assert.equal(mod.duplicateMatchSummary(meta), "Filename + size · Fingerprint");
 });
 
 test("the limitation is stated whether or not anything matched", () => {
@@ -717,4 +720,15 @@ test("linking needs the same write a rename does, and refuses in the same states
     assert.notEqual(mod.evidenceLabelRefusal(lifecycle(state)), null);
   }
   assert.match(mod.relationshipEditRefusal(null), /until the record's state is known/);
+});
+
+test("materials are read where the review workspace puts them: evidence.contentItems", () => {
+  // evidence.routes.ts review-workspace reply nests the files under `evidence`.
+  // Reading only the top level found nothing, so the Materials list was empty.
+  const items = mod.projectMaterials({
+    evidence: { id: "ev-1", contentItems: [{ id: "p1", index: 0, label: "roof.jpg", kind: "image", isPrimary: true, downloadable: false, previewable: true }] },
+    relationships: { items: [] },
+  });
+  assert.equal(items.length, 1, "the nested files were not read");
+  assert.equal(items[0].label, "roof.jpg");
 });

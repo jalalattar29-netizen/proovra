@@ -197,7 +197,8 @@ test("the note paths are the canonical ones", () => {
   assert.equal(mod.buildCaseCommentsPath("c1"), "/v1/cases/c1/comments");
   assert.equal(mod.buildCaseCommentPath("c1", "n1"), "/v1/cases/c1/comments/n1");
   assert.equal(mod.buildCaseCommentResolvePath("c1", "n1"), "/v1/cases/c1/comments/n1/resolve");
-  assert.deepEqual(mod.buildResolveCommentBody(false), { resolved: false });
+  // The route reads no body and only resolves — there is no reopen to ask for.
+  assert.deepEqual(mod.buildResolveCommentBody(), {});
 });
 
 /* ---------------------------------------------------- reports and packages */

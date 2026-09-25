@@ -204,7 +204,7 @@ test("each create failure is told apart, and none leaks a raw error", () => {
 test("the verification boundary is stated, not implied", () => {
   // A user who thinks this signed them in will wait for an app that is never
   // going to let them in.
-  assert.match(R.MFA_RECOVERY_BOUNDARY, /did not sign you in/i);
-  assert.match(R.MFA_RECOVERY_BOUNDARY, /did not change your two-factor/i);
-  assert.match(R.MFA_RECOVERY_BOUNDARY, /administrator/i);
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /did NOT log you in/);
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /did NOT change your two-factor/);
+  assert.match(R.MFA_RECOVERY_BOUNDARY, /once an admin approves your reset/);
 });

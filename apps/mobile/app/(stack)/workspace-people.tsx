@@ -1,5 +1,6 @@
 /**
- * WORKSPACE PEOPLE — the native port of `apps/web/app/(app)/teams/[id]/page.tsx`.
+ * WORKSPACE PEOPLE — the native port of `apps/web/app/(app)/teams/[id]/page.tsx`
+ * ("Members & Access").
  *
  * Members, invitations and seats for the ACTIVE workspace. The web keys this
  * surface by workspace id and reaches it through a resolver at `/people`
@@ -7,24 +8,26 @@
  * takes the active workspace directly from the canonical platform context and
  * this screen IS the resolver's destination.
  *
- * Until this existed a PRO or TEAM customer on a phone had no way to fill the
- * seats they had paid for.
+ * Section order follows the web's two columns re-flowed into one: the header
+ * and its four summary figures, the roster, pending invitations, recent
+ * activity and the owner-only lifecycle region (the web's MAIN column), then
+ * the rail — invite, workspace overview, the Collaboration Teams signpost,
+ * external collaborators and the cases in this workspace.
  *
  * Counts come from the server's `stats`, never from the length of the member
  * page — the web route's own comment records what happened when a detail read
  * tried to carry every membership.
  *
- * The workspace name, role changes, linked cases and the activity feed are all
- * here. Linking and unlinking a case are gated DIFFERENTLY by the route — a
- * MEMBER may bring a case in and may not take one out — and the surface keeps
- * them apart rather than treating "can manage cases" as one permission.
+ * Linking and unlinking a case are gated DIFFERENTLY by the route — a MEMBER
+ * may bring a case in and may not take one out — and the surface keeps them
+ * apart rather than treating "can manage cases" as one permission.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { apiFetch } from "../../src/api";
-import { formatUserDateTime } from "../../src/lib/date";
+import { apiFetch, apiFetchText } from "../../src/api";
+import { formatUserDate, formatUserDateTime } from "../../src/lib/date";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { useToast } from "../../src/toast-context";
@@ -40,28 +43,26 @@ import {
   ProovraListRow,
   ProovraPageHeader,
   ProovraPageSection,
+  ProovraFilterSearch,
   ProovraFilterChips,
   ProovraLoadingState,
-  ProovraErrorState,
   ProovraEmpty,
   ProovraConfirmSheet,
   ProovraSheet,
+  ProovraKpiGrid,
+  ProovraDetailRows,
 } from "../../src/ui";
-import { StepUpSheet, useStepUp } from "../../src/ui/step-up-sheet";
-import { withStepUp } from "../../src/product/step-up";
-import {
-  buildClosureBody,
-  canRequestClosure,
-  closureFailureNeedsReload,
-  closurePhraseMatches,
-  hasOpenClosure,
-  parseClosureState,
-  type ClosureState,
-} from "../../src/product/closure";
+import { RolePermissionsSheet } from "../../src/ui/role-permissions-sheet";
+import { useAuth } from "../../src/auth-context";
+import { MemberRemovalSheet } from "../../src/ui/member-removal";
+import { ExternalCollaboratorsCard } from "../../src/ui/external-collaborators";
+import { WorkspaceOwnershipTransferCard } from "../../src/ui/workspace-ownership-transfer";
+import { WorkspaceClosureCard } from "../../src/ui/workspace-closure-card";
 import {
   INVITABLE_ROLES,
   MANAGEABLE_ROLES,
-  activityLabel,
+  RECENT_ACTIVITY_LIMIT,
+  activityTone,
   buildRenameBody,
   buildRoleChangeBody,
   buildWorkspaceActivityPath,
@@ -70,26 +71,32 @@ import {
   buildWorkspaceCasesPath,
   buildWorkspaceMemberPath,
   canChangeRole,
+  canRemoveMember,
   canLinkCase,
   canUnlinkCase,
+  deleteWorkspaceFailure,
+  describeActivity,
   describeRoleChange,
+  invitesReadFailure,
   linkableCases,
+  memberStatusLabel,
   parseWorkspaceActivity,
   parseWorkspaceCases,
-  buildWorkspaceClosureCancelPath,
-  buildWorkspaceClosurePath,
-  buildWorkspaceTransferBody,
-  buildWorkspaceTransferPath,
   isWorkspaceOwner,
+  resendErrorCopy,
+  resendOutcome,
+  seatsAvailable,
   validateWorkspaceName,
-  workspaceLifecycleFailureMessage,
-  workspaceTransferTargets,
+  type InvitesReadState,
   type WorkspaceActivity,
   type WorkspaceCase,
   buildWorkspaceInvitePath,
   buildWorkspaceInviteResendPath,
   buildWorkspaceInvitesPath,
   buildWorkspaceMembersPath,
+  MEMBER_STATUS_FILTERS,
+  rosterNoMatchCopy,
+  type MemberStatusFilter,
   buildWorkspacePath,
   canInviteMore,
   looksLikeEmail,
@@ -98,13 +105,13 @@ import {
   parseWorkspaceMembers,
   parseWorkspaceOverview,
   roleLabel,
-  seatsSummary,
   type WorkspaceInvite,
   type WorkspaceMember,
   type WorkspaceOverview,
 } from "../../src/product/workspace-people";
 
 type Phase = "loading" | "ready" | "failed";
+type RosterState = "loading" | "ready" | "failed";
 
 export default function WorkspacePeopleScreen() {
   const router = useRouter();
@@ -113,15 +120,30 @@ export default function WorkspacePeopleScreen() {
   const teamId = context?.activeTeamId ?? null;
 
   const [phase, setPhase] = useState<Phase>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [roster, setRoster] = useState<RosterState>("loading");
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const { user: authUser } = useAuth();
+  const selfId = authUser?.id ?? null;
   const [cursor, setCursor] = useState<string | null>(null);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
-  const [invitesReadable, setInvitesReadable] = useState(true);
+  // T-12 — roster status filter + search, sent to the server (the web's
+  // WorkspaceMembersPanel). Changing either resets the cursor.
+  const [memberStatus, setMemberStatus] = useState<MemberStatusFilter>("ALL");
+  const [memberQuery, setMemberQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const rosterFilter = useMemo(() => ({ status: memberStatus, q: debouncedQuery }), [memberStatus, debouncedQuery]);
+  const filtered = memberStatus !== "ALL" || debouncedQuery.trim().length > 0;
+  const [invitesRead, setInvitesRead] = useState<InvitesReadState>("ready");
 
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("MEMBER");
   const [busy, setBusy] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<WorkspaceInvite | null>(null);
 
   const [cases, setCases] = useState<WorkspaceCase[] | null>(null);
@@ -130,80 +152,135 @@ export default function WorkspacePeopleScreen() {
   const [linkable, setLinkable] = useState<WorkspaceCase[] | null>(null);
   const [unlinking, setUnlinking] = useState<WorkspaceCase | null>(null);
   const [roleFor, setRoleFor] = useState<WorkspaceMember | null>(null);
+  // T-14 — member removal (web MemberRemovalDialog) and the roster total.
+  const [removing, setRemoving] = useState<WorkspaceMember | null>(null);
+  const [memberTotal, setMemberTotal] = useState<number | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
 
-  const stepUp = useStepUp();
-  const [closure, setClosure] = useState<ClosureState | null>(null);
-  const [transferring, setTransferring] = useState(false);
-  const [transferTarget, setTransferTarget] = useState<WorkspaceMember | null>(null);
-  const [closing, setClosing] = useState(false);
-  const [phrase, setPhrase] = useState("");
-  const [cancellingClosure, setCancellingClosure] = useState(false);
+  // Held at PAGE level: a transfer demotes the actor and unmounts the card
+  // that produced the sentence (web NEW-049).
+  const [ownershipNotice, setOwnershipNotice] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const applyRoster = useCallback((d: unknown) => {
+    const mp = parseWorkspaceMembers(d);
+    setMembers(mp.members);
+    setMemberTotal(mp.total);
+    setCursor(mp.nextCursor);
+    setRoster("ready");
+    setRosterError(null);
+    return mp;
+  }, []);
+
+  const rosterFailure = useCallback((err: unknown) => {
+    const code = (err as { statusCode?: number } | null)?.statusCode;
+    setRoster("failed");
+    setRosterError(
+      code === 403 || code === 404
+        ? "You no longer have access to this workspace's members. Reload the page or switch workspace."
+        : toSafeUserError(err, { message: "The member list could not be loaded." }).message,
+    );
+  }, []);
+
+  const reloadInvites = useCallback(async (): Promise<WorkspaceInvite[] | null> => {
+    if (!teamId) return null;
+    try {
+      const list = parseWorkspaceInvites(await apiFetch(buildWorkspaceInvitesPath(teamId)));
+      setInvites(list);
+      setInvitesRead("ready");
+      return list;
+    } catch (err) {
+      // A 403 is a statement about this user's role, not a failure of the page.
+      setInvitesRead(invitesReadFailure(err));
+      return null;
+    }
+  }, [teamId]);
 
   const load = useCallback(async () => {
     if (!teamId) return;
     setPhase("loading");
+    setLoadError(null);
+    let ov: WorkspaceOverview;
     try {
-      const [detail, page] = await Promise.all([
-        apiFetch(buildWorkspacePath(teamId)),
-        apiFetch(buildWorkspaceMembersPath(teamId)),
-      ]);
-      const ov = parseWorkspaceOverview(detail);
-      const mp = parseWorkspaceMembers(page);
-      setOverview(ov);
-      setMembers(mp.members);
-      setCursor(mp.nextCursor);
-      setPhase("ready");
-
-      // Invitations are admin-gated; a 403 is an answer about this user's
-      // role, not a failure of the page, so the roster still renders.
-      try {
-        setInvites(parseWorkspaceInvites(await apiFetch(buildWorkspaceInvitesPath(teamId))));
-        setInvitesReadable(true);
-      } catch {
-        setInvites([]);
-        setInvitesReadable(false);
-      }
-
-      // Cases and activity are independent of each other and of the roster:
-      // either may be refused for this caller, and one refusal must not take
-      // the page with it.
-      await Promise.all([
-        apiFetch(buildWorkspaceCasesPath(teamId))
-          .then((d) => setCases(parseWorkspaceCases(d)))
-          .catch(() => setCases(null)),
-        apiFetch(buildWorkspaceActivityPath(teamId, 25))
-          .then((d) => setActivity(parseWorkspaceActivity(d)))
-          .catch(() => setActivity(null)),
-        // Owner-only. It carries the phrase, the cooling-off period and the
-        // blockers; none of the three is ever restated by the client.
-        apiFetch(buildWorkspaceClosurePath(teamId))
-          .then((d) => setClosure(parseClosureState(d)))
-          .catch(() => setClosure(null)),
-      ]);
-    } catch {
+      ov = parseWorkspaceOverview(await apiFetch(buildWorkspacePath(teamId)));
+    } catch (err) {
+      setLoadError(toSafeUserError(err, { message: "Failed to load workspace" }).message);
       setPhase("failed");
+      return;
     }
-  }, [teamId]);
+    setOverview(ov);
+    setPhase("ready");
+
+    // Every section below is independent: a refusal of one (a role gate, a
+    // failure) must not take the page — or another section — with it.
+    setRoster("loading");
+    await Promise.all([
+      apiFetch(buildWorkspaceMembersPath(teamId, null, rosterFilter)).then(applyRoster).catch(rosterFailure),
+      reloadInvites(),
+      apiFetch(buildWorkspaceCasesPath(teamId))
+        .then((d) => setCases(parseWorkspaceCases(d)))
+        .catch(() => setCases(null)),
+      apiFetch(buildWorkspaceActivityPath(teamId, 25))
+        .then((d) => setActivity(parseWorkspaceActivity(d)))
+        .catch(() => setActivity(null)),
+    ]);
+  }, [teamId, rosterFilter, applyRoster, rosterFailure, reloadInvites]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // The roster filter re-reads only the roster (effect below), so the
+    // whole-page load runs on workspace change alone.
+  }, [teamId]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(memberQuery), 300);
+    return () => clearTimeout(t);
+  }, [memberQuery]);
+
+  const reloadRoster = useCallback(async () => {
+    if (!teamId) return null;
+    try {
+      return applyRoster(await apiFetch(buildWorkspaceMembersPath(teamId, null, rosterFilter)));
+    } catch (err) {
+      rosterFailure(err);
+      return null;
+    }
+  }, [teamId, rosterFilter, applyRoster, rosterFailure]);
+
+  // Re-read the ROSTER (not the whole page) when a filter changes.
+  const firstFilter = useRef(true);
+  useEffect(() => {
+    if (firstFilter.current) {
+      firstFilter.current = false;
+      return;
+    }
+    if (!teamId) return;
+    let live = true;
+    apiFetch(buildWorkspaceMembersPath(teamId, null, rosterFilter))
+      .then((d) => {
+        if (live) applyRoster(d);
+      })
+      .catch((err) => addToast(toSafeUserError(err).message, "error"));
+    return () => {
+      live = false;
+    };
+  }, [teamId, rosterFilter, addToast, applyRoster]);
 
   const loadMore = useCallback(async () => {
     if (!teamId || !cursor) return;
     setBusy(true);
     try {
-      const mp = parseWorkspaceMembers(await apiFetch(buildWorkspaceMembersPath(teamId, cursor)));
+      const mp = parseWorkspaceMembers(await apiFetch(buildWorkspaceMembersPath(teamId, cursor, rosterFilter)));
       setMembers((prev) => [...prev, ...mp.members]);
       setCursor(mp.nextCursor);
     } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
+      addToast(toSafeUserError(err, { message: "More members could not be loaded. Try again." }).message, "error");
     } finally {
       setBusy(false);
     }
-  }, [teamId, cursor, addToast]);
+  }, [teamId, cursor, rosterFilter, addToast]);
 
   const invite = useCallback(async () => {
     if (!teamId) return;
@@ -219,47 +296,63 @@ export default function WorkspacePeopleScreen() {
         body: JSON.stringify({ email: value, role }),
       });
       setEmail("");
-      addToast("Invitation sent.", "success");
-      await load();
+      setRole("MEMBER");
+      setInviteOpen(false);
+      addToast("Invitation created successfully", "success");
+      await reloadInvites();
     } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
+      addToast(toSafeUserError(err, { message: "Failed to invite member" }).message, "error");
     } finally {
       setBusy(false);
     }
-  }, [teamId, email, role, addToast, load]);
+  }, [teamId, email, role, addToast, reloadInvites]);
 
+  /**
+   * POST …/invites/:inviteId/resend → { invite, emailSent }. It rotates the
+   * token, so the link the person already holds stops working. The list is
+   * REREAD before anything is announced, and the announcement says whether the
+   * email actually went.
+   */
   const resend = useCallback(
-    async (inviteId: string) => {
-      if (!teamId) return;
-      setBusy(true);
+    async (target: WorkspaceInvite) => {
+      if (!teamId || resendingId) return;
+      setResendingId(target.id);
+      let emailSent = false;
       try {
-        await apiFetch(buildWorkspaceInviteResendPath(teamId, inviteId), { method: "POST" });
-        addToast("Invitation resent.", "success");
-        await load();
+        const d = (await apiFetch(buildWorkspaceInviteResendPath(teamId, target.id), { method: "POST" })) as {
+          emailSent?: unknown;
+        } | null;
+        emailSent = d?.emailSent === true;
       } catch (err) {
-        addToast(toSafeUserError(err).message, "error");
-      } finally {
-        setBusy(false);
+        const known = resendErrorCopy(err);
+        addToast(known ?? toSafeUserError(err, { message: "The invitation could not be resent." }).message, "error");
+        if (known) await reloadInvites();
+        setResendingId(null);
+        return;
       }
+      const rows = await reloadInvites();
+      setResendingId(null);
+      const outcome = resendOutcome(target, emailSent, rows);
+      addToast(outcome.message, outcome.tone);
     },
-    [teamId, addToast, load],
+    [teamId, resendingId, addToast, reloadInvites],
   );
 
   const revoke = useCallback(async () => {
     if (!teamId || !revoking) return;
     const target = revoking;
-    setRevoking(null);
     setBusy(true);
     try {
       await apiFetch(buildWorkspaceInvitePath(teamId, target.id), { method: "DELETE" });
-      addToast("Invitation revoked.", "success");
-      await load();
+      setRevoking(null);
+      setInvites((prev) => prev.filter((i) => i.id !== target.id));
+      addToast("Invite deleted", "success");
     } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
+      addToast(toSafeUserError(err, { message: "Failed to delete invite" }).message, "error");
     } finally {
       setBusy(false);
     }
-  }, [teamId, revoking, addToast, load]);
+  }, [teamId, revoking, addToast]);
 
   const changeRole = useCallback(
     async (member: WorkspaceMember, nextRole: string) => {
@@ -275,29 +368,20 @@ export default function WorkspacePeopleScreen() {
           body: JSON.stringify(buildRoleChangeBody(nextRole)),
         });
       } catch (err) {
-        addToast(toSafeUserError(err).message, "error");
+        addToast(toSafeUserError(err, { message: "Failed to update role" }).message, "error");
         setBusy(false);
         return;
       }
 
       // An accepted request is not a completed change. The roster is reread
-      // and the OUTCOME is reported from the reloaded row — announcing the
-      // change from the request would be the client asserting something the
-      // server has not confirmed.
-      let reread: WorkspaceMember | null = null;
-      try {
-        const mp = parseWorkspaceMembers(await apiFetch(buildWorkspaceMembersPath(teamId)));
-        setMembers(mp.members);
-        setCursor(mp.nextCursor);
-        reread = mp.members.find((m) => m.id === member.id) ?? null;
-      } catch {
-        reread = null;
-      }
-      const outcome = describeRoleChange(member, nextRole, reread);
+      // and the OUTCOME is reported from the reloaded row.
+      const mp = await reloadRoster();
+      const reread = mp?.members.find((m) => m.id === member.id) ?? null;
+      const outcome = describeRoleChange(member, nextRole, mp ? reread : null);
       addToast(outcome.message, outcome.ok ? "success" : "error");
       setBusy(false);
     },
-    [teamId, addToast],
+    [teamId, addToast, reloadRoster],
   );
 
   const openLinkPicker = useCallback(async () => {
@@ -305,14 +389,15 @@ export default function WorkspacePeopleScreen() {
     setLinking(true);
     setLinkable(null);
     try {
-      // The cases this person can see, minus the ones already linked, so the
-      // picker cannot offer a link that already exists.
+      // The cases this person can see, minus the ones linked here or to any
+      // other workspace — the route refuses those.
       const all = parseWorkspaceCases(await apiFetch("/v1/cases"));
       setLinkable(linkableCases(all, cases ?? []));
-    } catch {
+    } catch (err) {
+      addToast(toSafeUserError(err, { message: "Failed to load available cases" }).message, "error");
       setLinkable([]);
     }
-  }, [teamId, cases]);
+  }, [teamId, cases, addToast]);
 
   const linkCase = useCallback(
     async (target: WorkspaceCase) => {
@@ -324,32 +409,32 @@ export default function WorkspacePeopleScreen() {
           method: "POST",
           body: JSON.stringify({ caseId: target.id }),
         });
-        addToast(`${target.name} is now linked to this workspace.`, "success");
-        await load();
+        setCases((prev) => [{ ...target, teamId }, ...(prev ?? [])]);
+        addToast("Case linked successfully", "success");
       } catch (err) {
-        addToast(toSafeUserError(err).message, "error");
+        addToast(toSafeUserError(err, { message: "Failed to link case" }).message, "error");
       } finally {
         setBusy(false);
       }
     },
-    [teamId, addToast, load],
+    [teamId, addToast],
   );
 
   const unlinkCase = useCallback(async () => {
     const target = unlinking;
     if (!teamId || !target) return;
-    setUnlinking(null);
     setBusy(true);
     try {
       await apiFetch(buildWorkspaceCaseUnlinkPath(teamId, target.id), { method: "DELETE" });
-      addToast(`${target.name} is no longer linked to this workspace.`, "success");
-      await load();
+      setUnlinking(null);
+      setCases((prev) => (prev ?? []).filter((c) => c.id !== target.id));
+      addToast("Case removed from workspace", "success");
     } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
+      addToast(toSafeUserError(err, { message: "Failed to remove case from workspace" }).message, "error");
     } finally {
       setBusy(false);
     }
-  }, [teamId, unlinking, addToast, load]);
+  }, [teamId, unlinking, addToast]);
 
   const rename = useCallback(async () => {
     if (!teamId) return;
@@ -360,112 +445,82 @@ export default function WorkspacePeopleScreen() {
     }
     setBusy(true);
     try {
-      await apiFetch(buildWorkspacePath(teamId), {
+      const updated = (await apiFetch(buildWorkspacePath(teamId), {
         method: "PATCH",
         body: JSON.stringify(buildRenameBody(draftName)),
-      });
+      })) as { name?: unknown } | null;
+      const name = typeof updated?.name === "string" && updated.name ? updated.name : draftName.trim();
+      setOverview((prev) => (prev ? { ...prev, name } : prev));
       setRenaming(false);
-      addToast("Workspace renamed.", "success");
-      await load();
+      addToast("Workspace name updated", "success");
     } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
+      addToast(toSafeUserError(err, { message: "Failed to update workspace name" }).message, "error");
     } finally {
       setBusy(false);
     }
-  }, [teamId, draftName, addToast, load]);
+  }, [teamId, draftName, addToast]);
 
-  const reloadClosure = useCallback(async () => {
+  const deleteWorkspace = useCallback(async () => {
     if (!teamId) return;
+    setDeleting(true);
     try {
-      setClosure(parseClosureState(await apiFetch(buildWorkspaceClosurePath(teamId))));
-    } catch {
-      setClosure(null);
-    }
-  }, [teamId]);
-
-  const failLifecycle = useCallback(
-    (err: unknown, fallback: string) => {
-      addToast(
-        workspaceLifecycleFailureMessage(err, toSafeUserError(err).message || fallback),
-        "error",
-      );
-      if (closureFailureNeedsReload(err)) void reloadClosure();
-    },
-    [addToast, reloadClosure],
-  );
-
-  const transferOwnership = useCallback(async () => {
-    const target = transferTarget;
-    if (!teamId || !target?.userId) return;
-    setTransferTarget(null);
-    setBusy(true);
-    await stepUp.start(
-      async (proof) => {
-        await apiFetch(buildWorkspaceTransferPath(teamId), {
-          method: "POST",
-          // `newOwnerUserId` here; the organization route spells the same
-          // thing `targetUserId`. Each surface names its own.
-          body: JSON.stringify(withStepUp(buildWorkspaceTransferBody(target.userId!), proof)),
-        });
-        addToast("Ownership transferred. You are now a workspace admin.", "success");
-        await load();
-      },
-      (err) => failLifecycle(err, "Could not transfer ownership."),
-    );
-    setBusy(false);
-  }, [teamId, transferTarget, stepUp, addToast, load, failLifecycle]);
-
-  const requestClosure = useCallback(async () => {
-    if (!teamId) return;
-    setBusy(true);
-    await stepUp.start(
-      async (proof) => {
-        await apiFetch(buildWorkspaceClosurePath(teamId), {
-          method: "POST",
-          body: JSON.stringify(withStepUp(buildClosureBody(phrase), proof)),
-        });
-        setClosing(false);
-        setPhrase("");
-        await reloadClosure();
-      },
-      (err) => failLifecycle(err, "Could not request closure."),
-    );
-    setBusy(false);
-  }, [teamId, phrase, stepUp, reloadClosure, failLifecycle]);
-
-  const cancelClosure = useCallback(async () => {
-    const requestId = closure?.requestId;
-    if (!teamId || !requestId) return;
-    setCancellingClosure(false);
-    setBusy(true);
-    try {
-      await apiFetch(buildWorkspaceClosureCancelPath(teamId, requestId), {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      addToast("The closure request was cancelled.", "success");
-      await reloadClosure();
+      // 204 No Content (teams.routes.ts:1362) — read as text; apiFetch would
+      // fail to parse the empty body and report a deleted workspace as not deleted.
+      await apiFetchText(buildWorkspacePath(teamId), { method: "DELETE" });
+      setDeleteConfirm(false);
+      addToast("Workspace deleted successfully", "success");
+      router.replace("/spaces" as never);
     } catch (err) {
-      failLifecycle(err, "Could not cancel the request.");
+      setDeleteConfirm(false);
+      addToast(deleteWorkspaceFailure(err, toSafeUserError(err, { message: "Failed to delete workspace" }).message), "error");
     } finally {
-      setBusy(false);
+      setDeleting(false);
     }
-  }, [teamId, closure, addToast, reloadClosure, failLifecycle]);
+  }, [teamId, addToast, router]);
 
   const seats = overview?.seats ?? null;
-  const summary = seats ? seatsSummary(seats) : null;
+  const available = seats ? seatsAvailable(seats) : null;
   const roomLeft = seats ? canInviteMore(seats) : null;
+  const canManage = overview?.canManageMembers === true;
+  const currentRole =
+    overview?.currentUserRole ?? members.find((m) => m.userId && m.userId === selfId)?.role ?? null;
+  const pendingCount = invitesRead === "ready" ? invites.length : overview?.pendingInviteCount ?? 0;
+  const caseCount = cases?.length ?? overview?.caseCount ?? 0;
+  const activeMemberCount = overview?.seats.memberCount ?? 0;
+
+  const header = (subtitle: string | undefined, withActions: boolean) => (
+    <ProovraPageHeader
+      title="Members & Access"
+      eyebrow={overview?.name ?? "Workspace"}
+      subtitle={subtitle}
+      secondaryActions={
+        <>
+          <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+          {/* T-15 — the server's role → capability catalog (TeamPermissionMatrix). */}
+          {withActions ? (
+            <ProovraButton label="Role permissions" variant="secondary" fullWidth={false} onPress={() => setPermissionsOpen(true)} />
+          ) : null}
+        </>
+      }
+      primaryAction={
+        withActions && canManage ? (
+          <ProovraButton label="Invite person" fullWidth={false} onPress={() => setInviteOpen(true)} />
+        ) : undefined
+      }
+    />
+  );
 
   return (
-    <ProovraScreen testID="workspace-people">
-      <ProovraPageHeader
-        title="People"
-        eyebrow={overview?.name ?? "Workspace"}
-        subtitle="Who is in this workspace, and who has been invited."
-        secondaryActions={
-          <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
-        }
-      />
+    <ProovraScreen shell testID="workspace-people">
+      {phase === "ready" && overview
+        ? header(
+            `Who can access ${overview.name ?? "this workspace"} — members, invitations, roles and access governance.${
+              currentRole ? ` You are ${roleLabel(currentRole)}` : ""
+            }${overview.effectivePlan ? ` · ${overview.effectivePlan} plan` : ""}`,
+            true,
+          )
+        : header(teamId && phase === "loading" ? "Loading members, invitations and workspace cases…" : undefined, false)}
+      <RolePermissionsSheet visible={permissionsOpen} currentRole={currentRole} onClose={() => setPermissionsOpen(false)} />
 
       {!teamId ? (
         <ProovraEmpty
@@ -475,200 +530,394 @@ export default function WorkspacePeopleScreen() {
         />
       ) : null}
 
-      {teamId && phase === "loading" ? <ProovraLoadingState label="Loading people" /> : null}
+      {teamId && phase === "loading" ? <ProovraLoadingState label="Loading members" /> : null}
       {teamId && phase === "failed" ? (
-        <ProovraErrorState message="This workspace could not be loaded." onRetry={() => void load()} />
+        <ProovraEmpty
+          presence="page"
+          title="Couldn't load this workspace"
+          purpose={loadError ?? "Workspace not found, or you no longer have access to it."}
+          action={
+            <View style={{ gap: theme.space.s2, alignItems: "center" }}>
+              <ProovraButton label="Try again" fullWidth={false} onPress={() => void load()} />
+              <ProovraButton label="Back to workspaces" variant="secondary" fullWidth={false} onPress={() => router.push("/spaces" as never)} />
+            </View>
+          }
+        />
       ) : null}
 
       {phase === "ready" && overview ? (
         <>
-          <ProovraCard>
-            <ProovraText variant="body" weight="semibold">
-              {`${overview.seats.memberCount} member${overview.seats.memberCount === 1 ? "" : "s"}`}
-            </ProovraText>
-            {/*
-              Stated only when the server gave enough to state it. A plan that
-              publishes no seat limit has an UNKNOWN allowance, and printing
-              "0 available" would tell an owner they cannot invite anyone when
-              nobody has said so.
-            */}
-            {summary ? (
-              <ProovraText variant="label" color={theme.color.ink.muted}>
-                {summary}
+          {/* SUMMARY — the four figures a person managing access needs; seats
+              from the SERVER's projection, never counted from the rows. */}
+          <ProovraKpiGrid
+            items={[
+              { key: "active", label: "Active members", value: String(activeMemberCount), caption: "With access to this workspace", tone: "verified" },
+              { key: "pending", label: "Pending invitations", value: String(pendingCount), caption: "Sent, not yet accepted", tone: "pending" },
+              {
+                key: "seats",
+                label: "Seats available",
+                value: available === null ? "—" : String(available),
+                caption:
+                  seats?.seatLimit === null || !seats
+                    ? "Capacity unavailable"
+                    : `${seats.seatUsed ?? activeMemberCount} of ${seats.seatLimit} used`,
+                tone: available === 0 ? "risk" : available === null ? "neutral" : "info",
+              },
+              {
+                key: "cases",
+                label: "Cases in this workspace",
+                value: String(caseCount),
+                caption: "Open Cases",
+                tone: "governance",
+                onPress: () => router.push("/cases" as never),
+              },
+            ]}
+          />
+
+          {/* A seat-full workspace says so once, here, rather than letting the
+              operator discover it from a refusal. */}
+          {available === 0 ? (
+            <ProovraCard testID="people-seats-full">
+              <ProovraText variant="bodySm" weight="semibold">
+                Every seat is in use.
               </ProovraText>
-            ) : null}
-            {overview.effectivePlan ? (
-              <ProovraBadge label={overview.effectivePlan} tone="neutral" />
-            ) : null}
-            {overview.canManageWorkspace ? (
-              <ProovraButton
-                label="Rename workspace"
-                variant="ghost"
-                fullWidth={false}
-                onPress={() => {
-                  setDraftName(overview.name ?? "");
-                  setRenaming(true);
-                }}
-              />
-            ) : null}
-          </ProovraCard>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                A new person can be invited once a seat frees up, or when the plan is changed.
+              </ProovraText>
+              <ProovraButton label="Review plan and seats" variant="ghost" fullWidth={false} onPress={() => router.push("/billing" as never)} />
+            </ProovraCard>
+          ) : null}
 
           <ProovraPageSection title="Members">
-            {members.length === 0 ? (
-              <ProovraEmpty presence="inline" title="No members are listed." />
+            <ProovraFilterSearch
+              value={memberQuery}
+              onChange={setMemberQuery}
+              placeholder={canManage ? "Search by name or email" : "Search by name"}
+            />
+            <ProovraFilterChips
+              label="Filter members by status"
+              value={memberStatus}
+              onChange={(v) => setMemberStatus(v as MemberStatusFilter)}
+              options={MEMBER_STATUS_FILTERS}
+            />
+            {roster === "loading" ? (
+              <ProovraText variant="label" color={theme.color.ink.muted}>
+                Loading members…
+              </ProovraText>
+            ) : roster === "failed" ? (
+              <ProovraEmpty
+                presence="inline"
+                title={rosterError ?? "The member list could not be loaded."}
+                action={<ProovraButton label="Try again" variant="secondary" fullWidth={false} onPress={() => void reloadRoster()} />}
+              />
+            ) : members.length === 0 && filtered ? (
+              <ProovraEmpty
+                presence="inline"
+                title={rosterNoMatchCopy(canManage).title}
+                purpose={rosterNoMatchCopy(canManage).body}
+              />
+            ) : members.length === 0 ? (
+              <ProovraEmpty
+                presence="inline"
+                title="Nobody has access to this workspace yet"
+                purpose="Invite a colleague to give them access to this workspace's evidence, cases and reports."
+                action={
+                  canManage ? <ProovraButton label="Invite person" fullWidth={false} onPress={() => setInviteOpen(true)} /> : undefined
+                }
+              />
             ) : (
               <ProovraCard>
-                {members.map((m) => (
-                  <ProovraListRow
-                    key={m.id}
-                    title={m.displayName}
-                    subtitle={
-                      [m.email, m.joinedAtIso ? `joined ${formatUserDateTime(m.joinedAtIso)}` : null]
-                        .filter(Boolean)
-                        .join(" · ") || undefined
-                    }
-                    // Opening the role picker IS the row action; a row that
-                    // cannot be managed stays inert rather than opening a
-                    // sheet that offers nothing.
-                    onPress={
-                      canChangeRole(m, overview.canManageMembers)
-                        ? () => setRoleFor(m)
-                        : undefined
-                    }
-                    trailing={
-                      <View style={{ flexDirection: "row", gap: theme.space.s1, alignItems: "center" }}>
-                        <ProovraText variant="label" color={theme.color.ink.muted}>
-                          {roleLabel(m.role)}
-                        </ProovraText>
-                        {m.status.toUpperCase() !== "ACTIVE" ? (
-                          <ProovraBadge label={m.status} tone={memberStatusTone(m.status)} />
-                        ) : null}
-                      </View>
-                    }
-                  />
-                ))}
+                {members.map((m) => {
+                  const isSelf = !!m.userId && m.userId === selfId;
+                  // Only where the server would accept the change: OWNER moves
+                  // by transfer, and nobody edits their own role.
+                  const editable = canChangeRole(m, canManage) && !isSelf;
+                  return (
+                    <ProovraListRow
+                      key={m.id}
+                      title={`${m.displayName}${isSelf ? " (you)" : ""}`}
+                      subtitle={
+                        [m.email, m.joinedAtIso ? `Joined ${formatUserDate(m.joinedAtIso)}` : null].filter(Boolean).join(" · ") ||
+                        undefined
+                      }
+                      // Opening the role picker IS the row action; a row that
+                      // cannot be managed stays inert.
+                      onPress={editable ? () => setRoleFor(m) : undefined}
+                      accessibilityHint={editable ? "Change this person's workspace role" : undefined}
+                      trailing={
+                        <View style={{ flexDirection: "row", gap: theme.space.s1, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <ProovraBadge label={roleLabel(m.role)} tone={m.role.toUpperCase() === "OWNER" ? "governance" : "neutral"} />
+                          <ProovraBadge label={memberStatusLabel(m.status)} tone={memberStatusTone(m.status)} />
+                          {canRemoveMember(m, canManage, selfId) ? (
+                            <ProovraButton
+                              label="Remove"
+                              accessibilityLabel={`Remove ${m.displayName}`}
+                              variant="ghost"
+                              fullWidth={false}
+                              onPress={() => setRemoving(m)}
+                            />
+                          ) : null}
+                        </View>
+                      }
+                    />
+                  );
+                })}
               </ProovraCard>
             )}
-            {cursor ? (
-              <ProovraButton
-                label="Load more"
-                variant="secondary"
-                loading={busy}
-                onPress={() => void loadMore()}
-              />
+            {roster === "ready" && members.length > 0 && memberTotal !== null ? (
+              <ProovraText variant="label" color={theme.color.ink.muted}>
+                {`Showing ${members.length} of ${memberTotal} ${filtered ? "matching " : ""}${memberTotal === 1 ? "person" : "people"}`}
+              </ProovraText>
+            ) : null}
+            {roster === "ready" && cursor ? (
+              <ProovraButton label="Load more" variant="secondary" loading={busy} onPress={() => void loadMore()} />
             ) : null}
           </ProovraPageSection>
 
-          {overview.canManageMembers ? (
-            <ProovraPageSection title="Invite someone">
-              <ProovraCard>
-                {roomLeft === false ? (
-                  <ProovraText variant="label" color={theme.color.status.pending.fg}>
-                    Every seat on this plan is in use. Free a seat or change plan to invite more
-                    people.
-                  </ProovraText>
-                ) : null}
-                <ProovraFormField label="Email address">
-                  <ProovraInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="name@example.com"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    accessibilityLabel="Email address to invite"
-                  />
-                </ProovraFormField>
-                <ProovraFilterChips
-                  label="Role"
-                  value={role}
-                  onChange={setRole}
-                  options={INVITABLE_ROLES.map((r) => ({ value: r, label: roleLabel(r) }))}
+          {/* PENDING INVITATIONS — rendered when there are any, or when the
+              viewer can create one. Zero is a sentence, not a slab. */}
+          {invites.length > 0 || canManage ? (
+            <ProovraPageSection title="Pending invitations">
+              {canManage && invitesRead !== "ready" ? (
+                <ProovraEmpty
+                  presence="inline"
+                  title={
+                    invitesRead === "refused"
+                      ? "Your role cannot list this workspace's invitations."
+                      : "Pending invitations could not be loaded."
+                  }
+                  action={<ProovraButton label="Try again" variant="secondary" fullWidth={false} onPress={() => void reloadInvites()} />}
                 />
+              ) : invites.length === 0 ? (
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                  No invitations outstanding — everyone invited has either joined or had their invitation withdrawn. New
+                  invitations are delivered by email.
+                </ProovraText>
+              ) : (
+                <ProovraCard>
+                  {invites.map((i) => (
+                    <View key={i.id} style={{ gap: theme.space.s1, paddingVertical: theme.space.s2 }}>
+                      <View style={{ flexDirection: "row", gap: theme.space.s2, alignItems: "center", flexWrap: "wrap" }}>
+                        <ProovraText variant="body" weight="semibold">
+                          {i.email}
+                        </ProovraText>
+                        <ProovraBadge label={roleLabel(i.role)} tone="neutral" />
+                      </View>
+                      <ProovraText variant="label" color={theme.color.ink.muted}>
+                        {[
+                          i.lastResentAtIso
+                            ? `Resent ${formatUserDate(i.lastResentAtIso)}`
+                            : i.createdAtIso
+                              ? `Sent ${formatUserDate(i.createdAtIso)}`
+                              : null,
+                          i.expiresAtIso ? `Expires ${formatUserDate(i.expiresAtIso)}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </ProovraText>
+                      {canManage ? (
+                        <View style={{ gap: theme.space.s1 }}>
+                          <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
+                            <ProovraButton
+                              label="Resend"
+                              accessibilityLabel={`Resend invitation to ${i.email}`}
+                              variant="secondary"
+                              fullWidth={false}
+                              loading={resendingId === i.id}
+                              disabled={resendingId !== null}
+                              onPress={() => void resend(i)}
+                            />
+                            <ProovraButton
+                              label="Revoke"
+                              accessibilityLabel={`Revoke invitation to ${i.email}`}
+                              variant="ghost"
+                              fullWidth={false}
+                              disabled={resendingId === i.id}
+                              onPress={() => setRevoking(i)}
+                            />
+                          </View>
+                          <ProovraText variant="label" color={theme.color.ink.muted}>
+                            Resend sends a new link by email. The link sent earlier stops working.
+                          </ProovraText>
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </ProovraCard>
+              )}
+            </ProovraPageSection>
+          ) : null}
+
+          {/* RECENT ACTIVITY — a marker, a sentence, a time; only when there is any. */}
+          {activity && activity.length > 0 ? (
+            <ProovraPageSection title="Recent activity">
+              <ProovraCard>
+                {activity.slice(0, RECENT_ACTIVITY_LIMIT).map((a) => (
+                  <View key={a.id} style={{ flexDirection: "row", gap: theme.space.s2, paddingVertical: theme.space.s2 }}>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        marginTop: 6,
+                        backgroundColor: theme.color.status[activityTone(a.eventType)].solid,
+                      }}
+                    />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <ProovraText variant="bodySm">{describeActivity(a)}</ProovraText>
+                      {a.occurredAtIso ? (
+                        <ProovraText variant="label" color={theme.color.ink.muted}>
+                          {formatUserDateTime(a.occurredAtIso)}
+                        </ProovraText>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </ProovraCard>
+            </ProovraPageSection>
+          ) : null}
+
+          {/* The transfer outcome lives OUTSIDE the owner gate: a transfer
+              demotes the caller and the lifecycle region unmounts. */}
+          {ownershipNotice ? (
+            <ProovraCard testID="people-ownership-notice">
+              <ProovraText variant="bodySm">{ownershipNotice}</ProovraText>
+            </ProovraCard>
+          ) : null}
+
+          {isWorkspaceOwner(overview) && teamId ? (
+            <ProovraPageSection title="Workspace lifecycle">
+              <WorkspaceOwnershipTransferCard
+                teamId={teamId}
+                teamName={overview.name ?? "this workspace"}
+                currentUserId={selfId}
+                onTransferred={async (notice) => {
+                  setOwnershipNotice(notice);
+                  await load();
+                }}
+              />
+              <WorkspaceClosureCard teamId={teamId} />
+              <ProovraCard testID="people-delete-workspace">
+                <ProovraText variant="h3" weight="semibold">
+                  Delete this workspace
+                </ProovraText>
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                  Deleting removes the workspace and everybody’s access to it. Evidence retention and legal holds are
+                  governed separately and are not overridden by this action.
+                </ProovraText>
                 <ProovraButton
-                  label="Send invitation"
-                  loading={busy}
-                  disabled={roomLeft === false}
-                  onPress={() => void invite()}
+                  label={deleting ? "Deleting…" : "Delete workspace"}
+                  variant="ghost"
+                  fullWidth={false}
+                  disabled={deleting}
+                  onPress={() => setDeleteConfirm(true)}
                 />
               </ProovraCard>
             </ProovraPageSection>
           ) : null}
 
-          <ProovraPageSection title="Pending invitations">
-            {!invitesReadable ? (
-              // A 403 here is a statement about this user's role, not a
-              // failure of the page — and not "there are none".
-              <ProovraEmpty
-                presence="inline"
-                title="Invitations are managed by workspace admins."
+          {/* ---- THE RAIL ---- */}
+
+          {canManage ? (
+            <ProovraCard testID="people-rail-invite">
+              <ProovraText variant="h3" weight="semibold">
+                Invite people
+              </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Send someone an invitation to join this workspace. They are delivered by email, and the recipient joins by
+                following the link in that message.
+              </ProovraText>
+              <ProovraButton label="Invite person" onPress={() => setInviteOpen(true)} />
+            </ProovraCard>
+          ) : null}
+
+          <ProovraPageSection
+            title="Workspace overview"
+            actions={
+              canManage ? (
+                <ProovraButton
+                  label="Rename"
+                  accessibilityLabel="Rename workspace"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => {
+                    setDraftName(overview.name ?? "");
+                    setRenaming(true);
+                  }}
+                />
+              ) : undefined
+            }
+          >
+            <ProovraCard testID="people-workspace-overview">
+              <ProovraDetailRows
+                rows={[
+                  { label: "Name", value: overview.name ?? "—" },
+                  // The row STAYS when the plan is unknown, and says so.
+                  { label: "Plan", value: overview.effectivePlan ?? "—" },
+                  ...(overview.ownerLabel ? [{ label: "Owner", value: overview.ownerLabel }] : []),
+                  {
+                    label: "Members",
+                    value:
+                      seats?.seatLimit === null || !seats
+                        ? `${activeMemberCount} active`
+                        : `${seats.seatUsed ?? activeMemberCount} of ${seats.seatLimit} seats used`,
+                  },
+                ]}
               />
-            ) : invites.length === 0 ? (
-              <ProovraEmpty presence="inline" title="No invitations are outstanding." />
-            ) : (
-              <ProovraCard>
-                {invites.map((i) => (
-                  <View key={i.id} style={{ gap: theme.space.s1, paddingVertical: theme.space.s2 }}>
-                    <ProovraText variant="body">{i.email}</ProovraText>
-                    <ProovraText variant="label" color={theme.color.ink.muted}>
-                      {[
-                        roleLabel(i.role),
-                        i.expiresAtIso ? `expires ${formatUserDateTime(i.expiresAtIso)}` : null,
-                        i.lastResentAtIso
-                          ? `resent ${formatUserDateTime(i.lastResentAtIso)}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </ProovraText>
-                    {overview.canManageMembers ? (
-                      <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
-                        <ProovraButton
-                          label="Resend"
-                          variant="secondary"
-                          fullWidth={false}
-                          disabled={busy}
-                          onPress={() => void resend(i.id)}
-                        />
-                        <ProovraButton
-                          label="Revoke"
-                          variant="ghost"
-                          fullWidth={false}
-                          disabled={busy}
-                          onPress={() => setRevoking(i)}
-                        />
-                      </View>
-                    ) : null}
-                  </View>
-                ))}
-              </ProovraCard>
-            )}
+              {/* The web People rail's Billing entry (teams/[id]/page.tsx:1978). */}
+              <ProovraButton label="Open billing" variant="secondary" fullWidth={false} onPress={() => router.push("/billing" as never)} />
+              <ProovraText variant="label" color={theme.color.ink.muted}>
+                Storage, subscription and payment for this workspace are managed in Billing.
+              </ProovraText>
+            </ProovraCard>
           </ProovraPageSection>
-          <ProovraPageSection title="Linked cases">
+
+          {/* THE BRIDGE — a signpost to the operational groups, not documentation. */}
+          <ProovraCard testID="people-collaboration-bridge">
+            <ProovraText variant="h3" weight="semibold">
+              Collaboration Teams
+            </ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              Organise existing workspace members into operational groups for cases, evidence and work.
+            </ProovraText>
+            <ProovraButton label="Organise members" variant="secondary" onPress={() => router.push("/(tabs)/teams" as never)} />
+          </ProovraCard>
+
+          {/* T-14 — external collaborators and per-case revoke (web TeamAccessReviewCard). */}
+          {teamId ? (
+            <ProovraPageSection title="External collaborators">
+              <ExternalCollaboratorsCard teamId={teamId} />
+            </ProovraPageSection>
+          ) : null}
+
+          <ProovraPageSection
+            title="Cases in this workspace"
+            actions={
+              canLinkCase(currentRole ?? "") ? (
+                <ProovraButton label="Link a case" variant="secondary" fullWidth={false} loading={busy && linking} onPress={() => void openLinkPicker()} />
+              ) : undefined
+            }
+          >
             {cases === null ? (
-              <ProovraEmpty
-                presence="inline"
-                title="Linked cases are visible to workspace members."
-              />
+              <ProovraEmpty presence="inline" title="Linked cases are visible to workspace members." />
             ) : cases.length === 0 ? (
-              <ProovraEmpty
-                presence="inline"
-                title="No cases are linked to this workspace yet."
-              />
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                No cases are linked to this workspace yet.
+              </ProovraText>
             ) : (
               <ProovraCard>
                 {cases.map((c) => (
                   <ProovraListRow
                     key={c.id}
                     title={c.name}
-                    subtitle={
-                      c.createdAtIso ? `opened ${formatUserDateTime(c.createdAtIso)}` : undefined
-                    }
+                    subtitle={c.createdAtIso ? `Opened ${formatUserDate(c.createdAtIso)}` : undefined}
+                    onPress={() => router.push(`/case/${c.id}` as never)}
                     trailing={
-                      // Unlinking is ADMIN+, linking is MEMBER+. They are two
-                      // permissions and the row does not merge them.
-                      canUnlinkCase(overview.currentUserRole ?? "") ? (
+                      // Unlinking is ADMIN+, linking is MEMBER+. Two permissions.
+                      canUnlinkCase(currentRole ?? "") ? (
                         <ProovraButton
-                          label="Unlink"
+                          label="Remove"
+                          accessibilityLabel={`Remove ${c.name} from this workspace`}
                           variant="ghost"
                           fullWidth={false}
                           onPress={() => setUnlinking(c)}
@@ -679,212 +928,88 @@ export default function WorkspacePeopleScreen() {
                 ))}
               </ProovraCard>
             )}
-            {canLinkCase(overview.currentUserRole ?? "") ? (
-              <ProovraButton
-                label="Link a case"
-                variant="secondary"
-                loading={busy}
-                onPress={() => void openLinkPicker()}
-              />
-            ) : null}
           </ProovraPageSection>
-
-          <ProovraPageSection title="Activity">
-            {activity === null ? (
-              <ProovraEmpty
-                presence="inline"
-                title="Workspace activity is visible to workspace members."
-              />
-            ) : activity.length === 0 ? (
-              <ProovraEmpty presence="inline" title="Nothing has happened here yet." />
-            ) : (
-              <ProovraCard>
-                {activity.map((a) => (
-                  <View key={a.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
-                    <ProovraText variant="bodySm">{activityLabel(a.eventType)}</ProovraText>
-                    <ProovraText variant="label" color={theme.color.ink.muted}>
-                      {[
-                        // An unresolved actor reads as System, not as a raw id
-                        // printed where a person's name belongs.
-                        a.actorLabel ?? "System",
-                        a.targetType,
-                        a.occurredAtIso ? formatUserDateTime(a.occurredAtIso) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </ProovraText>
-                  </View>
-                ))}
-              </ProovraCard>
-            )}
-          </ProovraPageSection>
-          {isWorkspaceOwner(overview) ? (
-            <ProovraPageSection title="This workspace">
-              <ProovraButton
-                label="Transfer ownership"
-                variant="ghost"
-                loading={busy}
-                onPress={() => setTransferring(true)}
-              />
-
-              {closure && hasOpenClosure(closure) ? (
-                <ProovraCard>
-                  <ProovraText variant="body" weight="semibold">
-                    Closure requested
-                  </ProovraText>
-                  <ProovraText variant="label" color={theme.color.ink.secondary}>
-                    {closure.effectiveAtIso
-                      ? `This workspace is scheduled to close on ${formatUserDateTime(closure.effectiveAtIso)}. It can be cancelled until then.`
-                      : "A closure request is open and can still be cancelled."}
-                  </ProovraText>
-                  <ProovraButton
-                    label="Cancel the closure request"
-                    loading={busy}
-                    onPress={() => setCancellingClosure(true)}
-                  />
-                </ProovraCard>
-              ) : null}
-
-              {closure && !hasOpenClosure(closure) && closure.blockers.length > 0 ? (
-                <ProovraCard>
-                  <ProovraText variant="label" weight="semibold">
-                    Closure is blocked
-                  </ProovraText>
-                  {closure.blockers.map((b) => (
-                    <ProovraText key={b.code} variant="label" color={theme.color.ink.muted}>
-                      {b.count !== null ? `${b.message} (${b.count})` : b.message}
-                    </ProovraText>
-                  ))}
-                </ProovraCard>
-              ) : null}
-
-              {closure && canRequestClosure(closure) ? (
-                <ProovraButton
-                  label="Close this workspace"
-                  variant="ghost"
-                  loading={busy}
-                  onPress={() => setClosing(true)}
-                />
-              ) : null}
-            </ProovraPageSection>
-          ) : null}
         </>
       ) : null}
 
-      <ProovraSheet
-        visible={transferring}
-        title="Transfer ownership"
-        onClose={() => setTransferring(false)}
-      >
-        <ProovraText variant="label" color={theme.color.ink.secondary}>
-          The person you choose becomes the workspace owner and you become an admin.
-          Evidence, cases and reviewer queues are unaffected.
+      {/* INVITE — the canonical workspace invitation. Email only: that is the
+          only channel the invitation service delivers through. */}
+      <ProovraSheet visible={inviteOpen} title="Invite a person to this workspace" onClose={() => setInviteOpen(false)}>
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          They receive an email with a secure link. A pending invitation does not use a seat — the seat is claimed when they
+          accept.
         </ProovraText>
-        {workspaceTransferTargets(members).length === 0 ? (
-          <ProovraEmpty
-            presence="inline"
-            title="There is no other active member to transfer ownership to."
-          />
-        ) : (
-          workspaceTransferTargets(members).map((m) => (
-            <ProovraListRow
-              key={m.id}
-              title={m.displayName}
-              subtitle={m.email ?? undefined}
-              onPress={() => {
-                setTransferring(false);
-                setTransferTarget(m);
-              }}
-            />
-          ))
-        )}
-      </ProovraSheet>
-
-      <ProovraConfirmSheet
-        visible={transferTarget !== null}
-        title={transferTarget ? `Make ${transferTarget.displayName} the owner?` : ""}
-        consequence="They become the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected."
-        confirmLabel="Transfer ownership"
-        tone="danger"
-        busy={busy}
-        onConfirm={() => void transferOwnership()}
-        onCancel={() => setTransferTarget(null)}
-      />
-
-      <ProovraSheet
-        visible={closing}
-        title="Close this workspace"
-        onClose={() => setClosing(false)}
-      >
-        <ProovraText variant="label" color={theme.color.ink.secondary}>
-          {closure?.coolingOffDays !== null && closure?.coolingOffDays !== undefined
-            ? `Closure does not happen immediately: there is a ${closure.coolingOffDays}-day period in which it can be cancelled.`
-            : "Closure does not happen immediately; it can be cancelled during a cooling-off period."}
-        </ProovraText>
-
-        <ProovraFormField label="Type the confirmation phrase">
+        {roomLeft === false ? (
+          <ProovraText variant="label" color={theme.color.status.pending.fg}>
+            Every seat on this plan is in use. Free a seat or change plan to invite more people.
+          </ProovraText>
+        ) : null}
+        <ProovraFormField label="Email address">
           <ProovraInput
-            value={phrase}
-            onChangeText={setPhrase}
-            placeholder={closure?.confirmationPhrase ?? ""}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="colleague@example.com"
             autoCapitalize="none"
-            accessibilityLabel="Closure confirmation phrase"
+            keyboardType="email-address"
+            accessibilityLabel="Email address to invite"
           />
         </ProovraFormField>
-        <ProovraText variant="label" color={theme.color.ink.muted}>
-          {closure?.confirmationPhrase
-            ? `Type exactly: ${closure.confirmationPhrase}`
-            : "The confirmation phrase could not be read. Try again in a moment."}
-        </ProovraText>
-
-        <ProovraButton
-          label="Request closure"
-          loading={busy}
-          disabled={closure === null || !closurePhraseMatches(closure, phrase)}
-          onPress={() => void requestClosure()}
+        <ProovraFilterChips
+          label="Workspace role"
+          value={role}
+          onChange={setRole}
+          options={INVITABLE_ROLES.map((r) => ({ value: r, label: roleLabel(r) }))}
         />
+        <ProovraText variant="label" color={theme.color.ink.muted}>
+          Access across this whole workspace. Roles inside a Collaboration Team are separate. Ownership is not granted by
+          invitation — it moves by transfer.
+        </ProovraText>
+        <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap" }}>
+          <ProovraButton label="Cancel" variant="ghost" fullWidth={false} onPress={() => setInviteOpen(false)} />
+          <ProovraButton
+            label={busy ? "Sending…" : "Send invitation"}
+            fullWidth={false}
+            loading={busy}
+            disabled={roomLeft === false || !email.trim()}
+            onPress={() => void invite()}
+          />
+        </View>
       </ProovraSheet>
 
-      <ProovraConfirmSheet
-        visible={cancellingClosure}
-        title="Cancel the closure request?"
-        consequence="The workspace stays open and nothing is deleted. You can request closure again later."
-        confirmLabel="Cancel the request"
-        tone="warning"
-        busy={busy}
-        onConfirm={() => void cancelClosure()}
-        onCancel={() => setCancellingClosure(false)}
-      />
-
-      <StepUpSheet
-        challenge={stepUp.challenge}
-        title="Confirm it is you"
-        busy={busy}
-        onSubmit={(proof) =>
-          void stepUp.retry(proof, (err) => failLifecycle(err, "That could not be completed."))
-        }
-        onCancel={stepUp.dismiss}
-      />
+      {teamId ? (
+        <MemberRemovalSheet
+          teamId={teamId}
+          member={removing}
+          onClose={() => setRemoving(null)}
+          onRemoved={async (gone) => {
+            setRemoving(null);
+            // The outcome is reported from the RE-READ roster, as the web does.
+            const mp = await reloadRoster();
+            if (!mp) {
+              addToast("The member was removed, but the list could not be reloaded to confirm it. Reload the page.", "error");
+              return;
+            }
+            const still = mp.members.some((x) => x.id === gone.id || (x.userId && x.userId === gone.userId));
+            addToast(
+              still ? "The removal was accepted, but the reloaded list still shows this person. Reload the page before trying again." : "Member removed",
+              still ? "error" : "success",
+            );
+            if (!still) setOverview((prev) => (prev ? { ...prev, seats: { ...prev.seats, memberCount: Math.max(0, prev.seats.memberCount - 1) } } : prev));
+          }}
+        />
+      ) : null}
 
       <ProovraSheet
         visible={roleFor !== null}
-        title={roleFor ? `Change ${roleFor.displayName}'s role` : ""}
+        title={roleFor ? `Workspace role for ${roleFor.displayName}` : ""}
         onClose={() => setRoleFor(null)}
       >
-        {/*
-          OWNER is not offered. Ownership is not a role you assign, it is
-          transferred, and offering it here would be a different action under
-          the wrong name.
-        */}
+        {/* OWNER is not offered: ownership moves by transfer, not by role. */}
         {MANAGEABLE_ROLES.map((r) => (
           <ProovraListRow
             key={r}
             title={roleLabel(r)}
-            subtitle={
-              roleFor && r.toUpperCase() === roleFor.role.toUpperCase()
-                ? "Their current role"
-                : undefined
-            }
+            subtitle={roleFor && r.toUpperCase() === roleFor.role.toUpperCase() ? "Their current role" : undefined}
             onPress={() => {
               if (roleFor) void changeRole(roleFor, r);
             }}
@@ -894,47 +1019,46 @@ export default function WorkspacePeopleScreen() {
 
       <ProovraSheet visible={linking} title="Link a case" onClose={() => setLinking(false)}>
         {linkable === null ? (
-          <ProovraLoadingState label="Loading your cases" />
+          <ProovraLoadingState label="Loading cases…" />
         ) : linkable.length === 0 ? (
-          <ProovraEmpty
-            presence="inline"
-            title="There is no case to link."
-            purpose="Every case you can see is already linked to this workspace."
-          />
+          <ProovraEmpty presence="inline" title="No unlinked cases are available to add." />
         ) : (
           linkable.map((c) => (
-            <ProovraListRow key={c.id} title={c.name} onPress={() => void linkCase(c)} />
+            <ProovraListRow
+              key={c.id}
+              title={c.name}
+              trailing={<ProovraButton label="Link" accessibilityLabel={`Link ${c.name}`} variant="secondary" fullWidth={false} onPress={() => void linkCase(c)} />}
+            />
           ))
         )}
       </ProovraSheet>
 
-      <ProovraSheet
-        visible={renaming}
-        title="Rename this workspace"
-        onClose={() => setRenaming(false)}
-      >
+      <ProovraSheet visible={renaming} title="Rename this workspace" onClose={() => setRenaming(false)}>
         <ProovraFormField label="Workspace name">
-          <ProovraInput
-            value={draftName}
-            onChangeText={setDraftName}
-            autoCapitalize="sentences"
-            accessibilityLabel="Workspace name"
-          />
+          <ProovraInput value={draftName} onChangeText={setDraftName} autoCapitalize="sentences" accessibilityLabel="Workspace name" />
         </ProovraFormField>
-        <ProovraButton
-          label="Save"
-          loading={busy}
-          disabled={validateWorkspaceName(draftName) !== null}
-          onPress={() => void rename()}
-        />
+        <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
+          <ProovraButton label="Cancel" variant="ghost" fullWidth={false} onPress={() => setRenaming(false)} />
+          <ProovraButton
+            label={busy ? "Saving…" : "Save name"}
+            fullWidth={false}
+            loading={busy}
+            disabled={validateWorkspaceName(draftName) !== null}
+            onPress={() => void rename()}
+          />
+        </View>
       </ProovraSheet>
 
       <ProovraConfirmSheet
         visible={unlinking !== null}
-        title={unlinking ? `Unlink ${unlinking.name}?` : ""}
-        consequence="The case stays exactly as it is. It is no longer reachable through this workspace, and it can be linked again later."
-        confirmLabel="Unlink"
-        tone="warning"
+        title="Remove case from this workspace?"
+        consequence={
+          unlinking
+            ? `"${unlinking.name}" will be detached from this workspace. The case itself is not deleted; its owner retains it. Existing case access grants stay on the case. To revoke individual members, manage access on the case itself.`
+            : ""
+        }
+        confirmLabel="Remove from workspace"
+        tone="danger"
         busy={busy}
         onConfirm={() => void unlinkCase()}
         onCancel={() => setUnlinking(null)}
@@ -943,17 +1067,27 @@ export default function WorkspacePeopleScreen() {
       <ProovraConfirmSheet
         visible={revoking !== null}
         title="Revoke this invitation?"
-        // The confirm button restates the specific action: several rows on this
-        // screen can open a sheet, and "Confirm" alone does not say which.
         consequence={
           revoking
-            ? `${revoking.email} will no longer be able to join with this invitation. You can invite them again later.`
+            ? `${revoking.email} will no longer be able to accept the invitation link. The recipient is not notified. To invite them again, send a fresh invitation.`
             : ""
         }
-        confirmLabel={revoking ? `Revoke ${revoking.email}` : "Revoke"}
+        confirmLabel="Revoke invitation"
         tone="danger"
+        busy={busy}
         onConfirm={() => void revoke()}
         onCancel={() => setRevoking(null)}
+      />
+
+      <ProovraConfirmSheet
+        visible={deleteConfirm}
+        title="Delete this workspace?"
+        consequence="Everybody loses access to this workspace. Evidence retention and legal holds are governed separately and are not overridden by deleting a workspace."
+        confirmLabel="Delete workspace"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void deleteWorkspace()}
+        onCancel={() => setDeleteConfirm(false)}
       />
     </ProovraScreen>
   );

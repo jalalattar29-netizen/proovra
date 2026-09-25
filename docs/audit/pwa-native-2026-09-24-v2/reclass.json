@@ -1,0 +1,1874 @@
+[
+ {
+  "path": "/",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/about",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/abuse-reporting",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/admin",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.admin"
+ },
+ {
+  "path": "/admin/adoption",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.adoption"
+ },
+ {
+  "path": "/admin/alerts",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.alerts"
+ },
+ {
+  "path": "/admin/audit",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.audit"
+ },
+ {
+  "path": "/admin/billing",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.billing"
+ },
+ {
+  "path": "/admin/contact-sales",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.contact_sales"
+ },
+ {
+  "path": "/admin/contact-sales/[id]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.contact_sales_detail"
+ },
+ {
+  "path": "/admin/costs",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.costs"
+ },
+ {
+  "path": "/admin/customers",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.customers"
+ },
+ {
+  "path": "/admin/customers/[id]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.customer_detail"
+ },
+ {
+  "path": "/admin/dashboard",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.dashboard"
+ },
+ {
+  "path": "/admin/demo-requests",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.demo_requests"
+ },
+ {
+  "path": "/admin/demo-requests/[id]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.demo_request_detail"
+ },
+ {
+  "path": "/admin/evidence-ops",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.evidence_ops"
+ },
+ {
+  "path": "/admin/evidence-ops/records",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.evidence_records"
+ },
+ {
+  "path": "/admin/executive",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.executive"
+ },
+ {
+  "path": "/admin/operations",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.operations"
+ },
+ {
+  "path": "/admin/platform-health",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.platform_health"
+ },
+ {
+  "path": "/admin/platform/exports",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "operations.exports"
+ },
+ {
+  "path": "/admin/platform/media-graph",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "platform.media_graph"
+ },
+ {
+  "path": "/admin/platform/observability",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "platform.observability"
+ },
+ {
+  "path": "/admin/platform/queues",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "platform.queue_ops"
+ },
+ {
+  "path": "/admin/platform/readiness",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "operations.readiness"
+ },
+ {
+  "path": "/admin/platform/recovery",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "operations.recovery"
+ },
+ {
+  "path": "/admin/platform/runbooks",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "platform.runbooks"
+ },
+ {
+  "path": "/admin/platform/runbooks/[slug]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "platform.runbook_document"
+ },
+ {
+  "path": "/admin/platform/signers",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "OPS",
+  "routeId": "operations.signers"
+ },
+ {
+  "path": "/admin/provisioning",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.provisioning"
+ },
+ {
+  "path": "/admin/search",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.search"
+ },
+ {
+  "path": "/admin/support-access",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.support_access"
+ },
+ {
+  "path": "/admin/timeline",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.timeline"
+ },
+ {
+  "path": "/admin/users",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.users"
+ },
+ {
+  "path": "/admin/users/[id]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.person_detail"
+ },
+ {
+  "path": "/admin/workspaces",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.workspaces"
+ },
+ {
+  "path": "/admin/workspaces/[id]",
+  "manifest": "ADMIN_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "admin surface (org admin / platform admin entry)",
+  "domain": "PLATFORM_ADMIN",
+  "routeId": "platform.workspace_detail"
+ },
+ {
+  "path": "/audit-transparency",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "audit / compliance transparency center (ENTERPRISE)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.audit_transparency"
+ },
+ {
+  "path": "/auth",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/auth/callback/ui",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/auth/mfa-challenge",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/auth/mfa-recovery/verify",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/auth/verify-email",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/billing",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "billing",
+  "domain": "ACCOUNT",
+  "routeId": "account.billing"
+ },
+ {
+  "path": "/budget-center",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "intelligence budget center",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "workspace.budget_center"
+ },
+ {
+  "path": "/capture",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "evidence capture",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.capture"
+ },
+ {
+  "path": "/cases",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "case workspace",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.cases"
+ },
+ {
+  "path": "/cases/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "case workspace",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.cases"
+ },
+ {
+  "path": "/collaboration-teams",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.collaboration_teams"
+ },
+ {
+  "path": "/collaboration-teams/[teamId]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.collaboration_team_detail"
+ },
+ {
+  "path": "/collaboration-teams/[teamId]/collaboration",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.collaboration_team_hub"
+ },
+ {
+  "path": "/collaboration-teams/invites/[token]/accept",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": "ACCOUNT",
+  "routeId": "workspace.collaboration_team_invite_accept"
+ },
+ {
+  "path": "/communications",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "communications hub (ENTERPRISE/ops)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.communications"
+ },
+ {
+  "path": "/contact-sales",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/data-retention",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/evidence",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "evidence vault",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.evidence"
+ },
+ {
+  "path": "/evidence-lifecycle",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/archive",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/chain-transfers",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/destruction",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/legal-holds",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/retention",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-lifecycle/webhooks",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "evidence lifecycle → /evidence (self-serve)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.evidence_lifecycle"
+ },
+ {
+  "path": "/evidence-requests/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "evidence request lifecycle",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.evidence_requests"
+ },
+ {
+  "path": "/evidence/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "evidence vault",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.evidence"
+ },
+ {
+  "path": "/exchange",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "exchange → /reports (self-serve uses Reports for share/export)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "workspace.exchange"
+ },
+ {
+  "path": "/executive",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "executive dashboard",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "workspace.executive"
+ },
+ {
+  "path": "/faq",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-compliance",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-government",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-insurance",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-investigations",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-journalism",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/for-lawyers",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/forgot-password",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/governance",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.hub"
+ },
+ {
+  "path": "/governance-platform",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/access-reviews",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/access-reviews/[campaignId]",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/cross-org",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/delegated-admin",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/departments",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance-platform/policies",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance platform (org admin)",
+  "domain": "GOVERNANCE",
+  "routeId": "workspace.governance_platform"
+ },
+ {
+  "path": "/governance/analytics",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.analytics"
+ },
+ {
+  "path": "/governance/destruction",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.destruction"
+ },
+ {
+  "path": "/governance/lifecycle",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.lifecycle"
+ },
+ {
+  "path": "/governance/notifications",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.notifications"
+ },
+ {
+  "path": "/governance/policy",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.policy"
+ },
+ {
+  "path": "/governance/retention",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "governance lifecycle + policy",
+  "domain": "GOVERNANCE",
+  "routeId": "governance.retention"
+ },
+ {
+  "path": "/home",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "home dashboard",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.home"
+ },
+ {
+  "path": "/inbox",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "compatibility path for the personal notification centre; 308s to /notifications",
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/intake-links",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "PROFESSIONAL",
+  "policy": "redirect",
+  "ruleReason": "intake links (per intakeIncluded entitlement)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.intake_links"
+ },
+ {
+  "path": "/intake/[token]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/intake/[token]/capture",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/integrations",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "API keys + webhooks (ENTERPRISE until packaged)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.integrations"
+ },
+ {
+  "path": "/intelligence",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "intelligence enterprise layer",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.intelligence"
+ },
+ {
+  "path": "/intelligence-quality",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "intelligence quality",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "workspace.intelligence_quality"
+ },
+ {
+  "path": "/investigation",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.hub"
+ },
+ {
+  "path": "/investigation/cases/[caseId]/graph",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.hub"
+ },
+ {
+  "path": "/investigation/duplicates",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.duplicates"
+ },
+ {
+  "path": "/investigation/graph",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.graph"
+ },
+ {
+  "path": "/investigation/relationships",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.relationships"
+ },
+ {
+  "path": "/investigation/reviewers",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.reviewers"
+ },
+ {
+  "path": "/investigation/timeline",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "investigation graph/timeline/relationships",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "investigation.timeline"
+ },
+ {
+  "path": "/invite/[token]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/legal/[slug]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/login",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/notifications",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "personal notification centre — content governed server-side by the aggregation's authorization",
+  "domain": "ACCOUNT",
+  "routeId": "account.notifications"
+ },
+ {
+  "path": "/operations",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW",
+  "domain": "OPS",
+  "routeId": "workspace.operations"
+ },
+ {
+  "path": "/operations/analytics",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "workspace operational analytics (moved from /admin/platform/analytics)",
+  "domain": "OPS",
+  "routeId": "operations.analytics"
+ },
+ {
+  "path": "/operations/automation",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "workspace automation rules (moved from /admin/platform/automation)",
+  "domain": "OPS",
+  "routeId": "operations.automation"
+ },
+ {
+  "path": "/operations/batch-analysis",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "dashboard.batch_analysis"
+ },
+ {
+  "path": "/operations/health",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW",
+  "domain": "OPS",
+  "routeId": "workspace.operations_health"
+ },
+ {
+  "path": "/operations/quotas",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "dashboard.quotas"
+ },
+ {
+  "path": "/operations/reliability",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "workspace upload reliability (moved from /admin/platform/reliability)",
+  "domain": "OPS",
+  "routeId": "operations.reliability"
+ },
+ {
+  "path": "/org-invites/[token]/accept",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": "ACCOUNT",
+  "routeId": "account.org-invite-accept"
+ },
+ {
+  "path": "/organizations",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organizations"
+ },
+ {
+  "path": "/organizations/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization-detail"
+ },
+ {
+  "path": "/organizations/[id]/admin",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin"
+ },
+ {
+  "path": "/organizations/[id]/admin/access-reviews",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_access_reviews"
+ },
+ {
+  "path": "/organizations/[id]/admin/audit",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_audit"
+ },
+ {
+  "path": "/organizations/[id]/admin/billing",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_billing"
+ },
+ {
+  "path": "/organizations/[id]/admin/bulk-invite",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_bulk_invite"
+ },
+ {
+  "path": "/organizations/[id]/admin/departments",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_departments"
+ },
+ {
+  "path": "/organizations/[id]/admin/domains",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_domains"
+ },
+ {
+  "path": "/organizations/[id]/admin/governance",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_governance"
+ },
+ {
+  "path": "/organizations/[id]/admin/governance/external-reviewers",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_governance_external_reviewers"
+ },
+ {
+  "path": "/organizations/[id]/admin/integrations",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_integrations"
+ },
+ {
+  "path": "/organizations/[id]/admin/members",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_members"
+ },
+ {
+  "path": "/organizations/[id]/admin/overview",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_overview"
+ },
+ {
+  "path": "/organizations/[id]/admin/readiness",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_readiness"
+ },
+ {
+  "path": "/organizations/[id]/admin/reports",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_reports"
+ },
+ {
+  "path": "/organizations/[id]/admin/retention",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_retention"
+ },
+ {
+  "path": "/organizations/[id]/admin/roles",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_roles"
+ },
+ {
+  "path": "/organizations/[id]/admin/security",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_security"
+ },
+ {
+  "path": "/organizations/[id]/admin/trust",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization_admin_trust"
+ },
+ {
+  "path": "/organizations/[id]/setup",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "allow",
+  "ruleReason": "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE",
+  "domain": "ACCOUNT",
+  "routeId": "account.organization-setup"
+ },
+ {
+  "path": "/packaging",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "packaging entitlement admin (INTERNAL/ENTERPRISE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "workspace.packaging"
+ },
+ {
+  "path": "/people",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "PROFESSIONAL",
+  "policy": "redirect",
+  "ruleReason": "workspace people (PRO/TEAM) — resolver for /teams/[id]",
+  "domain": "ACCOUNT",
+  "routeId": "workspace.people"
+ },
+ {
+  "path": "/platform",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "INTERNAL",
+  "policy": "notFound",
+  "ruleReason": "platform internal",
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/portal",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/portal/[token]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/portal/[token]/work/[workflowId]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/portal/accept/[grantId]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/pricing",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/privacy",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/redaction",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "redaction platform",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_redaction"
+ },
+ {
+  "path": "/redaction/[projectId]",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "redaction platform",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_redaction"
+ },
+ {
+  "path": "/redaction/policy",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "redaction platform",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_redaction"
+ },
+ {
+  "path": "/register",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/reports",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "report generation",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.reports"
+ },
+ {
+  "path": "/request-demo",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/request-demo/success",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/reset-password",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/review",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review"
+ },
+ {
+  "path": "/review/disagreements",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_disagreements"
+ },
+ {
+  "path": "/review/external",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_external"
+ },
+ {
+  "path": "/review/metrics",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_metrics"
+ },
+ {
+  "path": "/review/operations",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "review.operations"
+ },
+ {
+  "path": "/review/qc",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_qc"
+ },
+ {
+  "path": "/review/queues",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_queues"
+ },
+ {
+  "path": "/review/schemas",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.coding_schemas"
+ },
+ {
+  "path": "/review/workspace",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "review surfaces",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "workspace.review_workspace"
+ },
+ {
+  "path": "/reviewer-ops/[reviewId]",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "reviewer ops console",
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/reviewer-ops/escalations",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "reviewer ops console",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "review.escalations"
+ },
+ {
+  "path": "/reviewer-ops/queue",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "reviewer ops console",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "review.queue_detail"
+ },
+ {
+  "path": "/reviewer-ops/sla",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "reviewer ops console",
+  "domain": "REVIEW_OPERATIONS",
+  "routeId": "review.sla"
+ },
+ {
+  "path": "/search",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "search surface",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.search"
+ },
+ {
+  "path": "/security-center",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.security_center"
+ },
+ {
+  "path": "/security-center/identity",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity"
+ },
+ {
+  "path": "/security-center/identity/access-reviews",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_access_reviews"
+ },
+ {
+  "path": "/security-center/identity/permission-matrix",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_permission_matrix"
+ },
+ {
+  "path": "/security-center/identity/runtime",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_runtime"
+ },
+ {
+  "path": "/security-center/identity/scim",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_scim"
+ },
+ {
+  "path": "/security-center/identity/sessions",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_sessions"
+ },
+ {
+  "path": "/security-center/identity/timeline",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.identity_timeline"
+ },
+ {
+  "path": "/security-center/mfa-recovery",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.mfa_recovery"
+ },
+ {
+  "path": "/security-center/posture",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.posture"
+ },
+ {
+  "path": "/security-center/sso",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.sso"
+ },
+ {
+  "path": "/security-center/sso/health",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.sso"
+ },
+ {
+  "path": "/security-center/sso/mapping",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "security center (admin form). Personal security lives in /settings#security (CORE)",
+  "domain": "ORGANIZATION_WORKSPACE",
+  "routeId": "security_center.sso"
+ },
+ {
+  "path": "/settings",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "unified account settings workspace (/settings — incl. the Security section)",
+  "domain": "ACCOUNT",
+  "routeId": "account.settings"
+ },
+ {
+  "path": "/settings/legal/[slug]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "unified account settings workspace (/settings — incl. the Security section)",
+  "domain": "ACCOUNT",
+  "routeId": "account.legal_document"
+ },
+ {
+  "path": "/settings/notifications/deliveries",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "outbound delivery log (admin debugging) → /settings for self-serve users",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.notification_deliveries"
+ },
+ {
+  "path": "/settings/reviewer-criteria",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "unified account settings workspace (/settings — incl. the Security section)",
+  "domain": "ACCOUNT",
+  "routeId": "workspace.reviewer_criteria"
+ },
+ {
+  "path": "/settings/security/saml",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "unified account settings workspace (/settings — incl. the Security section)",
+  "domain": "ACCOUNT",
+  "routeId": "account.settings"
+ },
+ {
+  "path": "/share/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/subprocessors",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/support",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/teams/[id]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "PROFESSIONAL",
+  "policy": "redirect",
+  "ruleReason": "workspace (PRO/TEAM)",
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/technology",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/terms",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/tools",
+  "manifest": "ADMIN_ONLY",
+  "tier": "INTERNAL",
+  "policy": "notFound",
+  "ruleReason": "All Tools — internal/debug catalog",
+  "domain": "ACCOUNT",
+  "routeId": "workspace.tools"
+ },
+ {
+  "path": "/trust",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/trust-center",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/trust-center/ai-disclosure",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/trust-center/methodology",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/trust-center/security",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/trust-center/status",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/trust-center/subprocessors",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "CORE",
+  "policy": "allow",
+  "ruleReason": "trust center",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.trust_center"
+ },
+ {
+  "path": "/verify",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/verify/[token]",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/verify/demo",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/why-proovra",
+  "manifest": "PUBLIC_INFORMATIONAL_ONLY",
+  "tier": "UNMATCHED(default CORE)",
+  "policy": "allow(default)",
+  "ruleReason": null,
+  "domain": null,
+  "routeId": null
+ },
+ {
+  "path": "/workflows",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "workflow templates (ENTERPRISE until simplified templates ship)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.workflows"
+ },
+ {
+  "path": "/workflows/[id]",
+  "manifest": "ENTERPRISE_ONLY",
+  "tier": "ENTERPRISE",
+  "policy": "notFound",
+  "ruleReason": "workflow templates (ENTERPRISE until simplified templates ship)",
+  "domain": "PERSONAL_WORKSPACE",
+  "routeId": "workspace.workflows"
+ },
+ {
+  "path": "/workspaces",
+  "manifest": "NATIVE_REQUIRED",
+  "tier": "ENTERPRISE",
+  "policy": "redirect",
+  "ruleReason": "Phase 2B — workspace switcher is ENTERPRISE; self-serve users are sent to the canonical Teams product (/collaboration-teams), NOT the deleted /teams landing (which would loop)",
+  "domain": "ACCOUNT",
+  "routeId": "admin.teams"
+ }
+]

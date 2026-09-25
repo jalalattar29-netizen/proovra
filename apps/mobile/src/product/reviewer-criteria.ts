@@ -91,7 +91,9 @@ export function parseCriteriaSets(payload: unknown): CriteriaSet[] {
             title: str(v.title) ?? "",
             publishedAtIso: str(v.publishedAt),
             createdAtIso: str(v.createdAt),
-            criteriaCount: rows(v.criteria).length,
+            // The list sends a COUNT (`_count.criteria`), not the rows; the rows are
+            // only on a version's own read.
+            criteriaCount: num(obj(v._count).criteria) ?? rows(v.criteria).length,
           };
         })
         .filter((v): v is CriteriaVersion => v !== null)
@@ -477,4 +479,82 @@ export function buildCreateSetBody(
     title: draft.title,
     criteria: draft.criteria,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Version history + compare (T-12 — reviewer-criteria/page.tsx:158-276)
+// ---------------------------------------------------------------------------
+
+export interface HistoryCriterion {
+  key: string;
+  title: string;
+  required: boolean;
+}
+
+export interface HistoryVersion {
+  id: string;
+  version: number;
+  title: string;
+  publishedAtIso: string | null;
+  createdAtIso: string | null;
+  criteria: HistoryCriterion[];
+}
+
+/** GET /v1/reviewer-criteria/:setId → `set.versions[]`, every version WITH its criteria, newest first. */
+export function parseCriteriaVersionHistory(payload: unknown): HistoryVersion[] {
+  return rows(obj(obj(payload).set).versions)
+    .map((vraw) => {
+      const v = obj(vraw);
+      const id = str(v.id);
+      const version = num(v.version);
+      if (!id || version === null) return null;
+      return {
+        id,
+        version,
+        title: str(v.title) ?? "",
+        publishedAtIso: str(v.publishedAt),
+        createdAtIso: str(v.createdAt),
+        criteria: rows(v.criteria)
+          .map((craw) => {
+            const c = obj(craw);
+            const key = str(c.key);
+            return key ? { key, title: str(c.title) ?? "", required: c.required === true } : null;
+          })
+          .filter((c): c is HistoryCriterion => c !== null),
+      };
+    })
+    .filter((v): v is HistoryVersion => v !== null)
+    .sort((a, b) => b.version - a.version);
+}
+
+/**
+ * The web's key-based criteria diff, verbatim (`diffCriteria`): additions and
+ * changes in `b`'s order, then removals; one explicit line when nothing
+ * differs so an empty result is never mistaken for a failed compare.
+ */
+export function diffCriteria(a: HistoryCriterion[], b: HistoryCriterion[]): string[] {
+  const mapA = new Map(a.map((c) => [c.key, c]));
+  const mapB = new Map(b.map((c) => [c.key, c]));
+  const out: string[] = [];
+  for (const [key, c] of mapB) {
+    const prev = mapA.get(key);
+    if (!prev) out.push(`Added "${key}" — ${c.title}${c.required ? " (required)" : ""}`);
+    else if (prev.title !== c.title || prev.required !== c.required) {
+      out.push(`Changed "${key}" — ${prev.title}${prev.required ? " (required)" : ""} → ${c.title}${c.required ? " (required)" : ""}`);
+    }
+  }
+  for (const [key, c] of mapA) {
+    if (!mapB.has(key)) out.push(`Removed "${key}" — ${c.title}`);
+  }
+  return out.length > 0 ? out : ["No criteria differences."];
+}
+
+/** The web's per-version usage line; null when usage is unavailable (additive). */
+export function versionUsageLine(u: CriteriaUsage | null, formatDate: (iso: string) => string): string | null {
+  if (!u) return null;
+  if (u.runCount <= 0) return "Not used by any Copilot run yet.";
+  return (
+    `Used in ${u.runCount} Copilot run(s) across ${u.reviewCount} review(s) by ${u.reviewerCount} reviewer(s)` +
+    (u.lastUsedAtIso ? ` · last used ${formatDate(u.lastUsedAtIso)}` : "")
+  );
 }

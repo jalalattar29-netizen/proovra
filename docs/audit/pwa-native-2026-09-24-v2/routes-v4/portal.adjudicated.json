@@ -1,0 +1,105 @@
+{
+ "route": "/portal",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "INPUT",
+   "label": "Paste your token",
+   "at": "apps/web/app/portal/page.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Access token",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:51"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Access token\" at apps/mobile/app/(stack)/portal/index.tsx:51 scores 0.33 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA External Reviewer Portal",
+   "at": "apps/web/app/portal/page.tsx:100",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the invitation token you were sent. Your activity in the portal is audited. PROOVRA records what you observe and decide; it does not assert authenticity of content.",
+   "at": "apps/web/app/portal/page.tsx:103",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.18)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation token",
+   "at": "apps/web/app/portal/page.tsx:111",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Use a different invitation",
+   "at": "apps/web/app/portal/page.tsx:169",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "You do not need a PROOVRA account. The token in your invitation is what grants access, and it is used only while this screen is open.",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:47"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.05)"
+  }
+ ]
+}

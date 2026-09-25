@@ -1,0 +1,1744 @@
+{
+ "route": "/teams/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/teams/[id]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/workspace-people.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 41,
+   "labelled": 163,
+   "unboundExports": 5
+  },
+  "native": {
+   "files": 26,
+   "labelled": 58,
+   "unboundExports": 10
+  }
+ },
+ "pairing": {
+  "exact": 5,
+  "copyDiffers": 2,
+  "roleDiffers": 22,
+  "unpaired": 131,
+  "extraInNative": 38,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [
+  {
+   "role": "INPUT",
+   "label": "Workspace name",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1924",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:917",
+   "webClass": "app-form-input",
+   "webStyle": "{ maxWidth: 340, flex: \"1 1 200px\" }",
+   "natStyle": null,
+   "natTag": "ProovraInput"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Revoke this invitation?",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:2285",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:943",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraConfirmSheet"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:2273",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:647",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "webClass": "app-ghost-action",
+   "webStyle": null,
+   "natStyle": "styles.scrim",
+   "natTag": "Pressable"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "Close workspace",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:264",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Close this workspace…",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:358",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1225",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Pending invitations",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1419",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:597"
+  },
+  {
+   "label": "Pending invitations",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1540",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:597"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1569",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Role",
+   "webRole": "TEXT",
+   "natRole": "TAB",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1588",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:581"
+  },
+  {
+   "label": "Resend",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1641",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:625"
+  },
+  {
+   "label": "Revoke",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1650",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:632"
+  },
+  {
+   "label": "Members",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1970",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:516"
+  },
+  {
+   "label": "No cases are linked to this workspace yet.",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:2144",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:653"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:2202",
+   "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+  },
+  {
+   "label": "Email address",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:2219",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:571"
+  },
+  {
+   "label": "Members",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:295",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:516"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:345",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Role",
+   "webRole": "TEXT",
+   "natRole": "TAB",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:398",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:581"
+  },
+  {
+   "label": "Transfer ownership",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:353",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:723"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:381",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Transfer ownership…",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:495",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:723"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:633",
+   "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+  },
+  {
+   "label": "Request closure",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:393",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:840"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:247",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:285",
+   "nat": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:249",
+   "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Loading members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1144",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Sends a new link by email. The link sent earlier stops working.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1624",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Link a case",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:683"
+   }
+  },
+  {
+   "role": "DIALOG",
+   "label": "Invite a person to this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2189",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Close this workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+   }
+  },
+  {
+   "role": "INPUT",
+   "label": "colleague@example.com",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Workspace role",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2235",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "DIALOG",
+   "label": "What each role can do",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "DIALOG",
+   "label": "Remove case from this workspace?",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2299",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Close this workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+   }
+  },
+  {
+   "role": "DIALOG",
+   "label": "Delete this workspace?",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2313",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Close this workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1112",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members, invitations and workspace cases…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1114",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1202",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn&apos;t load this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1213",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Back to workspaces",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1232",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Members &amp; Access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1312",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Who can access",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "— members, invitations, roles and access governance. You are",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Role permissions",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1338",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1360",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Active members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1395",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "With access to this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1397",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent, not yet accepted",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1421",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+    "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Seats available",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1439",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases in this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1451",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Cases",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1455",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Every seat is in use.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1467",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "A new person can be invited once a seat frees up, or when the plan is changed.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1469",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Review plan and seats",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1472",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No invitations outstanding — everyone invited has either joined or had their invitation withdrawn. New invitations are delivered by email.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1576",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+    "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Invited",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1587",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Sent",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1589",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1590",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1592",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recent activity",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1704",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace lifecycle",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1769",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Delete this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1810",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Deleting removes the workspace and everybody&rsquo;s access to it. Evidence retention and legal holds are governed separately and are not overridden by this action.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1814",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite people",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1848",
+   "natHasRole": true,
+   "bestScore": 0.22,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Send someone an invitation to join this workspace. They are delivered",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1855",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "by email",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ", and the recipient joins by following the link in that message.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1856",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1865",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace overview",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1898",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Name",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1945",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1958",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Owner",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1965",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1978",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open billing",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1985",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Storage, subscription and payment for this workspace are managed in Billing.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1994",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Collaboration Teams",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2029",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organise existing workspace members into operational groups for cases, evidence and work.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2037",
+   "natHasRole": true,
+   "bestScore": 0.16,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Organise members",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2045",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases in this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2073",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading cases…",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2097",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No unlinked cases are available to add.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2101",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace role",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2233",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Access across this whole workspace. Roles inside a Collaboration Team are separate. Ownership is not granted by invitation — it moves by transfer.",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2248",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Search members",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:315",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter members by status",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:326",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading members…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:339",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite person",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:381",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Person",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:397",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:399",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Joined",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:400",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:402",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:476",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Showing",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Search by name or email",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:400",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Workspace name",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:917"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Confirm transferring this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:547",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Hand this workspace to another active member. They become the owner and the billing owner; you stay a member. Evidence, cases and audit history are unaffected.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:357",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the members who can take ownership…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:368",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite another member first — ownership can only move to someone who is already an active member of this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:389",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Find a member",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:398",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "New owner",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:415",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Select the new owner…",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:441",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Show more members",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Transfer",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:510",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "? They gain owner-only controls, including closing this workspace, and billing ownership moves with them. You can only get it back if they transfer it to you.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:514",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm transfer",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep ownership",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:538",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Verify it's you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:566",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify it&apos;s you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:585",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify &amp; continue",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:630",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "For this change, please sign out and sign back in with your identity provider, then retry within 10 minutes.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Confirm closing this workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:459",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "This workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Archives access to this workspace after a",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "-day cancellation window.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:268",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence is never deleted by workspace closure — it stays governed by retention and legal-hold rules.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:275",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel closure request",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:324",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Closure requested",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:733"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:367",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen this workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:422",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Restores your owner access so you can work in it again. Other members, API credentials and webhooks are NOT restored — re-invite people and re-issue credentials deliberately.",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:425",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reopen workspace",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:438",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "LIST",
+   "label": "External collaborators",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:282",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "External collaborators",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:224",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading external collaborators…",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:232",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No external collaborators. Everyone with access to this workspace is a member of it.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:279",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "First granted",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:305",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Case-scoped",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:310",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "granted",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:336",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Revoke access",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:347",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "People who are not workspace members but hold access to individual cases in this workspace. Revoking removes their access to that case only; workspace members are managed from Members.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:364",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Who can do what",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:218",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What each role on this team can do. This list comes from the API — if a cell isn&apos;t checked, the action is blocked for that role.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:221",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Closure is blocked",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:751"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role here is",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the role reference from the server…",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your account is not permitted to read the capability catalog. Ask a workspace administrator what your role includes.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:260",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "The server returned no capability catalog for this deployment.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:302",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capability",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:339",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Custom roles are not supported on the current plan. Workspace capabilities are defined and enforced by the API",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:467",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "— see Security Center for org-wide policy controls.",
+   "at": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx:469",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Evidence owned",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:309",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Cases owned",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:315",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Linked cases",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:646"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Open assignments",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:321",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You're about to remove",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:268",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ") from the workspace.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:270",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking what they own in this team…",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:278",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Transfer ownership to",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:341",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Choose an admin to receive these records…",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:358",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Only ADMIN-or-OWNER members are eligible. Ownership transfer happens atomically with the removal — no record will be orphaned.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:383",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Removal blocked — no eligible transfer target.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:400",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Closure is blocked",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:751"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This member owns active records but the workspace has no other ADMIN or OWNER to receive them. Promote another member to ADMIN first, then re-open this dialog.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:402",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This member doesn't own any active evidence or cases in this team. Removing them won't transfer any ownership.",
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:417",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   }
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "People",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:466"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No workspace is selected",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:471"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading people",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:478"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Rename workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:504"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No members are listed.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:518"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load more",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:553"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Invite someone",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:563"
+  },
+  {
+   "role": "INPUT",
+   "label": "Email address to invite",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:572"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Send invitation",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:587"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Invitations are managed by workspace admins.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:601"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No invitations are outstanding.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:606"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Linked cases",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:646"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Linked cases are visible to workspace members.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:648"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Unlink",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:670"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Link a case",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:683"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Activity",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:692"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspace activity is visible to workspace members.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:694"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has happened here yet.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:699"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel the closure request",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:740"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "There is no other active member to transfer ownership to.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:784"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Type the confirmation phrase",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:825"
+  },
+  {
+   "role": "INPUT",
+   "label": "Closure confirmation phrase",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:826"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Cancel the closure request?",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:848"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Confirm it is you",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:859"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Link a case",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:895"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading your cases",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:897"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "There is no case to link.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:899"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Rename this workspace",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:911"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:924"
+  },
+  {
+   "role": "TEXT",
+   "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure requested",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:733"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure is blocked",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:751"
+  },
+  {
+   "role": "TEXT",
+   "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+   "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Confirm",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:89"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\teams\\[id]\\components\\WorkspaceMembersPanel.tsx",
+   "name": "WorkspaceMembersPanelHandle"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\security-center\\components\\PersonalSecuritySections.tsx",
+   "name": "StepUpMethods"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\security-center\\components\\PersonalSecuritySections.tsx",
+   "name": "StepUpProof"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceOverview"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceMember"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceInvite"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceCase"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\workspace-people.ts",
+   "name": "WorkspaceActivity"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpChallenge"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpProof"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\closure.ts",
+   "name": "ClosureState"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

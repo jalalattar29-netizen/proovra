@@ -68,15 +68,21 @@ test("an empty overview is null, not an account with no plan", () => {
 
 test("the overview reads plan, credits, storage and add-ons", () => {
   const o = B.parseBillingOverview({
+    // The server's real shape (billing-overview.service.ts): the summary carries a
+    // COUNT; the rows are storageAddons.active. This test used to put an array at
+    // summary.activeStorageAddons, a shape the server never sends.
     summary: {
       personalPlan: "PRO",
       personalCredits: 12,
-      activeStorageAddons: [
-        { id: "a1", label: "100 GB", status: "ACTIVE" },
-        { id: "a2", label: "1 TB", status: "CANCELLING" },
-        { label: "no id" },
-      ],
+      activeStorageAddons: 2,
       payments: { total: 9, failed: 1 },
+    },
+    storageAddons: {
+      active: [
+        { id: "a1", addonKey: "storage_100gb", extraStorageBytes: String(100 * 1024 ** 3), status: "ACTIVE" },
+        { id: "a2", addonKey: "storage_1tb", extraStorageBytes: String(1024 ** 4), status: "PAST_DUE" },
+        { addonKey: "no id" },
+      ],
     },
     workspaces: { personal: { storage: { usedLabel: "12 GB", limitLabel: "100 GB" } } },
   });
@@ -84,7 +90,9 @@ test("the overview reads plan, credits, storage and add-ons", () => {
   assert.equal(o.plan, "PRO");
   assert.equal(o.credits, 12);
   assert.equal(o.storageLabel, "12 GB");
-  assert.equal(o.activeAddons.length, 2);
+  assert.equal(o.activeAddons.length, 2, "the active add-on rows were not read");
+  assert.equal(o.activeAddons[0].label, "+100 GB storage");
+  assert.equal(o.activeAddons[1].label, "+1 TB storage");
   assert.equal(o.paymentsFailed, 1);
 });
 

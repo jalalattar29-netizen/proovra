@@ -90,10 +90,12 @@ export function failureMessage(reason: MfaRecoveryFailure): string {
  * and does not reset their second factor, and a user who believes otherwise
  * will sit waiting for an app that is never going to let them in.
  */
+/** Verbatim from the web (auth/mfa-recovery/verify/page.tsx:194). */
 export const MFA_RECOVERY_BOUNDARY =
-  "This confirmed your email only. It did not sign you in and did not change your two-factor authentication. " +
-  "An administrator in your organization still has to review the request, and you will need to enrol a fresh " +
-  "authenticator once they approve it.";
+  "This step confirmed your email only. It did NOT log you in and did NOT change your two-factor authentication. " +
+  "You will still need to enroll a fresh authenticator once an admin approves your reset.";
+export const MFA_RECOVERY_VERIFYING = "Hold tight — we're confirming your recovery link…";
+export const MFA_RECOVERY_NOT_YOU = "If you did not request an MFA recovery, contact your organization administrator immediately.";
 
 export function parseSessionProbe(payload: unknown): boolean {
   return obj(payload).authenticated === true;
@@ -233,4 +235,137 @@ export function createFailureMessage(reason: RecoveryCreateFailure): string {
     case "unknown":
       return "The recovery request could not be filed. Try again shortly.";
   }
+}
+
+/* ------------------------------------------ workspace choice (T-13 defect) */
+//
+// A recovery request needs a `teamId` — the workspace whose administrator
+// reviews it. The MFA challenge screen has no active workspace, so the web
+// panel resolves the caller's workspaces itself (GET /v1/teams) and asks.
+// Native passed `teamId={null}` and never resolved one, so "File recovery
+// request" could never be enabled there (MfaRecoveryRequestPanel.tsx:330-378).
+
+export const RECOVERY_WORKSPACES_PATH = "/v1/teams";
+
+export interface RecoveryWorkspace {
+  id: string;
+  name: string;
+}
+
+export function parseRecoveryWorkspaces(payload: unknown): RecoveryWorkspace[] {
+  const teams = obj(payload).teams;
+  return (Array.isArray(teams) ? teams : [])
+    .map((t) => obj(t))
+    .filter((t) => typeof t.id === "string" && (t.id as string).length > 0)
+    .map((t) => ({ id: t.id as string, name: typeof t.name === "string" && t.name ? (t.name as string) : "Workspace" }));
+}
+
+export const NO_RECOVERY_WORKSPACE =
+  "No workspace membership was found for this account, so there is no administrator who could approve a reset.";
+
+/* --------------------------------------- the filed request's status (T-15) */
+//
+// GET /v1/identity/mfa-admin/recovery-requests/detail/:id — the caller's OWN
+// request, bounded projection. Native filed requests but never read them
+// back, so a user could not see whether the email was confirmed, whether an
+// administrator was reviewing, or when the request expires; and Resend/Cancel
+// were offered in every state (MfaRecoveryRequestPanel.tsx:84-128, 655-760).
+
+export function buildRecoveryDetailPath(requestId: string): string {
+  return `/v1/identity/mfa-admin/recovery-requests/detail/${encodeURIComponent(requestId)}`;
+}
+
+export interface RecoveryDetail {
+  id: string;
+  status: string;
+  emailVerified: boolean;
+  emailResendCount: number;
+  expiresAt: string | null;
+}
+
+export function parseRecoveryDetail(payload: unknown): RecoveryDetail | null {
+  const d = obj(obj(payload).detail);
+  const id = str(d.id);
+  if (!id) return null;
+  return {
+    id,
+    status: str(d.status) ?? "",
+    emailVerified: d.emailVerified === true,
+    emailResendCount: typeof d.emailResendCount === "number" ? d.emailResendCount : 0,
+    expiresAt: str(d.expiresAt),
+  };
+}
+
+/** Mirrors MFA_RECOVERY_EMAIL_MAX_SENDS on the server. */
+export const RECOVERY_EMAIL_MAX_SENDS = 3;
+const OPEN_RECOVERY_STATUSES = ["EMAIL_VERIFICATION_PENDING", "PENDING_ADMIN_REVIEW"];
+
+export const RECOVERY_STATUS_COPY: Record<string, string> = {
+  EMAIL_VERIFICATION_PENDING: "Waiting for you to confirm the link we emailed you.",
+  PENDING_ADMIN_REVIEW: "Your email is confirmed. A workspace administrator is reviewing the request.",
+  APPROVED: "Approved. Sign in and enroll a new second factor.",
+  COMPLETED: "Completed.",
+  REJECTED: "An administrator declined this request.",
+  CANCELLED: "Cancelled.",
+  EXPIRED: "This request expired.",
+};
+
+export function recoveryStatusLine(d: RecoveryDetail): string {
+  return RECOVERY_STATUS_COPY[d.status] ?? "Status unavailable.";
+}
+
+/** Why Resend is unavailable, or null — the web's order of reasons. */
+export function recoveryResendBlocked(d: RecoveryDetail, nextResendAfter: string | null, nowMs: number, formatDate: (iso: string) => string): string | null {
+  if (d.status !== "EMAIL_VERIFICATION_PENDING") {
+    return d.emailVerified
+      ? "Your email is already confirmed, so no new link is needed."
+      : "This request is no longer waiting for email confirmation.";
+  }
+  if (d.emailResendCount >= RECOVERY_EMAIL_MAX_SENDS) {
+    return "No more verification emails can be sent for this request. Cancel it and file a new one.";
+  }
+  if (nextResendAfter && Date.parse(nextResendAfter) > nowMs) {
+    return `You can request another email after ${formatDate(nextResendAfter)}.`;
+  }
+  return null;
+}
+
+export function recoveryCancelBlocked(d: RecoveryDetail): string | null {
+  return OPEN_RECOVERY_STATUSES.includes(d.status) ? null : "Only a request that is still waiting can be cancelled.";
+}
+
+function errStatus(err: unknown): number {
+  const s = obj(err).statusCode;
+  return typeof s === "number" ? s : 0;
+}
+
+/** The web's resend refusals, by status; `until` is the server's cooldown end when it sends one. */
+export function recoveryResendFailure(err: unknown, formatDate: (iso: string) => string): { message: string; until: string | null } {
+  const status = errStatus(err);
+  const details = obj(obj(err).details);
+  if (status === 429) {
+    const until = str(details.nextResendAfter);
+    return {
+      until,
+      message:
+        details.reason === "resend_limit_reached"
+          ? "No more verification emails can be sent for this request. Cancel it and file a new one."
+          : until
+            ? `A verification email was sent recently. You can request another after ${formatDate(until)}.`
+            : "A verification email was sent recently. Wait a few minutes before requesting another.",
+    };
+  }
+  if (status === 403 || status === 404) return { until: null, message: "This recovery request is no longer available." };
+  if (status === 400) return { until: null, message: "A new verification email cannot be sent for this request in its current state." };
+  return { until: null, message: "The verification email could not be resent. Try again shortly." };
+}
+
+export function recoveryCancelFailure(err: unknown): string {
+  const status = errStatus(err);
+  if (status === 409) {
+    return "This request was already approved, so it cannot be cancelled. Sign in and enroll a new second factor to finish recovery.";
+  }
+  if (status === 403 || status === 404) return "This recovery request is no longer available.";
+  if (status === 400) return "This request can no longer be cancelled.";
+  return "The request could not be cancelled. Nothing was changed.";
 }

@@ -127,26 +127,35 @@ test("the workflow paths are the canonical ones", () => {
   assert.equal(mod.buildRequestAssignPath("r1"), "/v1/evidence-requests/r1/assign");
 });
 
-test("a failed delivery names itself", () => {
+test("a failed delivery names itself, in the server's real row shape", () => {
+  // evidence-requests.routes.ts sends { id, eventType, status, errorCode, retryCount,
+  // lastAttemptAtUtc, retryable }; this test used to feed failureReason, never sent.
   const [d] = mod.parseRequestDeliveries({
-    deliveries: [{ id: "d1", status: "FAILED", failureReason: "mailbox full" }],
+    deliveries: [{ id: "d1", eventType: "REQUEST_SENT", status: "FAILED", errorCode: "mailbox_full", retryCount: 2, lastAttemptAtUtc: "2026-09-24T09:00:00.000Z", retryable: true }],
   });
-  assert.equal(d.failureReason, "mailbox full");
+  assert.equal(d.errorCode, "mailbox_full");
+  assert.equal(d.statusLabel, "Failed");
+  assert.equal(d.retryable, true);
+  assert.equal(mod.deliveryAttemptLine(d, () => "24 Sep"), "request sent · last attempt 24 Sep · 2 retries");
+  assert.equal(mod.buildRequestDeliveryRetryPath("r1", "d1"), "/v1/evidence-requests/r1/deliveries/d1/retry");
   assert.equal(mod.deliveryTone("FAILED"), "risk");
   assert.equal(mod.deliveryTone("DELIVERED"), "verified");
   assert.equal(mod.deliveryTone("QUEUED"), "pending");
 });
 
-test("history reads newest first", () => {
+test("history reads newest first, from the server's createdAt; the note is payload.reason", () => {
+  // listEvidenceRequestEvents sends { id, eventType, actorUserId, payload, createdAt }.
   const events = mod.parseRequestEvents({
     events: [
-      { id: "e1", eventType: "CREATED", occurredAtUtc: "2026-09-01T00:00:00.000Z" },
-      { id: "e3", eventType: "CLOSED", occurredAtUtc: "2026-09-03T00:00:00.000Z" },
-      { id: "e2", eventType: "SENT", occurredAtUtc: "2026-09-02T00:00:00.000Z" },
+      { id: "e1", eventType: "CREATED", actorUserId: "u-1", payload: null, createdAt: "2026-09-01T00:00:00.000Z" },
+      { id: "e3", eventType: "DELIVERABLE_REJECTED", actorUserId: "u-2", payload: { deliverableId: "d1", reason: "Blurry photo" }, createdAt: "2026-09-03T00:00:00.000Z" },
+      { id: "e2", eventType: "SENT", actorUserId: null, payload: null, createdAt: "2026-09-02T00:00:00.000Z" },
       { eventType: "orphan" },
     ],
   });
   assert.deepEqual(events.map((e) => e.id), ["e3", "e2", "e1"]);
+  assert.equal(events[0].note, "Blurry photo", "the only recorded free text was never shown");
+  assert.equal(events[0].actorUserId, "u-2");
 });
 
 // ---------------------------------------------------------------------------
@@ -181,7 +190,7 @@ test("an anonymous submission is labelled as a contributor, not given a name", (
   // as an absence is the kind of small lie a custody surface cannot afford.
   assert.equal(
     mod.responseContributorLabel({ id: "p1", status: "RECEIVED", submittedByExternalLabel: null }),
-    "Contributor",
+    "External contributor", // web page.tsx:646
   );
   assert.equal(
     mod.responseContributorLabel({ id: "p1", status: "RECEIVED", submittedByExternalLabel: "Ana" }),
@@ -264,4 +273,25 @@ test("rejection is the destructive one, and says what it does not do", () => {
     assert.ok(mod.responseDecisionLabel(d).length > 0);
     assert.ok(mod.responseDecisionConsequence(d).length > 0);
   }
+});
+
+test("needs-more-info is offered exactly where the shared state machine allows it", () => {
+  // packages/shared/src/evidence-request.ts:83-104 — IN_PROGRESS cannot move
+  // to NEEDS_MORE_INFO; FULFILLED can.
+  assert.equal(mod.availableRequestTransitions("IN_PROGRESS").includes("needs-more-info"), false);
+  assert.ok(mod.availableRequestTransitions("FULFILLED").includes("needs-more-info"));
+  // …and it, cancel and close are refused without a note (service.ts:475).
+  assert.ok(mod.transitionRequiresNote("cancel") && mod.transitionRequiresNote("close") && mod.transitionRequiresNote("needs-more-info"));
+  assert.equal(mod.transitionRequiresNote("send"), false);
+});
+
+test("completion mirrors the backend predicate (page.tsx:351-363)", () => {
+  const c = mod.requestCompletion([
+    { required: true, status: "FULFILLED" },
+    { required: true, status: "PENDING" },
+    { required: false, status: "WAIVED" },
+    { required: false, status: "PENDING" },
+  ]);
+  assert.deepEqual(c, { requiredFulfilled: 1, requiredTotal: 2, optionalFulfilled: 1, optionalTotal: 2, completionPercent: 50, reviewReady: false });
+  assert.equal(mod.requestCompletion([]).reviewReady, true);
 });

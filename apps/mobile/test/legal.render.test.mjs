@@ -153,3 +153,18 @@ test("no screen opens a legal document in a browser", () => {
       offenders.join("\n  "),
   );
 });
+
+/* ---- T-14 (LegalDocumentShell.tsx:371/:382 "On this page") ---- */
+
+test("a document with three or more sections offers 'On this page' with every H2", async () => {
+  globalThis.__EXPO_PARAMS__ = { slug: "terms" };
+  const view = await renderInProviders(Reader, h(Reader.default, null));
+  const h2s = [...TERMS.matchAll(/^## (.+)$/gm)].map((m) => m[1].replace(/\*\*/g, "").trim());
+  assert.ok(h2s.length >= 3, "fixture precondition: the real Terms has at least three sections");
+  assert.equal(view.byTestId("legal-toc").length, 1, "no section index");
+  await view.press("On this page");
+  assert.ok(view.byLabel(`Go to ${h2s[0]}`).length === 1, "the first section is not in the index");
+  assert.ok(view.byLabel(`Go to ${h2s.at(-1)}`).length === 1, "the last section is not in the index");
+  // Jumping does not throw, even where the scroll view cannot measure.
+  await view.press(`Go to ${h2s[1]}`);
+});

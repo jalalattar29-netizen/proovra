@@ -41,9 +41,16 @@ export function ProovraPasswordRules({
    * anything was attempted.
    */
   visible = true,
+  touched = false,
 }: {
   password: string;
   visible?: boolean;
+  /**
+   * The person has tried to submit. The web then marks an unmet rule as a
+   * FAILURE — a red cross (register/page.tsx:1383-1394) — instead of a
+   * neutral dot, so what is still missing stands out.
+   */
+  touched?: boolean;
 }) {
   if (!visible) return null;
 
@@ -77,28 +84,36 @@ export function ProovraPasswordRules({
         ))}
       </View>
 
-      {password.length > 0 ? (
-        <ProovraText variant="label" color={evaluation.color}>
-          {evaluation.label}
+      {/* The web's caption row: "Password strength" … the level ("—" before any input). */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <ProovraText variant="label" color={theme.color.ink.secondary}>Password strength</ProovraText>
+        <ProovraText variant="label" weight="semibold" color={password.length > 0 ? evaluation.color : theme.color.ink.secondary}>
+          {password.length > 0 ? evaluation.label : "—"}
         </ProovraText>
-      ) : null}
+      </View>
 
+      {/* T-12 — the web's checklist is a LIST named "Password requirements"
+          (register/page.tsx:1377), so assistive tech announces it as one
+          group of five rather than five unrelated lines. */}
+      <View role="list" accessibilityLabel="Password requirements" testID="password-requirements" style={{ gap: theme.space.s1 }}>
       {PASSWORD_RULES.map((rule) => {
         const met = evaluation.ruleResults.find((r) => r.id === rule.id)?.met === true;
+        const failed = !met && touched;
         return (
           <ProovraText
             key={rule.id}
             variant="label"
-            color={met ? theme.color.status.verified.fg : theme.color.ink.muted}
+            color={met ? theme.color.status.verified.fg : failed ? theme.color.status.risk.fg : theme.color.ink.muted}
             // The tick is decorative; the accessible name carries the state,
             // because a screen reader announcing "check mark Minimum 12
             // characters" says nothing about whether it was met.
             accessibilityLabel={`${rule.label}: ${met ? "met" : "not met"}`}
           >
-            {`${met ? "✓" : "○"} ${rule.label}`}
+            {`${met ? "✓" : failed ? "✕" : "○"} ${rule.label}`}
           </ProovraText>
         );
       })}
+      </View>
     </View>
   );
 }

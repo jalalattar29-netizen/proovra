@@ -1,0 +1,331 @@
+{
+ "route": "/auth/verify-email",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "label": "Verifying your email",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/auth/verify-email/page.tsx:308",
+   "nat": "apps/mobile/app/(stack)/verify-email.tsx:38",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Back to sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/auth/verify-email/page.tsx:300",
+   "nat": "apps/mobile/app/(stack)/verify-email.tsx:46",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Verifying",
+   "at": "apps/web/app/auth/verify-email/page.tsx:307",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Verified",
+   "at": "apps/web/app/auth/verify-email/page.tsx:317",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Missing token",
+   "at": "apps/web/app/auth/verify-email/page.tsx:333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Email sent",
+   "at": "apps/web/app/auth/verify-email/page.tsx:424",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Retry needed",
+   "at": "apps/web/app/auth/verify-email/page.tsx:451",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "INPUT",
+   "label": "you@example.com",
+   "at": "apps/web/app/auth/verify-email/page.tsx:366",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no INPUT element at all"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Link expired",
+   "at": "apps/web/app/auth/verify-email/page.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "One moment while we confirm the verification link.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:309",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.18)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email verified",
+   "at": "apps/web/app/auth/verify-email/page.tsx:318",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your account has been successfully verified. You&rsquo;ll land in your PROOVRA workspace in a moment.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:320",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue to PROOVRA",
+   "at": "apps/web/app/auth/verify-email/page.tsx:324",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification link not recognised",
+   "at": "apps/web/app/auth/verify-email/page.tsx:334",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Open the verification link on the device where you are signing in.\" at apps/mobile/app/(stack)/verify-email.tsx:51 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open the verification link directly from your email. If you no longer have it, you can request a new one from the sign-in page.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:336",
+   "natHasRole": true,
+   "bestScore": 0.16,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.16)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox",
+   "at": "apps/web/app/auth/verify-email/page.tsx:425",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "If an account exists for that address and still needs verification, we&rsquo;ve sent a fresh link. Verification links expire after 24&nbsp;hours.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:427",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "We couldn&rsquo;t send the email",
+   "at": "apps/web/app/auth/verify-email/page.tsx:452",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Please wait a moment and try again. If the issue persists, contact support.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:454",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email address",
+   "at": "apps/web/app/auth/verify-email/page.tsx:364",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification link invalid or expired",
+   "at": "apps/web/app/auth/verify-email/page.tsx:406",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \"Open the verification link on the device where you are signing in.\" at apps/mobile/app/(stack)/verify-email.tsx:51 scores 0.25 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "TEXT",
+   "label": "This link has already been used or has expired. Enter your email and we&rsquo;ll send a fresh verification email.",
+   "at": "apps/web/app/auth/verify-email/page.tsx:408",
+   "natHasRole": true,
+   "bestScore": 0.12,
+   "bestNat": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.12)"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  }
+ ]
+}

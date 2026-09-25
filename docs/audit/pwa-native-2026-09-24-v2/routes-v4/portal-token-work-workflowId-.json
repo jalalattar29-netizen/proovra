@@ -1,0 +1,383 @@
+{
+ "route": "/portal/[token]/work/[workflowId]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/portal/work/[workflowId].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 15,
+   "labelled": 27,
+   "unboundExports": 6
+  },
+  "native": {
+   "files": 17,
+   "labelled": 14,
+   "unboundExports": 2
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 1,
+  "roleDiffers": 0,
+  "unpaired": 26,
+  "extraInNative": 13,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "Your recorded decision",
+   "natLabel": "Your decision has been recorded.",
+   "score": 0.5,
+   "web": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:483",
+   "nat": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Evidence preview",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:361",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Bounded rationale (≤ 600 chars). Required for non-APPROVE verdicts.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:508",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Comment on this review",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:621",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   }
+  },
+  {
+   "role": "INPUT",
+   "label": "Reply to this comment",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:684",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm it is you",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:279",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:309",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "← Back to dashboard",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· Role:",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Decision",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:466",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role cannot view recorded decisions for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:469",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading your recorded decision…",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recorded decision is not available for this review.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:473",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:478",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recorded",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:485",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Rationale",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:491",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You have not recorded a decision for this review yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:495",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Submitting again replaces this decision.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:498",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role is read-only for decisions. You may still annotate and comment when permitted.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:503",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review communication",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:614",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Post",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No comments yet.",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:647",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reply",
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:705",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter your sign-in code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Six-digit code",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:215",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Check your inbox and spam folder. Only the newest code works.",
+   "at": "apps/web/components/external-portal/PortalMfaCodeStep.tsx:245",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Review",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:148"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:152"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This review is not open",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:157"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back to your reviews",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:163"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Discussion",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:169"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading discussion",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:171"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No comments on this review yet.",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:173"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Add a comment",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:192"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add a comment",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Post comment",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:202"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Your decision",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:211"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Note (optional)",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:219"
+  },
+  {
+   "role": "INPUT",
+   "label": "Decision note",
+   "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:220"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "ExternalPortalProjection"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "PortalComment"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "PortalMfaDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\external-portal\\portal-client.ts",
+   "name": "PortalDecision"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\external-review-portal.ts",
+   "name": "ExternalDecisionVerdict"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "SignedWatermark"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\portal.ts",
+   "name": "PortalComment"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\portal.ts",
+   "name": "PortalDecisionValue"
+  }
+ ]
+}

@@ -181,18 +181,47 @@ test("discarding a draft deletes it — there is no Evidence to release", async 
   assert.deepEqual(calls, [{ path: "/v1/capture/sessions/draft-1", method: "DELETE" }]);
 });
 
-test("reading a draft tolerates either itemsSnapshot shape and never throws", async () => {
+test("reading a draft reads the SERVER key (items), never an invented itemsSnapshot, and never throws", async () => {
+  // capture.routes.ts toApiSession: `items: s.itemsSnapshot ?? []` — the reply names it items.
+  withApi(async () => ({ session: { id: "d1", status: "DRAFT", templateId: "general-evidence-record", planMode: "CHECKLIST_REQUIRED", useLocation: true, internalNotes: null, expiresAtUtc: "2026-10-01T00:00:00.000Z", items: [{ clientItemId: "a", fileName: "a.jpg", mimeType: "image/jpeg", sizeBytes: 5, checklistStepId: "primary_evidence", role: "Primary evidence" }] } }));
+  const d = await D.readCaptureDraft("d1");
+  assert.equal(d.items.length, 1);
+  assert.equal(d.items[0].fileName, "a.jpg");
+  assert.equal(d.items[0].checklistStepId, "primary_evidence");
+  assert.equal(d.planMode, "CHECKLIST_REQUIRED");
+  assert.equal(d.useLocation, true);
+  assert.equal(d.templateId, "general-evidence-record");
+
   withApi(async () => ({ session: { id: "d1", status: "DRAFT", itemsSnapshot: [{ clientItemId: "a" }] } }));
-  assert.equal((await D.readCaptureDraft("d1")).items.length, 1);
-
-  withApi(async () => ({ session: { id: "d1", status: "DRAFT", itemsSnapshot: { items: [{ clientItemId: "a" }] } } }));
-  assert.equal((await D.readCaptureDraft("d1")).items.length, 1);
-
-  withApi(async () => ({ session: { id: "d1", status: "DRAFT" } }));
-  assert.deepEqual((await D.readCaptureDraft("d1")).items, []);
+  assert.deepEqual((await D.readCaptureDraft("d1")).items, [], "itemsSnapshot is not a key the server sends");
 
   withApi(async () => {
     throw new Error("network");
   });
   assert.equal(await D.readCaptureDraft("d1"), null, "a failed read is not a crash");
+});
+
+test("the draft list reads { sessions } from GET ?status=DRAFT and keeps only DRAFTs", async () => {
+  const calls = [];
+  withApi(async (path) => {
+    calls.push(path);
+    return { sessions: [{ id: "d1", status: "DRAFT", templateName: "General Evidence Record", items: [{ clientItemId: "a" }, { clientItemId: "b" }] }, { id: "d2", status: "FINALIZED", items: [] }] };
+  });
+  const list = await D.listCaptureDrafts();
+  assert.deepEqual(calls, ["/v1/capture/sessions?status=DRAFT"]);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].items.length, 2);
+  assert.equal(list[0].templateName, "General Evidence Record");
+});
+
+test("the plan mode travels on open and update", async () => {
+  const bodies = [];
+  withApi(async (_p, init) => {
+    bodies.push(JSON.parse(init?.body ?? "{}"));
+    return { session: { id: "draft-1", status: "DRAFT" } };
+  });
+  await D.openCaptureDraft({ planMode: "CHECKLIST_REQUIRED" });
+  await D.updateCaptureDraft("draft-1", { items: [], planMode: "FLEXIBLE" });
+  assert.equal(bodies[0].planMode, "CHECKLIST_REQUIRED");
+  assert.equal(bodies[1].planMode, "FLEXIBLE");
 });

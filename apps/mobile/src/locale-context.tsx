@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type Locale, type LocaleMode, translations, resolveInitialLocale } from "./i18n";
+import { familyFor, type FontWeightToken } from "./theme/fonts";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -14,8 +15,19 @@ type LocaleContextValue = {
   setLocaleMode: (mode: LocaleMode) => void;
   t: (key: keyof (typeof translations)["en"]) => string;
   isRTL: boolean;
+  /** Registered family for body weight (400). See src/theme/fonts.ts. */
   fontFamily: string;
+  /** Registered family for bold weight (700). */
   fontFamilyBold: string;
+  /** Registered family for a specific weight, script-aware. */
+  familyForWeight: (weight: FontWeightToken) => string;
+  /**
+   * Non-null when the application faces failed to register. The app still
+   * renders (in the platform face) rather than refusing to start, but the
+   * failure is carried here so a surface can say so instead of silently
+   * shipping the wrong typeface — which is precisely how RC-04 went unnoticed.
+   */
+  fontError: Error | null;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -26,7 +38,14 @@ export function useLocale() {
   return ctx;
 }
 
-export function LocaleProvider({ children }: { children: React.ReactNode }) {
+export function LocaleProvider({
+  children,
+  fontError = null,
+}: {
+  children: React.ReactNode;
+  /** Passed down from the root layout, which owns font registration. */
+  fontError?: Error | null;
+}) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [mode, setModeState] = useState<LocaleMode>("auto");
   const [ready, setReady] = useState(false);
@@ -108,10 +127,18 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     const t = (key: keyof (typeof translations)["en"]) =>
       (currentTranslations[key as keyof (typeof translations)[Locale]] as string) ||
       (translations.en[key] as string);
-    const fontFamily = isRTL ? "Noto Sans Arabic" : "Inter";
-    const fontFamilyBold = isRTL ? "Noto Sans Arabic" : "Inter";
-    return { locale, mode, setLocale, setLocaleMode, t, isRTL, fontFamily, fontFamilyBold };
-  }, [locale, mode]);
+    // T-04 / RC-04 — these were the literals "Inter" / "Noto Sans Arabic".
+    // NOTHING was registered under either name, so React Native fell back to
+    // the platform face on every screen. familyFor() returns the name of a face
+    // this app actually loads (src/theme/fonts.ts), per weight and per script.
+    const fontFamily = familyFor("400", isRTL);
+    const fontFamilyBold = familyFor("700", isRTL);
+    const familyForWeight = (weight: FontWeightToken) => familyFor(weight, isRTL);
+    return {
+      locale, mode, setLocale, setLocaleMode, t, isRTL,
+      fontFamily, fontFamilyBold, familyForWeight, fontError,
+    };
+  }, [locale, mode, fontError]);
 
   if (!ready) {
     // Don't render until AsyncStorage is initialized

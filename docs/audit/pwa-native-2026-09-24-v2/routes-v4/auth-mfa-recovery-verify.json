@@ -1,0 +1,142 @@
+{
+ "route": "/auth/mfa-recovery/verify",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/mfa-recovery-verify.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 2,
+   "labelled": 11,
+   "unboundExports": 0
+  },
+  "native": {
+   "files": 14,
+   "labelled": 4,
+   "unboundExports": 0
+  }
+ },
+ "pairing": {
+  "exact": 1,
+  "copyDiffers": 1,
+  "roleDiffers": 2,
+  "unpaired": 7,
+  "extraInNative": 1,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "Thanks — your mailbox access is confirmed.",
+   "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:186",
+   "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:114",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do NOT need to take any further action until they reach out.",
+   "natLabel": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do not need to do anything else until they reach out.",
+   "score": 0.73,
+   "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:189",
+   "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:116",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Return to sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:217",
+   "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:134"
+  },
+  {
+   "label": "Return to sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:238",
+   "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:134"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "Verifying your recovery request",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Email verified",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:335",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hold tight — we&apos;re confirming your recovery link…",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:176",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do not need to do anything else until they reach out.",
+    "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:116"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This step confirmed your email only. It did NOT log you in and did NOT change your two-factor authentication. You will still need to enroll a fresh authenticator once an admin approves your reset.",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:194",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do not need to do anything else until they reach out.",
+    "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:116"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue to home",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:209",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "If you did not request an MFA recovery, contact your organization administrator immediately.",
+   "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:324",
+   "natHasRole": true,
+   "bestScore": 0.22,
+   "bestNat": {
+    "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do not need to do anything else until they reach out.",
+    "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:116"
+   }
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Confirming your recovery link",
+   "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:109"
+  }
+ ],
+ "webUnbound": [],
+ "natUnbound": []
+}

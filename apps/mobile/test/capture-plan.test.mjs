@@ -280,3 +280,52 @@ test("the snapshot records the template and its version, or nothing", () => {
     collectionPlanTemplateId: "t1",
   });
 });
+
+/* ------------------------------------------- T-14 session readiness (web port) */
+
+const PLAN = (locationRequirement) => ({
+  id: "site", version: 1, name: "Site survey", description: "", locationRequirement,
+  steps: [
+    { id: "overview", title: "Overview", description: "", purposeLabel: "Overview", required: true, acceptedKinds: ["PHOTO"] },
+    { id: "damage_close_up", title: "Close-up", description: "", purposeLabel: "Close-up", required: false, acceptedKinds: [] },
+  ],
+});
+
+test("session readiness: empty is a blocker; FLEXIBLE never blocks on a missing required step", () => {
+  const empty = P.buildSessionReadiness({ items: [], plan: PLAN("optional"), useLocation: false });
+  assert.equal(empty.status, "empty");
+  assert.equal(empty.canFinalize, false);
+  const one = P.buildSessionReadiness({ items: [{ id: "a", mimeType: "application/pdf", checklistStepId: null }], plan: PLAN("optional"), useLocation: false });
+  assert.equal(one.canFinalize, true, "a missing required step blocked a FLEXIBLE session");
+  assert.equal(one.requiredCompleted, 0);
+  assert.equal(one.requiredProgressPercent, 0);
+  // Unmapped counts twice, exactly as the web counts it.
+  assert.equal(one.warnings.length, 2);
+  assert.equal(one.status, "warning");
+});
+
+test("session readiness: required location blocks, recommended warns; kinds and close-up are checked", () => {
+  const items = [
+    { id: "a", mimeType: "application/pdf", checklistStepId: "overview" },
+    { id: "b", mimeType: "audio/m4a", checklistStepId: "damage_close_up" },
+  ];
+  const req = P.buildSessionReadiness({ items, plan: PLAN("required"), useLocation: false });
+  assert.equal(req.canFinalize, false);
+  assert.equal(req.blockers[0].code, "capture_required_location_missing");
+  assert.deepEqual(req.warnings.map((w) => w.label), ["Invalid file type", "Close-up requirement not satisfied (metadata-based)"]);
+  assert.equal(req.warnings[0].detail, "Document does not match this requirement.");
+  assert.equal(req.mappedCount, 2);
+  assert.equal(req.requiredProgressPercent, 100);
+  assert.equal(P.buildSessionReadiness({ items, plan: PLAN("required"), useLocation: true }).canFinalize, true);
+  const rec = P.buildSessionReadiness({ items: [{ id: "c", mimeType: "image/jpeg", checklistStepId: "overview" }], plan: PLAN("recommended"), useLocation: false });
+  assert.deepEqual(rec.warnings.map((w) => w.code), ["capture_recommended_location_missing"]);
+  const clean = P.buildSessionReadiness({ items: [{ id: "c", mimeType: "image/jpeg", checklistStepId: "overview" }], plan: PLAN("optional"), useLocation: false });
+  assert.equal(clean.status, "ready");
+});
+
+test("session id and size use the web formats", () => {
+  assert.equal(P.formatCaptureSessionId(new Date(2026, 8, 4)), "CAP-2026-09-04");
+  assert.equal(P.formatCaptureFileSize(0), "0 B");
+  assert.equal(P.formatCaptureFileSize(2048), "2.0 KB");
+  assert.equal(P.formatCaptureFileSize(5 * 1024 * 1024), "5.00 MB");
+});

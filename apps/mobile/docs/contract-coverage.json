@@ -1,10 +1,78 @@
 {
   "rows": [
     {
+      "parser": "parseBillingProjection",
+      "builder": "buildBillingAccountPath",
+      "method": "GET",
+      "site": "billing.tsx:133",
+      "path": "/v1/billing/accounts/:p/:p",
+      "route": "GET /v1/billing/accounts/:type/:id",
+      "serverKeys": [
+        "<SPREAD>",
+        "account",
+        "actionRequired",
+        "actions",
+        "collaboration",
+        "plan",
+        "usage"
+      ],
+      "parserKeys": [
+        "account",
+        "actionRequired",
+        "actions",
+        "collaboration",
+        "contract",
+        "dependentStorageCancellation",
+        "evidenceAdmission",
+        "historicalOutputEligibility",
+        "plan",
+        "planOffers",
+        "storageAddons",
+        "storageAddonsLocked",
+        "usage",
+        "wallet"
+      ],
+      "verdict": "OK",
+      "why": "reads account, actionRequired, actions, collaboration, plan, usage"
+    },
+    {
+      "parser": "parsePaymentHistory",
+      "builder": "buildBillingHistoryPath",
+      "method": "GET",
+      "site": "billing.tsx:142",
+      "path": "/v1/billing/accounts/:p/:p/history",
+      "route": "GET /v1/billing/accounts/:type/:id/history",
+      "serverKeys": [
+        "count",
+        "items"
+      ],
+      "parserKeys": [
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
+      "parser": "parseBillingAccounts",
+      "builder": "(literal) /v1/billing/accounts",
+      "method": "GET",
+      "site": "billing.tsx:156",
+      "path": "/v1/billing/accounts",
+      "route": "GET /v1/billing/accounts",
+      "serverKeys": [
+        "accounts"
+      ],
+      "parserKeys": [
+        "accounts"
+      ],
+      "verdict": "OK",
+      "why": "reads accounts"
+    },
+    {
       "parser": "parsePricingCatalogue",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:78",
+      "site": "billing.tsx:184",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -27,7 +95,7 @@
       "parser": "parseStorageAddons",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:79",
+      "site": "billing.tsx:185",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -49,7 +117,7 @@
       "parser": "parseEvidenceCreditOffer",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:80",
+      "site": "billing.tsx:186",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -68,10 +136,33 @@
       "why": "reads payg"
     },
     {
+      "parser": "parseCaseEvidenceRows",
+      "builder": "(literal) /v1/cases/:p/matter-workspace",
+      "method": "GET",
+      "site": "[id].tsx:188",
+      "path": "/v1/cases/:p/matter-workspace",
+      "route": "GET /v1/cases/:id/matter-workspace",
+      "serverKeys": [
+        "assignments",
+        "case",
+        "generatedAt",
+        "notFound",
+        "risk",
+        "sections",
+        "statusHistory",
+        "viewer"
+      ],
+      "parserKeys": [
+        "sections"
+      ],
+      "verdict": "OK",
+      "why": "reads sections"
+    },
+    {
       "parser": "parseCaseNotes",
       "builder": "(literal) /v1/cases/:p/matter-workspace",
       "method": "GET",
-      "site": "[id].tsx:125",
+      "site": "[id].tsx:189",
       "path": "/v1/cases/:p/matter-workspace",
       "route": "GET /v1/cases/:id/matter-workspace",
       "serverKeys": [
@@ -94,7 +185,7 @@
       "parser": "parseCaseAssignments",
       "builder": "(literal) /v1/cases/:p/matter-workspace",
       "method": "GET",
-      "site": "[id].tsx:126",
+      "site": "[id].tsx:190",
       "path": "/v1/cases/:p/matter-workspace",
       "route": "GET /v1/cases/:id/matter-workspace",
       "serverKeys": [
@@ -117,7 +208,7 @@
       "parser": "parseCaseViewer",
       "builder": "(literal) /v1/cases/:p/matter-workspace",
       "method": "GET",
-      "site": "[id].tsx:127",
+      "site": "[id].tsx:191",
       "path": "/v1/cases/:p/matter-workspace",
       "route": "GET /v1/cases/:id/matter-workspace",
       "serverKeys": [
@@ -132,16 +223,63 @@
       ],
       "parserKeys": [
         "disabledReasons",
+        "userId",
         "viewer"
       ],
       "verdict": "OK",
       "why": "reads viewer"
     },
     {
+      "parser": "parseCaseDeliverableRows",
+      "builder": "(literal) /v1/cases/:p/matter-workspace",
+      "method": "GET",
+      "site": "[id].tsx:194",
+      "path": "/v1/cases/:p/matter-workspace",
+      "route": "GET /v1/cases/:id/matter-workspace",
+      "serverKeys": [
+        "assignments",
+        "case",
+        "generatedAt",
+        "notFound",
+        "risk",
+        "sections",
+        "statusHistory",
+        "viewer"
+      ],
+      "parserKeys": [
+        "sections"
+      ],
+      "verdict": "OK",
+      "why": "reads sections"
+    },
+    {
+      "parser": "parseCaseCopilotEvidence",
+      "builder": "(literal) /v1/cases/:p/matter-workspace",
+      "method": "GET",
+      "site": "[id].tsx:195",
+      "path": "/v1/cases/:p/matter-workspace",
+      "route": "GET /v1/cases/:id/matter-workspace",
+      "serverKeys": [
+        "assignments",
+        "case",
+        "generatedAt",
+        "notFound",
+        "risk",
+        "sections",
+        "statusHistory",
+        "viewer"
+      ],
+      "parserKeys": [
+        "sections"
+      ],
+      "verdict": "OK",
+      "why": "reads sections"
+    },
+    {
       "parser": "parseCollaborationTeamDetail",
       "builder": "(literal) /v1/collaboration-teams/:p",
       "method": "GET",
-      "site": "[id].tsx:61",
+      "site": "[id].tsx:79",
       "path": "/v1/collaboration-teams/:p",
       "route": "GET /v1/collaboration-teams/:teamId",
       "serverKeys": [
@@ -150,24 +288,115 @@
       ],
       "parserKeys": [
         "activeMemberCount",
+        "assignmentCount",
         "description",
         "id",
         "invites",
+        "memberPreviewLimit",
         "members",
         "name",
         "pendingInviteCount",
         "status",
         "team",
+        "teamType",
+        "updatedAt",
+        "viaWorkspaceGovernance",
         "viewerRole"
       ],
       "verdict": "OK",
-      "why": "reads team"
+      "why": "reads team, viaWorkspaceGovernance"
+    },
+    {
+      "parser": "parseTeamDiscussionAccess",
+      "builder": "(literal) /v1/collaboration-teams/:p",
+      "method": "GET",
+      "site": "[id].tsx:80",
+      "path": "/v1/collaboration-teams/:p",
+      "route": "GET /v1/collaboration-teams/:teamId",
+      "serverKeys": [
+        "team",
+        "viaWorkspaceGovernance"
+      ],
+      "parserKeys": [
+        "team",
+        "viaWorkspaceGovernance"
+      ],
+      "verdict": "OK",
+      "why": "reads team, viaWorkspaceGovernance"
+    },
+    {
+      "parser": "parseTeamMemberLimit",
+      "builder": "(literal) /v1/collaboration-teams/entitlement",
+      "method": "GET",
+      "site": "[id].tsx:104",
+      "path": "/v1/collaboration-teams/entitlement",
+      "route": "GET /v1/collaboration-teams/entitlement",
+      "serverKeys": [
+        "canAssignExistingMember",
+        "canCreateCollaborationTeam",
+        "canInviteWorkspaceMember",
+        "collaborationTeamMembers",
+        "collaborationTeams",
+        "exceededDimensions",
+        "featureIncluded",
+        "governance",
+        "invitations",
+        "lifecycle",
+        "mutationsAllowed",
+        "plan",
+        "upgradeHref",
+        "workspaceId",
+        "workspaceKind",
+        "workspaceSeats"
+      ],
+      "parserKeys": [
+        "collaborationTeamMembers",
+        "limit"
+      ],
+      "verdict": "OK",
+      "why": "reads collaborationTeamMembers"
+    },
+    {
+      "parser": "parseEligibleCases",
+      "builder": "buildEligibleCasesPath",
+      "method": "GET",
+      "site": "[id].tsx:266",
+      "path": "/v1/cases",
+      "route": "GET /v1/cases",
+      "serverKeys": [
+        "items"
+      ],
+      "parserKeys": [
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
+      "parser": "parseExportEligibility",
+      "builder": "buildExportEligibilityPath",
+      "method": "GET",
+      "site": "[id].tsx:351",
+      "path": "/v1/governance/export-eligibility",
+      "route": "GET /v1/governance/export-eligibility",
+      "serverKeys": [
+        "lifecycleState",
+        "outcome",
+        "reason"
+      ],
+      "parserKeys": [
+        "lifecycleState",
+        "outcome",
+        "reason"
+      ],
+      "verdict": "OK",
+      "why": "reads lifecycleState, outcome, reason"
     },
     {
       "parser": "parseEvidenceLifecycle",
       "builder": "(literal) /v1/evidence/:p",
       "method": "GET",
-      "site": "[id].tsx:228",
+      "site": "[id].tsx:415",
       "path": "/v1/evidence/:p",
       "route": "GET /v1/evidence/:id",
       "serverKeys": [
@@ -184,7 +413,7 @@
       "parser": "parseDuplicateReport",
       "builder": "buildDuplicatesPath",
       "method": "GET",
-      "site": "[id].tsx:316",
+      "site": "[id].tsx:511",
       "path": "/v1/evidence/:p/duplicates",
       "route": "GET /v1/evidence/:id/duplicates",
       "serverKeys": [
@@ -208,7 +437,7 @@
       "parser": "parseEvidencePickerRows",
       "builder": "buildLibraryQuery",
       "method": "GET",
-      "site": "[id].tsx:462",
+      "site": "[id].tsx:685",
       "path": "/v1/evidence",
       "route": "GET /v1/evidence",
       "serverKeys": [
@@ -227,7 +456,7 @@
       "parser": "parseOriginalLink",
       "builder": "buildEvidenceOriginalPath",
       "method": "GET",
-      "site": "[id].tsx:536",
+      "site": "[id].tsx:778",
       "path": "/v1/evidence/:p/original",
       "route": "GET /v1/evidence/:id/original",
       "serverKeys": [
@@ -256,31 +485,10 @@
       "why": "reads publicUrl, url"
     },
     {
-      "parser": "parseEvidenceRequestDetail",
-      "builder": "(literal) /v1/evidence-requests/:p",
-      "method": "GET",
-      "site": "[id].tsx:87",
-      "path": "/v1/evidence-requests/:p",
-      "route": "GET /v1/evidence-requests/:id",
-      "serverKeys": [
-        "request"
-      ],
-      "parserKeys": [
-        "deliverables",
-        "instructions",
-        "priority",
-        "recipientLabel",
-        "request",
-        "responses"
-      ],
-      "verdict": "OK",
-      "why": "reads request"
-    },
-    {
       "parser": "parseRequestDeliveries",
       "builder": "buildRequestDeliveriesPath",
       "method": "GET",
-      "site": "[id].tsx:98",
+      "site": "[id].tsx:118",
       "path": "/v1/evidence-requests/:p/deliveries",
       "route": "GET /v1/evidence-requests/:id/deliveries",
       "serverKeys": [
@@ -295,10 +503,35 @@
       "why": "reads deliveries"
     },
     {
+      "parser": "parseEvidenceRequestDetail",
+      "builder": "(literal) /v1/evidence-requests/:p",
+      "method": "GET",
+      "site": "[id].tsx:158",
+      "path": "/v1/evidence-requests/:p",
+      "route": "GET /v1/evidence-requests/:id",
+      "serverKeys": [
+        "request"
+      ],
+      "parserKeys": [
+        "assignedReviewerUserId",
+        "deliverables",
+        "instructions",
+        "priority",
+        "recipientLabel",
+        "recipientMode",
+        "request",
+        "requestType",
+        "responses",
+        "teamId"
+      ],
+      "verdict": "OK",
+      "why": "reads request"
+    },
+    {
       "parser": "parseRequestEvents",
       "builder": "buildRequestEventsPath",
       "method": "GET",
-      "site": "[id].tsx:101",
+      "site": "[id].tsx:172",
       "path": "/v1/evidence-requests/:p/events",
       "route": "GET /v1/evidence-requests/:id/events",
       "serverKeys": [
@@ -313,10 +546,70 @@
       "why": "reads events"
     },
     {
+      "parser": "parseWorkspaceMembers",
+      "builder": "buildWorkspaceMembersPath",
+      "method": "GET",
+      "site": "[id].tsx:181",
+      "path": "/v1/teams/:p/members",
+      "route": "GET /v1/teams/:id/members",
+      "serverKeys": [
+        "members",
+        "nextCursor",
+        "total"
+      ],
+      "parserKeys": [
+        "members",
+        "nextCursor",
+        "total"
+      ],
+      "verdict": "OK",
+      "why": "reads members, nextCursor, total"
+    },
+    {
+      "parser": "parseSendResult",
+      "builder": "buildRequestTransitionPath",
+      "method": "POST",
+      "site": "[id].tsx:271",
+      "path": "/v1/evidence-requests/:p/:p",
+      "route": "POST /v1/evidence-requests/:id/send",
+      "serverKeys": [
+        "intakeUrl",
+        "rawToken",
+        "request",
+        "warning"
+      ],
+      "parserKeys": [
+        "intakeUrl",
+        "warning"
+      ],
+      "verdict": "OK",
+      "why": "reads intakeUrl, warning"
+    },
+    {
+      "parser": "parseRequestMoreResult",
+      "builder": "buildRequestMorePath",
+      "method": "POST",
+      "site": "[id].tsx:376",
+      "path": "/v1/evidence-requests/:p/responses/:p/request-more",
+      "route": "POST /v1/evidence-requests/:id/responses/:responseId/request-more",
+      "serverKeys": [
+        "communicationMessageId",
+        "newIntakeLinkId",
+        "rawToken",
+        "response"
+      ],
+      "parserKeys": [
+        "communicationMessageId",
+        "rawToken"
+      ],
+      "verdict": "OK",
+      "why": "reads communicationMessageId, rawToken"
+    },
+    {
       "parser": "parseEvidenceRequestList",
       "builder": "(literal) /v1/evidence-requests?teamId=:p",
       "method": "GET",
-      "site": "evidence-requests.tsx:50",
+      "site": "evidence-requests.tsx:51",
       "path": "/v1/evidence-requests",
       "route": "GET /v1/evidence-requests",
       "serverKeys": [
@@ -333,7 +626,7 @@
       "parser": "parseIntakePartUpload",
       "builder": "buildIntakePartsPath",
       "method": "POST",
-      "site": "capture.tsx:112",
+      "site": "capture.tsx:209",
       "path": "/v1/external-intake/:p/sessions/:p/parts",
       "route": "POST /v1/external-intake/:token/sessions/:sid/parts",
       "serverKeys": [
@@ -344,17 +637,16 @@
         "headers",
         "part",
         "partId",
-        "uploadUrl",
-        "url"
+        "upload"
       ],
       "verdict": "OK",
-      "why": "reads part"
+      "why": "reads part, upload"
     },
     {
       "parser": "parseValidatedIntake",
       "builder": "buildIntakeValidatePath",
       "method": "GET",
-      "site": "[token].tsx:77",
+      "site": "[token].tsx:83",
       "path": "/v1/external-intake/:p",
       "route": "GET /v1/external-intake/:token",
       "serverKeys": [
@@ -371,10 +663,66 @@
       "why": "reads link, request, session"
     },
     {
-      "parser": "parseIntakeLinks",
-      "builder": "(literal) /v1/workflow/intake-links?teamId=:p",
+      "parser": "parseSenderIdentity",
+      "builder": "buildSenderIdentityPath",
       "method": "GET",
-      "site": "intake-links.tsx:75",
+      "site": "intake-link-create.tsx:116",
+      "path": "/v1/workflow/intake-links/sender-identity",
+      "route": "GET /v1/workflow/intake-links/sender-identity",
+      "serverKeys": [
+        "email",
+        "sms"
+      ],
+      "parserKeys": [
+        "email",
+        "sms"
+      ],
+      "verdict": "OK",
+      "why": "reads email, sms"
+    },
+    {
+      "parser": "parsePurposes",
+      "builder": "buildWorkflowTemplatesPath",
+      "method": "GET",
+      "site": "intake-link-create.tsx:119",
+      "path": "/v1/workflow/templates",
+      "route": "GET /v1/workflow/templates",
+      "serverKeys": [
+        "templates"
+      ],
+      "parserKeys": [
+        "find",
+        "templates"
+      ],
+      "verdict": "OK",
+      "why": "reads templates"
+    },
+    {
+      "parser": "parseCreatedIntakeLink",
+      "builder": "(literal) /v1/workflow/intake-links",
+      "method": "POST",
+      "site": "intake-link-create.tsx:191",
+      "path": "/v1/workflow/intake-links",
+      "route": "POST /v1/workflow/intake-links",
+      "serverKeys": [
+        "delivery",
+        "link",
+        "rawToken",
+        "warning"
+      ],
+      "parserKeys": [
+        "delivery",
+        "link",
+        "rawToken"
+      ],
+      "verdict": "OK",
+      "why": "reads delivery, link, rawToken"
+    },
+    {
+      "parser": "parseIntakeLinks",
+      "builder": "buildIntakeListPath",
+      "method": "GET",
+      "site": "intake-links.tsx:152",
       "path": "/v1/workflow/intake-links",
       "route": "GET /v1/workflow/intake-links",
       "serverKeys": [
@@ -391,7 +739,7 @@
       "parser": "parseIntakeSubmissions",
       "builder": "buildIntakeSubmissionsPath",
       "method": "GET",
-      "site": "intake-links.tsx:93",
+      "site": "intake-links.tsx:206",
       "path": "/v1/workflow/intake-links/:p/submissions",
       "route": "GET /v1/workflow/intake-links/:id/submissions",
       "serverKeys": [
@@ -409,7 +757,7 @@
       "parser": "parseRevealedContact",
       "builder": "buildIntakeRevealPath",
       "method": "POST",
-      "site": "intake-links.tsx:151",
+      "site": "intake-links.tsx:276",
       "path": "/v1/workflow/intake-links/:p/recipient-contact",
       "route": "POST /v1/workflow/intake-links/:id/recipient-contact",
       "serverKeys": [
@@ -444,7 +792,7 @@
       "parser": "parseLegalDocument",
       "builder": "buildLegalDocumentPath",
       "method": "GET",
-      "site": "[slug].tsx:59",
+      "site": "[slug].tsx:61",
       "path": "/v1/legal/:p",
       "route": "GET /v1/legal/:slug",
       "serverKeys": [
@@ -466,7 +814,7 @@
       "parser": "parseSessionProbe",
       "builder": "(literal) /v1/auth/session-light",
       "method": "GET",
-      "site": "mfa-recovery-verify.tsx:81",
+      "site": "mfa-recovery-verify.tsx:83",
       "path": "/v1/auth/session-light",
       "route": "GET /v1/auth/session-light",
       "serverKeys": [
@@ -482,7 +830,7 @@
       "parser": "parseBatchJobs",
       "builder": "(literal) /v1/batch-analysis",
       "method": "GET",
-      "site": "batch-analysis.tsx:197",
+      "site": "batch-analysis.tsx:256",
       "path": "/v1/batch-analysis",
       "route": "GET /v1/batch-analysis",
       "serverKeys": [
@@ -495,10 +843,190 @@
       "why": "reads data"
     },
     {
+      "parser": "parseHealth",
+      "builder": "buildWorkspaceHealthPath",
+      "method": "GET",
+      "site": "health.tsx:69",
+      "path": "/v1/teams/:p/operations/health",
+      "route": "GET /v1/teams/:workspaceId/operations/health",
+      "serverKeys": [
+        "evaluatedAtUtc",
+        "lastIncidentActivityUtc",
+        "openIncidents",
+        "scope",
+        "state",
+        "unresolvedIncidents",
+        "workspaceId"
+      ],
+      "parserKeys": [
+        "evaluatedAtUtc",
+        "lastIncidentActivityUtc",
+        "openIncidents",
+        "state",
+        "unresolvedIncidents"
+      ],
+      "verdict": "OK",
+      "why": "reads evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, state, unresolvedIncidents"
+    },
+    {
+      "parser": "parseAlerts",
+      "builder": "buildWorkspaceAlertsPath",
+      "method": "GET",
+      "site": "health.tsx:74",
+      "path": "/v1/teams/:p/operations/alerts",
+      "route": "GET /v1/teams/:workspaceId/operations/alerts",
+      "serverKeys": [
+        "counts",
+        "evaluatedAtUtc",
+        "items",
+        "scope",
+        "workspaceId"
+      ],
+      "parserKeys": [
+        "evaluatedAtUtc",
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads evaluatedAtUtc, items"
+    },
+    {
+      "parser": "parseSummary",
+      "builder": "buildOpsSummaryPath",
+      "method": "GET",
+      "site": "index.tsx:208",
+      "path": "/v1/ops/summary",
+      "route": "GET /v1/ops/summary",
+      "serverKeys": [
+        "summary",
+        "workspace"
+      ],
+      "parserKeys": [
+        "summary",
+        "workspace"
+      ],
+      "verdict": "OK",
+      "why": "reads summary, workspace"
+    },
+    {
+      "parser": "parseIncidentsPage",
+      "builder": "buildOpsIncidentsPath",
+      "method": "GET",
+      "site": "index.tsx:233",
+      "path": "/v1/ops/incidents",
+      "route": "GET /v1/ops/incidents",
+      "serverKeys": [
+        "completeness",
+        "incidents",
+        "pagination",
+        "sla"
+      ],
+      "parserKeys": [
+        "completeness",
+        "incidents",
+        "pagination",
+        "sla"
+      ],
+      "verdict": "OK",
+      "why": "reads completeness, incidents, pagination, sla"
+    },
+    {
+      "parser": "parseGroups",
+      "builder": "buildOpsGroupsPath",
+      "method": "GET",
+      "site": "index.tsx:264",
+      "path": "/v1/ops/incident-groups",
+      "route": "GET /v1/ops/incident-groups",
+      "serverKeys": [
+        "completeness",
+        "conservation",
+        "groups",
+        "sla",
+        "totals"
+      ],
+      "parserKeys": [
+        "groups",
+        "totals"
+      ],
+      "verdict": "OK",
+      "why": "reads groups, totals"
+    },
+    {
+      "parser": "parseOperators",
+      "builder": "buildOpsOperatorsPath",
+      "method": "GET",
+      "site": "index.tsx:289",
+      "path": "/v1/ops/assignable-operators",
+      "route": "GET /v1/ops/assignable-operators",
+      "serverKeys": [
+        "operators",
+        "selfUserId"
+      ],
+      "parserKeys": [
+        "operators",
+        "selfUserId"
+      ],
+      "verdict": "OK",
+      "why": "reads operators, selfUserId"
+    },
+    {
+      "parser": "parseOpsSavedViews",
+      "builder": "buildOpsSavedViewsPath",
+      "method": "GET",
+      "site": "index.tsx:300",
+      "path": "/v1/ops/saved-views",
+      "route": "GET /v1/ops/saved-views",
+      "serverKeys": [
+        "views"
+      ],
+      "parserKeys": [
+        "views"
+      ],
+      "verdict": "OK",
+      "why": "reads views"
+    },
+    {
+      "parser": "parseIncidentDetail",
+      "builder": "buildOpsIncidentPath",
+      "method": "GET",
+      "site": "index.tsx:1147",
+      "path": "/v1/ops/incidents/:p",
+      "route": "GET /v1/ops/incidents/:id",
+      "serverKeys": [
+        "incident",
+        "remediation"
+      ],
+      "parserKeys": [
+        "incident",
+        "remediation"
+      ],
+      "verdict": "OK",
+      "why": "reads incident, remediation"
+    },
+    {
+      "parser": "parseAffected",
+      "builder": "buildOpsGroupAffectedPath",
+      "method": "GET",
+      "site": "index.tsx:1415",
+      "path": "/v1/ops/incident-groups/:p/affected",
+      "route": "GET /v1/ops/incident-groups/:groupKey/affected",
+      "serverKeys": [
+        "completeness",
+        "groupKey",
+        "pagination",
+        "records"
+      ],
+      "parserKeys": [
+        "pagination",
+        "records"
+      ],
+      "verdict": "OK",
+      "why": "reads pagination, records"
+    },
+    {
       "parser": "parseQuotas",
       "builder": "(literal) /v1/quotas",
       "method": "GET",
-      "site": "quotas.tsx:119",
+      "site": "quotas.tsx:145",
       "path": "/v1/quotas",
       "route": "GET /v1/quotas",
       "serverKeys": [
@@ -515,7 +1043,7 @@
       "parser": "parseUsageStats",
       "builder": "(literal) /v1/usage-stats",
       "method": "GET",
-      "site": "quotas.tsx:122",
+      "site": "quotas.tsx:148",
       "path": "/v1/usage-stats",
       "route": "GET /v1/usage-stats",
       "serverKeys": [
@@ -530,10 +1058,30 @@
       "why": "reads data"
     },
     {
+      "parser": "parseUsageExtras",
+      "builder": "(literal) /v1/usage-stats",
+      "method": "GET",
+      "site": "quotas.tsx:148",
+      "path": "/v1/usage-stats",
+      "route": "GET /v1/usage-stats",
+      "serverKeys": [
+        "data"
+      ],
+      "parserKeys": [
+        "activeApiKeys",
+        "activeBatches",
+        "costBreakdown",
+        "data",
+        "topEvidenceTypes"
+      ],
+      "verdict": "OK",
+      "why": "reads data"
+    },
+    {
       "parser": "parseOrgInviteAccept",
       "builder": "(literal) /v1/org-invites/:p/accept",
       "method": "POST",
-      "site": "[token].tsx:77",
+      "site": "[token].tsx:91",
       "path": "/v1/org-invites/:p/accept",
       "route": "POST /v1/org-invites/:token/accept",
       "serverKeys": [
@@ -558,7 +1106,7 @@
       "parser": "parseMyOrgs",
       "builder": "(literal) /v1/me/orgs",
       "method": "GET",
-      "site": "index.tsx:57",
+      "site": "index.tsx:63",
       "path": "/v1/me/orgs",
       "route": "GET /v1/me/orgs",
       "serverKeys": [
@@ -575,7 +1123,7 @@
       "parser": "parseMyOrgsTotal",
       "builder": "(literal) /v1/me/orgs",
       "method": "GET",
-      "site": "index.tsx:57",
+      "site": "index.tsx:63",
       "path": "/v1/me/orgs",
       "route": "GET /v1/me/orgs",
       "serverKeys": [
@@ -592,7 +1140,7 @@
       "parser": "parseOrgDetail",
       "builder": "buildOrgPath",
       "method": "GET",
-      "site": "[id].tsx:122",
+      "site": "[id].tsx:163",
       "path": "/v1/orgs/:p",
       "route": "GET /v1/orgs/:id",
       "serverKeys": [
@@ -615,45 +1163,34 @@
         "verifiedAtUtc"
       ],
       "parserKeys": [
+        "address",
         "callerRole",
         "createdAt",
         "id",
         "legalEmail",
         "legalName",
+        "logoUrl",
+        "memberCount",
         "name",
         "organization",
+        "organizationId",
+        "pendingInviteCount",
         "status",
+        "summary",
         "timezone",
         "verificationState",
         "verifiedAt",
-        "verifiedAtUtc"
+        "verifiedAtUtc",
+        "workspaceCount"
       ],
       "verdict": "OK",
-      "why": "reads callerRole, createdAt, legalEmail, legalName, name, status, timezone, verificationState, verifiedAtUtc"
-    },
-    {
-      "parser": "parseOrgMembers",
-      "builder": "buildOrgMembersPath",
-      "method": "GET",
-      "site": "[id].tsx:139",
-      "path": "/v1/orgs/:p/members",
-      "route": "GET /v1/orgs/:id/members",
-      "serverKeys": [
-        "members",
-        "organizationId",
-        "summary"
-      ],
-      "parserKeys": [
-        "members"
-      ],
-      "verdict": "OK",
-      "why": "reads members"
+      "why": "reads address, callerRole, createdAt, legalEmail, legalName, logoUrl, name, organizationId, status, summary, timezone, verificationState, verifiedAtUtc"
     },
     {
       "parser": "parseOrgWorkspaces",
       "builder": "buildOrgWorkspacesPath",
       "method": "GET",
-      "site": "[id].tsx:142",
+      "site": "[id].tsx:176",
       "path": "/v1/orgs/:p/workspaces",
       "route": "GET /v1/orgs/:id/workspaces",
       "serverKeys": [
@@ -670,10 +1207,65 @@
       "why": "reads workspaces"
     },
     {
+      "parser": "parseOrgWorkspacesCanSeeBilling",
+      "builder": "buildOrgWorkspacesPath",
+      "method": "GET",
+      "site": "[id].tsx:177",
+      "path": "/v1/orgs/:p/workspaces",
+      "route": "GET /v1/orgs/:id/workspaces",
+      "serverKeys": [
+        "callerCanSeeBilling",
+        "organizationId",
+        "summary",
+        "workspaces"
+      ],
+      "parserKeys": [
+        "callerCanSeeBilling"
+      ],
+      "verdict": "OK",
+      "why": "reads callerCanSeeBilling"
+    },
+    {
+      "parser": "parseOrgMembers",
+      "builder": "buildOrgMembersPath",
+      "method": "GET",
+      "site": "[id].tsx:213",
+      "path": "/v1/orgs/:p/members",
+      "route": "GET /v1/orgs/:id/members",
+      "serverKeys": [
+        "members",
+        "organizationId",
+        "summary"
+      ],
+      "parserKeys": [
+        "members"
+      ],
+      "verdict": "OK",
+      "why": "reads members"
+    },
+    {
+      "parser": "parseOrgPendingInviteTotal",
+      "builder": "buildOrgInvitesPath",
+      "method": "GET",
+      "site": "[id].tsx:221",
+      "path": "/v1/orgs/:p/invites",
+      "route": "GET /v1/orgs/:id/invites",
+      "serverKeys": [
+        "invites",
+        "organizationId",
+        "summary"
+      ],
+      "parserKeys": [
+        "summary"
+      ],
+      "verdict": "OK",
+      "why": "reads summary"
+    },
+    {
       "parser": "parseOrgAuditPage",
       "builder": "buildOrgAuditPath",
       "method": "GET",
-      "site": "[id].tsx:149",
+      "site": "[id].tsx:225",
       "path": "/v1/orgs/:p/audit-events",
       "route": "GET /v1/orgs/:id/audit-events",
       "serverKeys": [
@@ -693,7 +1285,7 @@
       "parser": "parseClosureState",
       "builder": "buildOrgClosurePath",
       "method": "GET",
-      "site": "[id].tsx:157",
+      "site": "[id].tsx:233",
       "path": "/v1/orgs/:p/closure",
       "route": "GET /v1/orgs/:id/closure",
       "serverKeys": [
@@ -715,7 +1307,7 @@
       "parser": "parsePortalComments",
       "builder": "buildPortalCommentsPath",
       "method": "GET",
-      "site": "[workflowId].tsx:80",
+      "site": "[workflowId].tsx:109",
       "path": "/v1/portal/work/:p/comments",
       "route": "GET /v1/portal/work/:workflowId/comments",
       "serverKeys": [
@@ -728,10 +1320,26 @@
       "why": "reads comments"
     },
     {
+      "parser": "parsePortalRecordedDecision",
+      "builder": "buildPortalDecisionsPath",
+      "method": "GET",
+      "site": "[workflowId].tsx:123",
+      "path": "/v1/portal/work/:p/decisions",
+      "route": "GET /v1/portal/work/:workflowId/decisions",
+      "serverKeys": [
+        "decisions"
+      ],
+      "parserKeys": [
+        "decisions"
+      ],
+      "verdict": "OK",
+      "why": "reads decisions"
+    },
+    {
       "parser": "parsePortalDashboard",
       "builder": "(literal) /v1/portal/dashboard",
       "method": "GET",
-      "site": "[token].tsx:80",
+      "site": "[workflowId].tsx:153",
       "path": "/v1/portal/dashboard",
       "route": "GET /v1/portal/dashboard",
       "serverKeys": [
@@ -752,7 +1360,7 @@
       "parser": "parsePortalAuth",
       "builder": "(literal) /v1/portal/auth",
       "method": "POST",
-      "site": "[token].tsx:112",
+      "site": "[token].tsx:152",
       "path": "/v1/portal/auth",
       "route": "POST /v1/portal/auth",
       "serverKeys": [
@@ -773,34 +1381,66 @@
       "why": "reads expiresAtUtc, newLogin, reviewerEmail, role, sessionId"
     },
     {
-      "parser": "parseReportUrl",
-      "builder": "buildReportLatestPath",
+      "parser": "parseReportsSummary",
+      "builder": "buildReportsSummaryPath",
       "method": "GET",
-      "site": "reports.tsx:71",
-      "path": "/v1/evidence/:p/report/latest",
-      "route": "GET /v1/evidence/:id/report/latest",
+      "site": "reports.tsx:96",
+      "path": "/v1/reports/artifacts",
+      "route": "GET /v1/reports/artifacts",
       "serverKeys": [
-        "bucket",
-        "evidenceId",
-        "generatedAtUtc",
-        "key",
-        "reviewerSnapshot",
-        "snapshots",
-        "storage",
-        "url",
-        "version"
+        "generatedAt",
+        "sections",
+        "workspace"
       ],
       "parserKeys": [
-        "url"
+        "data",
+        "sections",
+        "status"
       ],
       "verdict": "OK",
-      "why": "reads url"
+      "why": "reads sections"
+    },
+    {
+      "parser": "parseUserScopedReports",
+      "builder": "(literal) /v1/reports",
+      "method": "GET",
+      "site": "reports.tsx:136",
+      "path": "/v1/reports",
+      "route": "GET /v1/reports",
+      "serverKeys": [
+        "items",
+        "nextCursor"
+      ],
+      "parserKeys": [
+        "items",
+        "nextCursor"
+      ],
+      "verdict": "OK",
+      "why": "reads items, nextCursor"
+    },
+    {
+      "parser": "parseUserScopedReports",
+      "builder": "(literal) /v1/reports?cursor=:p",
+      "method": "GET",
+      "site": "reports.tsx:149",
+      "path": "/v1/reports",
+      "route": "GET /v1/reports",
+      "serverKeys": [
+        "items",
+        "nextCursor"
+      ],
+      "parserKeys": [
+        "items",
+        "nextCursor"
+      ],
+      "verdict": "OK",
+      "why": "reads items, nextCursor"
     },
     {
       "parser": "parseArtifacts",
       "builder": "buildReportsPath",
       "method": "GET",
-      "site": "reports.tsx:104",
+      "site": "reports.tsx:159",
       "path": "/v1/reports/artifacts",
       "route": "GET /v1/reports/artifacts",
       "serverKeys": [
@@ -819,10 +1459,10 @@
       "why": "reads sections"
     },
     {
-      "parser": "parseReportsSummary",
+      "parser": "parseGeneratedAt",
       "builder": "buildReportsPath",
       "method": "GET",
-      "site": "reports.tsx:107",
+      "site": "reports.tsx:160",
       "path": "/v1/reports/artifacts",
       "route": "GET /v1/reports/artifacts",
       "serverKeys": [
@@ -831,18 +1471,61 @@
         "workspace"
       ],
       "parserKeys": [
-        "data",
-        "sections",
-        "status"
+        "generatedAt"
       ],
       "verdict": "OK",
-      "why": "reads sections"
+      "why": "reads generatedAt"
+    },
+    {
+      "parser": "parseSearchReadiness",
+      "builder": "buildSearchDiagnosticsPath",
+      "method": "GET",
+      "site": "search.tsx:171",
+      "path": "/v1/search/diagnostics",
+      "route": "GET /v1/search/diagnostics",
+      "serverKeys": [
+        "evidence",
+        "health",
+        "index",
+        "queryProbe",
+        "readiness",
+        "runtime",
+        "workspace"
+      ],
+      "parserKeys": [
+        "readiness"
+      ],
+      "verdict": "OK",
+      "why": "reads readiness"
+    },
+    {
+      "parser": "parseSearchDiagnosticsContext",
+      "builder": "buildSearchDiagnosticsPath",
+      "method": "GET",
+      "site": "search.tsx:172",
+      "path": "/v1/search/diagnostics",
+      "route": "GET /v1/search/diagnostics",
+      "serverKeys": [
+        "evidence",
+        "health",
+        "index",
+        "queryProbe",
+        "readiness",
+        "runtime",
+        "workspace"
+      ],
+      "parserKeys": [
+        "queryProbe",
+        "workspace"
+      ],
+      "verdict": "OK",
+      "why": "reads queryProbe, workspace"
     },
     {
       "parser": "parseSearchResponse",
       "builder": "buildSearchPath",
       "method": "GET",
-      "site": "search.tsx:108",
+      "site": "search.tsx:256",
       "path": "/v1/search",
       "route": "GET /v1/search",
       "serverKeys": [
@@ -856,18 +1539,20 @@
         "totalReturned"
       ],
       "parserKeys": [
+        "filteredByGovernance",
+        "filteredByVisibility",
         "nextCursor",
         "rows",
-        "total"
+        "totalReturned"
       ],
       "verdict": "OK",
-      "why": "reads nextCursor, rows"
+      "why": "reads filteredByGovernance, filteredByVisibility, nextCursor, rows, totalReturned"
     },
     {
-      "parser": "parseSearchRuntime",
+      "parser": "parseSearchModeUsed",
       "builder": "buildSearchPath",
       "method": "GET",
-      "site": "search.tsx:112",
+      "site": "search.tsx:260",
       "path": "/v1/search",
       "route": "GET /v1/search",
       "serverKeys": [
@@ -881,35 +1566,48 @@
         "totalReturned"
       ],
       "parserKeys": [
-        "fallbackReason",
-        "modeUsed",
-        "semanticAvailable"
+        "modeUsed"
       ],
       "verdict": "OK",
-      "why": "reads fallbackReason, modeUsed, semanticAvailable"
+      "why": "reads modeUsed"
     },
     {
-      "parser": "parseSuggestions",
+      "parser": "parseSuggestionRows",
       "builder": "buildSuggestPath",
       "method": "GET",
-      "site": "search.tsx:143",
+      "site": "search.tsx:347",
       "path": "/v1/search/suggest",
       "route": "GET /v1/search/suggest",
       "serverKeys": [
         "suggestions"
       ],
       "parserKeys": [
-        "items",
         "suggestions"
       ],
       "verdict": "OK",
       "why": "reads suggestions"
     },
     {
+      "parser": "parseSavedViews",
+      "builder": "(literal) /v1/search/saved-views?teamId=:p",
+      "method": "GET",
+      "site": "search.tsx:363",
+      "path": "/v1/search/saved-views",
+      "route": "GET /v1/search/saved-views",
+      "serverKeys": [
+        "views"
+      ],
+      "parserKeys": [
+        "views"
+      ],
+      "verdict": "OK",
+      "why": "reads views"
+    },
+    {
       "parser": "parseAiAssistanceSettings",
       "builder": "buildAiAssistanceStatusPath",
       "method": "GET",
-      "site": "ai.tsx:65",
+      "site": "ai.tsx:81",
       "path": "/v1/workspaces/ai-assistance-status",
       "route": "GET /v1/teams/ai-assistance-status",
       "serverKeys": [
@@ -933,7 +1631,7 @@
       "parser": "parsePreferences",
       "builder": "buildPreferencesPath",
       "method": "GET",
-      "site": "notifications.tsx:87",
+      "site": "notifications.tsx:104",
       "path": "/v1/me/notification-preferences",
       "route": "GET /v1/me/notification-preferences",
       "serverKeys": [
@@ -965,7 +1663,7 @@
       "parser": "parseSchedule",
       "builder": "buildSchedulePath",
       "method": "GET",
-      "site": "notifications.tsx:91",
+      "site": "notifications.tsx:108",
       "path": "/v1/me/notification-schedule",
       "route": "GET /v1/me/notification-schedule",
       "serverKeys": [
@@ -987,7 +1685,7 @@
       "parser": "parseCriteriaSets",
       "builder": "buildCriteriaPath",
       "method": "GET",
-      "site": "reviewer-criteria.tsx:106",
+      "site": "reviewer-criteria.tsx:105",
       "path": "/v1/reviewer-criteria",
       "route": "GET /v1/reviewer-criteria",
       "serverKeys": [
@@ -1001,27 +1699,26 @@
       "why": "reads sets"
     },
     {
-      "parser": "parseCriteriaUsage",
-      "builder": "buildCriteriaUsagePath",
-      "method": "GET",
-      "site": "reviewer-criteria.tsx:131",
-      "path": "/v1/reviewer-criteria/:p/usage",
-      "route": "GET /v1/reviewer-criteria/:setId/usage",
+      "parser": "parseRecoveryCodes",
+      "builder": "(literal) /v1/identity/mfa/recovery-codes/regenerate",
+      "method": "POST",
+      "site": "security.tsx:233",
+      "path": "/v1/identity/mfa/recovery-codes/regenerate",
+      "route": "POST /v1/identity/mfa/recovery-codes/regenerate",
       "serverKeys": [
-        "usage",
-        "usageAvailable"
+        "recoveryCodes"
       ],
       "parserKeys": [
-        "usage"
+        "recoveryCodes"
       ],
       "verdict": "OK",
-      "why": "reads usage"
+      "why": "reads recoveryCodes"
     },
     {
       "parser": "parseTrustArticles",
       "builder": "buildTrustArticlesPath",
       "method": "GET",
-      "site": "trust-center.tsx:62",
+      "site": "trust-center.tsx:68",
       "path": "/v1/trust/articles",
       "route": "GET /v1/trust/articles",
       "serverKeys": [
@@ -1042,7 +1739,7 @@
       "parser": "parseTrustArticleVersions",
       "builder": "buildTrustArticleVersionsPath",
       "method": "GET",
-      "site": "trust-center.tsx:92",
+      "site": "trust-center.tsx:98",
       "path": "/v1/trust/articles/:p/versions",
       "route": "GET /v1/trust/articles/:id/versions",
       "serverKeys": [
@@ -1058,7 +1755,7 @@
       "parser": "parseWorkspaceInvites",
       "builder": "buildWorkspaceInvitesPath",
       "method": "GET",
-      "site": "workspace-people.tsx:162",
+      "site": "workspace-people.tsx:190",
       "path": "/v1/teams/:p/invites",
       "route": "GET /v1/teams/:id/invites",
       "serverKeys": [
@@ -1071,10 +1768,52 @@
       "why": "reads invites"
     },
     {
+      "parser": "parseWorkspaceOverview",
+      "builder": "buildWorkspacePath",
+      "method": "GET",
+      "site": "workspace-people.tsx:207",
+      "path": "/v1/teams/:p",
+      "route": "GET /v1/teams/:id",
+      "serverKeys": [
+        "<SPREAD>",
+        "address",
+        "billingOwnerUserId",
+        "canManageMembers",
+        "canManageWorkspace",
+        "currentUserRole",
+        "effectivePlan",
+        "id",
+        "legalEmail",
+        "legalName",
+        "logoUrl",
+        "memberPage",
+        "members",
+        "name",
+        "ownerUserId",
+        "retentionPolicy",
+        "stats",
+        "timezone"
+      ],
+      "parserKeys": [
+        "canManageMembers",
+        "canManageWorkspace",
+        "currentUserRole",
+        "effectivePlan",
+        "id",
+        "memberPage",
+        "members",
+        "name",
+        "ownerUserId",
+        "stats"
+      ],
+      "verdict": "OK",
+      "why": "reads canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, memberPage, members, name, ownerUserId, stats"
+    },
+    {
       "parser": "parseWorkspaceCases",
       "builder": "buildWorkspaceCasesPath",
       "method": "GET",
-      "site": "workspace-people.tsx:174",
+      "site": "workspace-people.tsx:223",
       "path": "/v1/teams/:p/cases",
       "route": "GET /v1/teams/:id/cases",
       "serverKeys": [
@@ -1090,7 +1829,7 @@
       "parser": "parseWorkspaceActivity",
       "builder": "buildWorkspaceActivityPath",
       "method": "GET",
-      "site": "workspace-people.tsx:177",
+      "site": "workspace-people.tsx:226",
       "path": "/v1/teams/:p/activity",
       "route": "GET /v1/teams/:id/activity",
       "serverKeys": [
@@ -1103,53 +1842,10 @@
       "why": "reads activities"
     },
     {
-      "parser": "parseClosureState",
-      "builder": "buildWorkspaceClosurePath",
-      "method": "GET",
-      "site": "workspace-people.tsx:182",
-      "path": "/v1/teams/:p/closure",
-      "route": "GET /v1/teams/:id/closure",
-      "serverKeys": [
-        "blockers",
-        "confirmationPhrase",
-        "coolingOffDays",
-        "membersLosingAccess",
-        "request"
-      ],
-      "parserKeys": [
-        "blockers",
-        "confirmationPhrase",
-        "coolingOffDays",
-        "request"
-      ],
-      "verdict": "OK",
-      "why": "reads blockers, confirmationPhrase, coolingOffDays, request"
-    },
-    {
-      "parser": "parseWorkspaceMembers",
-      "builder": "buildWorkspaceMembersPath",
-      "method": "GET",
-      "site": "workspace-people.tsx:198",
-      "path": "/v1/teams/:p/members",
-      "route": "GET /v1/teams/:id/members",
-      "serverKeys": [
-        "members",
-        "nextCursor",
-        "total"
-      ],
-      "parserKeys": [
-        "members",
-        "nextCursor",
-        "total"
-      ],
-      "verdict": "OK",
-      "why": "reads members, nextCursor, total"
-    },
-    {
       "parser": "parseWorkspaceCases",
       "builder": "(literal) /v1/cases",
       "method": "GET",
-      "site": "workspace-people.tsx:310",
+      "site": "workspace-people.tsx:394",
       "path": "/v1/cases",
       "route": "GET /v1/cases",
       "serverKeys": [
@@ -1162,46 +1858,31 @@
       "why": "reads items"
     },
     {
-      "parser": "parseCasesSummary",
-      "builder": "buildCasesSummaryPath",
+      "parser": "parseMatterQueue",
+      "builder": "buildMatterQueuePath",
       "method": "GET",
-      "site": "cases.tsx:101",
-      "path": "/v1/cases/summary",
-      "route": "GET /v1/cases/summary",
+      "site": "cases.tsx:112",
+      "path": "/v1/cases/matter-queue",
+      "route": "GET /v1/cases/matter-queue",
       "serverKeys": [
         "generatedAt",
-        "sections",
+        "items",
+        "total",
         "workspace"
       ],
       "parserKeys": [
-        "data",
-        "sections",
-        "status"
+        "generatedAt",
+        "items",
+        "total"
       ],
       "verdict": "OK",
-      "why": "reads sections"
-    },
-    {
-      "parser": "parseSavedViews",
-      "builder": "(literal) /v1/evidence/saved-views",
-      "method": "GET",
-      "site": "evidence.tsx:595",
-      "path": "/v1/evidence/saved-views",
-      "route": "GET /v1/evidence/saved-views",
-      "serverKeys": [
-        "items"
-      ],
-      "parserKeys": [
-        "items"
-      ],
-      "verdict": "OK",
-      "why": "reads items"
+      "why": "reads generatedAt, items, total"
     },
     {
       "parser": "parseEvidenceBulkResponse",
       "builder": "(literal) /v1/evidence/bulk",
       "method": "POST",
-      "site": "evidence.tsx:827",
+      "site": "evidence.tsx:425",
       "path": "/v1/evidence/bulk",
       "route": "POST /v1/evidence/bulk",
       "serverKeys": [
@@ -1227,10 +1908,48 @@
       "why": "reads csv, failedCount, fileName, results, successCount"
     },
     {
-      "parser": "parseCollaborationTeams",
-      "builder": "(literal) /v1/collaboration-teams",
+      "parser": "parseInboxEnvelope",
+      "builder": "buildInboxQueryPath",
       "method": "GET",
-      "site": "teams.tsx:70",
+      "site": "notifications.tsx:103",
+      "path": "/v1/me/inbox",
+      "route": "GET /v1/me/inbox",
+      "serverKeys": [
+        "anyTruncated",
+        "caller",
+        "completeness",
+        "degraded",
+        "degradedSources",
+        "generatedAt",
+        "historyAvailable",
+        "historyKind",
+        "isOperationsLifecycleHistory",
+        "items",
+        "metricSummary",
+        "pagination",
+        "scopeSummary",
+        "summary",
+        "truncated"
+      ],
+      "parserKeys": [
+        "anyTruncated",
+        "completeness",
+        "historyAvailable",
+        "items",
+        "metricSummary",
+        "pagination",
+        "scopeSummary",
+        "summary",
+        "truncated"
+      ],
+      "verdict": "OK",
+      "why": "reads anyTruncated, completeness, historyAvailable, items, metricSummary, pagination, scopeSummary, summary, truncated"
+    },
+    {
+      "parser": "parseCollaborationTeams",
+      "builder": "buildCollaborationTeamsPath",
+      "method": "GET",
+      "site": "teams.tsx:126",
       "path": "/v1/collaboration-teams",
       "route": "GET /v1/collaboration-teams",
       "serverKeys": [
@@ -1249,10 +1968,85 @@
       "why": "reads teams"
     },
     {
-      "parser": "parseCollaborationNextCursor",
-      "builder": "(literal) /v1/collaboration-teams",
+      "parser": "parseCanGovernWorkspace",
+      "builder": "buildCollaborationTeamsPath",
       "method": "GET",
-      "site": "teams.tsx:72",
+      "site": "teams.tsx:127",
+      "path": "/v1/collaboration-teams",
+      "route": "GET /v1/collaboration-teams",
+      "serverKeys": [
+        "canGovernWorkspace",
+        "nextCursor",
+        "rollup",
+        "scope",
+        "teams",
+        "totalActive",
+        "workspaceTotalActive"
+      ],
+      "parserKeys": [
+        "canGovernWorkspace"
+      ],
+      "verdict": "OK",
+      "why": "reads canGovernWorkspace"
+    },
+    {
+      "parser": "parseGrantedScope",
+      "builder": "buildCollaborationTeamsPath",
+      "method": "GET",
+      "site": "teams.tsx:135",
+      "path": "/v1/collaboration-teams",
+      "route": "GET /v1/collaboration-teams",
+      "serverKeys": [
+        "canGovernWorkspace",
+        "nextCursor",
+        "rollup",
+        "scope",
+        "teams",
+        "totalActive",
+        "workspaceTotalActive"
+      ],
+      "parserKeys": [
+        "scope"
+      ],
+      "verdict": "OK",
+      "why": "reads scope"
+    },
+    {
+      "parser": "parseCollaborationRollup",
+      "builder": "buildCollaborationTeamsPath",
+      "method": "GET",
+      "site": "teams.tsx:138",
+      "path": "/v1/collaboration-teams",
+      "route": "GET /v1/collaboration-teams",
+      "serverKeys": [
+        "canGovernWorkspace",
+        "nextCursor",
+        "rollup",
+        "scope",
+        "teams",
+        "totalActive",
+        "workspaceTotalActive"
+      ],
+      "parserKeys": [
+        "active",
+        "attention",
+        "busiest",
+        "highPriority",
+        "open",
+        "overdue",
+        "people",
+        "rollup",
+        "unassigned",
+        "withOpenWork"
+      ],
+      "verdict": "OK",
+      "why": "reads rollup"
+    },
+    {
+      "parser": "parseCollaborationNextCursor",
+      "builder": "buildCollaborationTeamsPath",
+      "method": "GET",
+      "site": "teams.tsx:139",
       "path": "/v1/collaboration-teams",
       "route": "GET /v1/collaboration-teams",
       "serverKeys": [
@@ -1274,7 +2068,7 @@
       "parser": "parseCollaborationEntitlement",
       "builder": "(literal) /v1/collaboration-teams/entitlement",
       "method": "GET",
-      "site": "teams.tsx:99",
+      "site": "teams.tsx:166",
       "path": "/v1/collaboration-teams/entitlement",
       "route": "GET /v1/collaboration-teams/entitlement",
       "serverKeys": [
@@ -1298,18 +2092,175 @@
       "parserKeys": [
         "canCreateCollaborationTeam",
         "canInviteWorkspaceMember",
+        "collaborationTeams",
         "exceededDimensions",
-        "planLocked",
-        "teams"
+        "featureIncluded",
+        "mutationsAllowed",
+        "plan"
       ],
       "verdict": "OK",
-      "why": "reads canCreateCollaborationTeam, canInviteWorkspaceMember, exceededDimensions"
+      "why": "reads canCreateCollaborationTeam, canInviteWorkspaceMember, collaborationTeams, exceededDimensions, featureIncluded, mutationsAllowed, plan"
+    },
+    {
+      "parser": "parseCreatedTeamId",
+      "builder": "(literal) /v1/collaboration-teams",
+      "method": "POST",
+      "site": "teams.tsx:197",
+      "path": "/v1/collaboration-teams",
+      "route": "POST /v1/collaboration-teams",
+      "serverKeys": [
+        "team"
+      ],
+      "parserKeys": [
+        "id",
+        "team"
+      ],
+      "verdict": "OK",
+      "why": "reads team"
+    },
+    {
+      "parser": "parseAiCapabilities",
+      "builder": "buildAiCapabilitiesPath",
+      "method": "GET",
+      "site": "ai-capability-status.tsx:37",
+      "path": "/v1/workspaces/ai-policy",
+      "route": "GET /v1/teams/ai-policy",
+      "serverKeys": [
+        "assistance",
+        "capabilities",
+        "hasExplicitPolicy",
+        "lastModifiedAtUtc",
+        "lastModifiedByUserId",
+        "policy",
+        "version"
+      ],
+      "parserKeys": [
+        "capabilities"
+      ],
+      "verdict": "OK",
+      "why": "reads capabilities"
+    },
+    {
+      "parser": "parseAiCategorization",
+      "builder": "buildAiCategorizationPath",
+      "method": "GET",
+      "site": "ai-categorization.tsx:47",
+      "path": "/v1/evidence/:p/ai-categorization",
+      "route": "GET /v1/evidence/:id/ai-categorization",
+      "serverKeys": [
+        "categorization"
+      ],
+      "parserKeys": [
+        "categories",
+        "categorization",
+        "model",
+        "riskFlags",
+        "status",
+        "suggestedTags",
+        "summary",
+        "updatedAt"
+      ],
+      "verdict": "OK",
+      "why": "reads categorization"
+    },
+    {
+      "parser": "parseAiCategorization",
+      "builder": "buildAiCategorizationRunPath",
+      "method": "POST",
+      "site": "ai-categorization.tsx:64",
+      "path": "/v1/evidence/:p/ai-categorization/run",
+      "route": "POST /v1/evidence/:id/ai-categorization/run",
+      "serverKeys": [
+        "categorization"
+      ],
+      "parserKeys": [
+        "categories",
+        "categorization",
+        "model",
+        "riskFlags",
+        "status",
+        "suggestedTags",
+        "summary",
+        "updatedAt"
+      ],
+      "verdict": "OK",
+      "why": "reads categorization"
+    },
+    {
+      "parser": "parseAiPolicyEnvelope",
+      "builder": "buildAiPolicyPath",
+      "method": "GET",
+      "site": "ai-policy-editor.tsx:135",
+      "path": "/v1/workspaces/ai-policy",
+      "route": "GET /v1/teams/ai-policy",
+      "serverKeys": [
+        "assistance",
+        "capabilities",
+        "hasExplicitPolicy",
+        "lastModifiedAtUtc",
+        "lastModifiedByUserId",
+        "policy",
+        "version"
+      ],
+      "parserKeys": [
+        "hasExplicitPolicy",
+        "lastModifiedAtUtc",
+        "policy",
+        "version"
+      ],
+      "verdict": "OK",
+      "why": "reads hasExplicitPolicy, lastModifiedAtUtc, policy, version"
+    },
+    {
+      "parser": "parseAiUsage",
+      "builder": "buildAiUsagePath",
+      "method": "GET",
+      "site": "ai-policy-editor.tsx:154",
+      "path": "/v1/workspaces/ai-usage",
+      "route": "GET /v1/teams/ai-usage",
+      "serverKeys": [
+        "allowance",
+        "blockedProhibitedClaims",
+        "copilotRuns",
+        "daily",
+        "dayUtc",
+        "ledgerAvailable",
+        "monthUtc",
+        "monthly"
+      ],
+      "parserKeys": [
+        "allowance",
+        "monthUtc"
+      ],
+      "verdict": "OK",
+      "why": "reads allowance, monthUtc"
+    },
+    {
+      "parser": "parseAiPolicyEnvelope",
+      "builder": "(literal) /v1/workspaces/ai-policy",
+      "method": "PUT",
+      "site": "ai-policy-editor.tsx:181",
+      "path": "/v1/workspaces/ai-policy",
+      "route": "PUT /v1/teams/ai-policy",
+      "serverKeys": [
+        "hasExplicitPolicy",
+        "policy",
+        "version"
+      ],
+      "parserKeys": [
+        "hasExplicitPolicy",
+        "lastModifiedAtUtc",
+        "policy",
+        "version"
+      ],
+      "verdict": "OK",
+      "why": "reads hasExplicitPolicy, policy, version"
     },
     {
       "parser": "parseBillingOverview",
       "builder": "(literal) /v1/billing/overview",
       "method": "GET",
-      "site": "billing-sections.tsx:70",
+      "site": "billing-sections.tsx:81",
       "path": "/v1/billing/overview",
       "route": "GET /v1/billing/overview",
       "serverKeys": [
@@ -1319,34 +2270,40 @@
         "workspaces"
       ],
       "parserKeys": [
+        "storageAddons",
         "summary",
         "workspaces"
       ],
       "verdict": "OK",
-      "why": "reads summary, workspaces"
+      "why": "reads storageAddons, summary, workspaces"
     },
     {
-      "parser": "parsePaymentHistory",
-      "builder": "buildBillingHistoryPath",
-      "method": "GET",
-      "site": "billing-sections.tsx:74",
-      "path": "/v1/billing/accounts/:p/:p/history",
-      "route": "GET /v1/billing/accounts/:type/:id/history",
+      "parser": "parseAiResult",
+      "builder": "(literal) /v1/ai/capture/analyze-session",
+      "method": "POST",
+      "site": "capture-ai-review.tsx:77",
+      "path": "/v1/ai/capture/analyze-session",
+      "route": "POST /v1/ai/capture/analyze-session",
       "serverKeys": [
-        "count",
-        "items"
+        "data"
       ],
       "parserKeys": [
-        "items"
+        "data",
+        "flags",
+        "legalDisclaimer",
+        "status",
+        "suggestions",
+        "summary",
+        "warnings"
       ],
       "verdict": "OK",
-      "why": "reads items"
+      "why": "reads data"
     },
     {
       "parser": "parseIntakeTemplates",
       "builder": "(literal) /v1/capture/intake-templates",
       "method": "GET",
-      "site": "capture-plan-sections.tsx:53",
+      "site": "capture-plan-sections.tsx:44",
       "path": "/v1/capture/intake-templates",
       "route": "GET /v1/capture/intake-templates",
       "serverKeys": [
@@ -1357,6 +2314,97 @@
       ],
       "verdict": "OK",
       "why": "reads templates"
+    },
+    {
+      "parser": "parseCopilotRun",
+      "builder": "buildCaseCopilotPath",
+      "method": "POST",
+      "site": "case-copilot.tsx:104",
+      "path": "/v1/ai/case/:p/copilot",
+      "route": "POST /v1/ai/case/:caseId/copilot",
+      "serverKeys": [
+        "advisoryBoundary",
+        "data",
+        "runId",
+        "status"
+      ],
+      "parserKeys": [
+        "data",
+        "serverActions"
+      ],
+      "verdict": "OK",
+      "why": "reads data"
+    },
+    {
+      "parser": "parseAttachCandidates",
+      "builder": "(literal) /v1/cases/:p/available-evidence",
+      "method": "GET",
+      "site": "case-detail-sections.tsx:91",
+      "path": "/v1/cases/:p/available-evidence",
+      "route": "GET /v1/cases/:id/available-evidence",
+      "serverKeys": [
+        "items"
+      ],
+      "parserKeys": [
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
+      "parser": "parseStartedChallenge",
+      "builder": "(literal) /v1/identity-security/step-up/start",
+      "method": "POST",
+      "site": "challenge-step-up.tsx:102",
+      "path": "/v1/identity-security/step-up/start",
+      "route": "POST /v1/identity-security/step-up/start",
+      "serverKeys": [
+        "challenge",
+        "destinationMask",
+        "method"
+      ],
+      "parserKeys": [
+        "challenge",
+        "destinationMask",
+        "method"
+      ],
+      "verdict": "OK",
+      "why": "reads challenge, destinationMask, method"
+    },
+    {
+      "parser": "parseEligibleMembers",
+      "builder": "buildEligibleMembersPath",
+      "method": "GET",
+      "site": "collaboration-add-members.tsx:64",
+      "path": "/v1/collaboration-teams/:p/eligible-members",
+      "route": "GET /v1/collaboration-teams/:teamId/eligible-members",
+      "serverKeys": [
+        "members",
+        "nextCursor"
+      ],
+      "parserKeys": [
+        "members"
+      ],
+      "verdict": "OK",
+      "why": "reads members"
+    },
+    {
+      "parser": "parseBulkAddResult",
+      "builder": "buildTeamMembersBulkPath",
+      "method": "POST",
+      "site": "collaboration-add-members.tsx:101",
+      "path": "/v1/collaboration-teams/:p/members/bulk",
+      "route": "POST /v1/collaboration-teams/:teamId/members/bulk",
+      "serverKeys": [
+        "added",
+        "failed"
+      ],
+      "parserKeys": [
+        "added",
+        "failed"
+      ],
+      "verdict": "OK",
+      "why": "reads added, failed"
     },
     {
       "parser": "parseTeamActivity",
@@ -1398,7 +2446,7 @@
       "parser": "parseAssignmentPage",
       "builder": "buildAssignmentsPath",
       "method": "GET",
-      "site": "collaboration-work.tsx:101",
+      "site": "collaboration-work.tsx:113",
       "path": "/v1/collaboration-teams/:p/assignments",
       "route": "GET /v1/collaboration-teams/:teamId/assignments",
       "serverKeys": [
@@ -1413,6 +2461,58 @@
       ],
       "verdict": "OK",
       "why": "reads assignments, nextCursor, total"
+    },
+    {
+      "parser": "parseContactFactors",
+      "builder": "(literal) /v1/identity-security/contact-factors",
+      "method": "GET",
+      "site": "contact-factor-section.tsx:61",
+      "path": "/v1/identity-security/contact-factors",
+      "route": "GET /v1/identity-security/contact-factors",
+      "serverKeys": [
+        "factors"
+      ],
+      "parserKeys": [
+        "factors"
+      ],
+      "verdict": "OK",
+      "why": "reads factors"
+    },
+    {
+      "parser": "parseEnrolmentStart",
+      "builder": "(literal) /v1/identity-security/contact-factors/enroll/start",
+      "method": "POST",
+      "site": "contact-factor-section.tsx:94",
+      "path": "/v1/identity-security/contact-factors/enroll/start",
+      "route": "POST /v1/identity-security/contact-factors/enroll/start",
+      "serverKeys": [
+        "codeExpiresAtUtc",
+        "factor",
+        "verificationAttemptId"
+      ],
+      "parserKeys": [
+        "codeExpiresAtUtc",
+        "factor",
+        "verificationAttemptId"
+      ],
+      "verdict": "OK",
+      "why": "reads codeExpiresAtUtc, factor, verificationAttemptId"
+    },
+    {
+      "parser": "parseAssignableTargets",
+      "builder": "buildAssignableTargetsPath",
+      "method": "GET",
+      "site": "create-assignment.tsx:70",
+      "path": "/v1/collaboration-teams/:p/assignable-targets",
+      "route": "GET /v1/collaboration-teams/:teamId/assignable-targets",
+      "serverKeys": [
+        "targets"
+      ],
+      "parserKeys": [
+        "targets"
+      ],
+      "verdict": "OK",
+      "why": "reads targets"
     },
     {
       "parser": "parseDraftState",
@@ -1433,10 +2533,43 @@
       "why": "reads set"
     },
     {
+      "parser": "parseCriteriaVersionHistory",
+      "builder": "buildCriteriaSetPath",
+      "method": "GET",
+      "site": "criteria-version-history.tsx:45",
+      "path": "/v1/reviewer-criteria/:p",
+      "route": "GET /v1/reviewer-criteria/:setId",
+      "serverKeys": [
+        "set"
+      ],
+      "parserKeys": [
+        "set"
+      ],
+      "verdict": "OK",
+      "why": "reads set"
+    },
+    {
+      "parser": "parseCriteriaUsage",
+      "builder": "buildCriteriaUsagePath",
+      "method": "GET",
+      "site": "criteria-version-history.tsx:52",
+      "path": "/v1/reviewer-criteria/:p/usage",
+      "route": "GET /v1/reviewer-criteria/:setId/usage",
+      "serverKeys": [
+        "usage",
+        "usageAvailable"
+      ],
+      "parserKeys": [
+        "usage"
+      ],
+      "verdict": "OK",
+      "why": "reads usage"
+    },
+    {
       "parser": "parseDerivedReview",
       "builder": "buildDerivedReviewPath",
       "method": "GET",
-      "site": "derived-review-tab.tsx:66",
+      "site": "derived-review-tab.tsx:110",
       "path": "/v1/evidence/:p/derived-review",
       "route": "GET /v1/evidence/:evidenceId/derived-review",
       "serverKeys": [
@@ -1453,10 +2586,50 @@
       "why": "reads evidenceId"
     },
     {
-      "parser": "parseDiscussionThreads",
-      "builder": "buildThreadsPath",
+      "parser": "parseCopilotRun",
+      "builder": "buildEvidenceCopilotPath",
+      "method": "POST",
+      "site": "evidence-copilot.tsx:119",
+      "path": "/v1/ai/evidence/:p/copilot",
+      "route": "POST /v1/ai/evidence/:evidenceId/copilot",
+      "serverKeys": [
+        "advisoryBoundary",
+        "data",
+        "runId",
+        "serverActions",
+        "status"
+      ],
+      "parserKeys": [
+        "data",
+        "serverActions"
+      ],
+      "verdict": "OK",
+      "why": "reads data, serverActions"
+    },
+    {
+      "parser": "parseCatalogThreadKinds",
+      "builder": "(literal) /v1/collaboration/catalogs",
       "method": "GET",
-      "site": "discussion-section.tsx:69",
+      "site": "evidence-discussion.tsx:79",
+      "path": "/v1/collaboration/catalogs",
+      "route": "GET /v1/collaboration/catalogs",
+      "serverKeys": [
+        "participantRoles",
+        "threadKinds",
+        "threadStatuses",
+        "threadVisibilities"
+      ],
+      "parserKeys": [
+        "threadKinds"
+      ],
+      "verdict": "OK",
+      "why": "reads threadKinds"
+    },
+    {
+      "parser": "parseEvidenceThreads",
+      "builder": "buildEvidenceThreadsPath",
+      "method": "GET",
+      "site": "evidence-discussion.tsx:92",
       "path": "/v1/collaboration/threads",
       "route": "GET /v1/collaboration/threads",
       "serverKeys": [
@@ -1469,10 +2642,10 @@
       "why": "reads threads"
     },
     {
-      "parser": "parseDiscussionMessages",
-      "builder": "buildThreadMessagesPath",
+      "parser": "parseEvidenceThreadMessages",
+      "builder": "buildEvidenceThreadMessagesPath",
       "method": "GET",
-      "site": "discussion-section.tsx:84",
+      "site": "evidence-discussion.tsx:225",
       "path": "/v1/collaboration/threads/:p/messages",
       "route": "GET /v1/collaboration/threads/:id/messages",
       "serverKeys": [
@@ -1485,10 +2658,30 @@
       "why": "reads messages"
     },
     {
+      "parser": "parseThreadDetail",
+      "builder": "buildThreadDetailPath",
+      "method": "GET",
+      "site": "evidence-discussion.tsx:375",
+      "path": "/v1/collaboration/threads/:p",
+      "route": "GET /v1/collaboration/threads/:id",
+      "serverKeys": [
+        "escalationReason",
+        "resolutionNote",
+        "thread"
+      ],
+      "parserKeys": [
+        "escalationReason",
+        "resolutionNote",
+        "thread"
+      ],
+      "verdict": "OK",
+      "why": "reads escalationReason, resolutionNote, thread"
+    },
+    {
       "parser": "parseLegalNotes",
       "builder": "buildLegalNotesPath",
       "method": "GET",
-      "site": "evidence-internal-materials.tsx:98",
+      "site": "evidence-internal-materials.tsx:102",
       "path": "/v1/evidence/:p/legal-notes",
       "route": "GET /v1/evidence/:id/legal-notes",
       "serverKeys": [
@@ -1504,7 +2697,7 @@
       "parser": "parseAnnotations",
       "builder": "buildAnnotationsPath",
       "method": "GET",
-      "site": "evidence-internal-materials.tsx:104",
+      "site": "evidence-internal-materials.tsx:108",
       "path": "/v1/evidence/:p/annotations",
       "route": "GET /v1/evidence/:id/annotations",
       "serverKeys": [
@@ -1517,10 +2710,261 @@
       "why": "reads items"
     },
     {
+      "parser": "parseLinkedRequests",
+      "builder": "buildLinkedRequestsPath",
+      "method": "GET",
+      "site": "evidence-linked-requests.tsx:54",
+      "path": "/v1/evidence-requests",
+      "route": "GET /v1/evidence-requests",
+      "serverKeys": [
+        "requests"
+      ],
+      "parserKeys": [
+        "requests"
+      ],
+      "verdict": "OK",
+      "why": "reads requests"
+    },
+    {
+      "parser": "parseExternalCollaborators",
+      "builder": "buildAccessReviewPath",
+      "method": "GET",
+      "site": "external-collaborators.tsx:55",
+      "path": "/v1/teams/:p/access-review",
+      "route": "GET /v1/teams/:id/access-review",
+      "serverKeys": [
+        "externalCollaborators",
+        "members",
+        "pendingInvites",
+        "summary",
+        "teamId"
+      ],
+      "parserKeys": [
+        "externalCollaborators"
+      ],
+      "verdict": "OK",
+      "why": "reads externalCollaborators"
+    },
+    {
+      "parser": "parseDeliveryMessages",
+      "builder": "buildIntakeDeliveriesPath",
+      "method": "GET",
+      "site": "intake-delivery-history.tsx:46",
+      "path": "/v1/communications/messages",
+      "route": "GET /v1/communications/messages",
+      "serverKeys": [
+        "messages"
+      ],
+      "parserKeys": [
+        "messages"
+      ],
+      "verdict": "OK",
+      "why": "reads messages"
+    },
+    {
+      "parser": "parseLegalStatusView",
+      "builder": "(literal) /v1/users/legal-status",
+      "method": "GET",
+      "site": "legal-records.tsx:49",
+      "path": "/v1/users/legal-status",
+      "route": "GET /v1/users/legal-status",
+      "serverKeys": [
+        "acceptedVersions",
+        "missingPolicies",
+        "ok",
+        "requiredVersions",
+        "requiresReacceptance"
+      ],
+      "parserKeys": [
+        "acceptedVersions",
+        "missingPolicies",
+        "requiredVersions",
+        "requiresReacceptance"
+      ],
+      "verdict": "OK",
+      "why": "reads acceptedVersions, missingPolicies, requiredVersions, requiresReacceptance"
+    },
+    {
+      "parser": "parseLegalAcceptances",
+      "builder": "(literal) /v1/users/legal-acceptance",
+      "method": "GET",
+      "site": "legal-records.tsx:56",
+      "path": "/v1/users/legal-acceptance",
+      "route": "GET /v1/users/legal-acceptance",
+      "serverKeys": [
+        "items"
+      ],
+      "parserKeys": [
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads items"
+    },
+    {
+      "parser": "parseCookieConsent",
+      "builder": "(literal) /v1/users/cookie-consent/latest",
+      "method": "GET",
+      "site": "legal-records.tsx:157",
+      "path": "/v1/users/cookie-consent/latest",
+      "route": "GET /v1/users/cookie-consent/latest",
+      "serverKeys": [
+        "record"
+      ],
+      "parserKeys": [
+        "analytics",
+        "consentVersion",
+        "createdAt",
+        "length",
+        "marketing",
+        "necessary",
+        "preferences",
+        "record"
+      ],
+      "verdict": "OK",
+      "why": "reads record"
+    },
+    {
+      "parser": "parseMediaIntelligence",
+      "builder": "buildMediaIntelligencePath",
+      "method": "GET",
+      "site": "media-intelligence-panel.tsx:84",
+      "path": "/v1/evidence/:p/media-intelligence",
+      "route": "GET /v1/evidence/:evidenceId/media-intelligence",
+      "serverKeys": [
+        "catalog",
+        "evidenceId",
+        "latestRun",
+        "signals"
+      ],
+      "parserKeys": [
+        "catalog",
+        "latestRun",
+        "signals"
+      ],
+      "verdict": "OK",
+      "why": "reads catalog, latestRun, signals"
+    },
+    {
+      "parser": "parseRunAccepted",
+      "builder": "buildMediaIntelligenceRunPath",
+      "method": "POST",
+      "site": "media-intelligence-panel.tsx:158",
+      "path": "/v1/evidence/:p/media-intelligence/run",
+      "route": "POST /v1/evidence/:evidenceId/media-intelligence/run",
+      "serverKeys": [
+        "evidenceId",
+        "jobId",
+        "mode",
+        "queued",
+        "reason",
+        "runId",
+        "signalsByType",
+        "signalsEmitted"
+      ],
+      "parserKeys": [
+        "queued",
+        "runId"
+      ],
+      "verdict": "OK",
+      "why": "reads queued, runId"
+    },
+    {
+      "parser": "parseRemovalImpact",
+      "builder": "buildMemberRemovalImpactPath",
+      "method": "GET",
+      "site": "member-removal.tsx:51",
+      "path": "/v1/teams/:p/members/:p/removal-impact",
+      "route": "GET /v1/teams/:id/members/:memberId/removal-impact",
+      "serverKeys": [
+        "eligibleTransferTargets",
+        "impact",
+        "member"
+      ],
+      "parserKeys": [
+        "eligibleTransferTargets",
+        "impact"
+      ],
+      "verdict": "OK",
+      "why": "reads eligibleTransferTargets, impact"
+    },
+    {
+      "parser": "parseVerifyStart",
+      "builder": "(literal) /v1/communications/verify/start",
+      "method": "POST",
+      "site": "messaging-contact-section.tsx:79",
+      "path": "/v1/communications/verify/start",
+      "route": "POST /v1/communications/verify/start",
+      "serverKeys": [
+        "attempt",
+        "status"
+      ],
+      "parserKeys": [
+        "attempt",
+        "status"
+      ],
+      "verdict": "OK",
+      "why": "reads attempt, status"
+    },
+    {
+      "parser": "parseVerifyCheck",
+      "builder": "(literal) /v1/communications/verify/check",
+      "method": "POST",
+      "site": "messaging-contact-section.tsx:108",
+      "path": "/v1/communications/verify/check",
+      "route": "POST /v1/communications/verify/check",
+      "serverKeys": [
+        "status",
+        "verificationId"
+      ],
+      "parserKeys": [
+        "status",
+        "verificationId"
+      ],
+      "verdict": "OK",
+      "why": "reads status, verificationId"
+    },
+    {
+      "parser": "parseSavedPreference",
+      "builder": "(literal) /v1/communications/preferences",
+      "method": "POST",
+      "site": "messaging-contact-section.tsx:141",
+      "path": "/v1/communications/preferences",
+      "route": "POST /v1/communications/preferences",
+      "serverKeys": [
+        "preference"
+      ],
+      "parserKeys": [
+        "preference",
+        "preferredChannel",
+        "smsOptOut",
+        "updatedAt",
+        "whatsappOptOut"
+      ],
+      "verdict": "OK",
+      "why": "reads preference"
+    },
+    {
+      "parser": "parseRecoveryWorkspaces",
+      "builder": "(literal) /v1/teams",
+      "method": "GET",
+      "site": "mfa-recovery-request.tsx:97",
+      "path": "/v1/teams",
+      "route": "GET /v1/teams",
+      "serverKeys": [
+        "items",
+        "teams"
+      ],
+      "parserKeys": [
+        "teams"
+      ],
+      "verdict": "OK",
+      "why": "reads teams"
+    },
+    {
       "parser": "parseRecoveryRequest",
       "builder": "(literal) /v1/identity/mfa-admin/recovery-requests",
       "method": "POST",
-      "site": "mfa-recovery-request.tsx:86",
+      "site": "mfa-recovery-request.tsx:125",
       "path": "/v1/identity/mfa-admin/recovery-requests",
       "route": "POST /v1/identity/mfa-admin/recovery-requests",
       "serverKeys": [
@@ -1540,10 +2984,118 @@
       "why": "reads request"
     },
     {
+      "parser": "parseRecoveryDetail",
+      "builder": "buildRecoveryDetailPath",
+      "method": "GET",
+      "site": "mfa-recovery-request.tsx:163",
+      "path": "/v1/identity/mfa-admin/recovery-requests/detail/:p",
+      "route": "GET /v1/identity/mfa-admin/recovery-requests/detail/:requestId",
+      "serverKeys": [
+        "detail",
+        "error"
+      ],
+      "parserKeys": [
+        "detail",
+        "emailResendCount",
+        "emailVerified",
+        "expiresAt",
+        "id",
+        "status"
+      ],
+      "verdict": "OK",
+      "why": "reads detail"
+    },
+    {
+      "parser": "parseOperationalTimeline",
+      "builder": "buildOperationalTimelinePath",
+      "method": "GET",
+      "site": "operational-timeline.tsx:32",
+      "path": "/v1/evidence/:p/operational-timeline",
+      "route": "GET /v1/evidence/:id/operational-timeline",
+      "serverKeys": [
+        "entries",
+        "evidenceId",
+        "generatedAtUtc",
+        "teamId"
+      ],
+      "parserKeys": [
+        "entries"
+      ],
+      "verdict": "OK",
+      "why": "reads entries"
+    },
+    {
+      "parser": "parseProvenanceChain",
+      "builder": "buildProvenancePath",
+      "method": "GET",
+      "site": "provenance-chain.tsx:36",
+      "path": "/v1/provenance/:p",
+      "route": "GET /v1/provenance/:evidenceId",
+      "serverKeys": [
+        "chain"
+      ],
+      "parserKeys": [
+        "chain"
+      ],
+      "verdict": "OK",
+      "why": "reads chain"
+    },
+    {
+      "parser": "parseReportUrl",
+      "builder": "buildReportLatestPath",
+      "method": "GET",
+      "site": "report-artifact-row.tsx:77",
+      "path": "/v1/evidence/:p/report/latest",
+      "route": "GET /v1/evidence/:id/report/latest",
+      "serverKeys": [
+        "bucket",
+        "evidenceId",
+        "generatedAtUtc",
+        "key",
+        "reviewerSnapshot",
+        "snapshots",
+        "storage",
+        "url",
+        "version"
+      ],
+      "parserKeys": [
+        "url"
+      ],
+      "verdict": "OK",
+      "why": "reads url"
+    },
+    {
+      "parser": "parseReportUrl",
+      "builder": "buildPackageDownloadPath",
+      "method": "GET",
+      "site": "report-artifact-row.tsx:77",
+      "path": "/v1/evidence/:p/verification-package",
+      "route": "GET /v1/evidence/:id/verification-package",
+      "serverKeys": [
+        "action",
+        "code",
+        "evidenceId",
+        "generatedAtUtc",
+        "key",
+        "message",
+        "packageType",
+        "state",
+        "storage",
+        "trustDecision",
+        "url",
+        "version"
+      ],
+      "parserKeys": [
+        "url"
+      ],
+      "verdict": "OK",
+      "why": "reads url"
+    },
+    {
       "parser": "parseReviewerWorkflow",
       "builder": "buildReviewerWorkflowPath",
       "method": "GET",
-      "site": "reviewer-workflow-panel.tsx:82",
+      "site": "reviewer-workflow-panel.tsx:89",
       "path": "/v1/evidence/:p/reviewer-workflow",
       "route": "GET /v1/evidence/:id/reviewer-workflow",
       "serverKeys": [
@@ -1561,7 +3113,7 @@
       "parser": "parseReviewerWorkflowEvents",
       "builder": "buildReviewerWorkflowEventsPath",
       "method": "GET",
-      "site": "reviewer-workflow-panel.tsx:85",
+      "site": "reviewer-workflow-panel.tsx:92",
       "path": "/v1/evidence/:p/reviewer-workflow/events",
       "route": "GET /v1/evidence/:id/reviewer-workflow/events",
       "serverKeys": [
@@ -1572,6 +3124,129 @@
       ],
       "verdict": "OK",
       "why": "reads items"
+    },
+    {
+      "parser": "parseRbacMatrix",
+      "builder": "(literal) /v1/platform/rbac/matrix",
+      "method": "GET",
+      "site": "role-permissions-sheet.tsx:26",
+      "path": "/v1/platform/rbac/matrix",
+      "route": "GET /v1/platform/rbac/matrix",
+      "serverKeys": [
+        "categories",
+        "generatedAt",
+        "roles",
+        "version"
+      ],
+      "parserKeys": [
+        "categories",
+        "roles",
+        "version"
+      ],
+      "verdict": "OK",
+      "why": "reads categories, roles, version"
+    },
+    {
+      "parser": "parseRuntimeStatus",
+      "builder": "(literal) /v1/runtime/status",
+      "method": "GET",
+      "site": "runtime-status-banner.tsx:77",
+      "path": "/v1/runtime/status",
+      "route": "GET /v1/runtime/status",
+      "serverKeys": [
+        "status"
+      ],
+      "parserKeys": [
+        "status"
+      ],
+      "verdict": "OK",
+      "why": "reads status"
+    },
+    {
+      "parser": "parseSearchAudit",
+      "builder": "buildSearchAuditPath",
+      "method": "GET",
+      "site": "search-activity-panel.tsx:31",
+      "path": "/v1/search/audit",
+      "route": "GET /v1/search/audit",
+      "serverKeys": [
+        "nextBeforeUtc",
+        "rows"
+      ],
+      "parserKeys": [
+        "nextBeforeUtc",
+        "rows"
+      ],
+      "verdict": "OK",
+      "why": "reads nextBeforeUtc, rows"
+    },
+    {
+      "parser": "parseSearchRelationships",
+      "builder": "buildSearchRelationshipsPath",
+      "method": "GET",
+      "site": "search-inspector.tsx:79",
+      "path": "/v1/search/relationships/:p",
+      "route": "GET /v1/search/relationships/:evidenceId",
+      "serverKeys": [
+        "relationships"
+      ],
+      "parserKeys": [
+        "relationships"
+      ],
+      "verdict": "OK",
+      "why": "reads relationships"
+    },
+    {
+      "parser": "parseTeamComments",
+      "builder": "buildTeamCommentsPath",
+      "method": "GET",
+      "site": "team-discussion.tsx:39",
+      "path": "/v1/collaboration-teams/:p/comments",
+      "route": "GET /v1/collaboration-teams/:teamId/comments",
+      "serverKeys": [
+        "directory",
+        "items"
+      ],
+      "parserKeys": [
+        "directory",
+        "items"
+      ],
+      "verdict": "OK",
+      "why": "reads directory, items"
+    },
+    {
+      "parser": "parseTeamResponsibility",
+      "builder": "buildTeamResponsibilityPath",
+      "method": "GET",
+      "site": "team-responsibility.tsx:71",
+      "path": "/v1/collaboration-teams/responsibility",
+      "route": "GET /v1/collaboration-teams/responsibility",
+      "serverKeys": [
+        "assignments"
+      ],
+      "parserKeys": [
+        "assignments"
+      ],
+      "verdict": "OK",
+      "why": "reads assignments"
+    },
+    {
+      "parser": "parseResponsibilityMembers",
+      "builder": "buildResponsibilityMembersPath",
+      "method": "GET",
+      "site": "team-responsibility.tsx:270",
+      "path": "/v1/collaboration-teams/:p/members",
+      "route": "GET /v1/collaboration-teams/:teamId/members",
+      "serverKeys": [
+        "members",
+        "nextCursor",
+        "totalActive"
+      ],
+      "parserKeys": [
+        "members"
+      ],
+      "verdict": "OK",
+      "why": "reads members"
     },
     {
       "parser": "parseTotpEnrollment",
@@ -1611,11 +3286,204 @@
       ],
       "verdict": "OK",
       "why": "reads recoveryCodes"
+    },
+    {
+      "parser": "parseTrustStatus",
+      "builder": "(literal) /v1/trust/status",
+      "method": "GET",
+      "site": "trust-live.tsx:69",
+      "path": "/v1/trust/status",
+      "route": "GET /v1/trust/status",
+      "serverKeys": [
+        "degraded",
+        "reason",
+        "status"
+      ],
+      "parserKeys": [
+        "degraded",
+        "reason",
+        "status"
+      ],
+      "verdict": "OK",
+      "why": "reads degraded, reason, status"
+    },
+    {
+      "parser": "parseSubprocessorVersions",
+      "builder": "buildSubprocessorVersionsPath",
+      "method": "GET",
+      "site": "trust-live.tsx:163",
+      "path": "/v1/trust/subprocessors/:p/versions",
+      "route": "GET /v1/trust/subprocessors/:id/versions",
+      "serverKeys": [
+        "versions"
+      ],
+      "parserKeys": [
+        "versions"
+      ],
+      "verdict": "OK",
+      "why": "reads versions"
+    },
+    {
+      "parser": "parseSubprocessorRegistry",
+      "builder": "(literal) /v1/trust/subprocessors",
+      "method": "GET",
+      "site": "trust-live.tsx:204",
+      "path": "/v1/trust/subprocessors",
+      "route": "GET /v1/trust/subprocessors",
+      "serverKeys": [
+        "degraded",
+        "reason",
+        "subprocessors"
+      ],
+      "parserKeys": [
+        "degraded",
+        "reason",
+        "subprocessors"
+      ],
+      "verdict": "OK",
+      "why": "reads degraded, reason, subprocessors"
+    },
+    {
+      "parser": "parseTenantAuditPage",
+      "builder": "buildTenantAuditPath",
+      "method": "GET",
+      "site": "workspace-audit-section.tsx:61",
+      "path": "/v1/audit/tenant",
+      "route": "GET /v1/audit/tenant",
+      "serverKeys": [
+        "items",
+        "nextCursorId"
+      ],
+      "parserKeys": [
+        "items",
+        "nextCursorId"
+      ],
+      "verdict": "OK",
+      "why": "reads items, nextCursorId"
+    },
+    {
+      "parser": "parseClosureState",
+      "builder": "buildWorkspaceClosurePath",
+      "method": "GET",
+      "site": "workspace-closure-card.tsx:72",
+      "path": "/v1/teams/:p/closure",
+      "route": "GET /v1/teams/:id/closure",
+      "serverKeys": [
+        "blockers",
+        "confirmationPhrase",
+        "coolingOffDays",
+        "membersLosingAccess",
+        "request"
+      ],
+      "parserKeys": [
+        "blockers",
+        "confirmationPhrase",
+        "coolingOffDays",
+        "request"
+      ],
+      "verdict": "OK",
+      "why": "reads blockers, confirmationPhrase, coolingOffDays, request"
+    },
+    {
+      "parser": "parseMembersLosingAccess",
+      "builder": "buildWorkspaceClosurePath",
+      "method": "GET",
+      "site": "workspace-closure-card.tsx:72",
+      "path": "/v1/teams/:p/closure",
+      "route": "GET /v1/teams/:id/closure",
+      "serverKeys": [
+        "blockers",
+        "confirmationPhrase",
+        "coolingOffDays",
+        "membersLosingAccess",
+        "request"
+      ],
+      "parserKeys": [
+        "membersLosingAccess"
+      ],
+      "verdict": "OK",
+      "why": "reads membersLosingAccess"
+    },
+    {
+      "parser": "parseRequestBlockers",
+      "builder": "buildWorkspaceClosurePath",
+      "method": "GET",
+      "site": "workspace-closure-card.tsx:72",
+      "path": "/v1/teams/:p/closure",
+      "route": "GET /v1/teams/:id/closure",
+      "serverKeys": [
+        "blockers",
+        "confirmationPhrase",
+        "coolingOffDays",
+        "membersLosingAccess",
+        "request"
+      ],
+      "parserKeys": [
+        "request"
+      ],
+      "verdict": "OK",
+      "why": "reads request"
+    },
+    {
+      "parser": "parseWorkspaceInviteLookup",
+      "builder": "(literal) /v1/teams/invites/lookup",
+      "method": "POST",
+      "site": "workspace-invite.tsx:56",
+      "path": "/v1/teams/invites/lookup",
+      "route": "POST /v1/teams/invites/lookup",
+      "serverKeys": [
+        "context",
+        "state"
+      ],
+      "parserKeys": [
+        "context",
+        "state"
+      ],
+      "verdict": "OK",
+      "why": "reads context, state"
+    },
+    {
+      "parser": "parseWorkspaceInviteAccept",
+      "builder": "buildWorkspaceInviteAcceptPath",
+      "method": "POST",
+      "site": "workspace-invite.tsx:77",
+      "path": "/v1/teams/invites/:p/accept",
+      "route": "POST /v1/teams/invites/:token/accept",
+      "serverKeys": [
+        "alreadyMember",
+        "role",
+        "workspaceId"
+      ],
+      "parserKeys": [
+        "alreadyMember"
+      ],
+      "verdict": "OK",
+      "why": "reads alreadyMember"
+    },
+    {
+      "parser": "parseTransferCandidates",
+      "builder": "buildTransferCandidatesPath",
+      "method": "GET",
+      "site": "workspace-ownership-transfer.tsx:78",
+      "path": "/v1/teams/:p/members",
+      "route": "GET /v1/teams/:id/members",
+      "serverKeys": [
+        "members",
+        "nextCursor",
+        "total"
+      ],
+      "parserKeys": [
+        "members",
+        "nextCursor",
+        "total"
+      ],
+      "verdict": "OK",
+      "why": "reads members, nextCursor, total"
     }
   ],
   "unbound": [],
   "counts": {
-    "OK": 79,
+    "OK": 170,
     "MISMATCH": 0,
     "UNRESOLVED": 0,
     "N/A": 0

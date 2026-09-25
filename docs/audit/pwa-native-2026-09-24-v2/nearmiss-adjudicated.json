@@ -1,0 +1,2310 @@
+{
+ "rule": "a near-miss is a REAL counterpart only when the two labels share their longest significant token AND score>=0.3; otherwise the overlap is coincidental (e.g. \"Clear Session\" vs \"Capture Session\" share only \"session\")",
+ "real": [
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:944",
+   "role": "BUTTON",
+   "label": "Close audio recorder",
+   "best": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:223"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:819",
+   "role": "TEXT",
+   "label": "Collection setup",
+   "best": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:999",
+   "role": "TEXT",
+   "label": "Add to Session",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:1083",
+   "role": "TEXT",
+   "label": "Remove pending items",
+   "best": {
+    "label": "Remove",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1522"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:1444",
+   "role": "TEXT",
+   "label": "Keep Session",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:1455",
+   "role": "TEXT",
+   "label": "Clear Session",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx:136",
+   "role": "TEXT",
+   "label": "Capture readiness ·",
+   "best": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureDropzone.tsx:97",
+   "role": "TEXT",
+   "label": "Upload, capture, or record materials for this session.",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.4,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureBottomBar.tsx:58",
+   "role": "TEXT",
+   "label": "Clear Session",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:139",
+   "role": "TEXT",
+   "label": "Session status",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:647",
+   "role": "INPUT",
+   "label": "Search cases, owners, IDs, or references",
+   "best": {
+    "label": "Search cases",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:150"
+   },
+   "score": 0.4,
+   "routes": [
+    "/cases"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1271",
+   "role": "STATE_EMPTY",
+   "label": "No evidence linked yet",
+   "best": {
+    "label": "No evidence in this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:412"
+   },
+   "score": 0.4,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:285",
+   "role": "TEXT",
+   "label": "No evidence matches the search.",
+   "best": {
+    "label": "No eligible evidence to add.",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:396"
+   },
+   "score": 0.33,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2112",
+   "role": "INPUT",
+   "label": "Write a private note for this case",
+   "best": {
+    "label": "Add a note to this case…",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:445"
+   },
+   "score": 0.4,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:970",
+   "role": "TEXT",
+   "label": "No evidence linked yet. Add evidence to begin building this case workspace.",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.33,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:374",
+   "role": "TEXT",
+   "label": "No evidence is linked to this case yet.",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.33,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:53",
+   "role": "TEXT",
+   "label": "Evidence queue",
+   "best": {
+    "label": "Evidence Inspector",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:179"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:495",
+   "role": "TEXT",
+   "label": "currently selected records.",
+   "best": {
+    "label": "selected",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:1289"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:797",
+   "role": "BUTTON",
+   "label": "Close queue selection",
+   "best": {
+    "label": "Close",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:182"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:447",
+   "role": "INPUT",
+   "label": "Reviewer note (workspace-internal, optional)",
+   "best": {
+    "label": "Reviewer note",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403"
+   },
+   "score": 0.4,
+   "routes": [
+    "/evidence-requests/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/governance/GovernanceSummary.tsx:160",
+   "role": "TEXT",
+   "label": "Legal holds",
+   "best": {
+    "label": "Legal notes",
+    "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:206"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/governance/GovernanceSummary.tsx:198",
+   "role": "TEXT",
+   "label": "Review in flight",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:69",
+   "role": "TEXT",
+   "label": "Refresh history",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:244",
+   "role": "TEXT",
+   "label": "Claim review",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:238",
+   "role": "SECTION",
+   "label": "Workspace analytics",
+   "best": {
+    "label": "Workspace health",
+    "at": "apps/mobile/src/ui/home-operations-sections.tsx:56"
+   },
+   "score": 0.33,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:763",
+   "role": "TEXT",
+   "label": "Evidence (",
+   "best": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   },
+   "score": 0.33,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:131",
+   "role": "TEXT",
+   "label": "No submissions yet",
+   "best": {
+    "label": "Submissions",
+    "at": "apps/mobile/app/(stack)/intake-links.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  {
+   "at": "apps/web/app/intake/[token]/page.tsx:1174",
+   "role": "INPUT",
+   "label": "The name shown with your submission",
+   "best": {
+    "label": "Your name",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:192"
+   },
+   "score": 0.33,
+   "routes": [
+    "/intake/[token]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:663",
+   "role": "TEXT",
+   "label": "Members in the Admin console",
+   "best": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   },
+   "score": 0.33,
+   "routes": [
+    "/organizations/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/people/page.tsx:80",
+   "role": "COMPONENT",
+   "label": "Opening workspace people…",
+   "best": {
+    "label": "People",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:461"
+   },
+   "score": 0.33,
+   "routes": [
+    "/people"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:621",
+   "role": "INPUT",
+   "label": "Comment on this review",
+   "best": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   },
+   "score": 0.33,
+   "routes": [
+    "/portal/[token]/work/[workflowId]"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:684",
+   "role": "INPUT",
+   "label": "Reply to this comment",
+   "best": {
+    "label": "Add a comment",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:193"
+   },
+   "score": 0.33,
+   "routes": [
+    "/portal/[token]/work/[workflowId]"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:471",
+   "role": "TEXT",
+   "label": "Loading your recorded decision…",
+   "best": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "score": 0.4,
+   "routes": [
+    "/portal/[token]/work/[workflowId]"
+   ]
+  },
+  {
+   "at": "apps/web/app/reset-password/page.tsx:299",
+   "role": "TEXT",
+   "label": "Create a new password",
+   "best": {
+    "label": "Your password was updated. Sign in with your new password.",
+    "at": "apps/mobile/app/(stack)/reset-password.tsx:50"
+   },
+   "score": 0.33,
+   "routes": [
+    "/reset-password"
+   ]
+  },
+  {
+   "at": "apps/web/app/reset-password/page.tsx:654",
+   "role": "TEXT",
+   "label": "Password updated",
+   "best": {
+    "label": "Your password was updated. Sign in with your new password.",
+    "at": "apps/mobile/app/(stack)/reset-password.tsx:50"
+   },
+   "score": 0.4,
+   "routes": [
+    "/reset-password"
+   ]
+  },
+  {
+   "at": "apps/web/app/reset-password/page.tsx:657",
+   "role": "TEXT",
+   "label": "Password updated",
+   "best": {
+    "label": "Your password was updated. Sign in with your new password.",
+    "at": "apps/mobile/app/(stack)/reset-password.tsx:50"
+   },
+   "score": 0.4,
+   "routes": [
+    "/reset-password"
+   ]
+  },
+  {
+   "at": "apps/web/app/reset-password/page.tsx:660",
+   "role": "TEXT",
+   "label": "You can now sign in with your new password.",
+   "best": {
+    "label": "Your password was updated. Sign in with your new password.",
+    "at": "apps/mobile/app/(stack)/reset-password.tsx:50"
+   },
+   "score": 0.43,
+   "routes": [
+    "/reset-password"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx:275",
+   "role": "TEXT",
+   "label": "Manage workspace access",
+   "best": {
+    "label": "In this workspace",
+    "at": "apps/mobile/app/(stack)/settings/ai.tsx:136"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1420",
+   "role": "TEXT",
+   "label": "Scan this QR code with your authenticator app (Google Authenticator, 1Password, Authy, …), then enter the 6-digit code it shows.",
+   "best": {
+    "label": "Open this in your authenticator app, then type the code it shows.",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:160"
+   },
+   "score": 0.36,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1785",
+   "role": "TEXT",
+   "label": "· last active",
+   "best": {
+    "label": "Last used",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:333"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:983",
+   "role": "INPUT",
+   "label": "Quiet hours start",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:292"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:1011",
+   "role": "INPUT",
+   "label": "Allow critical notifications during quiet hours",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:292"
+   },
+   "score": 0.38,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:905",
+   "role": "TEXT",
+   "label": "Use account timezone —",
+   "best": {
+    "label": "Account",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:104"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:925",
+   "role": "TEXT",
+   "label": "Privacy preferences",
+   "best": {
+    "label": "Privacy &amp; legal",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:153"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:656",
+   "role": "TEXT",
+   "label": "Close my account…",
+   "best": {
+    "label": "Account",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:104"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:671",
+   "role": "TEXT",
+   "label": "Close my account…",
+   "best": {
+    "label": "Account",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:104"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:750",
+   "role": "TEXT",
+   "label": "AI capabilities may run in this workspace (per the policy below)",
+   "best": {
+    "label": "This workspace lists no AI capabilities.",
+    "at": "apps/mobile/app/(stack)/settings/ai.tsx:158"
+   },
+   "score": 0.3,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/AiReadOnlyView.tsx:248",
+   "role": "TEXT",
+   "label": "Workspace AI policy",
+   "best": {
+    "label": "In this workspace",
+    "at": "apps/mobile/app/(stack)/settings/ai.tsx:136"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:162",
+   "role": "TEXT",
+   "label": "Last verified",
+   "best": {
+    "label": "Last used",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:333"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:515",
+   "role": "INPUT",
+   "label": "What the reviewer should inspect",
+   "best": {
+    "label": "What the reviewer is being asked",
+    "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:113"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings/reviewer-criteria"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:455",
+   "role": "INPUT",
+   "label": "What the reviewer should inspect",
+   "best": {
+    "label": "What the reviewer is being asked",
+    "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:113"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings/reviewer-criteria"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:429",
+   "role": "TEXT",
+   "label": "this criteria set was changed by someone else",
+   "best": {
+    "label": "Someone else changed this draft",
+    "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:308"
+   },
+   "score": 0.43,
+   "routes": [
+    "/settings/reviewer-criteria"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2313",
+   "role": "DIALOG",
+   "label": "Delete this workspace?",
+   "best": {
+    "label": "Close this workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+   },
+   "score": 0.33,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:1467",
+   "role": "TEXT",
+   "label": "Every seat is in use.",
+   "best": {
+    "label": "Every seat on this plan is in use. Free a seat or change plan to invite more people.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:567"
+   },
+   "score": 0.33,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:547",
+   "role": "COMPONENT",
+   "label": "Confirm transferring this workspace.",
+   "best": {
+    "label": "This workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+   },
+   "score": 0.33,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:459",
+   "role": "COMPONENT",
+   "label": "Confirm closing this workspace.",
+   "best": {
+    "label": "This workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:722"
+   },
+   "score": 0.33,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx:315",
+   "role": "COMPONENT",
+   "label": "Cases owned",
+   "best": {
+    "label": "Linked cases",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:646"
+   },
+   "score": 0.33,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:41",
+   "role": "TEXT",
+   "label": "What PROOVRA does not decide",
+   "best": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "score": 0.38,
+   "routes": [
+    "/verify"
+   ]
+  }
+ ],
+ "coincidental": [
+  {
+   "at": "apps/web/app/(app)/trust-center/_version-history.tsx:130",
+   "role": "TEXT",
+   "label": "Only one version is recorded — this is the original text.",
+   "best": {
+    "label": "This is the only version on record.",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+   },
+   "score": 0.29,
+   "routes": [
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security"
+   ]
+  },
+  {
+   "at": "apps/web/app/auth/verify-email/page.tsx:334",
+   "role": "TEXT",
+   "label": "Verification link not recognised",
+   "best": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "score": 0.25,
+   "routes": [
+    "/auth/verify-email"
+   ]
+  },
+  {
+   "at": "apps/web/app/auth/verify-email/page.tsx:406",
+   "role": "TEXT",
+   "label": "Verification link invalid or expired",
+   "best": {
+    "label": "Open the verification link on the device where you are signing in.",
+    "at": "apps/mobile/app/(stack)/verify-email.tsx:51"
+   },
+   "score": 0.25,
+   "routes": [
+    "/auth/verify-email"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:716",
+   "role": "TEXT",
+   "label": "Choose a plan",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.33,
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx:764",
+   "role": "TEXT",
+   "label": "Plan capabilities",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.33,
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:178",
+   "role": "TEXT",
+   "label": "Included with your plan",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.33,
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:143",
+   "role": "TEXT",
+   "label": "Plan change in progress",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.25,
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx:250",
+   "role": "TEXT",
+   "label": "How you have this plan",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.25,
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/page.tsx:1429",
+   "role": "TEXT",
+   "label": "Clear this evidence session?",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx:56",
+   "role": "TEXT",
+   "label": "Intake plan",
+   "best": {
+    "label": "Collection plan",
+    "at": "apps/mobile/src/ui/capture-plan-sections.tsx:103"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:62",
+   "role": "TEXT",
+   "label": "Direct Web Capture",
+   "best": {
+    "label": "Resume your capture?",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1312"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:71",
+   "role": "TEXT",
+   "label": "PROOVRA records how the page entered the evidence lifecycle. It does not establish that the page&apos;s content is true, who authored it, or that a website is genuine.",
+   "best": {
+    "label": "A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.",
+    "at": "apps/mobile/app/(stack)/screen-capture.tsx:209"
+   },
+   "score": 0.36,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:77",
+   "role": "TEXT",
+   "label": "No activity recorded in this session yet.",
+   "best": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:223",
+   "role": "TEXT",
+   "label": "Session metadata",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.33,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/capture/_lib/CaptureReadinessSignals.tsx:113",
+   "role": "TEXT",
+   "label": "No warnings",
+   "best": {
+    "label": "No evidence yet.",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1659"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:417",
+   "role": "TEXT",
+   "label": "with location signal",
+   "best": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:477",
+   "role": "TEXT",
+   "label": "Session readiness review",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:533",
+   "role": "TEXT",
+   "label": "Metadata review",
+   "best": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:534",
+   "role": "TEXT",
+   "label": "metadata flag(s).",
+   "best": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:565",
+   "role": "TEXT",
+   "label": "Metadata review",
+   "best": {
+    "label": "Include location metadata",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1372"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:137",
+   "role": "TEXT",
+   "label": "Add to Evidence Session",
+   "best": {
+    "label": "Capture Session",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1486"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx:155",
+   "role": "TEXT",
+   "label": "Stop & Add",
+   "best": {
+    "label": "Auto-add mode",
+    "at": "apps/mobile/app/(stack)/capture.tsx:1447"
+   },
+   "score": 0.25,
+   "routes": [
+    "/capture"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1521",
+   "role": "BUTTON",
+   "label": "Case actions",
+   "best": {
+    "label": "Create case",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:143"
+   },
+   "score": 0.33,
+   "routes": [
+    "/cases"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1839",
+   "role": "TEXT",
+   "label": "Matter queue temporarily unavailable",
+   "best": {
+    "label": "Workspace matter metrics are unavailable right now.",
+    "at": "apps/mobile/app/(tabs)/cases.tsx:134"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1329",
+   "role": "TEXT",
+   "label": "Linked evidence (",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1220",
+   "role": "TEXT",
+   "label": "Link evidence",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:1555",
+   "role": "TEXT",
+   "label": "No evidence-level holds inherited or applied.",
+   "best": {
+    "label": "No eligible evidence to add.",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:396"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:727",
+   "role": "BUTTON",
+   "label": "Copy case ID",
+   "best": {
+    "label": "Rename this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:509"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1519",
+   "role": "DIALOG",
+   "label": "Link evidence to case",
+   "best": {
+    "label": "Rename this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:531"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:725",
+   "role": "TEXT",
+   "label": "CASE ID :",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:298",
+   "role": "TEXT",
+   "label": "Case unavailable",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1108",
+   "role": "TEXT",
+   "label": "No evidence linked yet.",
+   "best": {
+    "label": "No notes yet.",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:452"
+   },
+   "score": 0.4,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1251",
+   "role": "TEXT",
+   "label": "No linked evidence matches your search.",
+   "best": {
+    "label": "No eligible evidence to add.",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:396"
+   },
+   "score": 0.29,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2145",
+   "role": "TEXT",
+   "label": "You don&apos;t have permission to add notes on this case.",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2398",
+   "role": "TEXT",
+   "label": "Case details",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:253",
+   "role": "TEXT",
+   "label": "Evidence gaps:",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:267",
+   "role": "INPUT",
+   "label": "Search by name or email",
+   "best": {
+    "label": "Case name",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:533"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx:427",
+   "role": "TEXT",
+   "label": "role on this case.",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/cases/components/SiuPanel.tsx:483",
+   "role": "TEXT",
+   "label": "Evidence checklist",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/cases/components/SiuPanel.tsx:490",
+   "role": "TEXT",
+   "label": "Mapped evidence",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx:341",
+   "role": "TEXT",
+   "label": "Select evidence",
+   "best": {
+    "label": "Add evidence to this case",
+    "at": "apps/mobile/app/(stack)/case/[id].tsx:394"
+   },
+   "score": 0.25,
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx:87",
+   "role": "TEXT",
+   "label": "Upload / Capture Evidence",
+   "best": {
+    "label": "Evidence Inspector",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:179"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:115",
+   "role": "TEXT",
+   "label": "Load View",
+   "best": {
+    "label": "This is the view the library opens on.",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:1221"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:215",
+   "role": "TEXT",
+   "label": "View scope",
+   "best": {
+    "label": "This is the view the library opens on.",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:1221"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:233",
+   "role": "TEXT",
+   "label": "This view will restore search, scope, status, type, review, export, case, retention, and sort.",
+   "best": {
+    "label": "Saved views preserve scope, search, type, status and sort. Source and report filters are not part of the current saved-view contract.",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:1184"
+   },
+   "score": 0.27,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:114",
+   "role": "TEXT",
+   "label": "Upload / Capture Evidence",
+   "best": {
+    "label": "Evidence Inspector",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:179"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:56",
+   "role": "TEXT",
+   "label": "Select evidence record",
+   "best": {
+    "label": "selected record",
+    "at": "apps/mobile/app/(tabs)/evidence.tsx:1247"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1568",
+   "role": "DIALOG",
+   "label": "Record evidence relationship",
+   "best": {
+    "label": "Rename record",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1658",
+   "role": "DIALOG",
+   "label": "Lock evidence record",
+   "best": {
+    "label": "Rename record",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1704",
+   "role": "DIALOG",
+   "label": "Unlock evidence record",
+   "best": {
+    "label": "Rename record",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1770",
+   "role": "DIALOG",
+   "label": "Archive evidence record",
+   "best": {
+    "label": "Rename record",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2043",
+   "role": "TEXT",
+   "label": "Open review workspace",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1388",
+   "role": "BUTTON",
+   "label": "Edit the evidence name",
+   "best": {
+    "label": "Save name",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:723"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:202",
+   "role": "TEXT",
+   "label": "No OCR or transcript extraction has been recorded yet for this record.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.3,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:684",
+   "role": "COMPONENT",
+   "label": "Record boundary noted",
+   "best": {
+    "label": "Record name",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:711"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:370",
+   "role": "TEXT",
+   "label": "No declaration is attached to this record.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:420",
+   "role": "TEXT",
+   "label": "Legal hold: active",
+   "best": {
+    "label": "A legal hold is in force on this record.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:902"
+   },
+   "score": 0.4,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:61",
+   "role": "TEXT",
+   "label": "Assignment and review state",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:125",
+   "role": "TEXT",
+   "label": "Workflow event history",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:129",
+   "role": "TEXT",
+   "label": "Loading workflow history…",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:131",
+   "role": "TEXT",
+   "label": "No workflow history recorded yet.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.29,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:211",
+   "role": "TEXT",
+   "label": "Review actions",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:212",
+   "role": "TEXT",
+   "label": "Internal review decisions",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:97",
+   "role": "TEXT",
+   "label": "Save Legal Note",
+   "best": {
+    "label": "Legal notes",
+    "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:206"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:80",
+   "role": "TEXT",
+   "label": "No annotations yet.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.4,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:66",
+   "role": "TEXT",
+   "label": "Comparison not available.",
+   "best": {
+    "label": "What this is, and is not",
+    "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:342",
+   "role": "TEXT",
+   "label": "Not recorded",
+   "best": {
+    "label": "What this is, and is not",
+    "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:163",
+   "role": "TEXT",
+   "label": "Not recorded",
+   "best": {
+    "label": "What this is, and is not",
+    "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:30",
+   "role": "TEXT",
+   "label": "Workspace review activity",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:49",
+   "role": "TEXT",
+   "label": "No reviewer audit activity recorded yet.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:332",
+   "role": "DIALOG",
+   "label": "Assign this record to a team",
+   "best": {
+    "label": "Rename record",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:97",
+   "role": "TEXT",
+   "label": "Generate Derived Review",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:105",
+   "role": "TEXT",
+   "label": "Trust decision is not yet available for this record.",
+   "best": {
+    "label": "No comments on this record yet.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+   },
+   "score": 0.25,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:86",
+   "role": "TEXT",
+   "label": "Review Workflow",
+   "best": {
+    "label": "Review history",
+    "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+   },
+   "score": 0.33,
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/components/home-experience/HomeSections.tsx:380",
+   "role": "TEXT",
+   "label": "with evidence gaps",
+   "best": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   },
+   "score": 0.25,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:892",
+   "role": "TEXT",
+   "label": "All evidence →",
+   "best": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   },
+   "score": 0.25,
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:360",
+   "role": "BUTTON",
+   "label": "Close new intake link",
+   "best": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/patterns.tsx:563"
+   },
+   "score": 0.25,
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:140",
+   "role": "BUTTON",
+   "label": "Close secure link dialog",
+   "best": {
+    "label": "Close",
+    "at": "apps/mobile/src/ui/patterns.tsx:563"
+   },
+   "score": 0.25,
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  {
+   "at": "apps/web/app/intake/[token]/page.tsx:1269",
+   "role": "TEXT",
+   "label": "You were asked to provide",
+   "best": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   },
+   "score": 0.4,
+   "routes": [
+    "/intake/[token]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/operations/quotas/page.tsx:200",
+   "role": "COMPONENT",
+   "label": "Monitor platform usage and",
+   "best": {
+    "label": "Quotas & usage",
+    "at": "apps/mobile/app/(stack)/operations/quotas.tsx:133"
+   },
+   "score": 0.25,
+   "routes": [
+    "/operations/quotas"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1541",
+   "role": "TEXT",
+   "label": "Cancel closure request",
+   "best": {
+    "label": "Closure requested",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:459"
+   },
+   "score": 0.25,
+   "routes": [
+    "/organizations/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/page.tsx:113",
+   "role": "INPUT",
+   "label": "Paste your token",
+   "best": {
+    "label": "Access token",
+    "at": "apps/mobile/app/(stack)/portal/index.tsx:51"
+   },
+   "score": 0.33,
+   "routes": [
+    "/portal"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:473",
+   "role": "TEXT",
+   "label": "Your recorded decision is not available for this review.",
+   "best": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "score": 0.29,
+   "routes": [
+    "/portal/[token]/work/[workflowId]"
+   ]
+  },
+  {
+   "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:495",
+   "role": "TEXT",
+   "label": "You have not recorded a decision for this review yet.",
+   "best": {
+    "label": "Your decision has been recorded.",
+    "at": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx:162"
+   },
+   "score": 0.25,
+   "routes": [
+    "/portal/[token]/work/[workflowId]"
+   ]
+  },
+  {
+   "at": "apps/web/app/pricing/page.tsx:1112",
+   "role": "TEXT",
+   "label": "Every plan includes",
+   "best": {
+    "label": "Current plan",
+    "at": "apps/mobile/app/(stack)/billing.tsx:98"
+   },
+   "score": 0.25,
+   "routes": [
+    "/pricing"
+   ]
+  },
+  {
+   "at": "apps/web/app/register/page.tsx:1549",
+   "role": "TEXT",
+   "label": "Creating account…",
+   "best": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "score": 0.29,
+   "routes": [
+    "/register"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/search/page.tsx:1816",
+   "role": "INPUT",
+   "label": "Search query",
+   "best": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(stack)/search.tsx:163"
+   },
+   "score": 0.25,
+   "routes": [
+    "/search"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx:282",
+   "role": "COMPONENT",
+   "label": "Last sign-in",
+   "best": {
+    "label": "Sign-in methods",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:282"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:983",
+   "role": "TEXT",
+   "label": "Add password",
+   "best": {
+    "label": "Add an authenticator",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:119"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1363",
+   "role": "TEXT",
+   "label": ". Recovery codes remaining:",
+   "best": {
+    "label": "recovery code",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:353"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1410",
+   "role": "TEXT",
+   "label": "Regenerate recovery codes",
+   "best": {
+    "label": "recovery code",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:353"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1448",
+   "role": "TEXT",
+   "label": "Can&apos;t scan? Enter this setup key manually:",
+   "best": {
+    "label": "Setup key",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:179"
+   },
+   "score": 0.29,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1468",
+   "role": "TEXT",
+   "label": "6-digit code from your app",
+   "best": {
+    "label": "A code from an authenticator app, asked for when you sign in on a new device.",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:122"
+   },
+   "score": 0.3,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2076",
+   "role": "TEXT",
+   "label": "Event key:",
+   "best": {
+    "label": "Setup key",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:179"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:618",
+   "role": "TEXT",
+   "label": "Your enrolled devices could not be loaded, so this section cannot be changed right now. Reload the page to try again.",
+   "best": {
+    "label": "The confirmation wording could not be read, so closure cannot be requested here right now.",
+    "at": "apps/mobile/app/(stack)/settings/privacy.tsx:290"
+   },
+   "score": 0.29,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:845",
+   "role": "TEXT",
+   "label": "A code was sent to",
+   "best": {
+    "label": "recovery code",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:353"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:967",
+   "role": "INPUT",
+   "label": "Enable quiet hours",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:292"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:839",
+   "role": "TEXT",
+   "label": "Quiet hours &amp; timezone",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:862",
+   "role": "TEXT",
+   "label": "Quiet hours &amp; timezone",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:871",
+   "role": "TEXT",
+   "label": "Quiet hours &amp; timezone",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/NotificationPreferencesPanel.tsx:959",
+   "role": "TEXT",
+   "label": "Digests and quiet hours use:",
+   "best": {
+    "label": "Pause email during quiet hours",
+    "at": "apps/mobile/app/(stack)/settings/notifications.tsx:286"
+   },
+   "score": 0.29,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/ContactChannelVerificationCard.tsx:470",
+   "role": "TEXT",
+   "label": "Checks used:",
+   "best": {
+    "label": "Last used",
+    "at": "apps/mobile/app/(stack)/settings/security.tsx:333"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/notifications/ContactChannelVerificationCard.tsx:551",
+   "role": "TEXT",
+   "label": "Add another number",
+   "best": {
+    "label": "Add an authenticator",
+    "at": "apps/mobile/src/ui/totp-enrolment.tsx:119"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:729",
+   "role": "COMPONENT",
+   "label": "Confirm closing your account.",
+   "best": {
+    "label": "Close your account",
+    "at": "apps/mobile/app/(stack)/settings/privacy.tsx:223"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:1002",
+   "role": "TEXT",
+   "label": "Privacy actions &amp; references",
+   "best": {
+    "label": "Privacy &amp; legal",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:153"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:1006",
+   "role": "TEXT",
+   "label": "Submit a privacy request",
+   "best": {
+    "label": "Privacy &amp; legal",
+    "at": "apps/mobile/app/(tabs)/settings.tsx:153"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:526",
+   "role": "TEXT",
+   "label": "Enable AI assistance in this workspace",
+   "best": {
+    "label": "This workspace lists no AI capabilities.",
+    "at": "apps/mobile/app/(stack)/settings/ai.tsx:158"
+   },
+   "score": 0.29,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:102",
+   "role": "TEXT",
+   "label": "Live AI capability status (this workspace)",
+   "best": {
+    "label": "This workspace lists no AI capabilities.",
+    "at": "apps/mobile/app/(stack)/settings/ai.tsx:158"
+   },
+   "score": 0.25,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:171",
+   "role": "TEXT",
+   "label": "Accept the current policies to continue",
+   "best": {
+    "label": "To continue, please accept the following:",
+    "at": "apps/mobile/app/(stack)/legal-acceptance.tsx:82"
+   },
+   "score": 0.33,
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2189",
+   "role": "DIALOG",
+   "label": "Invite a person to this workspace",
+   "best": {
+    "label": "Close this workspace",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:814"
+   },
+   "score": 0.25,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:400",
+   "role": "INPUT",
+   "label": "Search by name or email",
+   "best": {
+    "label": "Workspace name",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:917"
+   },
+   "score": 0.25,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx:357",
+   "role": "TEXT",
+   "label": "Hand this workspace to another active member. They become the owner and the billing owner; you stay a member. Evidence, cases and audit history are unaffected.",
+   "best": {
+    "label": "The person you choose becomes the workspace owner and you become an admin. Evidence, cases and reviewer queues are unaffected.",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:780"
+   },
+   "score": 0.29,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx:324",
+   "role": "TEXT",
+   "label": "Cancel closure request",
+   "best": {
+    "label": "Closure requested",
+    "at": "apps/mobile/app/(stack)/workspace-people.tsx:733"
+   },
+   "score": 0.25,
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx:10",
+   "role": "COMPONENT",
+   "label": "AI Disclosure Center",
+   "best": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   },
+   "score": 0.25,
+   "routes": [
+    "/trust-center/ai-disclosure"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:11",
+   "role": "COMPONENT",
+   "label": "Verification Methodology Center",
+   "best": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   },
+   "score": 0.25,
+   "routes": [
+    "/trust-center/methodology"
+   ]
+  },
+  {
+   "at": "apps/web/app/(app)/trust-center/security/page.tsx:9",
+   "role": "COMPONENT",
+   "label": "Security Documentation Center",
+   "best": {
+    "label": "Trust Center",
+    "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+   },
+   "score": 0.25,
+   "routes": [
+    "/trust-center/security"
+   ]
+  },
+  {
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:57",
+   "role": "TEXT",
+   "label": "What it opens",
+   "best": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   },
+   "score": 0.33,
+   "routes": [
+    "/verify"
+   ]
+  },
+  {
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:46",
+   "role": "TEXT",
+   "label": "It does not decide outcomes.",
+   "best": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   },
+   "score": 0.25,
+   "routes": [
+    "/verify"
+   ]
+  },
+  {
+   "at": "apps/web/app/verify/[token]/page.tsx:4483",
+   "role": "IMAGE",
+   "label": "PROOVRA — Integrity in Every Evidence",
+   "best": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:22"
+   },
+   "score": 0.25,
+   "routes": [
+    "/verify/[token]"
+   ]
+  }
+ ]
+}

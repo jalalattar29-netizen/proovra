@@ -11,7 +11,8 @@
  * Content comes from `GET /v1/legal/:slug`, the same module the web renders.
  * Nothing is bundled and nothing opens a browser.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { apiFetch } from "../../../src/api";
@@ -31,6 +32,7 @@ import {
   legalSlugFromWebPath,
   parseLegalDocument,
   parseLegalMarkdown,
+  legalToc,
   stripLeadingTitle,
   type LegalDocument,
 } from "../../../src/product/legal";
@@ -94,8 +96,19 @@ export default function LegalDocumentScreen() {
     [router, slug],
   );
 
+  // T-14 — "On this page": the H2 index, and the offsets that let it scroll.
+  const toc = useMemo(() => legalToc(blocks), [blocks]);
+  const [tocOpen, setTocOpen] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const offsets = useRef({ card: 0, body: 0, sections: new Map<number, number>() });
+  const jumpTo = (blockIndex: number) => {
+    const y = offsets.current.card + offsets.current.body + (offsets.current.sections.get(blockIndex) ?? 0);
+    scrollRef.current?.scrollTo?.({ y, animated: true });
+  };
+
   return (
-    <ProovraScreen testID="legal-document">
+    <ProovraScreen testID="legal-document" scroll={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ gap: theme.space.s4, paddingBottom: theme.space.s6 }}>
       <ProovraPageHeader
         title={state.phase === "loaded" ? state.doc.title : "Legal"}
         eyebrow="Legal"
@@ -139,16 +152,53 @@ export default function LegalDocumentScreen() {
         </ProovraCard>
       ) : null}
 
+      {state.phase === "loaded" && toc.length > 0 ? (
+        <ProovraCard testID="legal-toc">
+          <ProovraText
+            variant="label"
+            weight="semibold"
+            accessibilityRole="link"
+            accessibilityLabel="On this page"
+            onPress={() => setTocOpen((o) => !o)}
+          >
+            {`On this page ${tocOpen ? "▴" : "▾"}`}
+          </ProovraText>
+          {tocOpen
+            ? toc.map((item) => (
+                <ProovraText
+                  key={item.blockIndex}
+                  variant="bodySm"
+                  color={theme.color.accent.a600}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Go to ${item.title}`}
+                  onPress={() => jumpTo(item.blockIndex)}
+                >
+                  {item.title}
+                </ProovraText>
+              ))
+            : null}
+        </ProovraCard>
+      ) : null}
+
       {state.phase === "loaded" ? (
+        <View onLayout={(e) => (offsets.current.card = e.nativeEvent.layout.y)}>
         <ProovraCard>
           {state.doc.acceptance ? (
             <ProovraText variant="label" color={theme.color.ink.muted}>
               {`Acceptance required at version ${state.doc.acceptance.requiredVersion}`}
             </ProovraText>
           ) : null}
-          <LegalDocumentBody blocks={blocks} onInternalLink={followInternalLink} />
+          <View onLayout={(e) => (offsets.current.body = e.nativeEvent.layout.y)}>
+            <LegalDocumentBody
+              blocks={blocks}
+              onInternalLink={followInternalLink}
+              onSectionLayout={(i, y) => offsets.current.sections.set(i, y)}
+            />
+          </View>
         </ProovraCard>
+        </View>
       ) : null}
+      </ScrollView>
     </ProovraScreen>
   );
 }

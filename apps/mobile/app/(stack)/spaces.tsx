@@ -31,6 +31,8 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { canViewWorkspaceAudit } from "../../src/product/workspace-audit";
+import { WorkspaceAuditSection } from "../../src/ui/workspace-audit-section";
 import { useToast } from "../../src/toast-context";
 import { theme } from "../../src/theme/theme";
 import {
@@ -93,7 +95,17 @@ function SpaceRow({
 export default function SpacesScreen() {
   const router = useRouter();
   const { addToast } = useToast();
-  const { loading, error, envelope, refresh } = usePlatformContext();
+  const { loading, error, envelope, context, refresh } = usePlatformContext();
+  // T-12 — the web mounts the workspace Audit tab under /workspaces for an
+  // ORGANIZATION workspace and TEAM_MANAGE holders. The server re-authorizes.
+  const auditTeamId =
+    context?.activeTeamId &&
+    canViewWorkspaceAudit({
+      activeSpaceType: context.activeSpaceType,
+      capabilities: (envelope as { capabilities?: Record<string, unknown> } | null)?.capabilities,
+    })
+      ? context.activeTeamId
+      : null;
 
   const [busy, setBusy] = useState(false);
 
@@ -122,7 +134,7 @@ export default function SpacesScreen() {
   );
 
   return (
-    <ProovraScreen testID="spaces">
+    <ProovraScreen shell testID="spaces">
       <ProovraPageHeader
         title="Spaces"
         eyebrow="Workspace administration"
@@ -229,6 +241,8 @@ export default function SpacesScreen() {
               onPress={() => router.push("/workspace-people")}
             />
           </View>
+
+          {auditTeamId ? <WorkspaceAuditSection teamId={auditTeamId} /> : null}
         </>
       ) : null}
 

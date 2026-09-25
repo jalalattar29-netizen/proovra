@@ -48,14 +48,35 @@ test("hasActiveFilters detects any non-ALL refinement", () => {
   assert.equal(mod.hasActiveFilters({ type: "ALL", status: "SIGNED", source: "ALL", reportReady: "ALL" }), true);
 });
 
-test("library metrics project real counts with honest tones", () => {
-  const m = mod.projectLibraryMetrics({ totalActiveRecords: 20, reportsReadyCount: 12, needsActionCount: 3, verificationIssuesCount: 0 });
+test("the eight KPI cards read the workspace summary, and say so", () => {
+  const summary = mod.parseLibrarySummary({ scope: "active", source: "workspace_total", totalActiveRecords: 20, reportsReadyCount: 12, packagesReadyCount: 9, packagesMissingCount: 3, storageProtectedCount: 7, storageNeedsReviewCount: 13, multipartCount: 2, verificationIssuesCount: 1, unassignedCount: 5, needsActionCount: 6 });
+  const m = mod.buildLibraryMetrics(summary, [{ id: "a", reviewReadyAtUtc: "2026-09-01T00:00:00Z" }]);
+  assert.deepEqual(m.map((x) => x.label), ["Active records", "Reports ready", "Verification packages ready", "Verification packages missing", "Storage protection", "Multipart packages", "Unassigned records", "Review-ready records"]);
   const byKey = Object.fromEntries(m.map((x) => [x.key, x]));
-  assert.equal(byKey.total.value, 20);
-  assert.equal(byKey.needs.value, 3);
-  assert.equal(byKey.needs.tone, "risk"); // >0 → risk
-  assert.equal(byKey.issues.tone, "neutral"); // 0 → neutral
-  for (const x of m) assert.ok(TONES.has(x.tone));
+  assert.equal(byKey.active.value, "20");
+  assert.equal(byKey.active.caption, "Workspace total");
+  assert.equal(byKey["packages-missing"].tone, "risk"); // >0 is the one attention state
+  assert.equal(byKey["review-ready"].value, "1");
+  assert.equal(byKey["review-ready"].caption, "On this page");
+  for (const x of m) if (x.tone) assert.ok(TONES.has(x.tone));
+});
+
+test("without the summary, cards are labelled page-derived and package readiness is never proxied", () => {
+  assert.equal(mod.parseLibrarySummary({ message: "boom" }), null);
+  const m = mod.buildLibraryMetrics(null, [
+    { id: "a", reportReady: true, caseId: null, itemCount: 3, storage: { verified: true } },
+    { id: "b", reportReady: false, caseId: "c1", itemCount: 1 },
+  ]);
+  const byKey = Object.fromEntries(m.map((x) => [x.key, x]));
+  assert.equal(byKey.active.value, "2");
+  assert.equal(byKey.active.caption, "On this page");
+  assert.equal(byKey.reports.value, "1");
+  assert.equal(byKey["packages-ready"].value, "—");
+  assert.equal(byKey["packages-ready"].caption, "Package readiness unavailable");
+  assert.equal(byKey["packages-missing"].value, "—");
+  assert.equal(byKey.multipart.value, "1");
+  assert.equal(byKey.unassigned.value, "1");
+  assert.equal(byKey.storage.value, "1");
 });
 
 test("bulk actions match case + lifecycle semantics for each scope", () => {
@@ -101,16 +122,45 @@ test("saved views parse the real { items } envelope and map deleted to trash", (
   });
 
   assert.equal(views.length, 1);
+  // PHOTO / SIGNED are the enum spellings an older native build saved; the
+  // filter values are the web's (EvidenceFilters.tsx), so they normalise.
   assert.deepEqual(views[0], {
     id: "view-1",
     name: "Trash photos",
+    description: null,
+    teamId: null,
     scope: "trash",
-    type: "PHOTO",
-    status: "SIGNED",
+    type: "image",
+    status: "signed",
     search: " receipt ",
+    review: "all",
+    exportReadiness: "all",
+    caseAssignment: "all",
+    retention: "all",
     sort: "priority",
     isDefault: true,
   });
+});
+
+test("a saved view restores every dimension the web saves (review, export, case, retention)", () => {
+  const [view] = mod.parseSavedViews({
+    items: [
+      {
+        id: "v", ownerUserId: "u", teamId: "t1", name: "Unassigned ready", description: "Triage", scope: "archived",
+        filters: { search: "", scope: "archived", status: "reported", type: "video", review: "review-required", exportReadiness: "report-missing", caseAssignment: "unassigned", retention: "protected", sort: "oldest" },
+        sortKey: "oldest", isDefault: false, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z",
+      },
+    ],
+  });
+  const f = mod.savedViewToFilters(view);
+  assert.equal(f.scope, "archived");
+  assert.equal(f.review, "review-required");
+  assert.equal(f.exportReadiness, "report-missing");
+  assert.equal(f.caseAssignment, "unassigned");
+  assert.equal(f.retention, "protected");
+  assert.equal(f.sort, "oldest");
+  assert.equal(mod.savedViewMetaLine(view), "Scope: archived • Sort: oldest • Team view");
+  assert.equal(mod.savedViewMetaLine({ ...view, teamId: null, isDefault: true }), "Scope: archived • Sort: oldest • Personal view • Default");
 });
 
 test("saved views drop malformed rows and normalize server all values", () => {
@@ -135,8 +185,8 @@ test("saved views drop malformed rows and normalize server all values", () => {
 
   assert.equal(views.length, 1);
   assert.equal(views[0].id, "valid");
-  assert.equal(views[0].type, "ALL");
-  assert.equal(views[0].status, "ALL");
+  assert.equal(views[0].type, "all");
+  assert.equal(views[0].status, "all");
   assert.equal(views[0].sort, "oldest");
   assert.equal(views[0].isDefault, false);
 });
@@ -166,24 +216,36 @@ test("saved-view sortKey wins over filters.sort and invalid sort falls back to n
 });
 
 test("saved-view body trims values and maps native trash to server deleted", () => {
+  // CreateSavedViewBody (evidence.saved-views.routes.ts): name, description,
+  // teamId, scope, filters (SavedViewFiltersSchema), sortKey, isDefault.
   assert.deepEqual(
     mod.buildSavedViewBody({
       name: "  My view  ",
-      scope: "trash",
-      type: "ALL",
-      status: "ALL",
-      search: "  invoice  ",
-      sort: "priority",
+      description: "  ",
+      isDefault: true,
+      teamId: "",
+      filters: { ...mod.DEFAULT_LIBRARY_FILTERS, scope: "trash", search: "  invoice  ", sort: "priority", review: "verification-failed", acquisition: "MOBILE_APP" },
     }),
     {
       name: "My view",
+      description: null,
+      isDefault: true,
+      teamId: null,
       scope: "deleted",
       sortKey: "priority",
       filters: {
-        scope: "deleted",
         search: "invoice",
-        type: "all",
+        scope: "deleted",
         status: "all",
+        type: "all",
+        review: "verification-failed",
+        exportReadiness: "all",
+        caseAssignment: "all",
+        retention: "all",
+        tsaStatus: "all",
+        otsStatus: "all",
+        publicVerifyState: "all",
+        verificationStatus: "all",
         sort: "priority",
       },
     },
@@ -428,4 +490,11 @@ test("the default view applies on a clean library, never over a live filter", ()
   assert.equal(mod.defaultSavedViewToApply(views, false), null);
   assert.equal(mod.defaultSavedViewToApply([{ id: "a", isDefault: false }], true), null);
   assert.equal(mod.defaultSavedViewToApply([], true), null);
+});
+
+test("the inspector's lifecycle comes from lifecycle.productState, the key GET /v1/evidence/:id sends", () => {
+  const archived = mod.projectInspectorEvidence({ evidence: { id: "e1", status: "SIGNED", lifecycle: { productState: "ARCHIVED" } } });
+  assert.equal(archived.lifecycleState, "ARCHIVED");
+  const fiction = mod.projectInspectorEvidence({ evidence: { id: "e1", status: "SIGNED", lifecycleState: "ARCHIVED" } });
+  assert.equal(fiction.lifecycleState, null, "a key the server never sends was still read");
 });

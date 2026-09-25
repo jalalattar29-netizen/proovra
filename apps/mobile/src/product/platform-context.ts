@@ -117,6 +117,29 @@ export interface PlatformContextState {
 }
 
 /**
+ * One request shared by every hook instance mounted while it is in flight.
+ *
+ * T-09f — the shell's navigation, the header and the screen beneath them all
+ * read this envelope, and each instance used to issue its own GET, so a single
+ * navigation cost three identical round trips. Only the IN-FLIGHT request is
+ * shared: it is dropped the moment it settles, so nothing here can serve a
+ * stale envelope, and `refresh()` always forces a fresh read.
+ */
+let inflight: { token: string; promise: Promise<unknown> } | null = null;
+
+export function sharedPlatformContextRequest(token: string, force: boolean): Promise<unknown> {
+  if (!force && inflight && inflight.token === token) return inflight.promise;
+  const promise = apiFetch("/v1/platform/context", { method: "GET" });
+  const entry = { token, promise };
+  inflight = entry;
+  const clear = () => {
+    if (inflight === entry) inflight = null;
+  };
+  promise.then(clear, clear);
+  return promise;
+}
+
+/**
  * Fetches the canonical envelope once per authenticated session and projects it.
  * Fails soft: on a transient error `context` is null and `error` is true; callers
  * decide whether a missing teamId means "personal scope" or "retry".
@@ -138,7 +161,7 @@ export function usePlatformContext(): PlatformContextState {
       return;
     }
     setState((prev) => ({ ...prev, loading: true, error: false }));
-    apiFetch("/v1/platform/context", { method: "GET" })
+    sharedPlatformContextRequest(token, nonce > 0)
       .then((envelope) => {
         if (!alive) return;
         setState({

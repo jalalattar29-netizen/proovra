@@ -1,0 +1,530 @@
+{
+ "route": "/register",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "role": "INPUT",
+   "label": "Password",
+   "web": "apps/web/app/register/page.tsx:1244",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA",
+   "web": "apps/web/app/register/page.tsx:889",
+   "nat": "apps/mobile/src/ui/brand.tsx:31",
+   "verdict": "MATCH_EXACT"
+  },
+  {
+   "role": "INPUT",
+   "webLabel": "Confirm password",
+   "natLabel": "Password",
+   "score": 0.5,
+   "web": "apps/web/app/register/page.tsx:1442",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "We&rsquo;ve sent a verification email to",
+   "natLabel": "We sent a verification link to",
+   "score": 0.5,
+   "web": "apps/web/app/register/page.tsx:959",
+   "nat": "apps/mobile/app/(stack)/register.tsx:53",
+   "verdict": "MATCH_COPY_DIFFERS"
+  },
+  {
+   "label": "Email",
+   "webRole": "INPUT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/register/page.tsx:1128",
+   "nat": "apps/mobile/app/(stack)/register.tsx:73",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Create Account",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/register/page.tsx:874",
+   "nat": "apps/mobile/app/(stack)/register.tsx:68",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Back to sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/register/page.tsx:1014",
+   "nat": "apps/mobile/app/(stack)/register.tsx:57",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Password",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/register/page.tsx:1231",
+   "nat": "apps/mobile/app/(stack)/register.tsx:76",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "BOX",
+   "label": "Continue with Google",
+   "at": "apps/web/app/register/page.tsx:1063",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Continue with Apple",
+   "at": "apps/web/app/register/page.tsx:1081",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "LIST",
+   "label": "Password requirements",
+   "at": "apps/web/app/register/page.tsx:1377",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no LIST element at all"
+  },
+  {
+   "role": "LIST",
+   "label": "Security and privacy commitments",
+   "at": "apps/web/app/register/page.tsx:1665",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "ROLE_ABSENT_ON_SCREEN",
+   "why": "the native counterpart carries no LIST element at all"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your secure",
+   "at": "apps/web/app/register/page.tsx:878",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "account.",
+   "at": "apps/web/app/register/page.tsx:891",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Register to manage evidence records, verification pages, reports, and protected review workflows from one place.",
+   "at": "apps/web/app/register/page.tsx:895",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify your email",
+   "at": "apps/web/app/register/page.tsx:951",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify your email address",
+   "at": "apps/web/app/register/page.tsx:955",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": ". Please open the email and click the verification link to activate your PROOVRA account.",
+   "at": "apps/web/app/register/page.tsx:963",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.18)"
+  },
+  {
+   "role": "TEXT",
+   "label": "If you don&rsquo;t see the email within a minute, check your spam folder. Verification links expire after 24&nbsp;hours.",
+   "at": "apps/web/app/register/page.tsx:968",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.06)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Change email",
+   "at": "apps/web/app/register/page.tsx:1007",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Account setup",
+   "at": "apps/web/app/register/page.tsx:1049",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.13)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your account",
+   "at": "apps/web/app/register/page.tsx:1053",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your account using Google, Apple, or email and continue directly into your PROOVRA workspace.",
+   "at": "apps/web/app/register/page.tsx:1057",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.09)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue with Apple",
+   "at": "apps/web/app/register/page.tsx:1099",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email address",
+   "at": "apps/web/app/register/page.tsx:1118",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter a valid email address.",
+   "at": "apps/web/app/register/page.tsx:1176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking email…",
+   "at": "apps/web/app/register/page.tsx:1188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Email is available.",
+   "at": "apps/web/app/register/page.tsx:1191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "An account already exists for this email.",
+   "at": "apps/web/app/register/page.tsx:1202",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.1)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in",
+   "at": "apps/web/app/register/page.tsx:1208",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Forgot password?",
+   "at": "apps/web/app/register/page.tsx:1216",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Could not verify email — you can still try to register.",
+   "at": "apps/web/app/register/page.tsx:1221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Caps Lock is enabled",
+   "at": "apps/web/app/register/page.tsx:1317",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Password strength",
+   "at": "apps/web/app/register/page.tsx:1362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm password",
+   "at": "apps/web/app/register/page.tsx:1429",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Passwords do not match.",
+   "at": "apps/web/app/register/page.tsx:1483",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "I agree to the",
+   "at": "apps/web/app/register/page.tsx:1512",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   },
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0.14)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/app/register/page.tsx:1518",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/app/register/page.tsx:1526",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cookie Policy",
+   "at": "apps/web/app/register/page.tsx:1534",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   },
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Creating account…",
+   "at": "apps/web/app/register/page.tsx:1549",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   },
+   "verdict": "NEAR_MISS_NEEDS_READ",
+   "why": "best same-role native candidate \". Open it on this device to finish creating your account and accept the terms.\" at apps/mobile/app/(stack)/register.tsx:53 scores 0.29 — plausible counterpart, needs a read"
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_SHELL",
+   "why": "web marketing/app-shell element; an installed app has no marketing chrome"
+  }
+ ]
+}

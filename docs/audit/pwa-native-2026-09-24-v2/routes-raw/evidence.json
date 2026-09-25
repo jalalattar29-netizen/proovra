@@ -1,0 +1,1234 @@
+{
+ "route": "/evidence",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/evidence/page.tsx",
+ "nativeEntry": "apps/mobile/app/(tabs)/evidence.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 182,
+   "elements": 513,
+   "texts": 109,
+   "distinctTexts": 95,
+   "handlers": 126,
+   "conditionals": 1586,
+   "apiPaths": 20,
+   "distinctApi": 10,
+   "styleRefs": 354,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "lucide-react",
+    "zod",
+    "react-dom",
+    "next/link",
+    "@sentry/browser",
+    "@proovra/shared/legal-revisions"
+   ]
+  },
+  "native": {
+   "files": 141,
+   "elements": 261,
+   "texts": 69,
+   "distinctTexts": 61,
+   "handlers": 80,
+   "conditionals": 1232,
+   "apiPaths": 12,
+   "distinctApi": 7,
+   "styleRefs": 288,
+   "stylesheetRules": 111,
+   "themeTokens": 324,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "expo-file-system",
+    "zod",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 108,
+  "natLabelled": 67,
+  "paired": 8,
+  "roleDiff": 15,
+  "missing": 85,
+  "extraInNative": 49,
+  "webUnlabelled": 478,
+  "missingWithRolePresent": 82,
+  "missingWithRoleAbsent": 3,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "selected",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:299",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1289"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:412",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:182"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:96",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "Status",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:623",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1137"
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Preview",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:681",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:254"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:182"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:422",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1251"
+    },
+    {
+     "label": "record",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:465",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:246"
+    },
+    {
+     "label": "record",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:471",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:246"
+    },
+    {
+     "label": "record",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:479",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:246"
+    },
+    {
+     "label": "Save Current View",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:85",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1187"
+    },
+    {
+     "label": "Cancel",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:167",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1251"
+    },
+    {
+     "label": "Preview restricted",
+     "webRole": "COMPONENT",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:376",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:286"
+    },
+    {
+     "label": "No preview available",
+     "webRole": "COMPONENT",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:387",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:305"
+    },
+    {
+     "label": "Preview not supported",
+     "webRole": "COMPONENT",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:398",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:295"
+    },
+    {
+     "label": "Loading selected record",
+     "webRole": "BOX",
+     "natRole": "STATE_LOADING",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:530",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:191"
+    },
+    {
+     "label": "Open Evidence",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:607",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:382"
+    },
+    {
+     "label": "Record",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:612",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:246"
+    },
+    {
+     "label": "Created",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:659",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:238"
+    },
+    {
+     "label": "Status",
+     "webRole": "BADGE",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:130",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:1137"
+    },
+    {
+     "label": "Type",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "nat": "apps/mobile/app/(tabs)/evidence.tsx:234"
+    }
+   ],
+   "missing": [
+    {
+     "role": "SELECT",
+     "label": "Bulk action",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:300",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Target case",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:307",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Run Bulk Action",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:348",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear Selection",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records selected — a bulk action can carry at most",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:366",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Narrow the selection to",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:370",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records or fewer and run the action again. Nothing has been submitted.",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:370",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:382",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "selected records cannot be moved to trash",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:382",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "records accepted and queued",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The workspace is processing them. This list updates when the run reports a terminal outcome.",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:458",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "could not be",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The records that could not be",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:485",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "are still selected.",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:485",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "will run for",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:495",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "currently selected records.",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:495",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Bulk selection applies only to the records you selected in the currently loaded pages.",
+     "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:498",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Saved Views",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:89",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Saved Views",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:76",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No saved views yet.",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Scope:",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:109",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "• Sort:",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:109",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Load View",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:115",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Rename",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:128",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Delete",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:133",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View name",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:196",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Description",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:205",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View scope",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:215",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Make this my default view",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:230",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This view will restore search, scope, status, type, review, export, case, retention, and sort.",
+     "at": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:233",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Preview could not be loaded",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:409",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Queue preview unavailable",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:544",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close queue selection",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:797",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No record selected",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Choose a record in the evidence queue to preview its status, integrity state and export readiness here.",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:523",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:644",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download Report",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:714",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download Verification Package",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:726",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Copy Verification Link",
+     "at": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx:737",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Loading evidence records",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:83",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Evidence list unavailable",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:95",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No evidence records in this scope",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:105",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence queue",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:53",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Dense operational triage for reviewer queues, export readiness, and case-linked evidence operations.",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:55",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Results are loaded from the server using the selected filters.",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:60",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select all loaded pages",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upload / Capture Evidence",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:114",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review Cases",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:117",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Previous",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:148",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Next",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:156",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select evidence record",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:56",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case:",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:86",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "item",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:95",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:96",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx:103",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Evidence filters",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Search title, filename, or record ID",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:100",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Workspace scope",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:117",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Evidence type",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:145",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "How the record entered PROOVRA",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:161",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Review",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:177",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Export",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:190",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Case",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:202",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Retention",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:214",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Sort",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:226",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search title, filename, or record ID",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New Case",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Upload / Capture Evidence",
+     "at": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx:87",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_EMPTY",
+     "label": "Preview unavailable",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:195"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open Preview",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:276"
+    },
+    {
+     "role": "LIST",
+     "label": "Report",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:319"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:328"
+    },
+    {
+     "role": "LIST",
+     "label": "Verification Package",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:348"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:356"
+    },
+    {
+     "role": "LIST",
+     "label": "Public Verification",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:366"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Share",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:370"
+    },
+    {
+     "role": "SECTION",
+     "label": "Evidence",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1101"
+    },
+    {
+     "role": "INPUT",
+     "label": "Search evidence",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1123"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "All types",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1127"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Any",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1139"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Any",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1146"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Any",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1153"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear filters",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1158"
+    },
+    {
+     "role": "INPUT",
+     "label": "Name this view",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1181"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Name",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1201"
+    },
+    {
+     "role": "INPUT",
+     "label": "Saved view name",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1202"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Rename view",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1210"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open the library on this view",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1224"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Delete view",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1231"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading cases",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1260"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No cases available",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1267"
+    },
+    {
+     "role": "BADGE",
+     "label": "Add",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1279"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading evidence",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1299"
+    },
+    {
+     "role": "BUTTON",
+     "label": "+ Capture",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1306"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Restore",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1324"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Load more",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1335"
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Inspector",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:179"
+    },
+    {
+     "role": "TEXT",
+     "label": "Preview available",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:271"
+    },
+    {
+     "role": "TEXT",
+     "label": "This media type opens with the device viewer.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:274"
+    },
+    {
+     "role": "TEXT",
+     "label": "Content access is not granted for this projection.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:289"
+    },
+    {
+     "role": "TEXT",
+     "label": "The evidence record is available, but this item cannot be rendered inline.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:298"
+    },
+    {
+     "role": "TEXT",
+     "label": "No previewable content item is available for this record.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:308"
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical Materials",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:316"
+    },
+    {
+     "role": "TEXT",
+     "label": "Source",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1144"
+    },
+    {
+     "role": "TEXT",
+     "label": "Report",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1151"
+    },
+    {
+     "role": "TEXT",
+     "label": "Saved views preserve scope, search, type, status and sort. Source and report filters are not part of the current saved-view contract.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1184"
+    },
+    {
+     "role": "TEXT",
+     "label": "This is the view the library opens on.",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1221"
+    },
+    {
+     "role": "TEXT",
+     "label": "Add selected evidence to a case",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1244"
+    },
+    {
+     "role": "TEXT",
+     "label": "Choose the target case for",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1247"
+    },
+    {
+     "role": "TEXT",
+     "label": "selected record",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1247"
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/mobile/app/(tabs)/evidence.tsx:1247"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 2195,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 18,
+  "webCompetingRules": 153,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 313,
+  "natTokenUnresolved": 95,
+  "webDistinctColors": 86,
+  "natDistinctColors": 20,
+  "sharedColors": 9,
+  "webOnlyColors": 77,
+  "webOnlyColorSample": [
+   "rgba(15, 23, 42, 0.10)",
+   "rgba(255, 255, 255, 0.70)",
+   "#667085",
+   "rgba(124, 58, 237, 0.4)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "rgba(99, 91, 255, 0.08)",
+   "#172033",
+   "rgba(100, 116, 139, 0.36)",
+   "#8793a6",
+   "rgba(15, 23, 42, 0.12)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "rgba(15, 23, 42, 0.08)",
+   "rgba(168, 102, 18, 0.24)",
+   "rgba(35, 55, 59, 0.74)",
+   "#344054",
+   "rgba(178, 52, 66, 0.24)",
+   "rgba(255, 255, 255, 0.97)",
+   "rgba(15, 23, 42, 0.22)",
+   "rgba(124, 58, 237, 0.22)",
+   "rgba(58, 93, 97, 0.08)",
+   "rgba(248, 250, 249, 0.92)",
+   "rgba(168, 102, 18, 0.28)"
+  ],
+  "sharedColorSample": [
+   "#6d28d9",
+   "#ffffff",
+   "#0f172a",
+   "rgba(15, 23, 42, 0.42)",
+   "rgba(15, 23, 42, 0.06)",
+   "#7c3aed",
+   "#475569",
+   "rgba(15, 23, 42, 0.09)",
+   "#f1f4f9"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1586,
+  "natConditionals": 1232,
+  "webStateRoles": [
+   "STATE_EMPTY"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 126,
+  "natHandlers": 80,
+  "webHandlerSample": [
+   "onClick=() => onClear(c.key) @apps/web/app/(app)/evidence/page.tsx:200",
+   "onRefresh=refreshCurrentScope @apps/web/app/(app)/evidence/page.tsx:1242",
+   "onClear=(key) => updateFilters({ ...filters, [key]: key === \"type\" | @apps/web/app/(app)/evidence/page.tsx:1249",
+   "onChange=updateFilters @apps/web/app/(app)/evidence/page.tsx:1258",
+   "onApplyView=applySavedView @apps/web/app/(app)/evidence/page.tsx:1262",
+   "onCreateView=createSavedView @apps/web/app/(app)/evidence/page.tsx:1262",
+   "onUpdateView=updateSavedView @apps/web/app/(app)/evidence/page.tsx:1262",
+   "onDeleteView=deleteSavedView @apps/web/app/(app)/evidence/page.tsx:1262",
+   "onSetDefault=setDefaultSavedView @apps/web/app/(app)/evidence/page.tsx:1262",
+   "onSelect=selectRecord @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onToggleSelected=toggleSelected @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onToggleSelectAllCurrentPage=toggleSelectAllCurrentPage @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onRetry=refreshCurrentScope @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onPrevPage=goToPreviousPage @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onNextPage=goToNextPage @apps/web/app/(app)/evidence/page.tsx:1278",
+   "onClear=clearSelection @apps/web/app/(app)/evidence/page.tsx:1289",
+   "onRun=runBulkAction @apps/web/app/(app)/evidence/page.tsx:1289",
+   "onSelectionResolved=resolveSelectionAfterBulk @apps/web/app/(app)/evidence/page.tsx:1289",
+   "onClose=closeInspector @apps/web/app/(app)/evidence/page.tsx:1320",
+   "onOpenRecord=() => (selectedItem ? openRecord(selectedItem.id) : undefine @apps/web/app/(app)/evidence/page.tsx:1320",
+   "onDownloadReport=() => (selectedItem ? void downloadReport(selectedItem.id) : @apps/web/app/(app)/evidence/page.tsx:1320",
+   "onDownloadVerificationPackage=() => selectedItem ? void downloadVerificationPackage(select @apps/web/app/(app)/evidence/page.tsx:1320",
+   "onCopyVerificationLink=() => selectedItem ? void copyVerificationLink(selectedItem. @apps/web/app/(app)/evidence/page.tsx:1320",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onChange=setAction @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:300",
+   "onChange=setCaseId @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:307",
+   "onClick=() => { // An empty selection — or one the contract cannot c @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:318",
+   "onClick=onClear @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:350",
+   "onClose=closeDialog @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:395",
+   "onClick=closeDialog @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:406",
+   "onClick=closeDialog @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:416",
+   "onClick=() => void runAction() @apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:424",
+   "onClick=(e) => { if (e.target === e.currentTarget && !dismissDisable @apps/web/components/cases-experience/matter-modals/Modal.tsx:200",
+   "onClick=onClose @apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "onClick=() => setIsOpen(true) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:69",
+   "onClick=() => setSaveOpen(true) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:78",
+   "onClose=() => setIsOpen(false) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:89",
+   "onClick=() => setIsOpen(false) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:95",
+   "onClick=() => onApplyView(view) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:114",
+   "onClick=() => { setEditViewId(view.id); setName(view.name); setDescr @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:117",
+   "onClick=() => void onSetDefault(view.id) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:130",
+   "onClick=() => void onDeleteView(view.id) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:133",
+   "onClose=() => { setSaveOpen(false); setEditViewId(null); setName(\"\") @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:141",
+   "onClick=() => { setSaveOpen(false); setEditViewId(null); setName(\"\") @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:155",
+   "onClick=() => void (editViewId ? onUpdateView(editViewId, { name, de @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:169",
+   "onChange=(event) => setName(event.target.value) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:197",
+   "onChange=(event) => setDescription(event.target.value) @apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx:206"
+  ],
+  "natHandlerSample": [
+   "onPress=onPress @apps/mobile/app/(tabs)/evidence.tsx:116",
+   "onLongPress=onLongPress @apps/mobile/app/(tabs)/evidence.tsx:116",
+   "onPress=onClose @apps/mobile/app/(tabs)/evidence.tsx:182",
+   "onRetry=onRetry @apps/mobile/app/(tabs)/evidence.tsx:193",
+   "onPress=() => void Linking.openURL(preview.url) @apps/mobile/app/(tabs)/evidence.tsx:276",
+   "onPress=onOpenReport @apps/mobile/app/(tabs)/evidence.tsx:328",
+   "onPress=onOpenPackage @apps/mobile/app/(tabs)/evidence.tsx:356",
+   "onPress=onShareVerification @apps/mobile/app/(tabs)/evidence.tsx:370",
+   "onPress=onOpenRecord @apps/mobile/app/(tabs)/evidence.tsx:382",
+   "onRequestClose=onClose @apps/mobile/app/(tabs)/evidence.tsx:406",
+   "onPress=() => setScope(s.key) @apps/mobile/app/(tabs)/evidence.tsx:1104",
+   "onChangeText=onSearch @apps/mobile/app/(tabs)/evidence.tsx:1123",
+   "onPress=() => setTypeFilter(\"ALL\") @apps/mobile/app/(tabs)/evidence.tsx:1127",
+   "onPress=() => setTypeFilter(tf) @apps/mobile/app/(tabs)/evidence.tsx:1129",
+   "onPress=() => setSort((s) => nextSort(s)) @apps/mobile/app/(tabs)/evidence.tsx:1131",
+   "onPress=() => setShowFilters((v) => !v) @apps/mobile/app/(tabs)/evidence.tsx:1132",
+   "onPress=() => setStatusFilter(\"ALL\") @apps/mobile/app/(tabs)/evidence.tsx:1139",
+   "onPress=() => setStatusFilter(st) @apps/mobile/app/(tabs)/evidence.tsx:1141",
+   "onPress=() => setSourceFilter(\"ALL\") @apps/mobile/app/(tabs)/evidence.tsx:1146",
+   "onPress=() => setSourceFilter(sf) @apps/mobile/app/(tabs)/evidence.tsx:1148",
+   "onPress=() => setReportFilter(\"ALL\") @apps/mobile/app/(tabs)/evidence.tsx:1153",
+   "onPress=() => setReportFilter(rf) @apps/mobile/app/(tabs)/evidence.tsx:1155",
+   "onPress=clearFilters @apps/mobile/app/(tabs)/evidence.tsx:1158",
+   "onPress=() => applyView(v) @apps/mobile/app/(tabs)/evidence.tsx:1164",
+   "onLongPress=() => openViewManager(v) @apps/mobile/app/(tabs)/evidence.tsx:1164",
+   "onPress=() => setShowSaveView((s) => !s) @apps/mobile/app/(tabs)/evidence.tsx:1175",
+   "onPress=() => { setSelectionMode((m) => !m); setSelected(new Set()); @apps/mobile/app/(tabs)/evidence.tsx:1176",
+   "onChangeText=setNewViewName @apps/mobile/app/(tabs)/evidence.tsx:1181",
+   "onSubmitEditing=() => void saveView() @apps/mobile/app/(tabs)/evidence.tsx:1181",
+   "onPress=() => void saveView() @apps/mobile/app/(tabs)/evidence.tsx:1187",
+   "onClose=() => setManagingView(null) @apps/mobile/app/(tabs)/evidence.tsx:1196",
+   "onChangeText=setRenameDraft @apps/mobile/app/(tabs)/evidence.tsx:1202",
+   "onPress=() => void renameView() @apps/mobile/app/(tabs)/evidence.tsx:1210",
+   "onPress=() => void makeViewDefault() @apps/mobile/app/(tabs)/evidence.tsx:1224",
+   "onPress=deleteView @apps/mobile/app/(tabs)/evidence.tsx:1231",
+   "onPress=() => setCaseChooserOpen(false) @apps/mobile/app/(tabs)/evidence.tsx:1251",
+   "onRetry=() => void loadCaseOptions() @apps/mobile/app/(tabs)/evidence.tsx:1262",
+   "onPress=() => addSelectionToCase(caseOption) @apps/mobile/app/(tabs)/evidence.tsx:1274",
+   "onPress=() => runBulk(a) @apps/mobile/app/(tabs)/evidence.tsx:1292",
+   "onRetry=() => void reload() @apps/mobile/app/(tabs)/evidence.tsx:1301",
+   "onPress=() => router.push(\"/capture\") @apps/mobile/app/(tabs)/evidence.tsx:1306",
+   "onPress=() => (selectionMode ? toggleSelected(item.id) : openInspect @apps/mobile/app/(tabs)/evidence.tsx:1315",
+   "onPress=() => restore(item) @apps/mobile/app/(tabs)/evidence.tsx:1324",
+   "onPress=() => void reload(true, cursor) @apps/mobile/app/(tabs)/evidence.tsx:1335",
+   "onClose=closeInspector @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onRetry=() => void loadInspector(inspectorId) @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onOpenRecord=() => router.push(`/evidence/${inspectorId}`) @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onOpenReport=() => void openInspectorReport() @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onOpenPackage=() => void openInspectorPackage() @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onShareVerification=() => void shareInspectorVerification() @apps/mobile/app/(tabs)/evidence.tsx:1342",
+   "onClose=closeInspector @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onRetry=() => void loadInspector(inspectorId) @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onOpenRecord=() => router.push(`/evidence/${inspectorId}`) @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onOpenReport=() => void openInspectorReport() @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onOpenPackage=() => void openInspectorPackage() @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onShareVerification=() => void shareInspectorVerification() @apps/mobile/app/(tabs)/evidence.tsx:1360",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340"
+  ]
+ },
+ "level8": {
+  "webApi": 10,
+  "natApi": 7,
+  "shared": 7,
+  "onlyWeb": 3,
+  "onlyNative": 0,
+  "onlyWebList": [
+   "/v1/",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [],
+  "sharedList": [
+   "/v1/evidence/library-summary?${…}",
+   "/v1/evidence?${…}",
+   "/v1/cases",
+   "/v1/evidence/saved-views",
+   "/v1/evidence/${…}",
+   "/v1/evidence/saved-views/${…}",
+   "/v1/evidence/bulk"
+  ],
+  "webApiWhere": {
+   "/v1/evidence/library-summary?${…}": "apps/web/app/(app)/evidence/page.tsx:108",
+   "/v1/evidence?${…}": "apps/web/app/(app)/evidence/page.tsx:144",
+   "/v1/cases": "apps/web/app/(app)/evidence/page.tsx:416",
+   "/v1/evidence/saved-views": "apps/web/app/(app)/evidence/page.tsx:969",
+   "/v1/evidence/${…}": "apps/web/app/(app)/evidence/page.tsx:1119",
+   "/v1/evidence/saved-views/${…}": "apps/web/app/(app)/evidence/page.tsx:1030",
+   "/v1/evidence/bulk": "apps/web/app/(app)/evidence/page.tsx:1160",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/evidence/library-summary?scope=${…}": "apps/mobile/app/(tabs)/evidence.tsx:542",
+   "/v1/evidence/${…}": "apps/mobile/app/(tabs)/evidence.tsx:1033",
+   "/v1/evidence/saved-views": "apps/mobile/app/(tabs)/evidence.tsx:728",
+   "/v1/cases": "apps/mobile/app/(tabs)/evidence.tsx:768",
+   "/v1/evidence/bulk": "apps/mobile/app/(tabs)/evidence.tsx:816",
+   "/v1/evidence?${…}": "apps/mobile/src/product/evidence-library.ts:53",
+   "/v1/evidence/saved-views/${…}": "apps/mobile/src/product/evidence-library.ts:507"
+  }
+ }
+}

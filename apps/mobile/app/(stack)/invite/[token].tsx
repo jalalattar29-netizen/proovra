@@ -1,5 +1,6 @@
 /**
- * COLLABORATION INVITE ACCEPTANCE (Native Convergence §14, M7). A deep-link
+ * INVITE ACCEPTANCE — workspace invitations (T-15, src/ui/workspace-invite.tsx)
+ * and COLLABORATION invites (Native Convergence §14, M7). A deep-link
  * target: proovra://invite/<token> (or the web invite link). If unauthenticated,
  * the intent is preserved and the user is sent through Sign In → MFA → Legal, then
  * replayed here to accept. Accept = POST /v1/collaboration-team-invites/:token/
@@ -11,7 +12,10 @@ import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch, getAuthToken } from "../../../src/api";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
+import { theme } from "../../../src/theme/theme";
 import { setPendingRoute } from "../../../src/deep-link/pending-intent";
+import { isWellFormedWorkspaceInviteToken } from "@proovra/shared";
+import { WorkspaceInvite } from "../../../src/ui/workspace-invite";
 import {
   ProovraScreen,
   ProovraCard,
@@ -23,14 +27,29 @@ import {
   ProovraLoadingState,
 } from "../../../src/ui";
 
-type Phase = "checking" | "ready" | "accepting" | "accepted" | "invalid" | "error";
+type Phase = "checking" | "ready" | "accepting" | "accepted" | "invalid" | "refused" | "error";
 
-export default function InviteAcceptScreen() {
+/**
+ * T-15 — /invite/<token> carries TWO invitation kinds, told apart by token
+ * shape as on the web: a WORKSPACE invitation (wsit_v1_…, emailed by
+ * sendTeamInvitation) and a collaboration-team invitation. Before this, every
+ * token went to the collaboration endpoint, so a workspace invitation opened
+ * in the app was reported as invalid.
+ */
+export default function InviteScreen() {
+  const params = useLocalSearchParams<{ token?: string }>();
+  const token = params.token ?? "";
+  if (isWellFormedWorkspaceInviteToken(token)) return <WorkspaceInvite token={token} />;
+  return <CollaborationInviteScreen />;
+}
+
+function CollaborationInviteScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
   const token = params.token ?? "";
   const [phase, setPhase] = useState<Phase>("checking");
   const [error, setError] = useState<SafeError | null>(null);
+  const [refused, setRefused] = useState<{ title: string; body: string } | null>(null);
 
   // Gate on auth. Unauthenticated → preserve this route and route to Sign In;
   // the pending intent replays here after the full auth journey.
@@ -74,6 +93,15 @@ export default function InviteAcceptScreen() {
       else router.replace("/teams");
     } catch (err) {
       const safe = toSafeUserError(err);
+      // T-12 — the two PLAN refusals are not errors to retry: the web shows a
+      // panel with "View billing" and "Back to Teams" (accept/page.tsx:130-156,
+      // 405, 440). Retrying cannot change the owner's plan.
+      const refusal = inviteRefusal(err);
+      if (refusal) {
+        setRefused(refusal);
+        setPhase("refused");
+        return;
+      }
       // 400/404 = invalid / expired / already-accepted (anti-enumeration).
       if (safe.status === 400 || safe.kind === "notFound") setPhase("invalid");
       else {
@@ -97,8 +125,29 @@ export default function InviteAcceptScreen() {
       </ProovraScreen>
     );
   }
+  if (phase === "refused" && refused) {
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState
+          title={refused.title}
+          message={refused.body}
+          action={
+            <View style={styles.actions}>
+              <ProovraButton
+                label="View billing"
+                accessibilityLabel="View billing and upgrade options"
+                fullWidth={false}
+                onPress={() => router.push("/billing")}
+              />
+              <ProovraButton label="Back to Teams" variant="ghost" fullWidth={false} onPress={() => router.replace("/teams")} />
+            </View>
+          }
+        />
+      </ProovraScreen>
+    );
+  }
   if (phase === "error" && error) {
-    return <ProovraScreen scroll={false}><ProovraErrorState message={error.message} onRetry={() => void accept()} /></ProovraScreen>;
+    return <ProovraScreen scroll={false}><ProovraErrorState message={error.message} requestId={error.requestId ?? null} onRetry={() => void accept()} /></ProovraScreen>;
   }
 
   return (
@@ -111,9 +160,49 @@ export default function InviteAcceptScreen() {
             <ProovraButton label="Not now" variant="ghost" onPress={() => router.replace("/")} />
           </View>
         </ProovraCard>
+        {/* The web invite TrustLine (invite/[token]/page.tsx:494-502). */}
+        <ProovraText variant="label" color={theme.color.ink.muted} testID="invite-trust-line">
+          {"Invitation links are single-use and expire. Never share this link. "}
+          <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="Privacy" onPress={() => router.push("/legal/privacy")}>Privacy</ProovraText>
+          {" · "}
+          <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="Terms" onPress={() => router.push("/legal/terms")}>Terms</ProovraText>
+          {" · "}
+          <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="Support" onPress={() => router.push("/support")}>Support</ProovraText>
+        </ProovraText>
       </ProovraSection>
     </ProovraScreen>
   );
+}
+
+/**
+ * The owner's-plan refusals (accept/page.tsx:130-156, 203-224). Seat counts
+ * come ONLY from the error's details; nothing is invented when they are absent.
+ */
+export function inviteRefusal(err: unknown): { title: string; body: string } | null {
+  const e = (err && typeof err === "object" ? err : {}) as { code?: unknown; details?: Record<string, unknown> };
+  if (e.code === "TEAM_MEMBER_LIMIT_REACHED") {
+    const d = e.details ?? {};
+    const plan = typeof d.plan === "string" ? d.plan : null;
+    const max = typeof d.maxMembersPerTeam === "number" ? d.maxMembersPerTeam : null;
+    const current = typeof d.currentMemberCount === "number" ? d.currentMemberCount : null;
+    const suffix =
+      plan && max !== null && current !== null
+        ? ` (${current} of ${max} seats in use on plan ${plan})`
+        : plan
+          ? ` (plan ${plan})`
+          : "";
+    return {
+      title: "This team is at capacity for the owner's plan",
+      body: `The team owner needs to free a seat or upgrade their plan before you can join.${suffix}`,
+    };
+  }
+  if (e.code === "TEAM_INVITES_NOT_INCLUDED") {
+    return {
+      title: "This invitation is unavailable",
+      body: "The Team owner's current plan no longer supports this invitation.",
+    };
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({

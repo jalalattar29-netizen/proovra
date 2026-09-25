@@ -6,6 +6,8 @@
  * breakage). Accessibility (roles/labels/44pt targets) and RTL are built in.
  */
 import React from "react";
+import * as Clipboard from "expo-clipboard";
+import { AUTH_SURFACE, AuthBackdrop, SHELL_SURFACE, useSurfaceKind } from "./shell-surface";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -22,12 +24,14 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocale } from "../locale-context";
 import { theme, statusTone } from "../theme/theme";
 import { useResponsive, FORM_MAX_WIDTH } from "../theme/responsive";
 import type { ProovraStatusTone } from "@proovra/ui";
 
 export * from "./shell";
+import { ProovraShell } from "./shell";
 export * from "./patterns";
 
 const MIN_TOUCH = 44; // WCAG / platform minimum touch target
@@ -41,8 +45,26 @@ export function ProovraScreen({
   footer,
   width = "content",
   testID,
+  shell = false,
+  backdrop,
 }: {
+  /**
+   * "auth" paints the web auth hero behind the screen (NEW:VIS-AUTH-HERO):
+   * login, register, reset-password, forgot-password and verify-email.
+   */
+  backdrop?: "auth";
   children: React.ReactNode;
+  /**
+   * Render inside the app shell: header, navigation and the shell gates.
+   *
+   * RC-10: every authenticated stack screen (Reports, Billing, Search, Intake
+   * links, case and evidence detail, ...) rendered OUTSIDE the shell, so picking
+   * Reports from the tablet rail made the rail and the header disappear, and
+   * the workspace-recovery and Personal-Space gates never ran there. The web
+   * wraps every authenticated route in AppShellV2. Opt-in, because auth,
+   * public token flows and full-screen capture must NOT carry the chrome.
+   */
+  shell?: boolean;
   scroll?: boolean;
   padded?: boolean;
   footer?: React.ReactNode;
@@ -70,8 +92,17 @@ export function ProovraScreen({
       <View style={clamp ? { width: "100%", maxWidth, alignSelf: "center" } : undefined}>{footer}</View>
     </View>
   ) : null;
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]} testID={testID}>
+  if (shell) {
+    return (
+      <ProovraShell layout="bare" scroll={scroll} footer={footerNode}>
+        <View style={styles.flex} testID={testID}>
+          {body}
+        </View>
+      </ProovraShell>
+    );
+  }
+  const screen = (
+    <SafeAreaView style={[styles.screen, backdrop && styles.screenOnArtwork]} edges={["top", "left", "right"]} testID={testID}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -91,6 +122,7 @@ export function ProovraScreen({
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+  return backdrop === "auth" ? <AuthBackdrop>{screen}</AuthBackdrop> : screen;
 }
 
 /* -------------------------------------------------------------------- Text */
@@ -110,6 +142,7 @@ export function ProovraText({
   accessibilityRole,
   accessibilityLabel,
   onPress,
+  testID,
 }: {
   children: React.ReactNode;
   variant?: TextVariant;
@@ -135,6 +168,7 @@ export function ProovraText({
    * ProovraButton / ProovraListRow.
    */
   onPress?: () => void;
+  testID?: string;
 }) {
   const { fontFamily, fontFamilyBold, isRTL } = useLocale();
   const size = theme.type.size[variant === "bodySm" ? "bodySm" : variant];
@@ -143,6 +177,7 @@ export function ProovraText({
   const heavy = resolvedWeight === "semibold" || resolvedWeight === "bold";
   return (
     <Text
+      testID={testID}
       numberOfLines={numberOfLines}
       selectable={selectable}
       onPress={onPress}
@@ -188,6 +223,10 @@ export function ProovraCard({
   accessibilityLabel?: string;
   testID?: string;
 }) {
+  // Over the shell artwork the web re-scopes cards to 92% white (app-shell-v2.css:611);
+  // over the auth hero the card is the web glass card (login/page.tsx:759-764).
+  const kind = useSurfaceKind();
+  const surface = kind === "shell" ? { backgroundColor: SHELL_SURFACE.card } : kind === "auth" ? AUTH_SURFACE.card : null;
   if (onPress) {
     return (
       <Pressable
@@ -195,13 +234,13 @@ export function ProovraCard({
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}
+        style={({ pressed }) => [styles.card, surface, pressed && styles.pressed, style]}
       >
         {children}
       </Pressable>
     );
   }
-  return <View testID={testID} style={[styles.card, style]}>{children}</View>;
+  return <View testID={testID} style={[styles.card, surface, style]}>{children}</View>;
 }
 
 export function ProovraSection({
@@ -242,6 +281,7 @@ export function ProovraButton({
   left,
   fullWidth = true,
   testID,
+  accessibilityLabel,
 }: {
   label: string;
   onPress?: () => void;
@@ -251,6 +291,8 @@ export function ProovraButton({
   left?: React.ReactNode;
   fullWidth?: boolean;
   testID?: string;
+  /** A fuller name than the visible label, as the web sets aria-label (e.g. "View billing and upgrade options"). */
+  accessibilityLabel?: string;
 }) {
   const { fontFamilyBold } = useLocale();
   const isDisabled = disabled || loading;
@@ -262,7 +304,7 @@ export function ProovraButton({
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
         styles.button,
         fullWidth && styles.buttonFull,
@@ -271,6 +313,21 @@ export function ProovraButton({
         isDisabled && styles.buttonDisabled,
       ]}
     >
+      {/*
+        T-07 — the primary variant is a gradient on the web. The layer sits
+        BEHIND the label (absolute fill) so the label keeps its own colour and
+        the Pressable keeps ownership of shape, border and press state. Other
+        variants are flat on the web too, so they render no layer at all.
+      */}
+      {variant === "primary" && !isDisabled ? (
+        <LinearGradient
+          colors={[...PRIMARY_GRADIENT]}
+          start={PRIMARY_GRADIENT_START}
+          end={PRIMARY_GRADIENT_END}
+          style={[StyleSheet.absoluteFill, { borderRadius: theme.radius.md }]}
+          pointerEvents="none"
+        />
+      ) : null}
       <View style={styles.buttonInner}>
         {loading ? <ActivityIndicator size="small" color={palette.fg} /> : left}
         <Text style={[styles.buttonLabel, { color: palette.fg, fontFamily: fontFamilyBold }]}>{label}</Text>
@@ -279,12 +336,27 @@ export function ProovraButton({
   );
 }
 
+/**
+ * T-07 / RC-07 — the PWA's primary action is a GRADIENT, not a flat fill:
+ * `app-primitives.css:196` — `linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)`.
+ * Native rendered a flat `accent.a500`, losing the depth the web's primary has
+ * on every screen. `PRIMARY_GRADIENT` is consumed by ProovraButton through
+ * expo-linear-gradient; `bg` stays as the flat fallback for any surface that
+ * cannot host a gradient layer.
+ */
+export const PRIMARY_GRADIENT = [theme.color.accent.a500, theme.color.accent.a600] as const;
+/** 135deg in CSS === top-left → bottom-right in RN's unit square. */
+export const PRIMARY_GRADIENT_START = { x: 0, y: 0 } as const;
+export const PRIMARY_GRADIENT_END = { x: 1, y: 1 } as const;
+
 function buttonPalette(variant: ButtonVariant): { bg: string; fg: string; border: string } {
   switch (variant) {
     case "primary":
-      return { bg: theme.color.accent.a500, fg: theme.color.ink.inverse, border: theme.color.accent.a500 };
+      // app-primitives.css:196-203 — #ffffff foreground (NOT ink.inverse
+      // #F8FAFC) and a translucent violet border, both taken verbatim.
+      return { bg: PRIMARY_GRADIENT[0], fg: theme.color.ink.onAccent, border: "rgba(109, 40, 217, 0.5)" };
     case "danger":
-      return { bg: theme.color.semantic.error, fg: theme.color.ink.inverse, border: theme.color.semantic.error };
+      return { bg: theme.color.semantic.error, fg: theme.color.ink.onAccent, border: theme.color.semantic.error };
     case "ghost":
       return { bg: "transparent", fg: theme.color.accent.a600, border: "transparent" };
     case "secondary":
@@ -515,7 +587,39 @@ export function ProovraEmptyState({
   );
 }
 
-export function ProovraErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+/**
+ * The web ProovraSupportReference (components/feedback/ProovraSupportReference.tsx):
+ * the ONLY way an internal request/trace id reaches a person — a labelled,
+ * low-contrast "Support reference" with Copy, never an id inside a sentence.
+ */
+export function ProovraSupportReference({ reference }: { reference: string | null | undefined }) {
+  const value = (reference ?? "").trim();
+  const [copied, setCopied] = React.useState(false);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  if (!value) return null;
+  const onCopy = async () => {
+    try {
+      await Clipboard.setStringAsync(value);
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard refused — the reference is still on screen to read aloud */
+    }
+  };
+  return (
+    <View style={[styles.stateGap, { flexDirection: "row", alignItems: "center", gap: theme.space.s2, flexWrap: "wrap", justifyContent: "center" }]} testID="support-reference">
+      <ProovraText variant="label" color={theme.color.ink.muted}>Support reference</ProovraText>
+      <ProovraText variant="label" mono selectable color={theme.color.ink.secondary}>{value}</ProovraText>
+      <ProovraButton label={copied ? "Copied" : "Copy"} accessibilityLabel="Copy support reference" variant="ghost" fullWidth={false} onPress={() => void onCopy()} />
+    </View>
+  );
+}
+
+export function ProovraErrorState({ message, onRetry, requestId }: { message: string; onRetry?: () => void; requestId?: string | null }) {
   return (
     <View style={styles.stateCenter}>
       <View style={[styles.badge, { backgroundColor: theme.color.status.risk.bg, borderColor: theme.color.status.risk.border }]}>
@@ -526,6 +630,8 @@ export function ProovraErrorState({ message, onRetry }: { message: string; onRet
       <ProovraText variant="bodySm" color={theme.color.ink.secondary} center style={styles.stateGap}>
         {message}
       </ProovraText>
+      {/* The support correlation id, the web way (ProovraSupportReference). */}
+      <ProovraSupportReference reference={requestId} />
       {onRetry ? (
         <View style={styles.stateGap}>
           <ProovraButton label="Try again" variant="secondary" fullWidth={false} onPress={onRetry} />
@@ -541,6 +647,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { flex: 1, backgroundColor: theme.color.surface.app },
   screenBody: { flex: 1 },
+  screenOnArtwork: { backgroundColor: "transparent" },
   centerColumn: { flex: 1, width: "100%", alignItems: "center" },
   screenPadded: { paddingHorizontal: theme.space.s4 },
   scrollContent: { paddingBottom: theme.space.s10, flexGrow: 1 },
@@ -562,11 +669,28 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.94 },
   section: { marginBottom: theme.space.s6 },
   sectionHead: { alignItems: "center", justifyContent: "space-between", marginBottom: theme.space.s3 },
+  /**
+   * T-07 / RC-07 — canonical shape, taken from the PWA reference.
+   *
+   * `apps/web/components/app-primitives/app-primitives.css:188-206`
+   * (`.app-primary-action`) is the authority:
+   *     border-radius: 8px;  padding: 0 14px;  height: 36px;
+   *     border: 1px solid rgba(109, 40, 217, 0.5);
+   *     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+   *
+   * Native previously used `radius.pill` (999), a completely different
+   * silhouette — a rounded rectangle read as a capsule on every screen.
+   *
+   * THE ONE DELIBERATE DIVERGENCE: the web's 36px height is below the 44pt
+   * minimum touch target. `minHeight: MIN_TOUCH` is kept and the horizontal
+   * padding follows the web (14px). This is the platform adaptation the mandate
+   * permits; the SHAPE now matches.
+   */
   button: {
     minHeight: MIN_TOUCH,
     paddingVertical: theme.space.s3,
-    paddingHorizontal: theme.space.s5,
-    borderRadius: theme.radius.pill,
+    paddingHorizontal: 14,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -593,10 +717,20 @@ const styles = StyleSheet.create({
   stateCenter: { alignItems: "center", justifyContent: "center", paddingVertical: theme.space.s10 },
   stateGap: { marginTop: theme.space.s3 },
   field: { gap: theme.space.s2, marginBottom: theme.space.s4 },
+  /**
+   * T-07 / RC-07 — `.app-input, .app-select, .app-textarea`
+   * (app-primitives.css:2304-2312) is the authority:
+   *   min-block-size: 44px;  padding: 8px 12px;
+   *   border: 1px solid var(--border-standard);
+   *   border-radius: var(--radius-sm);   <- 6px, NOT the 8px native used
+   *
+   * Note the web already sets a 44px minimum here, so `MIN_TOUCH` is not a
+   * native divergence on this primitive — the two agree.
+   */
   input: {
     minHeight: MIN_TOUCH,
     borderWidth: 1,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: theme.space.s3,
     paddingVertical: theme.space.s3,
     fontSize: theme.type.size.body,

@@ -41,8 +41,6 @@ const obj = (v: unknown): Record<string, unknown> =>
 const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
-const num = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 export const SWITCH_WORKSPACE_PATH = "/v1/platform/context/switch-workspace";
 
@@ -113,8 +111,10 @@ function workspace(raw: unknown, kind: SpaceKind, orgName: string | null = null)
     id,
     name: str(w.name) ?? str(w.displayName) ?? "Unnamed workspace",
     kind,
-    plan: str(w.plan),
-    memberCount: num(w.memberCount),
+    // CanonicalContextWorkspace (platform-context/types.ts) carries neither a plan
+    // nor a member count; reading them read keys the server never sends.
+    plan: null,
+    memberCount: null,
     role: str(w.role) ?? str(w.workspaceRole),
     organizationId: kind === "ORGANIZATION" ? str(w.organizationId) : null,
     organizationName: orgName,
@@ -154,7 +154,8 @@ export function projectSpaces(envelope: unknown): SpacesView {
     personal,
     owned,
     organization,
-    activeWorkspaceId: str(active.id) ?? str(obj(canonical.activeContext).workspaceId),
+    // The canonical fallback is `currentWorkspace`; `activeContext` is not a canonical key.
+    activeWorkspaceId: str(active.id) ?? str(obj(canonical.currentWorkspace).workspaceId),
     personalSpaceAbsent: personal === null && Object.keys(canonical).length > 0,
   };
 }

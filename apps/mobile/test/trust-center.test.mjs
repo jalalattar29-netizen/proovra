@@ -104,3 +104,17 @@ test("section tone distinguishes the three failure-shaped states", () => {
   assert.equal(T.trustSectionTone({ phase: "empty" }), "neutral");
   assert.equal(T.trustSectionTone({ phase: "loaded", articles: [] }), "verified");
 });
+
+test("an article's publication state is read from the server's `state`", () => {
+  // trust-center.service.ts projects `state`; reading `status` defaulted every
+  // article to PUBLISHED, so DRAFT and DEPRECATED ones were shown as trust content.
+  const out = T.parseTrustArticles({
+    articles: [
+      { id: "a1", slug: "a1", title: "Published", state: "PUBLISHED", version: 2 },
+      { id: "a2", slug: "a2", title: "Draft", state: "DRAFT", version: 1 },
+      { id: "a3", slug: "a3", title: "Old", state: "DEPRECATED", version: 4 },
+    ],
+  });
+  assert.equal(out.phase, "loaded");
+  assert.deepEqual(out.articles.map((a) => a.title), ["Published"]);
+});

@@ -278,6 +278,25 @@ export function buildBatchCreateBody(
   };
 }
 
+/**
+ * The records a batch may actually contain.
+ *
+ * `POST /v1/batch-analysis` accepts only the caller's OWN undeleted evidence
+ * (`ownerUserId: userId` — anything else is 404 EVIDENCE_NOT_FOUND) from ONE
+ * workspace. `GET /v1/evidence?scope=active` also lists team-mates' records
+ * and every workspace the caller belongs to, so the picker must narrow it:
+ * the workspace by the request's `teamId`, the owner here, from the
+ * `ownerUserId` every list item carries. No known caller → nothing offered.
+ * Returns the list envelope narrowed, for `parseEvidencePickerRows`.
+ */
+export function selectBatchCandidateItems(
+  payload: unknown,
+  ownerUserId: string | null,
+): { items: unknown[] } {
+  if (!ownerUserId) return { items: [] };
+  return { items: rows(obj(payload).items).filter((raw) => obj(raw).ownerUserId === ownerUserId) };
+}
+
 /** The id the create response carries, or null if the server shaped it otherwise. */
 export function readCreatedBatchId(payload: unknown): string | null {
   return str(obj(obj(payload).data).id);
@@ -303,14 +322,34 @@ export function canCancelBatch(job: BatchJob): boolean {
 }
 
 /**
- * The export is offered once the job has stopped running.
+ * The export is offered on a COMPLETED job only — the web's exact condition
+ * (`job.status === "completed" && <Export CSV>`, batch-analysis/page.tsx).
+ * A failed or cancelled job is not offered it.
  *
  * (The `/results` read this used to share a predicate with is gone — see
  * BATCH_ANALYSIS_MODE_NOTE.)
  */
 export function canExportBatch(job: BatchJob): boolean {
-  const s = job.status.toLowerCase();
-  return s === "completed" || s === "failed" || s === "cancelled";
+  return job.status.toLowerCase() === "completed";
+}
+
+/**
+ * The list refresh cadence while a job is still running: the web's
+ * `window.setInterval(loadJobs, 4000)` (batch-analysis/page.tsx).
+ */
+export const BATCH_POLL_INTERVAL_MS = 4000;
+
+/**
+ * Whether any job is still running — the web's own "running" definition,
+ * `["pending", "processing"].includes(job.status)` (its `pendingJobs` count
+ * and its Cancel condition). Polling runs only while this holds: a list of
+ * terminal jobs cannot change without an action, which re-reads it itself.
+ */
+export function hasRunningBatch(jobs: readonly BatchJob[]): boolean {
+  return jobs.some((j) => {
+    const s = j.status.toLowerCase();
+    return s === "pending" || s === "processing";
+  });
 }
 
 /**

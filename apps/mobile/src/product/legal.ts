@@ -322,3 +322,14 @@ export function stripLeadingTitle(
     ? blocks.slice(1)
     : blocks;
 }
+
+/**
+ * T-14 — "On this page" (web LegalDocumentShell): the document's H2 sections,
+ * offered only when there are at least three, as on the web.
+ */
+export function legalToc(blocks: LegalBlock[]): Array<{ blockIndex: number; title: string }> {
+  const items = blocks
+    .map((b, blockIndex) => (b.kind === "h2" ? { blockIndex, title: b.spans.map((s) => s.text).join("").trim() } : null))
+    .filter((x): x is { blockIndex: number; title: string } => x !== null && x.title.length > 0);
+  return items.length >= 3 ? items : [];
+}

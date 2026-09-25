@@ -21,15 +21,18 @@
  *
  * Self-service and out of every nav surface, exactly as the web keeps it.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Share, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shareFile } from "../../../src/lib/share-file";
+import { View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 
 import { apiFetch, apiFetchText } from "../../../src/api";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
+import { useAuth } from "../../../src/auth-context";
+import { usePlatformContext } from "../../../src/product/platform-context";
 import {
   buildLibraryQuery,
   parseEvidencePickerRows,
@@ -51,10 +54,12 @@ import {
   ProovraLoadingState,
   ProovraErrorState,
   ProovraEmpty,
+  ProovraKpiGrid,
 } from "../../../src/ui";
 import {
   BATCH_ANALYSIS_MODE_NOTE,
   BATCH_ANALYSIS_PATH,
+  BATCH_POLL_INTERVAL_MS,
   batchExportFilename,
   batchStatusLabel,
   batchStatusTone,
@@ -64,8 +69,10 @@ import {
   buildBatchProcessPath,
   canCancelBatch,
   canExportBatch,
+  hasRunningBatch,
   parseBatchJobs,
   readCreatedBatchId,
+  selectBatchCandidateItems,
   sortBatchJobs,
   validateBatchDraft,
   type BatchJob,
@@ -111,6 +118,11 @@ function JobRow({
           <ProovraText variant="label" color={theme.color.ink.muted}>
             {`${job.processedItems} processed · ${job.failedItems} failed · ${job.totalItems} total`}
           </ProovraText>
+          {job.createdAtIso ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {formatUserDateTime(job.createdAtIso)}
+            </ProovraText>
+          ) : null}
         </View>
         <ProovraBadge label={batchStatusLabel(job.status)} tone={tone} />
       </View>
@@ -120,6 +132,13 @@ function JobRow({
           This job declares no items, so it has no progress to report.
         </ProovraText>
       ) : (
+        <>
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <ProovraText variant="label" color={theme.color.ink.muted}>Progress</ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {`${job.processedItems + job.failedItems} / ${job.totalItems}`}
+          </ProovraText>
+        </View>
         <View
           accessibilityRole="progressbar"
           accessibilityLabel={`${job.name}: ${job.progress}% complete`}
@@ -134,7 +153,25 @@ function JobRow({
             style={{ width: `${job.progress}%`, height: "100%", backgroundColor: palette.solid }}
           />
         </View>
+        </>
       )}
+
+      {/* The web's Processed / Failed / Pending tiles. */}
+      <View style={{ flexDirection: "row", gap: theme.space.s2 }} testID={`batch-counters-${job.id}`}>
+        {[
+          ["Processed", job.processedItems],
+          ["Failed", job.failedItems],
+          ["Pending", Math.max(0, job.totalItems - job.processedItems - job.failedItems)],
+        ].map(([label, value]) => (
+          <View
+            key={String(label)}
+            style={{ flex: 1, padding: theme.space.s2, borderRadius: theme.radius.md, backgroundColor: theme.color.surface.muted }}
+          >
+            <ProovraText variant="label" color={theme.color.ink.muted}>{String(label)}</ProovraText>
+            <ProovraText variant="body" weight="bold">{String(value)}</ProovraText>
+          </View>
+        ))}
+      </View>
 
       <ProovraText variant="label" color={theme.color.ink.muted}>
         {job.completedAtIso
@@ -177,6 +214,11 @@ function JobRow({
 
 export default function BatchAnalysisScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const platform = usePlatformContext();
+  const teamId = platform.context?.activeTeamId ?? null;
+  const platformLoading = platform.loading;
+  const userId = user?.id ?? null;
   const [state, setState] = useState<State>({ phase: "loading" });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -190,34 +232,87 @@ export default function BatchAnalysisScreen() {
   const [candidates, setCandidates] = useState<EvidencePickerRow[] | null>(null);
   const [cancelling, setCancelling] = useState<BatchJob | null>(null);
 
-  const load = useCallback(async () => {
-    setState({ phase: "loading" });
+  // Every list read takes a ticket; only the newest ticket may write state, so
+  // a slow poll that lands after an action's re-read cannot overwrite it with
+  // older jobs. `inFlight` counts reads still outstanding, so a poll tick never
+  // starts a read while another one (poll or action) is running.
+  const readSeq = useRef(0);
+  const inFlight = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const readJobs = useCallback(async (silent: boolean) => {
+    const ticket = ++readSeq.current;
+    inFlight.current += 1;
+    if (!silent) setState({ phase: "loading" });
     try {
       const data = await apiFetch(BATCH_ANALYSIS_PATH);
-      setState({ phase: "loaded", jobs: sortBatchJobs(parseBatchJobs(data)) });
+      if (mounted.current && ticket === readSeq.current) {
+        setState({ phase: "loaded", jobs: sortBatchJobs(parseBatchJobs(data)) });
+      }
     } catch {
-      setState({ phase: "failed" });
+      // A failed POLL keeps the list the user is reading, as the web's
+      // loadJobs does (it only logs). A failed explicit read says so.
+      if (!silent && mounted.current && ticket === readSeq.current) {
+        setState({ phase: "failed" });
+      }
+    } finally {
+      inFlight.current -= 1;
     }
   }, []);
+
+  const load = useCallback(() => readJobs(false), [readJobs]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // POLLING — the web re-reads the list every 4 s (BATCH_POLL_INTERVAL_MS).
+  // Here it runs only while this screen is focused AND a job is still
+  // pending/processing; blur, unmount, or the last job finishing stops it.
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
+  const running = state.phase === "loaded" && hasRunningBatch(state.jobs);
+
+  useEffect(() => {
+    if (!focused || !running) return undefined;
+    const interval = setInterval(() => {
+      if (inFlight.current > 0) return;
+      void readJobs(true);
+    }, BATCH_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [focused, running, readJobs]);
+
   const loadCandidates = useCallback(async () => {
     setCandidates(null);
+    // The create route requires every id to be the caller's OWN undeleted
+    // evidence, all from ONE workspace. `active` alone is neither: it lists
+    // team-mates' records and every workspace the caller belongs to. So the
+    // read is pinned to the active workspace and narrowed to the caller's own,
+    // and the picker cannot offer a record the server would then reject.
+    if (!teamId) {
+      setCandidates(platformLoading ? null : []);
+      return;
+    }
     try {
-      // The create route requires every id to be the caller's own, undeleted
-      // evidence. `active` is exactly that scope, so the picker cannot offer a
-      // record the server would then reject.
       const data = await apiFetch(
-        buildLibraryQuery({ scope: "active", search, sort: "newest", limit: 50 }),
+        `${buildLibraryQuery({ scope: "active", search, sort: "newest", limit: 50 })}&teamId=${encodeURIComponent(teamId)}`,
       );
-      setCandidates(parseEvidencePickerRows(data));
+      setCandidates(parseEvidencePickerRows(selectBatchCandidateItems(data, userId)));
     } catch {
       setCandidates([]);
     }
-  }, [search]);
+  }, [search, teamId, platformLoading, userId]);
 
   useEffect(() => {
     if (composing) void loadCandidates();
@@ -295,12 +390,23 @@ export default function BatchAnalysisScreen() {
       await FileSystem.writeAsStringAsync(uri, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
-      await Share.share({ url: uri, title: filename, message: filename });
+      await shareFile(uri, { mimeType: "text/csv", dialogTitle: filename, uti: "public.comma-separated-values-text" });
     } catch (err) {
-      setMessage(toSafeUserError(err).message);
+      // A write or share that fails on the device is not a transport failure;
+      // without this sentence it would read "Check your connection".
+      setMessage(
+        toSafeUserError(err, { message: "The export could not be saved or shared on this device." })
+          .message,
+      );
     } finally {
       setBusy(false);
     }
+  }, []);
+
+  // A fresh draft starts without the previous outcome's message in the sheet.
+  const openComposer = useCallback(() => {
+    setMessage(null);
+    setComposing(true);
   }, []);
 
   const toggle = useCallback((id: string) => {
@@ -308,16 +414,16 @@ export default function BatchAnalysisScreen() {
   }, []);
 
   return (
-    <ProovraScreen testID="operations-batch-analysis">
+    <ProovraScreen shell testID="operations-batch-analysis">
       <ProovraPageHeader
-        title="Batch analysis"
-        eyebrow="Operations"
-        subtitle="Create batch jobs, monitor progress, review outcomes, and export results."
+        title="Analyze multiple evidence items at once."
+        eyebrow="Batch Analysis"
+        subtitle="Create batch jobs, monitor progress, review outcomes, and export result sets for larger evidence workloads."
         primaryAction={
           <ProovraButton
-            label="New batch job"
+            label="+ New Batch Job"
             fullWidth={false}
-            onPress={() => setComposing(true)}
+            onPress={openComposer}
           />
         }
         secondaryActions={
@@ -342,12 +448,26 @@ export default function BatchAnalysisScreen() {
         <ProovraErrorState message="Batch jobs could not be loaded." onRetry={() => void load()} />
       ) : null}
 
+      {state.phase === "loaded" ? (
+        <ProovraKpiGrid
+          items={[
+            { key: "total", label: "Total Jobs", value: String(state.jobs.length), caption: "All batch jobs" },
+            {
+              key: "active",
+              label: "Active Jobs",
+              value: String(state.jobs.filter((j) => ["pending", "processing"].includes(j.status.toLowerCase())).length),
+              caption: "Pending or processing",
+            },
+          ]}
+        />
+      ) : null}
+
       {state.phase === "loaded" && state.jobs.length === 0 ? (
         <ProovraEmpty
           presence="page"
-          title="No batch jobs"
-          purpose="Batch jobs you start appear here with their progress."
-          action={<ProovraButton label="New batch job" onPress={() => setComposing(true)} />}
+          title="No Batch Jobs"
+          purpose="Create your first batch job to analyze multiple evidence items"
+          action={<ProovraButton label="Create Batch Job" onPress={openComposer} />}
         />
       ) : null}
 
@@ -381,12 +501,12 @@ export default function BatchAnalysisScreen() {
       ) : null}
 
       {/* ------------------------------------------------------- the composer */}
-      <ProovraSheet visible={composing} title="New batch job" onClose={() => setComposing(false)}>
-        <ProovraFormField label="Name">
+      <ProovraSheet visible={composing} title="New Batch Job" onClose={() => setComposing(false)}>
+        <ProovraFormField label="Batch Name">
           <ProovraInput
             value={name}
             onChangeText={setName}
-            placeholder="What this batch is for"
+            placeholder="e.g., Q1 2026 Review"
             autoCapitalize="sentences"
             accessibilityLabel="Batch name"
           />
@@ -396,7 +516,7 @@ export default function BatchAnalysisScreen() {
           <ProovraInput
             value={description}
             onChangeText={setDescription}
-            placeholder="Anything worth recording about this batch"
+            placeholder="Add notes about this batch"
             autoCapitalize="sentences"
             multiline
             accessibilityLabel="Batch description"
@@ -440,7 +560,7 @@ export default function BatchAnalysisScreen() {
         )}
 
         <ProovraButton
-          label="Create and start"
+          label="Create & Start Batch"
           loading={busy}
           disabled={draftError !== null}
           onPress={() => void create()}
@@ -448,6 +568,15 @@ export default function BatchAnalysisScreen() {
         {draftError ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>
             {draftError}
+          </ProovraText>
+        ) : null}
+        {/*
+          The sheet is a Modal: the page-level message sits BEHIND it, so a
+          refused create was invisible while the user was still looking here.
+        */}
+        {message ? (
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {message}
           </ProovraText>
         ) : null}
       </ProovraSheet>

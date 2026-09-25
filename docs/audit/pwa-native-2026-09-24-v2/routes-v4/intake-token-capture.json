@@ -1,0 +1,121 @@
+{
+ "route": "/intake/[token]/capture",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/intake/[token]/capture/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/intake/capture.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "labelled": 3,
+   "unboundExports": 0
+  },
+  "native": {
+   "files": 14,
+   "labelled": 10,
+   "unboundExports": 1
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 3,
+  "extraInNative": 10,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Submit files securely",
+   "at": "apps/web/app/intake/[token]/capture/page.tsx:41",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Submissions now go through the secure intake page.",
+   "at": "apps/web/app/intake/[token]/capture/page.tsx:43",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You can close this now. The organization that asked for it will be in touch if they need anything else.",
+    "at": "apps/mobile/app/(stack)/intake/capture.tsx:174"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue to the secure intake page",
+   "at": "apps/web/app/intake/[token]/capture/page.tsx:44",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Add files",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:148"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This step is not open",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:149"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Add files",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:160"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:164"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Done",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:177"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Choose files",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:202"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Send",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:221"
+  },
+  {
+   "role": "TEXT",
+   "label": "Thank you — what you sent has been received and preserved.",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:171"
+  },
+  {
+   "role": "TEXT",
+   "label": "You can close this now. The organization that asked for it will be in touch if they need anything else.",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:174"
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing added yet.",
+   "at": "apps/mobile/app/(stack)/intake/capture.tsx:184"
+  }
+ ],
+ "webUnbound": [],
+ "natUnbound": [
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

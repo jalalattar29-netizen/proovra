@@ -1,0 +1,1134 @@
+{
+ "route": "/organizations/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/organizations/[id]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/organizations/[id].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 30,
+   "labelled": 106,
+   "unboundExports": 5
+  },
+  "native": {
+   "files": 23,
+   "labelled": 39,
+   "unboundExports": 8
+  }
+ },
+ "pairing": {
+  "exact": 3,
+  "copyDiffers": 3,
+  "roleDiffers": 5,
+  "unpaired": 92,
+  "extraInNative": 27,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [
+  {
+   "role": "COMPONENT",
+   "label": "Workspaces",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:984",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:360",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraPageSection"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Audit timeline",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1133",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:385",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraPageSection"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:647",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "COMPONENT",
+   "webLabel": "Members & invites",
+   "natLabel": "Members",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:940",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:334",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraPageSection"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Close organization.",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1508",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "Close this organization…",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1567",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Workspaces",
+   "webRole": "CARD",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:717",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:360"
+  },
+  {
+   "label": "Transfer ownership.",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1460",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:449"
+  },
+  {
+   "label": "Transfer ownership",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1500",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:449"
+  },
+  {
+   "label": "Request closure",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/organizations/[id]/page.tsx:1604",
+   "nat": "apps/mobile/app/(stack)/organizations/[id].tsx:598"
+  },
+  {
+   "label": "Cancel",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:633",
+   "nat": "apps/mobile/src/ui/step-up-sheet.tsx:105"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "CARD",
+   "label": "You just created this organization — next steps",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:640",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Governance",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:698",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Billing",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:743",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Audit",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:768",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Settings",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:791",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "https://",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:877",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No workspaces bound to this organization.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1016",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Scope — what lives where",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1170",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Organization lifecycle",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "New owner",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1472",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your role ·",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:494",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "member",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:502",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workspace",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:504",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "← All organizations",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:536",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace admin →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:546",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave organization",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:562",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise setup →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:579",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Admin →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:591",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite the first member.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Members in the Admin console",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:663",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": ", pick a role, and share the invite token URL. Each invitation is recorded in the audit timeline.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:665",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Set legal metadata.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:669",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Fill name, legal name, and legal email in the",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:669",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Settings",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "panel below so audit timeline events and exports carry your org’s identity. Each change is recorded in the audit timeline.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Bind a workspace.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:675",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspaces are where evidence and cases live. Create one in",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:675",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+    "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace administration",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:681",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "; the binding shows up in this org’s Workspaces panel below.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:683",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open in Workspace administration →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:739",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open billing →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:764",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "The person you choose becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:533"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You don’t have permission to change settings. Ask an organization admin.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:799",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Name",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:813",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal name",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:826",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:826",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal email",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:838",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:838",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Mailing address",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:849",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:849",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Timezone",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:860",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(IANA, e.g. America/Los_Angeles)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:862",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Logo URL",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:876",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(optional)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:876",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Saved at",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:905",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage members →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:951",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "member",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:962",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "pending invite",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:967",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace admin →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:994",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Workspace administration →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1027",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "personal",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1057",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "OVER SEAT LIMIT",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1081",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Created",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1088",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open workspace",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1102",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open audit timeline →",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1144",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "event",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1155",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal Space",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1185",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Private to you. Your own evidence, drafts, and integrations. Never shared. Lives outside any organization.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1187",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Organization (you are here)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1192",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance + identity tenant. Members, roles, invites, audit timeline, legal metadata. Does NOT grant workspace data access on its own.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1194",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace (a.k.a. Team)",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational tenant. Evidence, cases, reviewer queues, retention policy, plan + seats. Each workspace is bound to exactly one organization. Workspace-level RBAC is independent of organization role.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1202",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Ownership transfer and organization closure are available to the organization owner only. To leave this organization, use",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1231",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "The person you choose becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:533"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Leave organization",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1233",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "in the page header.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1233",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1812",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn’t load.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1836",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1849",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The new owner must already be a member. You become an admin; the organization is never left without an owner.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1462",
+   "natHasRole": true,
+   "bestScore": 0.21,
+   "bestNat": {
+    "label": "The person you choose becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:533"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No other members yet — invite a member before transferring ownership.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1467",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Select the new owner…",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1485",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "The person you choose becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:533"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Archives the organization after a",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1510",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "-day cancellation window. Workspace access and machine credentials are revoked; evidence is never deleted by closure — it stays governed by retention and legal-hold rules.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1510",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Closure requested",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:459"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel closure request",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1541",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Closure requested",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:459"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Type",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1576",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to confirm.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1576",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep the organization",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1616",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Suspend…",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:154",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Resume",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:167",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organization admin access is required to suspend or resume a workspace.",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:173",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "A personal space can&apos;t be suspended from here.",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:177",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Suspend",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "? Every active member loses access, anyone working in it is returned to their personal space, and webhook delivery pauses. Evidence, cases and audit history are not deleted, and Resume brings the members back.",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+    "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm suspension",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:211",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Keep it running",
+   "at": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx:221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Verify it's you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:566",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify it&apos;s you",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:585",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify &amp; continue",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:630",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "For this change, please sign out and sign back in with your identity provider, then retry within 10 minutes.",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:285"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading organization",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:289"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This organization is not available to you",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:294"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Members are visible to organization administrators.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:336"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No members are listed.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:341"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspaces are visible to organization administrators.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:362"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This organization has no workspaces.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:367"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "The audit timeline is visible to organization auditors and administrators.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:389"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No events have been recorded yet.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:394"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Load older events",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:416"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This organization and you",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:426"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Leave this organization",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:439"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel the closure request",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:466"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Leave this organization?",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:516"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "There is no other active member to transfer ownership to.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:537"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Type the confirmation phrase",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:578"
+  },
+  {
+   "role": "INPUT",
+   "label": "Closure confirmation phrase",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:579"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Cancel the closure request?",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:606"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Confirm it is you",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:617"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure requested",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:459"
+  },
+  {
+   "role": "TEXT",
+   "label": "Closure is blocked",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:477"
+  },
+  {
+   "role": "TEXT",
+   "label": "Managing members, roles and pending invitations is done in the organization admin console.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:509"
+  },
+  {
+   "role": "TEXT",
+   "label": "The person you choose becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.",
+   "at": "apps/mobile/app/(stack)/organizations/[id].tsx:533"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Confirm",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:89"
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs one more proof that it is you. Nothing has been changed yet.",
+   "at": "apps/mobile/src/ui/step-up-sheet.tsx:67"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\ui\\Badge.tsx",
+   "name": "BadgeTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\security-center\\components\\PersonalSecuritySections.tsx",
+   "name": "StepUpMethods"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\security-center\\components\\PersonalSecuritySections.tsx",
+   "name": "StepUpProof"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\organizations.ts",
+   "name": "OrgMember"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\organizations.ts",
+   "name": "OrgWorkspace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\organizations.ts",
+   "name": "OrgAuditEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\closure.ts",
+   "name": "ClosureState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpChallenge"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\step-up.ts",
+   "name": "StepUpProof"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

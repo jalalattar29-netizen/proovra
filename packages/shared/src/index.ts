@@ -210,6 +210,16 @@ export type {
   WorkspaceInvitationContext,
   WorkspaceInvitationRefusalCode,
 } from "./workspace-invitation-contract.js";
+export { resolveInvitationView, isRetryableRefusal } from "./workspace-invitation-view.js";
+export type {
+  InvitationAuthState,
+  InvitationLookupOutcome,
+  InvitationAcceptOutcome,
+  ResolveInvitationInput,
+  InvitationViewKind,
+  InvitationAction,
+  InvitationView,
+} from "./workspace-invitation-view.js";
 
 // PROOVRA Phase 10 — Shared (cross-surface) billing error-code vocabulary.
 // Broader than the collaboration-team union: includes UPGRADE_REQUIRED as
@@ -2431,3 +2441,4 @@ export * from "./user-facing-errors.js";
 
 /* Same reason as the dictionary above: the native app resolves the root. */
 export * from "./password-rules.js";
+export * from "./security-event-labels.js";

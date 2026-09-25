@@ -1,0 +1,43 @@
+{
+  "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+  "method": "All 177 distinct NEAR_MISS_NEEDS_READ locations were read individually against their best same-role native candidate. Two automated rules were tried first and BOTH rejected: a 0.25 Jaccard threshold and a 'shares the longest significant token' rule. Both blessed coincidences -- 'Clear Session' vs 'Capture Session' share only 'session'; 'Legal holds' vs 'Legal notes' share 'legal' but are different product features. Automated extraction is not adjudication, so the verdicts below are a curated reading, not a rule output.",
+  "summary": {
+    "distinctLocations": 177,
+    "genuineCounterpart": 19,
+    "coincidentalOverlap": 158,
+    "note": "The 158 fall through to CONTENT_ABSENT: the requirement is not implemented on the native counterpart screen and the apparent similarity was a shared common noun."
+  },
+  "genuineCounterpart": [
+    { "role": "TEXT", "web": "Only one version is recorded — this is the first", "native": "This is the only version on record", "verdict": "MATCH_COPY_DIFFERS", "why": "same single-version state, reworded" },
+    { "role": "INPUT", "web": "Search cases, owners, IDs, or references", "native": "Search cases", "verdict": "MATCH_COPY_DIFFERS", "why": "same search input; the native placeholder names one of four searchable dimensions, so the affordance is narrower than the copy the web advertises" },
+    { "role": "INPUT", "web": "Write a private note for this case", "native": "Add a note to this case…", "verdict": "MATCH_COPY_DIFFERS", "why": "same case-note input. NOTE: the web says 'private'; the native copy does not, which is a disclosure difference on a privacy-relevant control" },
+    { "role": "STATE_EMPTY", "web": "No evidence linked yet", "native": "No evidence in this case", "verdict": "MATCH_COPY_DIFFERS", "why": "same empty state on the case evidence list" },
+    { "role": "TEXT", "web": "No evidence linked yet. Add evidence to begin.", "native": "Add evidence to this case", "verdict": "MATCH_COPY_DIFFERS", "why": "same empty-state call to action" },
+    { "role": "TEXT", "web": "No evidence is linked to this case yet.", "native": "Add evidence to this case", "verdict": "MATCH_COPY_DIFFERS", "why": "duplicate of the above on a second web branch" },
+    { "role": "INPUT", "web": "Reviewer note (workspace-internal, optional)", "native": "Reviewer note", "verdict": "MATCH_COPY_DIFFERS", "why": "same reviewer-note input. The web discloses 'workspace-internal' and 'optional'; native discloses neither" },
+    { "role": "INPUT", "web": "Comment on this review", "native": "Add a comment", "verdict": "MATCH_COPY_DIFFERS", "why": "same comment composer" },
+    { "role": "INPUT", "web": "Reply to this comment", "native": "Add a comment", "verdict": "MATCH_ROLE_DIFFERS_IN_SCOPE", "why": "native has ONE composer where the web distinguishes a top-level comment from a threaded reply; threading is not expressed" },
+    { "role": "TEXT", "web": "Password updated", "native": "Your password was updated. Sign in with your new password.", "verdict": "MATCH_COPY_DIFFERS", "why": "same success state; native is more explicit" },
+    { "role": "INPUT", "web": "The name shown with your submission", "native": "Your name", "verdict": "MATCH_COPY_DIFFERS", "why": "same intake name field; the web explains where the value appears" },
+    { "role": "BUTTON", "web": "Close audio recorder", "native": "Close", "verdict": "MATCH_COPY_DIFFERS", "why": "same dismiss control; native label is not specific, weaker for screen readers" },
+    { "role": "BUTTON", "web": "Close queue selection", "native": "Close", "verdict": "MATCH_COPY_DIFFERS", "why": "as above" },
+    { "role": "TEXT", "web": "Remove pending items", "native": "Remove", "verdict": "MATCH_COPY_DIFFERS", "why": "same removal action, generic native label" },
+    { "role": "TEXT", "web": "No evidence matches the search.", "native": "No eligible evidence to add.", "verdict": "MATCH_COPY_DIFFERS", "why": "both are the filtered-empty state of the evidence picker, with different phrasing of the reason" },
+    { "role": "TEXT", "web": "No submissions yet", "native": "Submissions", "verdict": "MATCH_COPY_DIFFERS", "why": "the native section header stands where the web renders an explicit empty state" },
+    { "role": "COMPONENT", "web": "Opening workspace people…", "native": "People", "verdict": "MATCH_COPY_DIFFERS", "why": "the web renders a transitional state for the /people resolver; native navigates directly" },
+    { "role": "TEXT", "web": "Members in the Admin console", "native": "Managing members, roles and pending invitations", "verdict": "MATCH_COPY_DIFFERS", "why": "same member-management pointer, different destination wording" },
+    { "role": "TEXT", "web": "currently selected records.", "native": "selected", "verdict": "MATCH_COPY_DIFFERS", "why": "same bulk-selection counter" }
+  ],
+  "coincidentalExamples": [
+    { "web": "Clear Session", "native": "Capture Session", "why": "shares only the common noun 'session'; the web control clears a draft capture session, the native string is a section title" },
+    { "web": "Keep Session", "native": "Capture Session", "why": "same coincidence — the web pair Keep/Clear belongs to a discard dialog native does not have" },
+    { "web": "Legal holds", "native": "Legal notes", "why": "DIFFERENT FEATURES. Legal hold is a retention control; legal notes are reviewer annotations. A token match here would have invented parity" },
+    { "web": "Workspace analytics", "native": "Workspace health", "why": "different Home modules — analytics is the chart band, health is the status matrix" },
+    { "web": "Evidence queue", "native": "Evidence Inspector", "why": "different surfaces" },
+    { "web": "Review in flight", "native": "Review history", "why": "in-flight state vs historical log" },
+    { "web": "Claim review", "native": "Review history", "why": "an action vs a log" },
+    { "web": "Loading your recorded decision…", "native": "Your decision has been recorded.", "why": "a LOADING state vs a SUCCESS state — opposite points in the flow" },
+    { "web": "Verification link not recognised", "native": "Open the verification link on the device that started the capture", "why": "an error state vs an instruction" },
+    { "web": "Choose a plan", "native": "Current plan", "why": "plan selection vs plan display; native has no plan chooser" }
+  ]
+}

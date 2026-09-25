@@ -1,0 +1,17 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "method": "12-adjudicate-v4.mjs + nearmiss-curated.json (177 locations read individually)",
+ "totals": {
+  "CONTENT_ABSENT": 2275,
+  "PRESENT_ELSEWHERE_IN_APP": 897,
+  "MATCH_ROLE_DIFFERS": 204,
+  "MATCH_EXACT": 47,
+  "MATCH_COPY_DIFFERS": 83,
+  "ROLE_ABSENT_ON_SCREEN": 58,
+  "NOT_APPLICABLE_SHELL": 145,
+  "EXTRACTOR_ARTIFACT": 14,
+  "NOT_APPLICABLE_ENTERPRISE": 462,
+  "SUBSUMED_BY_MISSING_SCREEN": 175
+ },
+ "grand": 4360
+}

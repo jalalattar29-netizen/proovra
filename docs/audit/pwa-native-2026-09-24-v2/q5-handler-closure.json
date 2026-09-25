@@ -1,0 +1,3505 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "distinctUnresolved": 181,
+ "closure": {
+  "NO_CALL_SITE": 8,
+  "ALL_CALL_SITES_RESOLVED": 78,
+  "PROP_NEVER_PASSED": 83,
+  "PARTIAL": 11,
+  "NO_OWNER_COMPONENT": 1
+ },
+ "resolvedNow": 89,
+ "results": [
+  {
+   "side": "native",
+   "route": "/workspaces",
+   "file": "apps/mobile/src/ui/patterns.tsx",
+   "line": 185,
+   "prop": "onPress",
+   "expr": "() => onChange(\"\")",
+   "ownerComponent": "ProovraFilterSearch",
+   "propName": "onChange",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/workspaces",
+   "file": "apps/mobile/src/ui/patterns.tsx",
+   "line": 242,
+   "prop": "onPress",
+   "expr": "() => !disabled && onChange(opt.value)",
+   "ownerComponent": "ProovraFilterChips",
+   "propName": "onChange",
+   "callSites": 10,
+   "callSitesWithValue": 10,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1275",
+     "passes": "(v: string) => setVisibility(v as EvidenceCommentVisibility)"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/reports.tsx:148",
+     "passes": "setFilter"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/search.tsx:185",
+     "passes": "setFilter"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/search.tsx:193",
+     "passes": "setRecency"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/search.tsx:209",
+     "passes": "(v: string) => setMode(v as SearchMode)"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:581",
+     "passes": "setRole"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui-legacy.tsx",
+   "line": 123,
+   "prop": "onClose",
+   "expr": "() => onRemove(toast.id)",
+   "ownerComponent": "ToastContainer",
+   "propName": "onRemove",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/ui-legacy.tsx:100",
+     "passes": "removeToast"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui-legacy.tsx",
+   "line": 293,
+   "prop": "onChange",
+   "expr": "(e) => onChange(e.target.value)",
+   "ownerComponent": "Input",
+   "propName": "onChange",
+   "callSites": 12,
+   "callSitesWithValue": 12,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/admin/contact-sales/page.tsx:404",
+     "passes": "(v) => setSearch(v)"
+    },
+    {
+     "at": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx:230",
+     "passes": "setDisplayName"
+    },
+    {
+     "at": "apps/web/components/contact-sales-form.tsx:122",
+     "passes": "(v) => set(\"fullName\", v)"
+    },
+    {
+     "at": "apps/web/components/contact-sales-form.tsx:134",
+     "passes": "(v) => set(\"workEmail\", v)"
+    },
+    {
+     "at": "apps/web/components/contact-sales-form.tsx:150",
+     "passes": "(v) => set(\"organization\", v)"
+    },
+    {
+     "at": "apps/web/components/contact-sales-form.tsx:162",
+     "passes": "(v) => set(\"jobTitle\", v)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui-legacy.tsx",
+   "line": 360,
+   "prop": "onChange",
+   "expr": "(e) => onChange(e.target.value)",
+   "ownerComponent": "Select",
+   "propName": "onChange",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/admin/contact-sales/page.tsx:411",
+     "passes": "(v) => setStatusFilter(v as Status | \"\")"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui/FilterBar.tsx",
+   "line": 124,
+   "prop": "onMouseEnter",
+   "expr": "(e) => { e.currentTarget.style.borderColor = \"var(--border-default)\"; e.currentTarget.style.background = \"var(--surface-",
+   "ownerComponent": "FilterBarRoot",
+   "propName": "",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui/FilterBar.tsx",
+   "line": 234,
+   "prop": "onChange",
+   "expr": "(e) => onChange(e.target.value)",
+   "ownerComponent": "FilterSearch",
+   "propName": "onChange",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui/FilterBar.tsx",
+   "line": 256,
+   "prop": "onClick",
+   "expr": "() => onChange(\"\")",
+   "ownerComponent": "FilterSearch",
+   "propName": "onChange",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui/FilterBar.tsx",
+   "line": 356,
+   "prop": "onChange",
+   "expr": "(e) => onChange(e.target.value)",
+   "ownerComponent": "FilterSelect",
+   "propName": "onChange",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/verify/[token]",
+   "file": "apps/web/components/ui/DataTable.tsx",
+   "line": 300,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "DataTable",
+   "propName": "",
+   "callSites": 94,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/auth/verify-email",
+   "file": "apps/web/app/auth/verify-email/page.tsx",
+   "line": 366,
+   "prop": "onChange",
+   "expr": "(e) => onEmailChange(e.target.value)",
+   "ownerComponent": "ResendForm",
+   "propName": "onEmailChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/auth/verify-email/page.tsx:411",
+     "passes": "onEmailChange"
+    },
+    {
+     "at": "apps/web/app/auth/verify-email/page.tsx:457",
+     "passes": "onEmailChange"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/page.tsx",
+   "line": 935,
+   "prop": "onClick",
+   "expr": "() => window.location.reload()",
+   "ownerComponent": "BillingPageInner",
+   "propName": "window",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/ManagePlanDrawer.tsx",
+   "line": 188,
+   "prop": "onClick",
+   "expr": "() => onChangePlan(offer)",
+   "ownerComponent": "ManagePlanDrawer",
+   "propName": "onChangePlan",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1137",
+     "passes": "(offer) => void handleChangePlan(offer)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx",
+   "line": 128,
+   "prop": "onChange",
+   "expr": "() => onChange(option.provider)",
+   "ownerComponent": "PaymentMethodChoice",
+   "propName": "onChange",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:518",
+     "passes": "setProvider"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+   "line": 247,
+   "prop": "onClick",
+   "expr": "() => onCancelAddon(addon.id)",
+   "ownerComponent": "StorageAddonsSection",
+   "propName": "onCancelAddon",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1050",
+     "passes": "(id) => void handleCancelAddon(id)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+   "line": 553,
+   "prop": "onClick",
+   "expr": "() => onRecheckPayment(entry)",
+   "ownerComponent": "BillingHistorySection",
+   "propName": "onRecheckPayment",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1067",
+     "passes": "(entry) => void handleRecheckPayment(entry)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+   "line": 566,
+   "prop": "onClick",
+   "expr": "() => onCancelPayment(entry)",
+   "ownerComponent": "BillingHistorySection",
+   "propName": "onCancelPayment",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1067",
+     "passes": "(entry) => void handleCancelPayment(entry)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+   "line": 577,
+   "prop": "onClick",
+   "expr": "() => onAbandonPayment(entry)",
+   "ownerComponent": "BillingHistorySection",
+   "propName": "onAbandonPayment",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1067",
+     "passes": "(entry) => void handleAbandonPayment(entry)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/billing",
+   "file": "apps/web/app/(app)/billing/_sections/BillingOverview.tsx",
+   "line": 221,
+   "prop": "onClick",
+   "expr": "() => onStartSubscription(actions.secondaryPlanAction!.planKey)",
+   "ownerComponent": "BillingOverview",
+   "propName": "onStartSubscription",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/billing/page.tsx:1003",
+     "passes": "(planKey) => setCheckout({ kind: \"PLAN\", planKey })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 554,
+   "prop": "onResume",
+   "expr": "(id) => { void resumable.resume(id); }",
+   "ownerComponent": "CapturePageInner",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 554,
+   "prop": "onClearRecovery",
+   "expr": "(id) => { void resumable.clearRecovery(id); }",
+   "ownerComponent": "CapturePageInner",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 664,
+   "prop": "onClick",
+   "expr": "(event) => event.stopPropagation()",
+   "ownerComponent": "CapturePageInner",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 717,
+   "prop": "onClick",
+   "expr": "async () => { await draftList.discard(draft.id); }",
+   "ownerComponent": "CapturePageInner",
+   "propName": "async",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 1069,
+   "prop": "onClick",
+   "expr": "() => { sessionItems .filter( (item) => !item.uploading && item.uploadProgress < 100 ) .forEach((item) => removeSessionI",
+   "ownerComponent": "CapturePageInner",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "line": 1279,
+   "prop": "onClick",
+   "expr": "() => removeSessionItem(item.id)",
+   "ownerComponent": "CapturePageInner",
+   "propName": "removeSessionItem",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/components/ai/CaptureAiAssistant.tsx",
+   "line": 470,
+   "prop": "onClick",
+   "expr": "(event) => event.stopPropagation()",
+   "ownerComponent": "CaptureAiAssistant",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/capture",
+   "file": "apps/web/components/capture-v2/CaptureDropzone.tsx",
+   "line": 115,
+   "prop": "onClick",
+   "expr": "() => runAction(action.key)",
+   "ownerComponent": "CaptureDropzone",
+   "propName": "runAction",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/capture",
+   "file": "apps/mobile/app/(stack)/capture.tsx",
+   "line": 1652,
+   "prop": "onPress",
+   "expr": "() => Linking.openSettings()",
+   "ownerComponent": "CaptureScreen",
+   "propName": "Linking",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/workspaces",
+   "file": "apps/mobile/src/toast-context.tsx",
+   "line": 115,
+   "prop": "onPress",
+   "expr": "() => onDismiss(toast.id)",
+   "ownerComponent": "ToastItem",
+   "propName": "onDismiss",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/mobile/src/toast-context.tsx:135",
+     "passes": "onDismiss"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 613,
+   "prop": "onClick",
+   "expr": "() => set(\"status\", seg.value as CaseStatus | \"\")",
+   "ownerComponent": "MatterQueueFilters",
+   "propName": "set",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 647,
+   "prop": "onChange",
+   "expr": "(e) => set(\"search\", e.target.value)",
+   "ownerComponent": "MatterQueueFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 667,
+   "prop": "onChange",
+   "expr": "(e) => set(\"riskLevel\", e.target.value as MatterRiskLevel | \"\")",
+   "ownerComponent": "MatterQueueFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 1056,
+   "prop": "onClick",
+   "expr": "() => void onRun(action, reason)",
+   "ownerComponent": "CaseBulkActionBar",
+   "propName": "onRun",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/CasesIndex.tsx:942",
+     "passes": "runBulkAction"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 1151,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "MatterQueueRow",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 1200,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "MatterQueueRow",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases",
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "line": 1541,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "RowActions",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 483,
+   "prop": "onAttached",
+   "expr": "async ({ succeeded, failed }) => { // Phase CASES-ATTACH-PICKER-MULTI — partial-success // aware toast. Close only when ",
+   "ownerComponent": "SimpleCaseDetail",
+   "propName": "async",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 916,
+   "prop": "onClick",
+   "expr": "() => onGoToTab(\"reports\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onGoToTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:363",
+     "passes": "setActiveTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 930,
+   "prop": "onClick",
+   "expr": "() => onGoToTab(\"reports\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onGoToTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:363",
+     "passes": "setActiveTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 944,
+   "prop": "onClick",
+   "expr": "() => onGoToTab(\"settings\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onGoToTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:363",
+     "passes": "setActiveTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 1193,
+   "prop": "onClick",
+   "expr": "() => onOpenEvidence(item.id)",
+   "ownerComponent": "EvidenceTab",
+   "propName": "onOpenEvidence",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:988",
+     "passes": "onOpenEvidence"
+    },
+    {
+     "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:394",
+     "passes": "onOpenEvidence"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "line": 1943,
+   "prop": "onClick",
+   "expr": "() => onOpenEvidence(item.id)",
+   "ownerComponent": "ReportsPackagesTab",
+   "propName": "onOpenEvidence",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:448",
+     "passes": "onOpenEvidence"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+   "line": 1371,
+   "prop": "onClick",
+   "expr": "(event) => event.stopPropagation()",
+   "ownerComponent": "EvidenceTab",
+   "propName": "",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/cases/[id]",
+   "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+   "line": 1373,
+   "prop": "onClick",
+   "expr": "() => links.onUnlink({ linkId: it.linkId as string, title: it.title || \"Untitled evidence\", })",
+   "ownerComponent": "EvidenceTab",
+   "propName": "onUnlink",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx",
+   "line": 189,
+   "prop": "onChange",
+   "expr": "(userId) => { const member = members.find((m) => m.userId === userId); if (member) onChange(member); }",
+   "ownerComponent": "WorkspaceMemberSelect",
+   "propName": "onChange",
+   "callSites": 3,
+   "callSitesWithValue": 3,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:390",
+     "passes": "setAssignee"
+    },
+    {
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:280",
+     "passes": "setChoice"
+    },
+    {
+     "at": "apps/web/components/cases-experience/MatterAccessTab.tsx:392",
+     "passes": "setSelected"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams",
+   "file": "apps/web/app/(app)/collaboration-teams/page.tsx",
+   "line": 783,
+   "prop": "onChange",
+   "expr": "(e) => onSearch(e.target.value)",
+   "ownerComponent": "TeamsToolbar",
+   "propName": "onSearch",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:589",
+     "passes": "setSearch"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams",
+   "file": "apps/web/app/(app)/collaboration-teams/page.tsx",
+   "line": 1046,
+   "prop": "onClick",
+   "expr": "() => onOpenChange(!open)",
+   "ownerComponent": "RowOverflowMenu",
+   "propName": "onOpenChange",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/page.tsx:962",
+     "passes": "setMenuOpen"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 121,
+   "prop": "onClick",
+   "expr": "() => onJumpTab(\"work\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 149,
+   "prop": "onOpen",
+   "expr": "() => onJumpTab(\"work\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 159,
+   "prop": "onOpen",
+   "expr": "() => onJumpTab(\"work\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 169,
+   "prop": "onOpen",
+   "expr": "() => onJumpTab(\"work\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 179,
+   "prop": "onOpen",
+   "expr": "() => onJumpTab(\"work\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/collaboration-teams/[teamId]",
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "line": 275,
+   "prop": "onClick",
+   "expr": "() => onJumpTab(\"members\")",
+   "ownerComponent": "OverviewTab",
+   "propName": "onJumpTab",
+   "callSites": 4,
+   "callSitesWithValue": 1,
+   "effects": [
+    "NAV"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:922",
+     "passes": "goTab"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/page.tsx",
+   "line": 200,
+   "prop": "onClick",
+   "expr": "() => onClear(c.key)",
+   "ownerComponent": "ActiveTrustFilterChips",
+   "propName": "onClear",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/page.tsx:1249",
+     "passes": "(key) => updateFilters({ ...filters, [key]: key === \"type\" || key === \"status\" ? \"all\" : \"all\", })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx",
+   "line": 114,
+   "prop": "onClick",
+   "expr": "() => onApplyView(view)",
+   "ownerComponent": "SavedViewsMenu",
+   "propName": "onApplyView",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/page.tsx:1262",
+     "passes": "applySavedView"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx",
+   "line": 130,
+   "prop": "onClick",
+   "expr": "() => void onSetDefault(view.id)",
+   "ownerComponent": "SavedViewsMenu",
+   "propName": "onSetDefault",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/page.tsx:1262",
+     "passes": "setDefaultSavedView"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx",
+   "line": 133,
+   "prop": "onClick",
+   "expr": "() => void onDeleteView(view.id)",
+   "ownerComponent": "SavedViewsMenu",
+   "propName": "onDeleteView",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/page.tsx:1262",
+     "passes": "deleteSavedView"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceList.tsx",
+   "line": 69,
+   "prop": "onChange",
+   "expr": "(event) => onToggleSelectAllCurrentPage(event.target.checked)",
+   "ownerComponent": "EvidenceList",
+   "propName": "onToggleSelectAllCurrentPage",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/page.tsx:1278",
+     "passes": "toggleSelectAllCurrentPage"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
+   "line": 48,
+   "prop": "onChange",
+   "expr": "(event) => onToggleChecked(item.id, event.target.checked)",
+   "ownerComponent": "EvidenceLibraryRow",
+   "propName": "onToggleChecked",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:126",
+     "passes": "onToggleSelected"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
+   "line": 61,
+   "prop": "onClick",
+   "expr": "() => onSelect(item.id)",
+   "ownerComponent": "EvidenceLibraryRow",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/components/EvidenceList.tsx:126",
+     "passes": "onSelect"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 100,
+   "prop": "onChange",
+   "expr": "(event) => update(\"search\", event.target.value)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 117,
+   "prop": "onChange",
+   "expr": "(next) => update(\"scope\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 130,
+   "prop": "onChange",
+   "expr": "(next) => update(\"status\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 145,
+   "prop": "onChange",
+   "expr": "(next) => update(\"type\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 161,
+   "prop": "onChange",
+   "expr": "(next) => update(\"acquisition\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 177,
+   "prop": "onChange",
+   "expr": "(next) => update(\"review\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 190,
+   "prop": "onChange",
+   "expr": "(next) => update(\"exportReadiness\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 202,
+   "prop": "onChange",
+   "expr": "(next) => update(\"caseAssignment\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 214,
+   "prop": "onChange",
+   "expr": "(next) => update(\"retention\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence",
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "line": 226,
+   "prop": "onChange",
+   "expr": "(next) => update(\"sort\", next)",
+   "ownerComponent": "EvidenceFilters",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence-requests/[id]",
+   "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+   "line": 756,
+   "prop": "onClick",
+   "expr": "(e) => (e.target as HTMLInputElement).select()",
+   "ownerComponent": "Inner",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence-requests/[id]",
+   "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+   "line": 781,
+   "prop": "onClick",
+   "expr": "async () => { try { await navigator.clipboard.writeText(requestMoreReveal.intakeUrl); } catch { /* clipboard may be unav",
+   "ownerComponent": "Inner",
+   "propName": "async",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 1241,
+   "prop": "onClick",
+   "expr": "() => void downloadReport()",
+   "ownerComponent": "EvidenceDetailPageInner",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "line": 1261,
+   "prop": "onClick",
+   "expr": "() => void downloadVerificationPackage()",
+   "ownerComponent": "EvidenceDetailPageInner",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+   "line": 681,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "DerivedAssetPreviewModal",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+   "line": 778,
+   "prop": "onClick",
+   "expr": "() => { void onRunAnalyzer(); }",
+   "ownerComponent": "PanelHeader",
+   "propName": "onRunAnalyzer",
+   "callSites": 2,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:331",
+     "passes": "handleRunAnalyzer"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+   "line": 842,
+   "prop": "onClick",
+   "expr": "() => onAck(\"ACKNOWLEDGED\")",
+   "ownerComponent": "SignalRow",
+   "propName": "onAck",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:438",
+     "passes": "(action) => { void handleAck(signal.id, action); }"
+    },
+    {
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:462",
+     "passes": "(action) => { void handleAck(signal.id, action); }"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+   "line": 860,
+   "prop": "onClick",
+   "expr": "() => onAck(\"DISMISSED\")",
+   "ownerComponent": "SignalRow",
+   "propName": "onAck",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:438",
+     "passes": "(action) => { void handleAck(signal.id, action); }"
+    },
+    {
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:462",
+     "passes": "(action) => { void handleAck(signal.id, action); }"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+   "line": 1371,
+   "prop": "onClick",
+   "expr": "() => { if (trashDisabled) return; onMoveToTrash(); }",
+   "ownerComponent": "EvidenceHeroIconActions",
+   "propName": "onMoveToTrash",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+     "passes": "() => setTrashOpen(true)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 112,
+   "prop": "onClick",
+   "expr": "() => void ctx.generateOutputs()",
+   "ownerComponent": "GenerateOutputsButton",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadReport",
+   "expr": "() => void downloadReport()",
+   "ownerComponent": "EvidenceArtifactsTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadVerificationPackage",
+   "expr": "() => void downloadVerificationPackage()",
+   "ownerComponent": "EvidenceArtifactsTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadReportVersion",
+   "expr": "(v) => void ctx.downloadReportVersion(v)",
+   "ownerComponent": "EvidenceArtifactsTab",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "line": 600,
+   "prop": "onDownloadVerificationPackageVersion",
+   "expr": "(v) => void ctx.downloadVerificationPackageVersion(v)",
+   "ownerComponent": "EvidenceArtifactsTab",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
+   "line": 169,
+   "prop": "onClick",
+   "expr": "() => onDownloadVersion(item.version)",
+   "ownerComponent": "ArtifactFamilyCard",
+   "propName": "onDownloadVersion",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:292",
+     "passes": "onDownloadReportVersion"
+    },
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:309",
+     "passes": "onDownloadVerificationPackageVersion"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 213,
+   "prop": "onClick",
+   "expr": "() => routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "routerPush",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 239,
+   "prop": "onRefreshEvents",
+   "expr": "() => void loadWorkflowEvents()",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 250,
+   "prop": "onRemoveCase",
+   "expr": "workspace.relationships.caseId ? () => void removeCase() : null",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "workspace",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 250,
+   "prop": "onOpenLinkedEvidence",
+   "expr": "(id) => routerPush(`/evidence/${id}`)",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 270,
+   "prop": "onChanged",
+   "expr": "() => void loadWorkflowEvents()",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "line": 482,
+   "prop": "onClick",
+   "expr": "() => void restoreTrash()",
+   "ownerComponent": "EvidenceReviewTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+   "line": 175,
+   "prop": "onClick",
+   "expr": "() => onOpenLinkedEvidence(item.linkedEvidence.id)",
+   "ownerComponent": "EvidenceRelationshipsSection",
+   "propName": "onOpenLinkedEvidence",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:250",
+     "passes": "(id) => routerPush(`/evidence/${id}`)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+   "line": 184,
+   "prop": "onClick",
+   "expr": "() => { // D-3 closure — destructive relationship removal // routed through ConfirmActionModal. The DELETE // endpoint i",
+   "ownerComponent": "EvidenceRelationshipsSection",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+   "line": 468,
+   "prop": "onClick",
+   "expr": "() => void loadWorkspace()",
+   "ownerComponent": "EvidenceIntegrityTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+   "line": 146,
+   "prop": "onOpenOriginal",
+   "expr": "() => void openOriginal()",
+   "ownerComponent": "EvidenceOverviewTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+   "line": 146,
+   "prop": "onDownloadOriginal",
+   "expr": "() => void downloadOriginal()",
+   "ownerComponent": "EvidenceOverviewTab",
+   "propName": "void",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "line": 465,
+   "prop": "onClick",
+   "expr": "(e) => (e.target as HTMLInputElement).select()",
+   "ownerComponent": "EvidenceRequestPanel",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "line": 472,
+   "prop": "onClick",
+   "expr": "() => { navigator.clipboard?.writeText(reveal.url).catch(() => {}); }",
+   "ownerComponent": "EvidenceRequestPanel",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/evidence/[id]",
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "line": 865,
+   "prop": "onClick",
+   "expr": "() => onConfirm(note.trim())",
+   "ownerComponent": "NoteDialog",
+   "propName": "onConfirm",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:443",
+     "passes": "executeNoteAction"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/home",
+   "file": "apps/web/components/home-experience/HomeDashboardSections.tsx",
+   "line": 1057,
+   "prop": "onMouseEnter",
+   "expr": "(e) => { if (mode !== \"records\") e.currentTarget.style.background = \"rgba(124, 58, 237, 0.06)\"; }",
+   "ownerComponent": "EvidenceTypeDonutCard",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/home",
+   "file": "apps/web/components/home-experience/HomeDashboardSections.tsx",
+   "line": 1080,
+   "prop": "onMouseEnter",
+   "expr": "(e) => { if (mode !== \"files\") e.currentTarget.style.background = \"rgba(124, 58, 237, 0.06)\"; }",
+   "ownerComponent": "EvidenceTypeDonutCard",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/home",
+   "file": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx",
+   "line": 988,
+   "prop": "onClick",
+   "expr": "() => focusRow(w.id)",
+   "ownerComponent": "CausalityChainDrilldown",
+   "propName": "focusRow",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 166,
+   "prop": "onChange",
+   "expr": "(slug) => { const purpose = findRequestPurpose(slug); onPatch({ purposeSlug: slug, // A purpose change re-seeds the reco",
+   "ownerComponent": "StepRequest",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 203,
+   "prop": "onChange",
+   "expr": "(intakeMode) => onPatch({ intakeMode })",
+   "ownerComponent": "StepRequest",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 268,
+   "prop": "onChange",
+   "expr": "(channel) => onPatch({ channel, channelTouched: true })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 295,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ recipientLabel: e.target.value.slice(0, RECIPIENT_LABEL_MAX), })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 323,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ customerId: e.target.value.slice(0, CUSTOMER_ID_MAX) })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 351,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ recipientEmail: e.target.value.slice(0, RECIPIENT_EMAIL_MAX), })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 381,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ recipientPhone: e.target.value.slice(0, RECIPIENT_PHONE_MAX), })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 412,
+   "prop": "onChange",
+   "expr": "(senderMode) => onPatch({ senderMode })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 430,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ senderName: e.target.value })",
+   "ownerComponent": "StepDelivery",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 465,
+   "prop": "onChange",
+   "expr": "(locationPolicy) => onPatch({ locationPolicy })",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 490,
+   "prop": "onChange",
+   "expr": "(v) => { if (v === \"custom\") { onPatch({ expiryChoice: \"custom\" }); return; } const hours = Number(v); onPatch({ expiryC",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 516,
+   "prop": "onChange",
+   "expr": "(e) => { const raw = e.target.value; onPatch({ maxFiles: raw === \"\" ? \"\" : Number(raw) }); }",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 545,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ expiresInHours: Number(e.target.value) })",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 563,
+   "prop": "onToggle",
+   "expr": "(value, next) => { const set = new Set(state.acceptedKinds); if (next) set.add(value); else set.delete(value); onPatch({",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+   "line": 593,
+   "prop": "onChange",
+   "expr": "(e) => onPatch({ consentText: e.target.value.slice(0, CONSENT_TEXT_MAX) })",
+   "ownerComponent": "StepRules",
+   "propName": "onPatch",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/fields.tsx",
+   "line": 111,
+   "prop": "onChange",
+   "expr": "() => onChange(opt.value)",
+   "ownerComponent": "ChoiceCards",
+   "propName": "onChange",
+   "callSites": 4,
+   "callSitesWithValue": 4,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:203",
+     "passes": "(intakeMode) => onPatch({ intakeMode })"
+    },
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:268",
+     "passes": "(channel) => onPatch({ channel, channelTouched: true })"
+    },
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:412",
+     "passes": "(senderMode) => onPatch({ senderMode })"
+    },
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:465",
+     "passes": "(locationPolicy) => onPatch({ locationPolicy })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/wizard/fields.tsx",
+   "line": 185,
+   "prop": "onChange",
+   "expr": "(e) => onToggle(opt.value, e.target.checked)",
+   "ownerComponent": "KindChips",
+   "propName": "onToggle",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:563",
+     "passes": "(value, next) => { const set = new Set(state.acceptedKinds); if (next) set.add(value); else set.delete(value); onPatch({ acceptedKinds: ACCEPTED_KIND_OPTIONS.map((o) => o.value).fi"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx",
+   "line": 191,
+   "prop": "onFocus",
+   "expr": "(e) => e.currentTarget.select()",
+   "ownerComponent": "LinkCreatedDialog",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/Drawer.tsx",
+   "line": 59,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "Drawer",
+   "propName": "",
+   "callSites": 3,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/States.tsx",
+   "line": 110,
+   "prop": "onClick",
+   "expr": "() => onPickPurpose(p.slug)",
+   "ownerComponent": "EmptyState",
+   "propName": "onPickPurpose",
+   "callSites": 213,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "PARTIAL",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:511",
+     "passes": "(slug) => openWizard(slug)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx",
+   "line": 128,
+   "prop": "onClick",
+   "expr": "() => onOpenDetails(row.id)",
+   "ownerComponent": "RequestCell",
+   "propName": "onOpenDetails",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:466",
+     "passes": "handlers.onOpenDetails"
+    },
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:517",
+     "passes": "handlers.onOpenDetails"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx",
+   "line": 403,
+   "prop": "onClick",
+   "expr": "() => onOpenSubmissions(row.id)",
+   "ownerComponent": "SubmissionsCell",
+   "propName": "onOpenSubmissions",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:481",
+     "passes": "handlers.onOpenSubmissions"
+    },
+    {
+     "at": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:531",
+     "passes": "handlers.onOpenSubmissions"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/Pagination.tsx",
+   "line": 38,
+   "prop": "onChange",
+   "expr": "(v) => onPageSize(Number(v))",
+   "ownerComponent": "Pagination",
+   "propName": "onPageSize",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:558",
+     "passes": "(pageSize) => patchFilters({ pageSize })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/Pagination.tsx",
+   "line": 50,
+   "prop": "onClick",
+   "expr": "() => onPage(Math.max(1, page - 1))",
+   "ownerComponent": "Pagination",
+   "propName": "onPage",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:558",
+     "passes": "(page) => patchFilters({ page })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/Pagination.tsx",
+   "line": 63,
+   "prop": "onClick",
+   "expr": "() => onPage(Math.min(pageCount, page + 1))",
+   "ownerComponent": "Pagination",
+   "propName": "onPage",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:558",
+     "passes": "(page) => patchFilters({ page })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx",
+   "line": 49,
+   "prop": "onClick",
+   "expr": "() => onSelect(tab)",
+   "ownerComponent": "KpiGrid",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:522",
+     "passes": "selectKpi"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+   "line": 106,
+   "prop": "onChange",
+   "expr": "(e) => search.onChange(e.target.value)",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+   "line": 121,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ channel: v === ANY ? \"\" : (v as ChannelWireValue) })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+   "line": 136,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ lifecycle: v === ANY ? \"\" : (v as LifecycleFilterValue), })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+   "line": 153,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ delivery: v === ANY ? \"\" : (v as DeliveryFilterWireValue), })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake-links",
+   "file": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx",
+   "line": 170,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ sort: v as SortWireValue })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/intake/[token]",
+   "file": "apps/web/app/intake/[token]/page.tsx",
+   "line": 1307,
+   "prop": "onChange",
+   "expr": "async (e) => { // Snapshot the queue length ONCE before iterating. React // state does not update synchronously across a",
+   "ownerComponent": "ExternalIntakePage",
+   "propName": "async",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/QueueSummary.tsx",
+   "line": 90,
+   "prop": "onClick",
+   "expr": "() => onSelect(key)",
+   "ownerComponent": "QueueSummary",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1676",
+     "passes": "selectMetric"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/GroupInspector.tsx",
+   "line": 110,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "GroupInspector",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/GroupSurface.tsx",
+   "line": 130,
+   "prop": "onClick",
+   "expr": "() => onOpen(g.groupKey)",
+   "ownerComponent": "GroupSurface",
+   "propName": "onOpen",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "DIALOG"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1825",
+     "passes": "setOpenGroupKey"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 384,
+   "prop": "onChange",
+   "expr": "() => handlers.onToggleMark(row.id)",
+   "ownerComponent": "IncidentSurface",
+   "propName": "onToggleMark",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 402,
+   "prop": "onClick",
+   "expr": "() => handlers.onOpen(row.id)",
+   "ownerComponent": "IncidentSurface",
+   "propName": "onOpen",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 459,
+   "prop": "onChange",
+   "expr": "() => handlers.onToggleMark(row.id)",
+   "ownerComponent": "IncidentSurface",
+   "propName": "onToggleMark",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+   "line": 477,
+   "prop": "onClick",
+   "expr": "() => handlers.onOpen(row.id)",
+   "ownerComponent": "IncidentSurface",
+   "propName": "onOpen",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/SavedViews.tsx",
+   "line": 105,
+   "prop": "onClick",
+   "expr": "() => onApply(view)",
+   "ownerComponent": "SavedViews",
+   "propName": "onApply",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1684",
+     "passes": "applyView"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/SavedViews.tsx",
+   "line": 183,
+   "prop": "onKeyDown",
+   "expr": "(e) => { // Escape abandons the naming without saving. Without it the // only way out of the form is to name something y",
+   "ownerComponent": "SavedViews",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx",
+   "line": 193,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "IncidentInspector",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx",
+   "line": 100,
+   "prop": "onChange",
+   "expr": "(v) => onAssign(v === UNASSIGNED ? null : v)",
+   "ownerComponent": "AssignmentControl",
+   "propName": "onAssign",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:525",
+     "passes": "onAssign"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/AssignmentControl.tsx",
+   "line": 112,
+   "prop": "onClick",
+   "expr": "() => onAssign(selfUserId)",
+   "ownerComponent": "AssignmentControl",
+   "propName": "onAssign",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/operations/_components/IncidentInspector.tsx:525",
+     "passes": "onAssign"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 132,
+   "prop": "onChange",
+   "expr": "(e) => search.onChange(e.target.value)",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 147,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ status: v === ANY ? \"\" : (v as FilterState[\"status\"]) })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 162,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ severity: v === ANY ? \"\" : (v as FilterState[\"severity\"]), })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 179,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ category: v === ANY ? \"\" : (v as FilterState[\"category\"]), })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 197,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ owner: v })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 211,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ sort: v as SortValue })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/operations",
+   "file": "apps/web/app/(app)/operations/_components/FilterToolbar.tsx",
+   "line": 233,
+   "prop": "onChange",
+   "expr": "(v) => onChange({ sla: v as FilterState[\"sla\"] })",
+   "ownerComponent": "FilterToolbar",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/intake-links/page.tsx:524",
+     "passes": "patchFilters"
+    },
+    {
+     "at": "apps/web/app/(app)/operations/page.tsx:1698",
+     "passes": "patchFilters"
+    }
+   ]
+  },
+  {
+   "side": "native",
+   "route": "/teams/[id]",
+   "file": "apps/mobile/src/ui/step-up-sheet.tsx",
+   "line": 89,
+   "prop": "onPress",
+   "expr": "() => { const proof = buildStepUpProof(method, value); if (proof) onSubmit(proof); }",
+   "ownerComponent": "StepUpSheet",
+   "propName": "onSubmit",
+   "callSites": 3,
+   "callSitesWithValue": 3,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/mobile/app/(stack)/organizations/[id].tsx:617",
+     "passes": "(proof) => void stepUp.retry(proof, (err) => fail(err, \"That could not be completed.\"))"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/settings/security.tsx:500",
+     "passes": "(proof) => void stepUp.retry(proof, (err) => addToast(toSafeUserError(err).message, \"error\"))"
+    },
+    {
+     "at": "apps/mobile/app/(stack)/workspace-people.tsx:859",
+     "passes": "(proof) => void stepUp.retry(proof, (err) => failLifecycle(err, \"That could not be completed.\"))"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]",
+   "file": "apps/web/app/portal/[token]/page.tsx",
+   "line": 169,
+   "prop": "onLogout",
+   "expr": "async () => { await portalLogout(); window.location.href = \"/portal\"; }",
+   "ownerComponent": "PortalDashboardPage",
+   "propName": "async",
+   "callSites": 0,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "NO_CALL_SITE",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 508,
+   "prop": "onChange",
+   "expr": "(e) => onRationale(e.target.value)",
+   "ownerComponent": "DecisionPanel",
+   "propName": "onRationale",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:377",
+     "passes": "setVerdictRationale"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 525,
+   "prop": "onClick",
+   "expr": "() => onDecide(v as ExternalDecisionVerdict)",
+   "ownerComponent": "DecisionPanel",
+   "propName": "onDecide",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "FEEDBACK",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:377",
+     "passes": "onSubmitDecision"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 621,
+   "prop": "onChange",
+   "expr": "(e) => onRootDraft(e.target.value)",
+   "ownerComponent": "CommentsPanel",
+   "propName": "onRootDraft",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:387",
+     "passes": "setRootDraft"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 636,
+   "prop": "onClick",
+   "expr": "() => void onPostRoot()",
+   "ownerComponent": "CommentsPanel",
+   "propName": "onPostRoot",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:387",
+     "passes": "async () => { const body = rootDraft.trim(); if (!body) return; try { await postComment({ workflowId, body }); } catch (err) { if (takeSessionLoss(err)) return; setCommentError(com"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 684,
+   "prop": "onChange",
+   "expr": "(e) => onReplyDraft(r.id, e.target.value)",
+   "ownerComponent": "CommentsPanel",
+   "propName": "onReplyDraft",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:387",
+     "passes": "(id, v) => setReplyDraft((d) => ({ ...d, [id]: v }))"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/portal/[token]/work/[workflowId]",
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "line": 699,
+   "prop": "onClick",
+   "expr": "() => void onPostReply(r.id)",
+   "ownerComponent": "CommentsPanel",
+   "propName": "onPostReply",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx:387",
+     "passes": "async (parentId) => { const body = (replyDraft[parentId] ?? \"\").trim(); if (!body) return; try { await postComment({ workflowId, body, parentCommentId: parentId, }); } catch (err) "
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/reports",
+   "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
+   "line": 863,
+   "prop": "onClick",
+   "expr": "(e) => e.stopPropagation()",
+   "ownerComponent": "ArtifactRowView",
+   "propName": "",
+   "callSites": 1,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "web",
+   "route": "/search",
+   "file": "apps/web/app/(app)/search/page.tsx",
+   "line": 3042,
+   "prop": "onChange",
+   "expr": "(e) => onChange(e.target.checked)",
+   "ownerComponent": "Toggle",
+   "propName": "onChange",
+   "callSites": 7,
+   "callSitesWithValue": 7,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/governance/retention/page.tsx:1132",
+     "passes": "setImmutable"
+    },
+    {
+     "at": "apps/web/app/(app)/governance/retention/page.tsx:1137",
+     "passes": "setAutoExtensionEnabled"
+    },
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2043",
+     "passes": "(v) => updateFilter({ workflowLinked: v ? true : undefined })"
+    },
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2050",
+     "passes": "(v) => updateFilter({ onLegalHold: v ? true : undefined })"
+    },
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2057",
+     "passes": "(v) => updateFilter({ exportRestricted: v ? true : undefined })"
+    },
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2064",
+     "passes": "(v) => updateFilter({ incidentLinked: v ? true : undefined })"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/search",
+   "file": "apps/web/app/(app)/search/components/SearchGuidance.tsx",
+   "line": 79,
+   "prop": "onClick",
+   "expr": "() => onApplyRecent(query)",
+   "ownerComponent": "SearchGuidancePanel",
+   "propName": "onApplyRecent",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2485",
+     "passes": "(q) => { setQDraft(q); updateFilter({ q }); }"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/search",
+   "file": "apps/web/app/(app)/search/components/SearchGuidance.tsx",
+   "line": 109,
+   "prop": "onClick",
+   "expr": "() => onApplySaved(view.id)",
+   "ownerComponent": "SearchGuidancePanel",
+   "propName": "onApplySaved",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/search/page.tsx:2485",
+     "passes": "(id) => { const view = savedViews?.find((v) => v.id === id); if (view) applySavedView(view); }"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx",
+   "line": 261,
+   "prop": "onClick",
+   "expr": "() => onOpen(\"members\")",
+   "ownerComponent": "SettingsOverview",
+   "propName": "onOpen",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/page.tsx:228",
+     "passes": "openPane"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx",
+   "line": 306,
+   "prop": "onClick",
+   "expr": "() => onOpen(\"security\")",
+   "ownerComponent": "SettingsOverview",
+   "propName": "onOpen",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/page.tsx:228",
+     "passes": "openPane"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx",
+   "line": 57,
+   "prop": "onChange",
+   "expr": "(next) => onSelect(next as SettingsPaneId)",
+   "ownerComponent": "SettingsNav",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/page.tsx:224",
+     "passes": "openPane"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx",
+   "line": 76,
+   "prop": "onClick",
+   "expr": "() => onSelect(\"overview\")",
+   "ownerComponent": "SettingsNav",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/page.tsx:224",
+     "passes": "openPane"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx",
+   "line": 94,
+   "prop": "onClick",
+   "expr": "() => onSelect(item.id)",
+   "ownerComponent": "SettingsNav",
+   "propName": "onSelect",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/page.tsx:224",
+     "passes": "openPane"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
+   "line": 715,
+   "prop": "onClick",
+   "expr": "() => void onReload()",
+   "ownerComponent": "OrgAiView",
+   "propName": "onReload",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:341",
+     "passes": "load"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/settings",
+   "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
+   "line": 816,
+   "prop": "onClick",
+   "expr": "() => void onSave()",
+   "ownerComponent": "OrgAiView",
+   "propName": "onSave",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "API",
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/settings/_sections/AiSection.tsx:341",
+     "passes": "save"
+    }
+   ]
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 92,
+   "prop": "onPress",
+   "expr": "() => onChange(list.filter((_, idx) => idx !== i))",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:403",
+     "passes": "setNewRows"
+    },
+    {
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:375",
+     "passes": "(next) => setList(next)"
+    }
+   ]
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 104,
+   "prop": "onChangeText",
+   "expr": "(t) => patch(i, { key: t })",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 113,
+   "prop": "onChangeText",
+   "expr": "(t) => patch(i, { title: t })",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 123,
+   "prop": "onChangeText",
+   "expr": "(t) => patch(i, { reviewGuidance: t })",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 142,
+   "prop": "onValueChange",
+   "expr": "(v) => patch(i, { required: v })",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "",
+   "callSites": 2,
+   "callSitesWithValue": 0,
+   "effects": [],
+   "closure": "PROP_NEVER_PASSED",
+   "sites": []
+  },
+  {
+   "side": "native",
+   "route": "/settings/reviewer-criteria",
+   "file": "apps/mobile/src/ui/criteria-draft-editor.tsx",
+   "line": 151,
+   "prop": "onPress",
+   "expr": "() => onChange([...list, emptyCriterionRow()])",
+   "ownerComponent": "CriterionRowsEditor",
+   "propName": "onChange",
+   "callSites": 2,
+   "callSitesWithValue": 2,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:403",
+     "passes": "setNewRows"
+    },
+    {
+     "at": "apps/mobile/src/ui/criteria-draft-editor.tsx:375",
+     "passes": "(next) => setList(next)"
+    }
+   ]
+  },
+  {
+   "route": "/teams/[id]",
+   "side": "web",
+   "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
+   "line": 469,
+   "prop": "onClick",
+   "tag": "button",
+   "expr": "() => onRemove(member)",
+   "effects": [],
+   "filesVisited": 1,
+   "unresolved": [
+    {
+     "why": "callee \"onRemove\" is a prop callback or an in-scope binding the static graph cannot bind",
+     "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
+     "expr": "() => onRemove(member)"
+    }
+   ],
+   "unresolvedCount": 1,
+   "verdict": "UNRESOLVED",
+   "closure": "NO_OWNER_COMPONENT",
+   "note": "the binding is not inside an exported capitalised component"
+  },
+  {
+   "side": "web",
+   "route": "/teams/[id]",
+   "file": "apps/web/app/(app)/teams/[id]/components/DangerConfirmModal.tsx",
+   "line": 98,
+   "prop": "onClose",
+   "expr": "() => { if (!pending) onCancel(); }",
+   "ownerComponent": "DangerConfirmModal",
+   "propName": "onCancel",
+   "callSites": 3,
+   "callSitesWithValue": 3,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2285",
+     "passes": "() => setPendingInviteDelete(null)"
+    },
+    {
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2299",
+     "passes": "() => setPendingCaseUnlink(null)"
+    },
+    {
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2313",
+     "passes": "() => setDeleteConfirm(false)"
+    }
+   ]
+  },
+  {
+   "side": "web",
+   "route": "/teams/[id]",
+   "file": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx",
+   "line": 232,
+   "prop": "onClose",
+   "expr": "() => { if (!submitting) onCancel(); }",
+   "ownerComponent": "MemberRemovalDialog",
+   "propName": "onCancel",
+   "callSites": 1,
+   "callSitesWithValue": 1,
+   "effects": [
+    "STATE"
+   ],
+   "closure": "ALL_CALL_SITES_RESOLVED",
+   "sites": [
+    {
+     "at": "apps/web/app/(app)/teams/[id]/page.tsx:2329",
+     "passes": "() => setRemovalDialogMember(null)"
+    }
+   ]
+  }
+ ]
+}

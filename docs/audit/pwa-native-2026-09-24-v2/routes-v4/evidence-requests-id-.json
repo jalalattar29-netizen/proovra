@@ -1,0 +1,628 @@
+{
+ "route": "/evidence-requests/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/evidence-request/[id].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 33,
+   "labelled": 52,
+   "unboundExports": 4
+  },
+  "native": {
+   "files": 20,
+   "labelled": 28,
+   "unboundExports": 9
+  }
+ },
+ "pairing": {
+  "exact": 1,
+  "copyDiffers": 0,
+  "roleDiffers": 2,
+  "unpaired": 49,
+  "extraInNative": 21,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:799",
+   "nat": "apps/mobile/src/ui/patterns.tsx:571",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Reviewer note:",
+   "webRole": "TEXT",
+   "natRole": "INPUT",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:670",
+   "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403"
+  },
+  {
+   "label": "Back",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:735",
+   "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:167"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BADGE",
+   "label": "Review-ready",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BADGE",
+   "label": "Required items remaining",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:407",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BADGE",
+   "label": "Needs more info",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Reviewer note (workspace-internal, optional)",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:447",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Reviewer note",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading evidence request…",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:326",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence request unavailable",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:333",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Return to matter",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Request ·",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:386",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request more information",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:440",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Flag this request as needing more information from the contributor. The contributor's intake page will show a re-request banner pointing at the unfulfilled deliverables. Workspace-internal note below is attached to the audit event.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:442",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Completion",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:487",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required:",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:518",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional:",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:521",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Deliverables",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:528",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This request has no deliverable checklist. It accepts free-form uploads only.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:531",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "received",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Responses received",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:612",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No responses received yet. Responses appear here once the contributor submits via the intake link.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:615",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open evidence",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:685",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request more",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:694",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reject",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:703",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "← Back to matter",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:727",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Follow-up link created",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:749",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy link",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:792",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Operational breadcrumb",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "FORM",
+   "label": "Assign reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:279",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:280",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Reviewer note (optional)",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:402"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigned reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:207",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This request is addressed to an internal team member. The assigned reviewer is the person who receives it.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:220",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The reviewer cannot change on a closed or cancelled request.",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:225",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Remove reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:256",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Send to assigned reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Save reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:296",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:307",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Assign a reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:325",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Choose a member",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Search members",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:145",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Search",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:168",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace members…",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity timeline",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:722",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:726",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No events recorded for this request.",
+   "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:728",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No specific items listed.",
+    "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Email delivery for this request",
+   "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· last attempt",
+   "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:97",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading request",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:166"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Request not available",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:167"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Not available",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:168"
+  },
+  {
+   "role": "SECTION",
+   "label": "Instructions",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:190"
+  },
+  {
+   "role": "SECTION",
+   "label": "Requested items",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:195"
+  },
+  {
+   "role": "SECTION",
+   "label": "Submissions",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:217"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has been submitted against this request yet.",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:219"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Capture evidence to fulfil",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:251"
+  },
+  {
+   "role": "SECTION",
+   "label": "Actions",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:262"
+  },
+  {
+   "role": "SECTION",
+   "label": "Deliveries",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:277"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading deliveries",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:279"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This request has not been sent yet.",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:281"
+  },
+  {
+   "role": "SECTION",
+   "label": "History",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:306"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading history",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:308"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has happened on this request yet.",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:310"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Note (optional)",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:345"
+  },
+  {
+   "role": "INPUT",
+   "label": "Note",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:346"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer note (optional)",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:402"
+  },
+  {
+   "role": "TEXT",
+   "label": "No specific items listed.",
+   "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\navigation\\phaseBOperationalGroups.ts",
+   "name": "PhaseBOperationalGroup"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\(app)\\evidence\\[id]\\components\\WorkspaceMemberSelect.tsx",
+   "name": "WorkspaceMember"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "EvidenceRequestDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "RequestDelivery"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "RequestEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "RequestTransition"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "EvidenceRequestResponse"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-requests.ts",
+   "name": "ResponseReviewDecision"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

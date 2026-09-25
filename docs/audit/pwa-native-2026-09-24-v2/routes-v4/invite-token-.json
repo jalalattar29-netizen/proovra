@@ -1,0 +1,300 @@
+{
+ "route": "/invite/[token]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/invite/[token]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/invite/[token].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 22,
+   "labelled": 20,
+   "unboundExports": 12
+  },
+  "native": {
+   "files": 16,
+   "labelled": 8,
+   "unboundExports": 2
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 20,
+  "extraInNative": 8,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Workspace",
+   "at": "apps/web/app/invite/[token]/page.tsx:439",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organization",
+   "at": "apps/web/app/invite/[token]/page.tsx:444",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Role",
+   "at": "apps/web/app/invite/[token]/page.tsx:449",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invited as",
+   "at": "apps/web/app/invite/[token]/page.tsx:453",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "You’ve been invited to join a collaboration group.",
+    "at": "apps/mobile/app/(stack)/invite/[token].tsx:108"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/app/invite/[token]/page.tsx:458",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invitation links are single-use and expire. Never share this link.",
+   "at": "apps/web/app/invite/[token]/page.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy",
+   "at": "apps/web/app/invite/[token]/page.tsx:498",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms",
+   "at": "apps/web/app/invite/[token]/page.tsx:500",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support",
+   "at": "apps/web/app/invite/[token]/page.tsx:502",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_EMPTY",
+   "label": "Invitation unavailable",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:92"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Go to app",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:95"
+  },
+  {
+   "role": "SECTION",
+   "label": "Join collaboration group",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:106"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Accept invitation",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:110"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Not now",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:111"
+  },
+  {
+   "role": "TEXT",
+   "label": "You’ve been invited to join a collaboration group.",
+   "at": "apps/mobile/app/(stack)/invite/[token].tsx:108"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\invitations\\resolveInvitationView.ts",
+   "name": "InvitationLookupOutcome"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\invitations\\resolveInvitationView.ts",
+   "name": "InvitationAcceptOutcome"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workspace-invitation-contract.ts",
+   "name": "WorkspaceInvitationLookup"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\invitations\\resolveInvitationView.ts",
+   "name": "InvitationAuthState"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workspace-invitation-contract.ts",
+   "name": "WorkspaceInvitationContext"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\workspace-invitation-contract.ts",
+   "name": "WorkspaceInvitationRefusalCode"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\invitations\\resolveInvitationView.ts",
+   "name": "InvitationAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\invitations\\resolveInvitationView.ts",
+   "name": "InvitationView"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  }
+ ]
+}

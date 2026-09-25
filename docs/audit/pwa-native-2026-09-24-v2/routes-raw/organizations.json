@@ -1,0 +1,510 @@
+{
+ "route": "/organizations",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/organizations/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/organizations/index.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "ENTERPRISE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 146,
+   "elements": 159,
+   "texts": 46,
+   "distinctTexts": 38,
+   "handlers": 14,
+   "conditionals": 1096,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 83,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 138,
+   "elements": 143,
+   "texts": 15,
+   "distinctTexts": 12,
+   "handlers": 27,
+   "conditionals": 1039,
+   "apiPaths": 6,
+   "distinctApi": 2,
+   "styleRefs": 179,
+   "stylesheetRules": 83,
+   "themeTokens": 243,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 46,
+  "natLabelled": 14,
+  "paired": 1,
+  "roleDiff": 1,
+  "missing": 44,
+  "extraInNative": 10,
+  "webUnlabelled": 155,
+  "missingWithRolePresent": 44,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/organizations/page.tsx:291",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Organizations",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/organizations/page.tsx:212",
+     "nat": "apps/mobile/app/(stack)/organizations/index.tsx:69"
+    }
+   ],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Account · Organizations",
+     "at": "apps/web/app/(app)/organizations/page.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organizations are the governance + billing tenant. Members, invites, and audit live here. Operational work — evidence, cases, reviewer queues — continues to live inside each",
+     "at": "apps/web/app/(app)/organizations/page.tsx:214",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "workspace",
+     "at": "apps/web/app/(app)/organizations/page.tsx:218",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/organizations/page.tsx:220",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept invite token",
+     "at": "apps/web/app/(app)/organizations/page.tsx:241",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "About Enterprise organizations",
+     "at": "apps/web/app/(app)/organizations/page.tsx:249",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise organizations",
+     "at": "apps/web/app/(app)/organizations/page.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organizations are the legal, billing, and governance boundary for PROOVRA Enterprise customers. They are provisioned as part of an Enterprise agreement — they cannot be created self-service.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Want to work with your team? Create a",
+     "at": "apps/web/app/(app)/organizations/page.tsx:273",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "workspace",
+     "at": "apps/web/app/(app)/organizations/page.tsx:273",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "from the Teams page — it has its own members, roles, and billing, without an Enterprise contract.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create a workspace",
+     "at": "apps/web/app/(app)/organizations/page.tsx:283",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept invite token",
+     "at": "apps/web/app/(app)/organizations/page.tsx:312",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Paste the invite token an organization administrator shared with you. Accepting binds your account to the organization at the role chosen by the inviter. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:314",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Invite token",
+     "at": "apps/web/app/(app)/organizations/page.tsx:321",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/organizations/page.tsx:352",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading organizations…",
+     "at": "apps/web/app/(app)/organizations/page.tsx:370",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Couldn’t load organizations.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/app/(app)/organizations/page.tsx:388",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "You’re not a member of any organization yet.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:400",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Create an organization",
+     "at": "apps/web/app/(app)/organizations/page.tsx:404",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to become its ORG_OWNER. You can then invite members and bind workspaces.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:404",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept an invite token",
+     "at": "apps/web/app/(app)/organizations/page.tsx:408",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "if an organization administrator shared one with you.",
+     "at": "apps/web/app/(app)/organizations/page.tsx:408",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "For workspace-level operations (evidence, cases, reviewers), open",
+     "at": "apps/web/app/(app)/organizations/page.tsx:412",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace administration",
+     "at": "apps/web/app/(app)/organizations/page.tsx:413",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/organizations/page.tsx:413",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "About Enterprise organizations",
+     "at": "apps/web/app/(app)/organizations/page.tsx:423",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept invite token",
+     "at": "apps/web/app/(app)/organizations/page.tsx:435",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "pending",
+     "at": "apps/web/app/(app)/organizations/page.tsx:489",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "you joined",
+     "at": "apps/web/app/(app)/organizations/page.tsx:511",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open",
+     "at": "apps/web/app/(app)/organizations/page.tsx:523",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace admin",
+     "at": "apps/web/app/(app)/organizations/page.tsx:531",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Looking for evidence, cases, reviewer queues, or per-workspace billing? Those are workspace-scoped. Open the relevant workspace from",
+     "at": "apps/web/app/(app)/organizations/page.tsx:549",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace administration",
+     "at": "apps/web/app/(app)/organizations/page.tsx:553",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/organizations/page.tsx:555",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/organizations/index.tsx:74"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading organizations",
+     "at": "apps/mobile/app/(stack)/organizations/index.tsx:78"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "You are not a member of any organization",
+     "at": "apps/mobile/app/(stack)/organizations/index.tsx:84"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 1,
+  "webNonLiteralClass": 1,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 1,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 75,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 1096,
+  "natConditionals": 1039,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 14,
+  "natHandlers": 27,
+  "webHandlerSample": [
+   "onClick=() => { setJoinError(null); setJoinToken(\"\"); setJoinOpen(tr @apps/web/app/(app)/organizations/page.tsx:231",
+   "onClick=() => setCreateOpen(true) @apps/web/app/(app)/organizations/page.tsx:243",
+   "onClose=() => setCreateOpen(false) @apps/web/app/(app)/organizations/page.tsx:260",
+   "onClick=() => setCreateOpen(false) @apps/web/app/(app)/organizations/page.tsx:285",
+   "onClose=() => !joinBusy && setJoinOpen(false) @apps/web/app/(app)/organizations/page.tsx:300",
+   "onSubmit=(e) => { e.preventDefault(); void submitJoin(); } @apps/web/app/(app)/organizations/page.tsx:304",
+   "onChange=(e) => setJoinToken(e.target.value) @apps/web/app/(app)/organizations/page.tsx:322",
+   "onClick=() => setJoinOpen(false) @apps/web/app/(app)/organizations/page.tsx:345",
+   "onClick=() => void load() @apps/web/app/(app)/organizations/page.tsx:382",
+   "onClick=() => setCreateOpen(true) @apps/web/app/(app)/organizations/page.tsx:417",
+   "onClick=() => { setJoinError(null); setJoinToken(\"\"); setJoinOpen(tr @apps/web/app/(app)/organizations/page.tsx:425",
+   "onClick=(e) => { if (e.target === e.currentTarget) onClose(); } @apps/web/app/(app)/organizations/page.tsx:577",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/organizations/index.tsx:74",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/organizations/index.tsx:80",
+   "onPress=() => router.push(`/organizations/${org.organizationId}`) @apps/mobile/app/(stack)/organizations/index.tsx:94",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 4,
+  "natApi": 2,
+  "shared": 1,
+  "onlyWeb": 3,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/org-invites/${…}",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [
+   "/v1/orgs/${…}"
+  ],
+  "sharedList": [
+   "/v1/me/orgs"
+  ],
+  "webApiWhere": {
+   "/v1/me/orgs": "apps/web/app/(app)/organizations/page.tsx:127",
+   "/v1/org-invites/${…}": "apps/web/app/(app)/organizations/page.tsx:155",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/me/orgs": "apps/mobile/src/product/organizations.ts:46",
+   "/v1/orgs/${…}": "apps/mobile/src/product/organizations.ts:357"
+  }
+ }
+}

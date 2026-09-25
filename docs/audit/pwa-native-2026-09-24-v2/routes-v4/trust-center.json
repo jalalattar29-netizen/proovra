@@ -1,0 +1,130 @@
+{
+ "route": "/trust-center",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/trust-center/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/trust-center.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "labelled": 0,
+   "unboundExports": 0
+  },
+  "native": {
+   "files": 20,
+   "labelled": 15,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 0,
+  "extraInNative": 15,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Trust Center",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:104"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:109"
+  },
+  {
+   "role": "BADGE",
+   "label": "What PROOVRA does not claim",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:137"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "How PROOVRA works",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:143"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Loading…",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:183"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Not included in your plan",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:185"
+  },
+  {
+   "role": "BADGE",
+   "label": "Unavailable",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:192"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:196"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing published yet",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:204"
+  },
+  {
+   "role": "TEXT",
+   "label": "Limitations",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:165"
+  },
+  {
+   "role": "TEXT",
+   "label": "This section could not be read. The other sections are unaffected.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+  },
+  {
+   "role": "TEXT",
+   "label": "This is the only version on record.",
+   "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustSectionState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticle"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\trust-center.ts",
+   "name": "TrustArticleVersion"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

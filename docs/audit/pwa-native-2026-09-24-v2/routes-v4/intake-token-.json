@@ -1,0 +1,627 @@
+{
+ "route": "/intake/[token]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/intake/[token]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/intake/[token].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 8,
+   "labelled": 55,
+   "unboundExports": 1
+  },
+  "native": {
+   "files": 16,
+   "labelled": 17,
+   "unboundExports": 1
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 1,
+  "roleDiffers": 1,
+  "unpaired": 53,
+  "extraInNative": 14,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [
+  {
+   "role": "TEXT",
+   "webLabel": "Add files",
+   "natLabel": "Add the files you were asked for.",
+   "score": 0.5,
+   "web": "apps/web/app/intake/[token]/page.tsx:1380",
+   "nat": "apps/mobile/app/(stack)/intake/[token].tsx:246",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Not now",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/intake/[token]/page.tsx:1606",
+   "nat": "apps/mobile/app/(stack)/intake/[token].tsx:236"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "INPUT",
+   "label": "The name shown with your submission",
+   "at": "apps/web/app/intake/[token]/page.tsx:1174",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Your name",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:192"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Opening the secure intake link…",
+   "at": "apps/web/app/intake/[token]/page.tsx:956",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This link can&apos;t be opened",
+   "at": "apps/web/app/intake/[token]/page.tsx:991",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "If you still need to submit evidence, contact the workspace that sent you this link — they can issue a new one.",
+   "at": "apps/web/app/intake/[token]/page.tsx:997",
+   "natHasRole": true,
+   "bestScore": 0.12,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Check the link you were sent for typos or expired characters. If the problem persists, the workspace that sent the link can issue a new one.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1002",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "For security, this link briefly limits repeated requests. Wait a moment and reload the page.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1008",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Submission completed",
+   "at": "apps/web/app/intake/[token]/page.tsx:1034",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your files have been sent securely and recorded against this request. The workspace that issued the link will review them.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1036",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Nothing further is needed from you. You can close this window.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1040",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Already submitted",
+   "at": "apps/web/app/intake/[token]/page.tsx:1065",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This link has already been used. Your earlier submission was received and the workspace can review it.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1067",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "If you need to send more files, contact the sender for a new upload link.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1071",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This link expires",
+   "at": "apps/web/app/intake/[token]/page.tsx:1100",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "What happens with your files",
+   "at": "apps/web/app/intake/[token]/page.tsx:1149",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Files you upload are sent directly to the workspace that issued this link and recorded against this request. PROOVRA stores a fingerprint of each file so it can later be shown that nothing changed after you sent it.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1151",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "The terms you are accepting",
+   "at": "apps/web/app/intake/[token]/page.tsx:1163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Display name",
+   "at": "apps/web/app/intake/[token]/page.tsx:1172",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Your acknowledgement",
+   "at": "apps/web/app/intake/[token]/page.tsx:1200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "I have read and accept the terms above.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "My submission may be associated with my email address.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1234",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The sender needs this to know who responded.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1236",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept the terms above to continue.",
+   "at": "apps/web/app/intake/[token]/page.tsx:1258",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You were asked to provide",
+   "at": "apps/web/app/intake/[token]/page.tsx:1269",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Please respond by",
+   "at": "apps/web/app/intake/[token]/page.tsx:1276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What this request needs",
+   "at": "apps/web/app/intake/[token]/page.tsx:1292",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Files",
+   "at": "apps/web/app/intake/[token]/page.tsx:1296",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepted file types:",
+   "at": "apps/web/app/intake/[token]/page.tsx:1298",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Tap to choose — you can select more than one",
+   "at": "apps/web/app/intake/[token]/page.tsx:1382",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "What this request needs",
+   "at": "apps/web/app/intake/[token]/page.tsx:1402",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/app/intake/[token]/page.tsx:1425",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional",
+   "at": "apps/web/app/intake/[token]/page.tsx:1427",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "MB",
+   "at": "apps/web/app/intake/[token]/page.tsx:1463",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Map to step…",
+   "at": "apps/web/app/intake/[token]/page.tsx:1486",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Still needed:",
+   "at": "apps/web/app/intake/[token]/page.tsx:1502",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA · Secure intake",
+   "at": "apps/web/app/intake/[token]/page.tsx:61",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Support ID",
+   "at": "apps/web/app/intake/[token]/page.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Share location",
+   "at": "apps/web/app/intake/[token]/page.tsx:1597",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Waiting for your browser&hellip;",
+   "at": "apps/web/app/intake/[token]/page.tsx:1612",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Location captured",
+   "at": "apps/web/app/intake/[token]/page.tsx:1616",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The workspace asked for more",
+   "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:48",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "A reviewer has marked this request as needing more information. Check the checklist below for the items they still need, then upload or re-upload as required.",
+   "at": "apps/web/components/intake/IntakeReReviewBanner.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:214",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepts:",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:246",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Location capture required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:250",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture fresh — do not reuse old files",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:255",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "Add the files you were asked for.",
+    "at": "apps/mobile/app/(stack)/intake/[token].tsx:246"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "of",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "required",
+   "at": "apps/web/components/intake/IntakeChecklist.tsx:105",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Completion",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:64",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review-ready",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:92",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required items remaining",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:107",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Required:",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:147",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Optional:",
+   "at": "apps/web/components/intake/IntakeCompletionProgress.tsx:151",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Opening your link",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:146"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This link is not open",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:149"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "About you",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:173"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "A name to be known by (optional)",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:181"
+  },
+  {
+   "role": "INPUT",
+   "label": "A name to be known by",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:182"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Your name",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:191"
+  },
+  {
+   "role": "INPUT",
+   "label": "Your name",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:192"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Your email",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:202"
+  },
+  {
+   "role": "INPUT",
+   "label": "Your email",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:203"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Continue",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:212"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Before you send anything",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:218"
+  },
+  {
+   "role": "BUTTON",
+   "label": "I understand — continue",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:231"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "What to send",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:242"
+  },
+  {
+   "role": "TEXT",
+   "label": "What you send is preserved as evidence by the organization that sent you this link. Its integrity is recorded so it can be checked later. PROOVRA does not decide whether what you send is true, who created it, or whether it is admissible anywhere.",
+   "at": "apps/mobile/app/(stack)/intake/[token].tsx:227"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\intake\\IntakeChecklist.tsx",
+   "name": "IntakeDeliverable"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

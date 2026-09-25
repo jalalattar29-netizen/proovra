@@ -37,6 +37,10 @@ import {
   cleanupContinuousTempFiles,
   stageContinuousCapture,
   uploadContinuousSegment,
+  continuousSessionBytes,
+  CONTINUOUS_REVIEW_COPY,
+  CONTINUOUS_STAGE_FAILURE,
+  type ContinuousStageStep,
   type DeclaredSegment,
 } from "../../src/continuous-capture";
 import { sealDirectCapture, type DirectCaptureSession } from "../../src/direct-capture";
@@ -268,9 +272,12 @@ export default function ContinuousCaptureScreen() {
       return;
     }
     dispatch({ type: "FINALIZE" });
+    // T-18 — which step failed decides what the user is told and offered.
+    let step: ContinuousStageStep = "drain";
     try {
       // Belt-and-braces: ensure every queued upload has settled before the manifest.
       await drainUploads();
+      step = "stage";
       // Record any client-detected limitations (upload backpressure, session-bytes
       // ceiling) truthfully in the manifest. Continuity still holds — the recorded
       // segments are contiguous and uploaded; the stop was controlled, nothing dropped.
@@ -297,6 +304,7 @@ export default function ContinuousCaptureScreen() {
       // The canonical draft, and the durable record the Capture surface
       // resumes. The segments are already at storage, so finalize seals
       // without re-uploading them.
+      step = "handoff";
       const mode: ScreenAcquisitionMode =
         Platform.OS === "ios"
           ? "DIRECT_SCREEN_CAPTURE_IOS"
@@ -305,10 +313,13 @@ export default function ContinuousCaptureScreen() {
         mode,
         clientItemId: active.session.captureSessionId,
         partCount: staged.segmentCount,
-        sizeBytes: 0,
+        sizeBytes: continuousSessionBytes(declaredRef.current),
       });
-      await openCaptureDraft({ items: [item] }).catch(() => undefined);
+      // Its id travels with the durable record, so Capture closes THIS draft at
+      // finalize instead of leaving it listed as unfinished.
+      const draft = await openCaptureDraft({ items: [item] }).catch(() => null);
       await saveCaptureSession({
+        draftId: draft?.id ?? null,
         captureSessionId: active.session.captureSessionId,
         expiresAtUtc: active.session.expiresAtUtc,
         evidenceId: active.evidenceId,
@@ -337,10 +348,16 @@ export default function ContinuousCaptureScreen() {
       toast.addToast("Recording staged — review and finish in Capture", "success");
       router.replace("/capture");
     } catch (err) {
-      // The reservation is already released by sealDirectCapture; this session
-      // can no longer be sealed, so the screen must not offer to retry it.
+      // Before the manifest is staged, sealDirectCapture has released the
+      // reservation: this session can no longer be sealed, so the only honest
+      // next step is a NEW recording — never "Try Again" on this one.
       sessionRef.current = null;
-      dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not finalize the evidence." }).message });
+      const detail = toSafeUserError(err, { message: "" }).message;
+      dispatch({
+        type: "FAIL",
+        message: detail ? `${CONTINUOUS_STAGE_FAILURE[step]} (${detail})` : CONTINUOUS_STAGE_FAILURE[step],
+        recoverable: false,
+      });
     }
   }, [drainUploads, toast]);
 
@@ -412,21 +429,21 @@ export default function ContinuousCaptureScreen() {
               label={state.completeness === "COMPLETE_SESSION" ? "Complete — no known interruption" : "Interrupted — ended before a clean stop"}
             />
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              Finish &amp; Sign seals these segments into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.
+              {CONTINUOUS_REVIEW_COPY.explainer}
             </ProovraText>
-            <ProovraButton label="Finish &amp; Sign" onPress={finalize} />
+            <ProovraButton label={CONTINUOUS_REVIEW_COPY.action} onPress={finalize} />
             <ProovraButton label="Discard" variant="ghost" onPress={reset} />
           </ProovraCard>
         )}
 
         {state.phase === "finalizing" && (
-          <ProovraLoadingState label={`Finalizing — sealing ${state.captured} segment(s) and verifying integrity`} />
+          <ProovraLoadingState label={CONTINUOUS_REVIEW_COPY.staging(state.captured)} />
         )}
 
         {state.phase === "success" && (
           <ProovraCard style={styles.card}>
-            <ProovraBadge tone="verified" label={`Evidence saved (${state.segmentCount} segment(s), ${state.completeness === "COMPLETE_SESSION" ? "complete" : "interrupted"})`} />
-            <ProovraButton label="View Evidence" onPress={() => router.replace(`/evidence/${state.evidenceId}`)} />
+            <ProovraBadge tone="pending" label={`${CONTINUOUS_REVIEW_COPY.staged} (${state.segmentCount} segment(s), ${state.completeness === "COMPLETE_SESSION" ? "complete" : "interrupted"})`} />
+            <ProovraButton label="Go to Capture" onPress={() => router.replace("/capture")} />
             <ProovraButton label="Capture Another" variant="secondary" onPress={reset} />
             <ProovraButton label="Done" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
@@ -435,7 +452,11 @@ export default function ContinuousCaptureScreen() {
         {state.phase === "error" && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" color={theme.color.status.risk.fg}>{state.message}</ProovraText>
-            {state.recoverable && <ProovraButton label="Try Again" onPress={reset} />}
+            {state.recoverable ? (
+              <ProovraButton label="Try Again" onPress={reset} />
+            ) : (
+              <ProovraButton label="Start a new recording" onPress={reset} />
+            )}
             <ProovraButton label="Back to Capture" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}

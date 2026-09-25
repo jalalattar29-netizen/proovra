@@ -169,15 +169,16 @@ test("outstanding reviews sort above finished ones", () => {
   );
 });
 
-test("the decision vocabulary makes no claim about truth", () => {
-  assert.deepEqual([...P.PORTAL_DECISIONS], ["APPROVED", "REJECTED", "NEEDS_MORE_INFO"]);
+test("the decision vocabulary is the server's, and makes no claim about truth", () => {
+  // POST /v1/portal/work/:id/decision parses { verdict: EXTERNAL_DECISION_VERDICTS, rationale? }.
+  assert.deepEqual([...P.PORTAL_DECISIONS], ["APPROVE", "REJECT", "REQUEST_CHANGES", "ABSTAIN", "ESCALATE"]);
   for (const d of P.PORTAL_DECISIONS) {
     assert.doesNotMatch(P.portalDecisionLabel(d), /verified|authentic|admissible|true/i, d);
   }
-  // An empty note is omitted, not sent as an empty string.
-  assert.deepEqual(P.buildPortalDecisionBody({ decision: "APPROVED", note: "  " }), {
-    decision: "APPROVED",
-  });
+  // An empty rationale is omitted, not sent as an empty string.
+  assert.deepEqual(P.buildPortalDecisionBody({ verdict: "APPROVE", rationale: "  " }), { verdict: "APPROVE" });
+  assert.equal(P.portalDecisionRationaleProblem("REJECT", ""), "A rationale is required for every verdict except Approve.");
+  assert.equal(P.portalDecisionRationaleProblem("APPROVE", ""), null);
 });
 
 /* ------------------------------------------------------------------ intake */
@@ -204,6 +205,20 @@ test("the surface is driven by the template snapshot, with no branch per industr
   assert.equal(v.template.steps.length, 2);
   assert.equal(v.template.steps[1].label, "Step 2");
   assert.equal(v.session.id, "sess-1");
+});
+
+test("the request's deliverables are read by the server's `title` (evidence-request.service.ts)", () => {
+  const v = I.parseValidatedIntake({
+    link: { workflowTemplateName: "Claim", steps: [] },
+    request: {
+      title: "Claim 4842",
+      deliverables: [
+        { id: "d1", title: "Photos of the damage", required: true },
+        { id: "d2", title: "Repair invoice", required: false },
+      ],
+    },
+  });
+  assert.deepEqual(v.request.deliverables, ["Photos of the damage", "Repair invoice"], "every deliverable was filtered out");
 });
 
 test("an anonymous link offers a pseudonym and never an email box", () => {
@@ -237,11 +252,13 @@ test("coordinates never ride along with a refusal", () => {
   assert.deepEqual(I.buildIntakeSubmitBody({ location: null }), {});
 });
 
-test("a template that never asked for location is not prompted for one", () => {
-  assert.equal(I.locationPrompt({ locationRequirement: "REQUIRED" }), "REQUIRED");
-  assert.equal(I.locationPrompt({ locationRequirement: "OPTIONAL" }), "OPTIONAL");
-  assert.equal(I.locationPrompt({ locationRequirement: "NONE" }), "NONE");
-  assert.equal(I.locationPrompt({ locationRequirement: null }), "NONE");
+test("the prompt follows the LINK's policy — the server's submit gate — not the template's label", () => {
+  assert.equal(I.locationPrompt({ locationPolicy: "REQUIRED" }), "REQUIRED");
+  assert.equal(I.locationPrompt({ locationPolicy: "OPTIONAL" }), "OPTIONAL");
+  assert.equal(I.locationPrompt({ locationPolicy: "NONE" }), "NONE");
+  assert.equal(I.locationPrompt({ locationPolicy: null }), "NONE");
+  // A template that says REQUIRED on a NONE link is not asked (the gate ignores it).
+  assert.equal(I.locationPrompt({ locationPolicy: "NONE", locationRequirement: "REQUIRED" }), "NONE");
 });
 
 test("the part bound is the route's, refused before submitting", () => {
@@ -284,4 +301,11 @@ test("the portal credential is held in memory only", () => {
   // A phone that is shared, lost or handed over must not carry access to
   // somebody else's evidence past the moment it is used.
   assert.doesNotMatch(src, /AsyncStorage|SecureStore|localStorage|FileSystem/);
+});
+
+test("a portal comment is attributed by the server's authorDisplay, not just the email", () => {
+  const [c] = P.parsePortalComments({
+    comments: [{ id: "c1", parentCommentId: null, body: "Looks complete.", authorEmail: "r@example.com", authorDisplay: "R. Patel", createdAt: "2026-09-24T09:00:00.000Z", resolvedAtUtc: null }],
+  });
+  assert.equal(c.authorLabel, "R. Patel");
 });

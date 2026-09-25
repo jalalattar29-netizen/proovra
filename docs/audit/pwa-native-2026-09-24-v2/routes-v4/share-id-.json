@@ -1,0 +1,873 @@
+{
+ "route": "/share/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/share/[id]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/evidence/[id].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 12,
+   "labelled": 25,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 32,
+   "labelled": 105,
+   "unboundExports": 21
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 1,
+  "roleDiffers": 0,
+  "unpaired": 24,
+  "extraInNative": 104,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [
+  {
+   "role": "BUTTON",
+   "webLabel": "Close menu",
+   "natLabel": "Close",
+   "score": 0.5,
+   "web": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "webClass": "flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] text-[#0F172A]",
+   "webStyle": null,
+   "natStyle": "styles.scrim",
+   "natTag": "Pressable"
+  }
+ ],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "ℹ️",
+   "at": "apps/web/app/share/[id]/page.tsx:43",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Share Link Page Not Active",
+   "at": "apps/web/app/share/[id]/page.tsx:46",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "What this is, and is not",
+    "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "This page is not used in the current sharing flow. Please return to the evidence page and use",
+   "at": "apps/web/app/share/[id]/page.tsx:49",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "What this is, and is not",
+    "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Share Evidence",
+   "at": "apps/web/app/share/[id]/page.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to:",
+   "at": "apps/web/app/share/[id]/page.tsx:51",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Copy the verification link",
+   "at": "apps/web/app/share/[id]/page.tsx:58",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Long press a linked record to remove the link.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1051"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Download the PDF report",
+   "at": "apps/web/app/share/[id]/page.tsx:59",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Download the verification package",
+   "at": "apps/web/app/share/[id]/page.tsx:60",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence ID:",
+   "at": "apps/web/app/share/[id]/page.tsx:66",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification remains available through the evidence verification page.",
+   "at": "apps/web/app/share/[id]/page.tsx:74",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Open file",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1211"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.",
+    "at": "apps/mobile/app/(stack)/evidence/[id].tsx:937"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:607"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Record not found",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:614"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:614"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:662"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Rename record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:678"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Rename record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Record name",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:711"
+  },
+  {
+   "role": "INPUT",
+   "label": "Record name",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:712"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save name",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:723"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Link another record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:734"
+  },
+  {
+   "role": "LIST",
+   "label": "Relationship",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:739"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Note (optional)",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:744"
+  },
+  {
+   "role": "INPUT",
+   "label": "Link note",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:745"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading records",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:755"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Nothing to link",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:757"
+  },
+  {
+   "role": "BADGE",
+   "label": "Selected",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:770"
+  },
+  {
+   "role": "DIALOG",
+   "label": "How do these records relate?",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:786"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Unlock",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:849"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Lock",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:851"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Archive",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:854"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Restore from archive",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:857"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open original file",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:869"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Move to Trash",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:876"
+  },
+  {
+   "role": "SECTION",
+   "label": "Integrity",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:909"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Share verification link",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:940"
+  },
+  {
+   "role": "SECTION",
+   "label": "Custody & access",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:946"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No custody events yet",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:948"
+  },
+  {
+   "role": "SECTION",
+   "label": "Technical metadata",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:965"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No technical metadata",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:967"
+  },
+  {
+   "role": "SECTION",
+   "label": "Related evidence",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:997"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No linked evidence",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:999"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Link another record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1041"
+  },
+  {
+   "role": "SECTION",
+   "label": "Report & artifacts",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1060"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Download report",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1062"
+  },
+  {
+   "role": "SECTION",
+   "label": "Duplicate detection",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1109"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Checking accessible records",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1120"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Regenerate the report and package?",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1164"
+  },
+  {
+   "role": "SECTION",
+   "label": "Files in this record",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1176"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open file",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1211"
+  },
+  {
+   "role": "SECTION",
+   "label": "Reviewer comments",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1225"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading comments",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1237"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Add a comment",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1265"
+  },
+  {
+   "role": "INPUT",
+   "label": "Add a comment",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1266"
+  },
+  {
+   "role": "TAB",
+   "label": "Visible to",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1275"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Post comment",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1284"
+  },
+  {
+   "role": "TEXT",
+   "label": "The original file name is part of the record and never changes.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:721"
+  },
+  {
+   "role": "TEXT",
+   "label": "A legal hold is in force on this record.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:902"
+  },
+  {
+   "role": "TEXT",
+   "label": "Declarations",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:925"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:937"
+  },
+  {
+   "role": "TEXT",
+   "label": "EXIF",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:981"
+  },
+  {
+   "role": "TEXT",
+   "label": "Long press a linked record to remove the link.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1051"
+  },
+  {
+   "role": "TEXT",
+   "label": "No other accessible record matched this one.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1133"
+  },
+  {
+   "role": "TEXT",
+   "label": "No comments on this record yet.",
+   "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading review state",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:146"
+  },
+  {
+   "role": "SECTION",
+   "label": "Review",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:151"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "The review state could not be loaded.",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:152"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:157"
+  },
+  {
+   "role": "SECTION",
+   "label": "Review",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:170"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This record has no review yet.",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:178"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Start a review",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:183"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Update review state",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:224"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "The review history could not be loaded.",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:238"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:243"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has happened to this review yet.",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:252"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Update review state",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:271"
+  },
+  {
+   "role": "LIST",
+   "label": "Status",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+  },
+  {
+   "role": "LIST",
+   "label": "Priority",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Note (optional)",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:286"
+  },
+  {
+   "role": "INPUT",
+   "label": "Review note",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:287"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Save",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:296"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Review status",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:299"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Priority",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:324"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review history",
+   "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+  },
+  {
+   "role": "SECTION",
+   "label": "Internal materials",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:192"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Legal notes could not be loaded.",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:210"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:215"
+  },
+  {
+   "role": "LIST",
+   "label": "Note type",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:226"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Note",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:231"
+  },
+  {
+   "role": "INPUT",
+   "label": "Legal note",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:232"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Add legal note",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:241"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No legal notes on this record.",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:250"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Delete",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:271"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Annotations could not be loaded.",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:302"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:307"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Annotation",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:318"
+  },
+  {
+   "role": "INPUT",
+   "label": "Annotation",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:319"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Add annotation",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:337"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No annotations on this record.",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:346"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Delete",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:360"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading internal materials",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:386"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Note type",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:389"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal notes",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:206"
+  },
+  {
+   "role": "TEXT",
+   "label": "Annotations",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:298"
+  },
+  {
+   "role": "TEXT",
+   "label": "An annotation written here is about the record, not a point on the media.",
+   "at": "apps/mobile/src/ui/evidence-internal-materials.tsx:335"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Resolving workspace",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:108"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Derived review",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:109"
+  },
+  {
+   "role": "SECTION",
+   "label": "Derived review",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:123"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Nothing has been reconstructed yet.",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:162"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No text was reconstructed from this recording.",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:197"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this is, and is not",
+   "at": "apps/mobile/src/ui/derived-review-tab.tsx:177"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "DuplicateReport"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "EvidenceLifecycle"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-library.ts",
+   "name": "EvidencePickerRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\evidence-output-lifecycle.ts",
+   "name": "EvidenceOutputState"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "CustodyEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "PreservationView"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "RelationshipView"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "ProvenanceView"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "TechnicalView"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "MaterialItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "EvidenceComment"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "EvidenceCommentVisibility"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "CertificationView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\domain-enums.generated.ts",
+   "name": "EvidenceType"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\reviewer-workflow.ts",
+   "name": "ReviewerWorkflow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\reviewer-workflow.ts",
+   "name": "ReviewerWorkflowEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "LegalNote"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-detail.ts",
+   "name": "EvidenceAnnotation"
+  }
+ ]
+}

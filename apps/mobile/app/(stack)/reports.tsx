@@ -7,12 +7,13 @@
  * Evidence; standalone Reports web-only" — a decision Native made about the
  * product's scope, which is exactly what it is not allowed to own.
  *
- * Read-only, as the web page is: `/v1/reports/artifacts` is a side-effect-free
- * aggregator. Row-level generation and download are gated by the backend and
- * live on Evidence detail; this surface is the deliverables index.
+ * Browsing is side-effect-free, as on the web: `/v1/reports/artifacts` is a
+ * read-only aggregator. The six workspace counters are read ONCE per workspace
+ * (`limit=1`); the list asks with `summary=0`, so a filter or a search never
+ * pays for aggregations it cannot change. Downloads are minted per row, on tap.
  */
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
@@ -24,27 +25,35 @@ import {
   ProovraCard,
   ProovraText,
   ProovraButton,
-  ProovraBadge,
-  ProovraListRow,
   ProovraPageHeader,
+  ProovraPageSection,
   ProovraFilterChips,
-  ProovraResultCount,
+  ProovraFilterSearch,
   ProovraCursorPager,
   ProovraKpiGrid,
   ProovraEmpty,
   ProovraAsyncView,
 } from "../../src/ui";
-import { evidenceTypeLabel } from "../../src/product/domain-display";
+import { ReportArtifactRow } from "../../src/ui/report-artifact-row";
 import {
-  buildReportsPath,
-  parseReportsSummary,
-  parseArtifacts,
-  artifactRowState,
-  buildReportLatestPath,
-  isReportRetrievable,
-  parseReportUrl,
-  REPORTS_METRICS,
+  REPORTS_DESCRIPTION,
+  REPORTS_EYEBROW,
   REPORTS_FILTERS,
+  REPORTS_FOOTNOTE,
+  REPORTS_LIST_UNAVAILABLE,
+  REPORTS_METRICS,
+  REPORTS_SUMMARY_UNAVAILABLE,
+  REPORTS_TITLE,
+  USER_REPORTS_PATH,
+  buildReportsPath,
+  buildReportsSummaryPath,
+  formatRelativeTime,
+  parseArtifacts,
+  parseGeneratedAt,
+  parseReportsSummary,
+  parseUserScopedReports,
+  reportsEmptyCopy,
+  type ArtifactPage,
   type ArtifactRow,
   type LifecycleFilter,
   type ReportsSummary,
@@ -57,188 +66,248 @@ export default function ReportsScreen() {
 
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [summary, setSummary] = useState<ReportsSummary | null>(null);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
   const [items, setItems] = useState<ArtifactRow[]>([]);
-  const [retrieving, setRetrieving] = useState<string | null>(null);
-
-  /**
-   * Mint one report URL, for one record, at the moment it is asked for.
-   * See the note on the control itself: this call is audited.
-   */
-  const retrieve = useCallback(
-    async (evidenceId: string) => {
-      setRetrieving(evidenceId);
-      try {
-        const url = parseReportUrl(await apiFetch(buildReportLatestPath(evidenceId)));
-        if (url) {
-          await Linking.openURL(url);
-        } else {
-          Alert.alert("Report unavailable", "No report is available for this record yet.");
-        }
-      } catch (err) {
-        Alert.alert("Could not open report", toSafeUserError(err).message);
-      } finally {
-        setRetrieving(null);
-      }
-    },
-    [],
-  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [listUnavailable, setListUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<SafeError | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
+  const generation = useRef(0);
+  /** True while the list on screen came from the user-scoped fallback. */
+  const fromFallback = useRef(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchText.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
+
+  /** The six counters, once per workspace, in their own request (ReportsIndex.tsx:325). */
+  useEffect(() => {
+    if (!teamId) return;
+    let alive = true;
+    apiFetch(buildReportsSummaryPath(teamId))
+      .then((data) => {
+        if (alive) setSummary(parseReportsSummary(data));
+      })
+      .catch(() => {
+        // Its own failure, said in its own section; the list is unaffected.
+        if (alive) setSummary(null);
+      })
+      .finally(() => {
+        if (alive) setSummaryLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [teamId]);
+
+  const apply = useCallback((page: ArtifactPage, existing: ArtifactRow[] | null) => {
+    setItems(existing ? [...existing, ...page.items] : page.items);
+    setCursor(page.nextCursor);
+    setTotal(page.total);
+    setListUnavailable(page.unavailable);
+  }, []);
 
   const load = useCallback(
     async (nextCursor: string | null, existing: ArtifactRow[]) => {
-      const path = buildReportsPath({ teamId, filter, cursor: nextCursor });
+      const path = buildReportsPath({ teamId, filter, cursor: nextCursor, search, summary: false });
       if (!path) {
         setLoading(false);
         return;
       }
+      const mine = (generation.current += 1);
       if (nextCursor) setLoadingMore(true);
       else setLoading(true);
       setError(null);
+      setPermissionDenied(false);
+      // The user-scoped fallback is a BOOTSTRAP probe for the unfiltered
+      // default view only (ReportsIndex.tsx:381-420): it carries neither the
+      // search nor the lifecycle, so running it for a filtered query would
+      // hand back the unfiltered list.
+      const unfilteredFirstPage = filter === "all" && !search && !nextCursor;
+      const fallback = async (): Promise<boolean> => {
+        try {
+          const recovered = parseUserScopedReports(await apiFetch(USER_REPORTS_PATH));
+          if (mine !== generation.current) return true;
+          fromFallback.current = true;
+          apply(recovered, null);
+          return true;
+        } catch {
+          return false;
+        }
+      };
       try {
+        // A fallback list pages with ITS cursor, on ITS route — an aggregator
+        // cursor and a /v1/reports cursor are not interchangeable.
+        if (nextCursor && fromFallback.current) {
+          const more = parseUserScopedReports(
+            await apiFetch(`${USER_REPORTS_PATH}?cursor=${encodeURIComponent(nextCursor)}`),
+          );
+          if (mine !== generation.current) return;
+          apply(more, existing);
+          return;
+        }
+        if (!nextCursor) fromFallback.current = false;
         const data = await apiFetch(path);
+        if (mine !== generation.current) return;
         const page = parseArtifacts(data);
-        // The summary is a SECTION of the same envelope and can be unavailable
-        // on its own; a dead counter strip must not blank the list.
-        setSummary(parseReportsSummary(data));
-        setItems(nextCursor ? [...existing, ...page.items] : page.items);
-        setCursor(page.nextCursor);
-        setTotal(page.total);
-        setListUnavailable(page.unavailable);
+        setGeneratedAt(parseGeneratedAt(data));
+        if (unfilteredFirstPage && !page.unavailable && page.items.length === 0 && (await fallback())) return;
+        apply(page, nextCursor ? existing : null);
       } catch (err) {
-        setError(toSafeUserError(err));
+        if (mine !== generation.current) return;
+        const status = (err as { statusCode?: unknown })?.statusCode;
+        // 404 = not a member of the supplied workspace — the personal-bootstrap gap.
+        if (status === 404 && !nextCursor && (await fallback())) return;
+        if (status === 403) setPermissionDenied(true);
+        else setError(toSafeUserError(err, { message: "Unable to load artifacts." }));
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (mine === generation.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
-    [teamId, filter],
+    [teamId, filter, search, apply],
   );
 
   useEffect(() => {
     void load(null, []);
   }, [load]);
 
+  const empty = reportsEmptyCopy(filter, search);
+
   return (
-    <ProovraScreen testID="reports">
+    <ProovraScreen shell testID="reports">
       <ProovraPageHeader
-        title="Reports & packages"
-        eyebrow="Outputs"
-        subtitle="Signed reports and verification packages produced from your evidence."
+        title={REPORTS_TITLE}
+        eyebrow={REPORTS_EYEBROW}
+        subtitle={REPORTS_DESCRIPTION}
+        contextStrip={
+          generatedAt ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {`Refreshed ${formatRelativeTime(generatedAt)}`}
+            </ProovraText>
+          ) : undefined
+        }
         secondaryActions={
           <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
         }
       />
 
-      {summary ? (
-        <ProovraKpiGrid
-          items={REPORTS_METRICS.map((m) => ({
-            key: m.key,
-            label: m.label,
-            value: summary[m.key] === null ? "—" : String(summary[m.key]),
-            tone: m.tone,
-          }))}
+      {!teamId && !platform.loading ? (
+        <ProovraEmpty
+          framed
+          title="Workspace setup pending"
+          purpose="We're finishing workspace setup, or you haven't picked one yet. Reports + verification packages are scoped to a workspace — pick one to continue."
+          action={
+            <ProovraButton label="Open workspaces" variant="primary" fullWidth={false} onPress={() => router.push("/spaces")} />
+          }
         />
-      ) : null}
-
-      <ProovraFilterChips
-        label="Lifecycle"
-        value={filter}
-        onChange={setFilter}
-        options={REPORTS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
-        disabled={!teamId}
-      />
-
-      <ProovraAsyncView
-        loading={loading}
-        error={error ? { title: error.title, message: error.message } : null}
-        onRetry={() => void load(null, [])}
-        items={items}
-        empty={
-          listUnavailable ? (
-            <ProovraEmpty
-              title="Deliverables are unavailable"
-              purpose="This list could not be loaded. The counters above are unaffected."
-            />
-          ) : (
-            <ProovraEmpty
-              title={filter === "all" ? "No reports or packages yet" : "Nothing matches this filter"}
-              purpose={
-                filter === "all"
-                  ? "Generate a report from an evidence record and it appears here."
-                  : "Clear the filter to see every deliverable."
-              }
-              action={
-                filter === "all" ? null : (
-                  <ProovraButton
-                    label="Clear filter"
-                    variant="secondary"
-                    fullWidth={false}
-                    onPress={() => setFilter("all")}
-                  />
-                )
-              }
-            />
-          )
-        }
-      >
+      ) : permissionDenied ? (
+        <ProovraEmpty
+          framed
+          title="You don't have access to this workspace's reports"
+          purpose="Your role doesn't include report and verification-package access for this workspace. An admin can grant it, or you can switch to a workspace you have access to."
+          action={
+            <ProovraButton label="Switch workspace" variant="primary" fullWidth={false} onPress={() => router.push("/spaces")} />
+          }
+        />
+      ) : (
         <>
-          <ProovraResultCount count={items.length} total={total} noun="deliverable" />
-          <ProovraCard>
-            {items.map((row) => {
-              const state = artifactRowState(row);
-              return (
-                <ProovraListRow
-                  key={row.evidenceId}
-                  title={row.displayTitle}
-                  subtitle={
-                    [evidenceTypeLabel(row.type), row.caseTitle ? `Case: ${row.caseTitle}` : null]
-                      .filter(Boolean)
-                      .join(" · ")
-                  }
-                  trailing={
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2 }}>
-                      <ProovraBadge label={state.label} tone={state.tone} />
-                      {/*
-                        MINTED ON TAP, never per row.
+          <ProovraPageSection title="Operational summary">
+            {summary ? (
+              <ProovraKpiGrid
+                items={REPORTS_METRICS.map((m) => ({
+                  key: m.key,
+                  label: m.label,
+                  value: summary[m.key] === null ? "—" : String(summary[m.key]),
+                  tone: m.tone,
+                }))}
+              />
+            ) : summaryLoaded ? (
+              <ProovraCard>
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                  {REPORTS_SUMMARY_UNAVAILABLE}
+                </ProovraText>
+              </ProovraCard>
+            ) : null}
+          </ProovraPageSection>
 
-                        GET /v1/evidence/:id/report/latest records a custody
-                        download. Pre-fetching a URL for every row would write a
-                        download event into the custody chain of every record a
-                        user merely scrolled past — the chain would then say
-                        those reports were retrieved, which is a false statement
-                        in the one place this product exists to keep true.
-                      */}
-                      {isReportRetrievable(row) ? (
+          <ProovraPageSection title="Filters">
+            <ProovraFilterSearch
+              value={searchText}
+              onChange={(t) => setSearchText(t.slice(0, 80))}
+              placeholder="Search by evidence title"
+              testID="reports-search"
+            />
+            <View accessibilityLabel="Artifact lifecycle filters">
+              <ProovraFilterChips
+                label="Lifecycle"
+                value={filter}
+                onChange={setFilter}
+                options={REPORTS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+                disabled={!teamId}
+              />
+            </View>
+          </ProovraPageSection>
+
+          <ProovraPageSection title={`Artifacts · ${total ?? items.length}`}>
+            {listUnavailable ? (
+              <ProovraCard>
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                  {REPORTS_LIST_UNAVAILABLE}
+                </ProovraText>
+              </ProovraCard>
+            ) : (
+              <ProovraAsyncView
+                loading={loading}
+                error={error ? { title: error.title, message: error.message } : null}
+                onRetry={() => void load(null, [])}
+                items={items}
+                empty={
+                  <ProovraEmpty
+                    framed
+                    title={empty.title}
+                    purpose={empty.body}
+                    action={
+                      empty.offerEvidence ? (
                         <ProovraButton
-                          label="Get"
-                          variant="ghost"
+                          label="Open evidence"
+                          variant="primary"
                           fullWidth={false}
-                          disabled={retrieving === row.evidenceId}
-                          onPress={() => void retrieve(row.evidenceId)}
+                          onPress={() => router.push("/evidence")}
                         />
-                      ) : null}
-                    </View>
-                  }
-                  onPress={() => router.push(`/evidence/${row.evidenceId}`)}
-                />
-              );
-            })}
-          </ProovraCard>
-          <ProovraCursorPager
-            hasMore={!!cursor}
-            loading={loadingMore}
-            onLoadMore={() => void load(cursor, items)}
-          />
+                      ) : null
+                    }
+                  />
+                }
+              >
+                <View style={{ gap: theme.space.s2 }}>
+                  {items.map((row) => (
+                    <ReportArtifactRow key={row.evidenceId} row={row} teamId={teamId} />
+                  ))}
+                  <ProovraCursorPager
+                    hasMore={!!cursor}
+                    loading={loadingMore}
+                    onLoadMore={() => void load(cursor, items)}
+                  />
+                </View>
+              </ProovraAsyncView>
+            )}
+          </ProovraPageSection>
+
           <ProovraText variant="label" color={theme.color.ink.muted}>
-            Generation and download live on each evidence record, where the backend gates them.
+            {REPORTS_FOOTNOTE}
           </ProovraText>
         </>
-      </ProovraAsyncView>
+      )}
     </ProovraScreen>
   );
 }

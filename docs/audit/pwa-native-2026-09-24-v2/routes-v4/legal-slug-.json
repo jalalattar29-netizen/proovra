@@ -1,0 +1,244 @@
+{
+ "route": "/legal/[slug]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/legal/[slug]/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/legal/[slug].tsx",
+  "apps/mobile/app/(stack)/legal/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 17,
+   "labelled": 16,
+   "unboundExports": 4
+  },
+  "native": {
+   "files": 16,
+   "labelled": 10,
+   "unboundExports": 2
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 16,
+  "extraInNative": 10,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Back to Trust Center",
+   "at": "apps/web/app/legal/[slug]/page.tsx:78",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:108"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading document",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:117"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Browse legal documents",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:134"
+  },
+  {
+   "role": "TEXT",
+   "label": "No such document",
+   "at": "apps/mobile/app/(stack)/legal/[slug].tsx:128"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Legal",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:59"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:64"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading documents",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:73"
+  },
+  {
+   "role": "TEXT",
+   "label": "Acceptance",
+   "at": "apps/mobile/app/(stack)/legal/index.tsx:93"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\legal.ts",
+   "name": "LEGAL_SLUGS"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\app\\legal\\legal-content.tsx",
+   "name": "titleFromSlug"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\legal.ts",
+   "name": "LegalBlock"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\legal.ts",
+   "name": "LegalInline"
+  }
+ ]
+}

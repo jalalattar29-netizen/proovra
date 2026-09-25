@@ -1,0 +1,526 @@
+{
+ "route": "/verify",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/verify/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/verify.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 18,
+   "labelled": 44,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 21,
+   "labelled": 16,
+   "unboundExports": 3
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 44,
+  "extraInNative": 16,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "INPUT",
+   "label": "Paste token here",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:208",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Public Verify",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:56",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review digital evidence through a verification-first record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:59",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No account required.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:67",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open a PROOVRA verification token or public verification ID to inspect recorded integrity state, custody context, timing context, access activity, and supporting verification materials where available.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:71",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verification",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:82",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Boundary notice.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:107",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA verifies recorded technical and workflow materials. It does not determine factual truth, authorship, identity, legal admissibility, or evidentiary weight.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0.15,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter verification token",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the token from a PROOVRA report or shared verification record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification token or public verification ID",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter a verification token to continue.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:239",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This opens a read-only verification view. It does not modify the evidence record.",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:246",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verification",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:262",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Open verification report",
+    "at": "apps/mobile/app/verify.tsx:181"
+   }
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification Materials May Include",
+   "at": "apps/web/app/verify/_components/VerifyMaterialsSection.tsx:33",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "A public verification record may expose selected review materials depending on what was recorded, shared, and supported for the evidence record.",
+   "at": "apps/web/app/verify/_components/VerifyMaterialsSection.tsx:36",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "What it opens",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:57",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "What Public Verify opens.",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "What this establishes",
+    "at": "apps/mobile/app/verify.tsx:152"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "A reviewer-facing read of the recorded evidence record. Public Verify exposes the materials shared on that record — nothing more.",
+   "at": "apps/web/app/verify/_components/VerifyOpensSection.tsx:68",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What PROOVRA does not decide",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:41",
+   "natHasRole": true,
+   "bestScore": 0.38,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification exposes context.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:44",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "It does not decide outcomes.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:46",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "PROOVRA does not claim any of the following:",
+    "at": "apps/mobile/app/verify.tsx:171"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification exposes recorded technical and operational context. Final factual, legal, procedural, or expert conclusions remain the responsibility of qualified reviewers.",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:52",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Out of scope",
+   "at": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "For reviewers and organizations",
+   "at": "apps/web/app/verify/_components/VerifyUseCasesSection.tsx:57",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Built for review across functions.",
+   "at": "apps/web/app/verify/_components/VerifyUseCasesSection.tsx:62",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Start reviewing a verification record.",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:40",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review a PROOVRA verification token online.",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:43",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Verification",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:52",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". All rights reserved.",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Security",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Trust Center",
+   "at": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_LOADING",
+   "label": "Verifying",
+   "at": "apps/mobile/app/verify.tsx:81"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Verification link or id",
+   "at": "apps/mobile/app/verify.tsx:88"
+  },
+  {
+   "role": "INPUT",
+   "label": "https://proovra.com/verify/…",
+   "at": "apps/mobile/app/verify.tsx:89"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Verify",
+   "at": "apps/mobile/app/verify.tsx:91"
+  },
+  {
+   "role": "SECTION",
+   "label": "Verification",
+   "at": "apps/mobile/app/verify.tsx:103"
+  },
+  {
+   "role": "BADGE",
+   "label": "Boundaries",
+   "at": "apps/mobile/app/verify.tsx:162"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open verification report",
+   "at": "apps/mobile/app/verify.tsx:181"
+  },
+  {
+   "role": "TEXT",
+   "label": "SHA-256",
+   "at": "apps/mobile/app/verify.tsx:114"
+  },
+  {
+   "role": "TEXT",
+   "label": "Ed25519",
+   "at": "apps/mobile/app/verify.tsx:120"
+  },
+  {
+   "role": "TEXT",
+   "label": "Chain of custody",
+   "at": "apps/mobile/app/verify.tsx:129"
+  },
+  {
+   "role": "TEXT",
+   "label": "What this establishes",
+   "at": "apps/mobile/app/verify.tsx:152"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA does not claim any of the following:",
+   "at": "apps/mobile/app/verify.tsx:171"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "IMAGE",
+   "label": "PROOVRA",
+   "at": "apps/mobile/src/ui/brand.tsx:22"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA",
+   "at": "apps/mobile/src/ui/brand.tsx:31"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

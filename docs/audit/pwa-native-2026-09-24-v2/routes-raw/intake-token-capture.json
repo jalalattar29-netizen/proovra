@@ -1,0 +1,280 @@
+{
+ "route": "/intake/[token]/capture",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/intake/[token]/capture/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/intake/capture.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 1,
+   "elements": 4,
+   "texts": 4,
+   "distinctTexts": 4,
+   "handlers": 0,
+   "conditionals": 0,
+   "apiPaths": 0,
+   "distinctApi": 0,
+   "styleRefs": 4,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 0,
+   "unresolvedImports": 0,
+   "external": [
+    "next/link",
+    "react",
+    "next/navigation"
+   ]
+  },
+  "native": {
+   "files": 138,
+   "elements": 153,
+   "texts": 20,
+   "distinctTexts": 16,
+   "handlers": 28,
+   "conditionals": 1032,
+   "apiPaths": 2,
+   "distinctApi": 1,
+   "styleRefs": 190,
+   "stylesheetRules": 83,
+   "themeTokens": 251,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "expo-document-picker",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-file-system",
+    "expo-crypto"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 4,
+  "natLabelled": 20,
+  "paired": 0,
+  "roleDiff": 0,
+  "missing": 4,
+  "extraInNative": 20,
+  "webUnlabelled": 4,
+  "missingWithRolePresent": 4,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Submit files securely",
+     "at": "apps/web/app/intake/[token]/capture/page.tsx:41",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Submissions now go through the secure intake page.",
+     "at": "apps/web/app/intake/[token]/capture/page.tsx:43",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Continue to the secure intake page",
+     "at": "apps/web/app/intake/[token]/capture/page.tsx:44",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/intake/[token]/capture/page.tsx:44",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Add files",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:148"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This step is not open",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:149"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Add files",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:160"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:164"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Done",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:177"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Choose files",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:202"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Send",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:221"
+    },
+    {
+     "role": "TEXT",
+     "label": "Thank you — what you sent has been received and preserved.",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:171"
+    },
+    {
+     "role": "TEXT",
+     "label": "You can close this now. The organization that asked for it will be in touch if they need anything else.",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:174"
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing added yet.",
+     "at": "apps/mobile/app/(stack)/intake/capture.tsx:184"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 0,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 78,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 0,
+  "natConditionals": 1032,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 0,
+  "natHandlers": 28,
+  "webHandlerSample": [],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/intake/capture.tsx:164",
+   "onPress=() => router.replace(\"/\") @apps/mobile/app/(stack)/intake/capture.tsx:177",
+   "onPress=() => void pick() @apps/mobile/app/(stack)/intake/capture.tsx:202",
+   "onPress=() => void send() @apps/mobile/app/(stack)/intake/capture.tsx:221",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 0,
+  "natApi": 1,
+  "shared": 0,
+  "onlyWeb": 0,
+  "onlyNative": 1,
+  "onlyWebList": [],
+  "onlyNativeList": [
+   "/v1/external-intake/${…}"
+  ],
+  "sharedList": [],
+  "webApiWhere": {},
+  "natApiWhere": {
+   "/v1/external-intake/${…}": "apps/mobile/src/product/external-intake.ts:48"
+  }
+ }
+}

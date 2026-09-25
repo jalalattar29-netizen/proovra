@@ -2,9 +2,14 @@
  * QUOTAS & USAGE — the native port of `apps/web/app/(app)/operations/quotas`.
  *
  * Two canonical sources, read independently: `GET /v1/quotas` for the four
- * allowance lines and `GET /v1/usage-stats` for the analysis counters. They
- * fail independently too — a usage read that fails must not blank the quota
- * lines, which are the reason the page exists.
+ * allowance lines and `GET /v1/usage-stats` for the analysis counters, costs,
+ * active services and evidence-type breakdown. They fail independently too — a
+ * usage read that fails must not blank the quota lines, which are the reason
+ * the page exists.
+ *
+ * The web's composition, in its order: usage cards, quota cards, the Current
+ * Quotas bars with the reset date, Cost Overview beside Active Services, and
+ * Evidence Types Analyzed.
  *
  * Self-service, reached contextually. The web keeps it out of every nav
  * surface (`sidebarEligible: false`, `commandPaletteVisible: false`), so
@@ -15,13 +20,13 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../../src/api";
+import { formatUserDate } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
   ProovraCard,
   ProovraText,
   ProovraButton,
-  ProovraBadge,
   ProovraPageHeader,
   ProovraPageSection,
   ProovraKpiGrid,
@@ -38,21 +43,31 @@ import {
   type QuotaLine,
   type UsageStats,
 } from "../../../src/product/operations";
+import {
+  QUOTAS_COPY as COPY,
+  QUOTA_BAR_LABEL,
+  QUOTA_CARD_LABEL,
+  formatCost,
+  parseUsageExtras,
+  type UsageExtras,
+} from "../../../src/product/operations-quotas";
 
 type Section<T> = { phase: "loading" } | { phase: "loaded"; data: T } | { phase: "failed" };
+type Usage = { stats: UsageStats | null; extras: UsageExtras };
 
 function QuotaBar({ line }: { line: QuotaLine }) {
   const tone = quotaTone(line.percent);
   const palette = theme.color.status[tone];
+  const label = QUOTA_BAR_LABEL[line.key] ?? line.label;
 
   return (
     <View style={{ gap: theme.space.s1 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <ProovraText variant="body" weight="semibold">
-          {line.label}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: theme.space.s2 }}>
+        <ProovraText variant="bodySm" weight="bold">
+          {label}
         </ProovraText>
         <ProovraText variant="label" color={theme.color.ink.muted}>
-          {`${line.used} / ${line.limit}`}
+          {`${line.used} / ${line.limit} used · ${line.remaining} remaining`}
         </ProovraText>
       </View>
 
@@ -69,10 +84,10 @@ function QuotaBar({ line }: { line: QuotaLine }) {
         <>
           <View
             accessibilityRole="progressbar"
-            accessibilityLabel={`${line.label}: ${line.percent}% used`}
+            accessibilityLabel={`${label}: ${line.percent}% used`}
             style={{
-              height: 8,
-              borderRadius: 4,
+              height: 10,
+              borderRadius: 999,
               backgroundColor: theme.color.surface.muted,
               overflow: "hidden",
             }}
@@ -81,26 +96,37 @@ function QuotaBar({ line }: { line: QuotaLine }) {
               style={{
                 width: `${line.percent}%`,
                 height: "100%",
+                borderRadius: 999,
                 backgroundColor: palette.solid,
               }}
             />
           </View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <ProovraText variant="label" color={theme.color.ink.muted}>
-              {`${line.percent}% used`}
-            </ProovraText>
-            <ProovraText variant="label" color={theme.color.ink.muted}>
-              {`${line.remaining} remaining`}
-            </ProovraText>
-          </View>
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {`${line.percent}% used`}
+          </ProovraText>
         </>
       )}
+    </View>
+  );
+}
 
-      {line.resetIso ? (
-        <ProovraText variant="label" color={theme.color.ink.muted}>
-          {`Resets ${line.resetIso.slice(0, 10)}`}
-        </ProovraText>
-      ) : null}
+/** One of the web's soft metric tiles inside the Cost Overview / Active Services cards. */
+function SoftMetric({ label, value, center }: { label: string; value: string; center?: boolean }) {
+  return (
+    <View
+      style={{
+        flexGrow: 1,
+        flexBasis: 130,
+        padding: theme.space.s3,
+        borderRadius: theme.radius.lg,
+        backgroundColor: theme.color.surface.muted,
+        gap: 4,
+        alignItems: center ? "center" : "flex-start",
+      }}
+    >
+      {center ? null : <ProovraText variant="label" color={theme.color.ink.muted}>{label}</ProovraText>}
+      <ProovraText variant="h2" weight="bold">{value}</ProovraText>
+      {center ? <ProovraText variant="label" color={theme.color.ink.secondary}>{label}</ProovraText> : null}
     </View>
   );
 }
@@ -108,7 +134,7 @@ function QuotaBar({ line }: { line: QuotaLine }) {
 export default function QuotasScreen() {
   const router = useRouter();
   const [quotas, setQuotas] = useState<Section<QuotaLine[]>>({ phase: "loading" });
-  const [usage, setUsage] = useState<Section<UsageStats | null>>({ phase: "loading" });
+  const [usage, setUsage] = useState<Section<Usage>>({ phase: "loading" });
 
   const load = useCallback(async () => {
     setQuotas({ phase: "loading" });
@@ -119,7 +145,7 @@ export default function QuotasScreen() {
         .then((d) => setQuotas({ phase: "loaded", data: parseQuotas(d) }))
         .catch(() => setQuotas({ phase: "failed" })),
       apiFetch(USAGE_STATS_PATH)
-        .then((d) => setUsage({ phase: "loaded", data: parseUsageStats(d) }))
+        .then((d) => setUsage({ phase: "loaded", data: { stats: parseUsageStats(d), extras: parseUsageExtras(d) } }))
         .catch(() => setUsage({ phase: "failed" })),
     ]);
   }, []);
@@ -128,69 +154,120 @@ export default function QuotasScreen() {
     void load();
   }, [load]);
 
+  const stats = usage.phase === "loaded" ? usage.data.stats : null;
+  const extras = usage.phase === "loaded" ? usage.data.extras : null;
+  const lines = quotas.phase === "loaded" ? quotas.data : [];
+  const resetIso = lines.find((l) => l.key === "analyses")?.resetIso ?? null;
+
   return (
-    <ProovraScreen testID="operations-quotas">
+    <ProovraScreen shell testID="operations-quotas">
       <ProovraPageHeader
-        title="Quotas & usage"
-        eyebrow="Operations"
-        subtitle="Account allowances, usage breakdown, and reset windows."
+        title={COPY.title}
+        eyebrow={COPY.eyebrow}
+        subtitle={COPY.subtitle}
         secondaryActions={
           <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
         }
       />
 
-      <ProovraPageSection title="Allowances">
-        {quotas.phase === "loading" ? <ProovraLoadingState label="Loading allowances" /> : null}
-        {quotas.phase === "failed" ? (
-          <ProovraErrorState message="Allowances could not be loaded." onRetry={() => void load()} />
-        ) : null}
-        {quotas.phase === "loaded" && quotas.data.length === 0 ? (
-          <ProovraEmpty presence="inline" title="No allowances are published for this account." />
-        ) : null}
-        {quotas.phase === "loaded" && quotas.data.length > 0 ? (
-          <ProovraCard>
-            <View style={{ gap: theme.space.s4 }}>
-              {quotas.data.map((line) => (
-                <QuotaBar key={line.key} line={line} />
-              ))}
-            </View>
-          </ProovraCard>
-        ) : null}
-      </ProovraPageSection>
+      {/* Usage cards — the web's first row (Today / This Week / This Month / Average Per Analysis). */}
+      {usage.phase === "loading" ? <ProovraLoadingState label="Loading usage" /> : null}
+      {usage.phase === "failed" ? (
+        // Stated, not silently rendered as zeroes. "We could not read this"
+        // and "there was none" are different answers.
+        <ProovraErrorState message="Usage could not be loaded." onRetry={() => void load()} />
+      ) : null}
+      {usage.phase === "loaded" && stats === null ? (
+        <ProovraEmpty presence="inline" title="No usage has been recorded." />
+      ) : null}
+      {stats ? (
+        <ProovraKpiGrid
+          items={[
+            { key: "today", label: "Today", value: String(stats.today), caption: "Analyses processed today" },
+            { key: "week", label: "This Week", value: String(stats.thisWeek), caption: "Analyses processed this week" },
+            { key: "month", label: "This Month", value: String(stats.thisMonth), caption: "Analyses processed this month" },
+            {
+              key: "avgCost",
+              label: "Average Per Analysis",
+              value: formatCost(stats.averageCostPerAnalysis, 4),
+              caption: "Average AI analysis cost",
+            },
+          ]}
+        />
+      ) : null}
 
-      <ProovraPageSection title="Analyses">
-        {usage.phase === "loading" ? <ProovraLoadingState label="Loading usage" /> : null}
-        {usage.phase === "failed" ? (
-          // Stated, not silently rendered as zeroes. "We could not read this"
-          // and "there was none" are different answers.
-          <ProovraErrorState message="Usage could not be loaded." onRetry={() => void load()} />
-        ) : null}
-        {usage.phase === "loaded" && usage.data === null ? (
-          <ProovraEmpty presence="inline" title="No usage has been recorded." />
-        ) : null}
-        {usage.phase === "loaded" && usage.data ? (
-          <>
-            <ProovraKpiGrid
-              items={[
-                { key: "today", label: "Today", value: String(usage.data.today) },
-                { key: "week", label: "This week", value: String(usage.data.thisWeek) },
-                { key: "month", label: "This month", value: String(usage.data.thisMonth) },
-                {
-                  key: "avgCost",
-                  label: "Average cost",
-                  value:
-                    usage.data.averageCostPerAnalysis === null
-                      ? "—"
-                      : `$${usage.data.averageCostPerAnalysis.toFixed(4)}`,
-                },
-              ]}
-            />
-            {usage.data.totalCost !== null ? (
-              <ProovraBadge label={`Total $${usage.data.totalCost.toFixed(2)}`} tone="neutral" />
-            ) : null}
-          </>
-        ) : null}
-      </ProovraPageSection>
+      {/* Quota cards, then the Current Quotas bars. */}
+      {quotas.phase === "loading" ? <ProovraLoadingState label="Loading allowances" /> : null}
+      {quotas.phase === "failed" ? (
+        <ProovraErrorState message="Allowances could not be loaded." onRetry={() => void load()} />
+      ) : null}
+      {quotas.phase === "loaded" && lines.length === 0 ? (
+        <ProovraEmpty presence="inline" title="No allowances are published for this account." />
+      ) : null}
+      {lines.length > 0 ? (
+        <>
+          <ProovraKpiGrid
+            items={lines.map((line) => ({
+              key: `card-${line.key}`,
+              label: QUOTA_CARD_LABEL[line.key] ?? line.label,
+              value: `${line.used} / ${line.limit}`,
+              caption: `${line.remaining} remaining`,
+            }))}
+          />
+          <ProovraPageSection title={COPY.currentQuotas}>
+            <ProovraCard testID="current-quotas">
+              <View style={{ gap: theme.space.s4 }}>
+                {lines.map((line) => (
+                  <QuotaBar key={line.key} line={line} />
+                ))}
+                {/* resetDate is sent on `analyses` only (enterprise.routes.ts getRealQuotas). */}
+                {resetIso ? (
+                  <View style={{ borderTopWidth: 1, borderTopColor: theme.color.border.subtle, paddingTop: theme.space.s3 }}>
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>
+                      {`Quotas reset on ${formatUserDate(resetIso)}`}
+                    </ProovraText>
+                  </View>
+                ) : null}
+              </View>
+            </ProovraCard>
+          </ProovraPageSection>
+        </>
+      ) : null}
+
+      {extras && stats ? (
+        <>
+          <ProovraPageSection title={COPY.costOverview}>
+            <ProovraCard testID="cost-overview">
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
+                <SoftMetric label="Total Cost" value={formatCost(extras.totalCost)} />
+                <SoftMetric label="This Month" value={formatCost(extras.thisMonthCost)} />
+              </View>
+            </ProovraCard>
+          </ProovraPageSection>
+
+          <ProovraPageSection title={COPY.activeServices}>
+            <ProovraCard testID="active-services">
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
+                <SoftMetric label="Active API Keys" value={extras.activeApiKeys === null ? "—" : String(extras.activeApiKeys)} />
+                <SoftMetric label="Active Batch Jobs" value={extras.activeBatches === null ? "—" : String(extras.activeBatches)} />
+              </View>
+            </ProovraCard>
+          </ProovraPageSection>
+
+          {/* The web renders this card only when at least one type was analysed. */}
+          {extras.evidenceTypes.length > 0 ? (
+            <ProovraPageSection title={COPY.evidenceTypes}>
+              <ProovraCard testID="evidence-types">
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
+                  {extras.evidenceTypes.map((e) => (
+                    <SoftMetric key={e.type} label={e.type} value={String(e.count)} center />
+                  ))}
+                </View>
+              </ProovraCard>
+            </ProovraPageSection>
+          ) : null}
+        </>
+      ) : null}
     </ProovraScreen>
   );
 }

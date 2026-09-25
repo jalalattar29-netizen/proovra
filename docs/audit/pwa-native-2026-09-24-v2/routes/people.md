@@ -1,0 +1,83 @@
+# Route register — `/people`
+
+**Frozen SHA:** `71e148f34410c7c231f8930d1387d8924b10b4e5` · **Disposition:** `COMPARED`
+**Surface tier:** PROFESSIONAL / redirect
+**Ledger claim:** `CODE_PARITY` · **physicallyAccepted:** `false`
+
+## L1–L3 · Route, shell and component trees
+
+| | PWA | Native |
+|---|---|---|
+| Entry | `apps/web/app/(app)/people/page.tsx` | `apps/mobile/app/(stack)/workspace-people.tsx` |
+| Files in recursive tree | 146 | 147 |
+| Max import depth | 6 | 10 |
+| **Unresolved imports** | **0** | **0** |
+| JSX elements | 94 | 236 |
+
+## L4 · Content and element correspondence
+
+| | Count |
+|---|---:|
+| Labelled web elements | 11 |
+| Labelled native elements | 64 |
+| Paired exactly (same role + same literal) | 1 |
+| Paired, role differs | 0 |
+| Unpaired web labels | 10 |
+| — of which the native screen has NO element of that role | **0** |
+| Extra in native | 63 |
+| Web elements carrying no literal label | 87 |
+
+### Adjudication of the unpaired web labels
+
+| Verdict | Count |
+|---|---:|
+| `COPY_OR_COMPOSITION_DIFF` | 10 |
+
+## L5 · Resolved style properties and colour
+
+| | PWA | Native |
+|---|---:|---:|
+| Style properties resolved to literals | 0 | 261 |
+| Distinct colours actually used by this route's elements | **0** | **19** |
+| — shared between the two | 0 | 0 |
+| — **PWA-only (no native counterpart value)** | **0** | — |
+| Classes with no matching CSS rule (UNRESOLVED) | 0 (0 distinct) | — |
+| className built from a runtime expression (UNRESOLVED) | 1 | — |
+| Competing rules for one class (cascade decides at runtime) | 0 | — |
+| Native theme tokens not resolvable to a literal | — | 88 |
+
+## L6 · Conditional states
+
+| | PWA | Native |
+|---|---:|---:|
+| Conditional branches (ternary / && / .map) | 1063 | 1187 |
+| Declared state roles present | — | STATE_LOADING, STATE_ERROR |
+
+## L7 · Interactions
+
+| | PWA | Native |
+|---|---:|---:|
+| Handler bindings | 2 | 68 |
+
+## L8 · Data dependencies
+
+| | Count |
+|---|---:|
+| Distinct `/v1` endpoints the PWA route reaches | 2 |
+| Distinct `/v1` endpoints the native screen reaches | 4 |
+| Shared | 1 |
+| **Called by PWA, never by native** | **1** |
+| Called by native only | 3 |
+
+**Endpoints the PWA route calls that this native screen never calls:**
+
+- `/v1/platform/context/switch-workspace` — `apps/web/lib/platform-context/PlatformContextProvider.tsx:476`
+
+## Unresolved for this route
+
+- `COPY_OR_COMPOSITION_DIFF`: **10** — needs a per-element read.
+- Web classes with no CSS rule: **0**.
+- Runtime-built `className`: **1**.
+- Which CSS declaration wins: **unresolvable by construction** (cascade + specificity + conditional class application are runtime facts). Competing rules found: 0.
+
+> Nothing in this register is a rendered claim. No screenshot, simulator or device was used.

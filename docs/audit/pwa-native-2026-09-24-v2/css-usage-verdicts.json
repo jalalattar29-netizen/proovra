@@ -1,0 +1,1519 @@
+{
+ "generatedAt": "2026-09-25T02:35:31.119Z",
+ "tailwind": "3.4 (apps/web/package.json)",
+ "rows": [
+  {
+   "id": "CSS:cc-section",
+   "class": "cc-section",
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:840",
+   "routes": [
+    "/cases/[id]",
+    "/workspaces"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [
+    "case-detail-split-main"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-section-header",
+   "class": "cc-section-header",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:78",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "header",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-section-title",
+   "class": "cc-section-title",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:79",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "h2",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-tile",
+   "class": "cc-tile",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:241",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-tile-value",
+   "class": "cc-tile-value",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:242",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-tile-label",
+   "class": "cc-tile-label",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:243",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-section-note",
+   "class": "cc-section-note",
+   "at": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:275",
+   "routes": [
+    "/cases/[id]",
+    "/home",
+    "/reports",
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ui-empty-state",
+   "class": "ui-empty-state",
+   "at": "apps/web/components/ui/EmptyState.tsx:128",
+   "routes": [
+    "/billing",
+    "/evidence",
+    "/inbox",
+    "/notifications",
+    "/organizations/[id]",
+    "/reports",
+    "/settings"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "["
+   ],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-muted",
+   "class": "cc-muted",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:407",
+   "routes": [
+    "/cases",
+    "/cases/[id]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-subtitle",
+   "class": "cc-subtitle",
+   "at": "apps/web/app/(app)/billing/page.tsx:866",
+   "routes": [
+    "/billing",
+    "/cases",
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-kicker",
+   "class": "cc-kicker",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1780",
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:opsw-drawer__section",
+   "class": "opsw-drawer__section",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:143",
+   "routes": [
+    "/operations"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:landing-page",
+   "class": "landing-page",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:313",
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/verify-email",
+    "/login",
+    "/pricing",
+    "/register",
+    "/reset-password",
+    "/share/[id]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "page"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-quick-action",
+   "class": "cc-quick-action",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:385",
+   "routes": [
+    "/home",
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:legal-list",
+   "class": "legal-list",
+   "at": "apps/web/app/legal/legal-content.tsx:313",
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "ul",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-section-foot",
+   "class": "cc-section-foot",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:264",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-btn",
+   "class": "app-btn",
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:91",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "button",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:legal-document-shell",
+   "class": "legal-document-shell",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:264",
+   "routes": [
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:[&_h2]:scroll-mt-24",
+   "class": "[&_h2]:scroll-mt-24",
+   "at": "apps/web/components/legal/LegalDocumentShell.tsx:412",
+   "routes": [
+    "/settings/legal/[slug]",
+    "/trust-center/ai-disclosure",
+    "/trust-center/methodology",
+    "/trust-center/security",
+    "/trust-center/status",
+    "/trust-center/subprocessors"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:cc-page-header",
+   "class": "cc-page-header",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:48",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "header",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-table__link",
+   "class": "app-table__link",
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:268",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]",
+    "/teams/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:legal-link",
+   "class": "legal-link",
+   "at": "apps/web/app/legal/legal-content.tsx:389",
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]",
+    "/trust-center/subprocessors"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:cases-row-main",
+   "class": "cases-row-main",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:86",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-tile-grid",
+   "class": "cc-tile-grid",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:240",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ilk-listbox",
+   "class": "ilk-listbox",
+   "at": "apps/web/app/(app)/intake-links/_components/FilterToolbar.tsx:121",
+   "routes": [
+    "/intake-links"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:legal-list-ordered",
+   "class": "legal-list-ordered",
+   "at": "apps/web/app/legal/legal-content.tsx:328",
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "ol",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:inset-x-0",
+   "class": "inset-x-0",
+   "at": "apps/web/app/trust/page.tsx:755",
+   "routes": [
+    "/trust",
+    "/verify"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:matter-workspace",
+   "class": "matter-workspace",
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:774",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [
+    "cc-page"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-field__help",
+   "class": "app-field__help",
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:543",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]",
+    "/teams/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:border-collapse",
+   "class": "border-collapse",
+   "at": "apps/web/app/pricing/page.tsx:1252",
+   "routes": [
+    "/pricing",
+    "/support"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:cc-meta",
+   "class": "cc-meta",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:395",
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-skeleton",
+   "class": "cc-skeleton",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1787",
+   "routes": [
+    "/cases",
+    "/workspaces"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ui-filterbar",
+   "class": "ui-filterbar",
+   "at": "apps/web/components/ui/FilterBar.tsx:100",
+   "routes": [
+    "/cases",
+    "/reports"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "["
+   ],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-link",
+   "class": "app-link",
+   "at": "apps/web/components/ai-copilot/CopilotCitation.tsx:63",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ],
+   "verdict": "RULE_EXISTS_NOW"
+  },
+  {
+   "id": "CSS:TRASH",
+   "class": "TRASH",
+   "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:318",
+   "routes": [
+    "/evidence"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "button",
+   "styledOthers": [
+    "app-danger-action",
+    "app-primary-action"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:evidence-detail-artifact-note",
+   "class": "evidence-detail-artifact-note",
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:216",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-btn-primary",
+   "class": "app-btn-primary",
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:91",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "button",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ops-item__open",
+   "class": "ops-item__open",
+   "at": "apps/web/app/(app)/inbox/page.tsx:1942",
+   "routes": [
+    "/inbox",
+    "/notifications"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:legal-divider",
+   "class": "legal-divider",
+   "at": "apps/web/app/legal/legal-content.tsx:572",
+   "routes": [
+    "/legal/[slug]",
+    "/settings/legal/[slug]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "hr",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:bg-gradient-to-r",
+   "class": "bg-gradient-to-r",
+   "at": "apps/web/app/pricing/page.tsx:981",
+   "routes": [
+    "/pricing"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:list-none",
+   "class": "list-none",
+   "at": "apps/web/app/pricing/page.tsx:1001",
+   "routes": [
+    "/pricing"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:cc-input",
+   "class": "cc-input",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:121",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "input",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-button",
+   "class": "cc-button",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:140",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "button",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-empty",
+   "class": "cc-empty",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:151",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:border-[#b39b86]/42",
+   "class": "border-[#b39b86]/42",
+   "at": "apps/web/app/auth/callback/ui/page.tsx:349",
+   "routes": [
+    "/auth/callback/ui"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:bill-pay",
+   "class": "bill-pay",
+   "at": "apps/web/app/(app)/billing/_sections/PaymentMethodChoice.tsx:116",
+   "routes": [
+    "/billing"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "label",
+   "styledOthers": [
+    "bill-choice__option"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations",
+   "class": "proovra-upload-operations",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:75",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__list",
+   "class": "proovra-upload-operations__list",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:94",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "ul",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__banner",
+   "class": "proovra-upload-operations__banner",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:119",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__banner--offline",
+   "class": "proovra-upload-operations__banner--offline",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:119",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__close",
+   "class": "proovra-upload-operations__close",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:136",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__close--safe",
+   "class": "proovra-upload-operations__close--safe",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:136",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__recovery",
+   "class": "proovra-upload-operations__recovery",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:227",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__file-name",
+   "class": "proovra-upload-operations__file-name",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:256",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__classification",
+   "class": "proovra-upload-operations__classification",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:259",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__row",
+   "class": "proovra-upload-operations__row",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:165",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "li",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__row-header",
+   "class": "proovra-upload-operations__row-header",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:166",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "header",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__state-pill",
+   "class": "proovra-upload-operations__state-pill",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:167",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__reason",
+   "class": "proovra-upload-operations__reason",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:171",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__progress",
+   "class": "proovra-upload-operations__progress",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:179",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:proovra-upload-operations__row-actions",
+   "class": "proovra-upload-operations__row-actions",
+   "at": "apps/web/components/uploads/UploadOperationsPanel.tsx:187",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "footer",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:capture-phase4-requirements-panel",
+   "class": "capture-phase4-requirements-panel",
+   "at": "apps/web/components/capture-v2/CaptureRequirements.tsx:42",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "capture-requirements-panel"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:capture-activity__label",
+   "class": "capture-activity__label",
+   "at": "apps/web/app/(app)/capture/_lib/CaptureActivityDisclosure.tsx:60",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:capture-session-metadata-card",
+   "class": "capture-session-metadata-card",
+   "at": "apps/web/components/capture-v2/CaptureSessionPanel.tsx:221",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [
+    "capture-command-section"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:capture-phase7-ai-modal-backdrop",
+   "class": "capture-phase7-ai-modal-backdrop",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:466",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "capture-ai-modal-backdrop"
+   ],
+   "inline": false,
+   "ancestorStyled": true
+  },
+  {
+   "id": "CSS:capture-phase7-ai-loading",
+   "class": "capture-phase7-ai-loading",
+   "at": "apps/web/components/ai/CaptureAiAssistant.tsx:495",
+   "routes": [
+    "/capture"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "capture-ai-section"
+   ],
+   "inline": false,
+   "ancestorStyled": true
+  },
+  {
+   "id": "CSS:cases-table",
+   "class": "cases-table",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:940",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "cases-panel"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-th-actions",
+   "class": "cases-th-actions",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:962",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [
+    "cases-th"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-bulk-bar",
+   "class": "cases-bulk-bar",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1017",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-bulk-selectall",
+   "class": "cases-bulk-selectall",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1018",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "label",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-row-select",
+   "class": "cases-row-select",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1151",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "label",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-row-bulk-note",
+   "class": "cases-row-bulk-note",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1166",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "STYLED_BY_ANCESTOR",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": true
+  },
+  {
+   "id": "CSS:create-case-context-banner",
+   "class": "create-case-context-banner",
+   "at": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:182",
+   "routes": [
+    "/cases"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:matter-workspace--loading",
+   "class": "matter-workspace--loading",
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:774",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [
+    "cc-page"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:matter-workspace--error",
+   "class": "matter-workspace--error",
+   "at": "apps/web/components/cases-experience/MatterWorkspace.tsx:797",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": null,
+   "styledOthers": [
+    "cc-page"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:attach-evidence__kind",
+   "class": "attach-evidence__kind",
+   "at": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1691",
+   "routes": [
+    "/cases/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-panel__hint",
+   "class": "app-panel__hint",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:579",
+   "routes": [
+    "/collaboration-teams"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-table-footer",
+   "class": "app-table-footer",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:626",
+   "routes": [
+    "/collaboration-teams"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:app-empty__body",
+   "class": "app-empty__body",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx:40",
+   "routes": [
+    "/collaboration-teams/[teamId]/collaboration"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:Phase",
+   "class": "Phase",
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1976",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:EVIDENCE-RISK-TONE",
+   "class": "EVIDENCE-RISK-TONE",
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1976",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "NOT_A_CLASS"
+  },
+  {
+   "id": "CSS:snap-raw",
+   "class": "snap-raw",
+   "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:295",
+   "routes": [
+    "/evidence/[id]"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "details",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ec-recommended-action-row",
+   "class": "ec-recommended-action-row",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1480",
+   "routes": [
+    "/home"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "li",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ilk-kpi__value",
+   "class": "ilk-kpi__value",
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:65",
+   "routes": [
+    "/intake-links"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [
+    "app-metric-card__value"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ilk-kpi__label",
+   "class": "ilk-kpi__label",
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:68",
+   "routes": [
+    "/intake-links"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [
+    "app-metric-card__label"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ilk-kpi__meta",
+   "class": "ilk-kpi__meta",
+   "at": "apps/web/app/(app)/intake-links/_components/KpiGrid.tsx:71",
+   "routes": [
+    "/intake-links"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [
+    "app-metric-card__meta"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:ilk-status__line",
+   "class": "ilk-status__line",
+   "at": "apps/web/app/(app)/intake-links/_components/DetailsDrawer.tsx:65",
+   "routes": [
+    "/intake-links"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:legal-center-page",
+   "class": "legal-center-page",
+   "at": "apps/web/app/legal/[slug]/page.tsx:46",
+   "routes": [
+    "/legal/[slug]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "page"
+   ],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:opsw-condition__affected",
+   "class": "opsw-condition__affected",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:292",
+   "routes": [
+    "/operations"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:opsw-activity__last",
+   "class": "opsw-activity__last",
+   "at": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx:178",
+   "routes": [
+    "/operations"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "span",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:opsw-drawer__title",
+   "class": "opsw-drawer__title",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:128",
+   "routes": [
+    "/operations"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "h2",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:opsw-drawer__close",
+   "class": "opsw-drawer__close",
+   "at": "apps/web/app/(app)/operations/_components/GroupInspector.tsx:132",
+   "routes": [
+    "/operations"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "button",
+   "styledOthers": [
+    "app-ghost-action"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:wsh__posture",
+   "class": "wsh__posture",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:295",
+   "routes": [
+    "/operations/health"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [
+    "app-panel"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:org-list-surface",
+   "class": "org-list-surface",
+   "at": "apps/web/app/(app)/organizations/page.tsx:191",
+   "routes": [
+    "/organizations"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:border-[#5B21B6]/35",
+   "class": "border-[#5B21B6]/35",
+   "at": "apps/web/app/pricing/page.tsx:944",
+   "routes": [
+    "/pricing"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:set-nav",
+   "class": "set-nav",
+   "at": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx:47",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "nav",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-nav__group",
+   "class": "set-nav__group",
+   "at": "apps/web/app/(app)/settings/_sections/SettingsNav.tsx:89",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-section",
+   "class": "set-section",
+   "at": "apps/web/app/(app)/settings/_sections/SettingsOverview.tsx:383",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-roles",
+   "class": "set-roles",
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:210",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-grid--links",
+   "class": "set-grid--links",
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:218",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "set-grid"
+   ],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-matrix",
+   "class": "set-matrix",
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:292",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-matrix__group",
+   "class": "set-matrix__group",
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:294",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "section",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:set-matrix__scroll",
+   "class": "set-matrix__scroll",
+   "at": "apps/web/app/(app)/settings/_sections/RolesSection.tsx:301",
+   "routes": [
+    "/settings"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:support-page",
+   "class": "support-page",
+   "at": "apps/web/app/support/page.tsx:337",
+   "routes": [
+    "/support"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [
+    "page"
+   ],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:rounded-r",
+   "class": "rounded-r",
+   "at": "apps/web/app/support/page.tsx:451",
+   "routes": [
+    "/support"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:scroll-mt-24",
+   "class": "scroll-mt-24",
+   "at": "apps/web/app/trust/page.tsx:936",
+   "routes": [
+    "/trust"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:mt-auto",
+   "class": "mt-auto",
+   "at": "apps/web/app/trust/page.tsx:1300",
+   "routes": [
+    "/trust"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:ml-auto",
+   "class": "ml-auto",
+   "at": "apps/web/app/(app)/trust-center/methodology/page.tsx:42",
+   "routes": [
+    "/trust-center/methodology"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:outline-none",
+   "class": "outline-none",
+   "at": "apps/web/app/verify/_components/VerifyHero.tsx:208",
+   "routes": [
+    "/verify"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:md:flex-nowrap",
+   "class": "md:flex-nowrap",
+   "at": "apps/web/app/verify/_components/VerifyFinalCta.tsx:47",
+   "routes": [
+    "/verify"
+   ],
+   "verdict": "TAILWIND_GENERATED"
+  },
+  {
+   "id": "CSS:page-subtitle",
+   "class": "page-subtitle",
+   "at": "apps/web/app/verify/[token]/page.tsx:4545",
+   "routes": [
+    "/verify/[token]"
+   ],
+   "verdict": "HOOK_ON_STYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": true,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cases-activity-main",
+   "class": "cases-activity-main",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:706",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-section-sub",
+   "class": "cc-section-sub",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:114",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "p",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-toolbar",
+   "class": "cc-toolbar",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:120",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "div",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  },
+  {
+   "id": "CSS:cc-table",
+   "class": "cc-table",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:159",
+   "routes": [
+    "/workspaces"
+   ],
+   "verdict": "UNSTYLED_ELEMENT",
+   "tag": "table",
+   "styledOthers": [],
+   "inline": false,
+   "ancestorStyled": false
+  }
+ ]
+}

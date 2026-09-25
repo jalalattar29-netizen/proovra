@@ -1,0 +1,292 @@
+{
+ "route": "/auth/mfa-recovery/verify",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 2,
+   "elements": 18,
+   "texts": 11,
+   "distinctTexts": 10,
+   "handlers": 0,
+   "conditionals": 52,
+   "apiPaths": 3,
+   "distinctApi": 3,
+   "styleRefs": 15,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 1,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation"
+   ]
+  },
+  "native": {
+   "files": 137,
+   "elements": 144,
+   "texts": 14,
+   "distinctTexts": 11,
+   "handlers": 26,
+   "conditionals": 1004,
+   "apiPaths": 6,
+   "distinctApi": 4,
+   "styleRefs": 182,
+   "stylesheetRules": 83,
+   "themeTokens": 245,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 11,
+  "natLabelled": 14,
+  "paired": 1,
+  "roleDiff": 2,
+  "missing": 8,
+  "extraInNative": 12,
+  "webUnlabelled": 16,
+  "missingWithRolePresent": 8,
+  "missingWithRoleAbsent": 0,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Thanks — your mailbox access is confirmed.",
+     "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:186",
+     "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:114"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Return to sign in",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:217",
+     "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:134"
+    },
+    {
+     "label": "Return to sign in",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/auth/mfa-recovery/verify/page.tsx:238",
+     "nat": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:134"
+    }
+   ],
+   "missing": [
+    {
+     "role": "COMPONENT",
+     "label": "Verifying your recovery request",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Email verified",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:184",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Hold tight — we&apos;re confirming your recovery link…",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:176",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do NOT need to take any further action until they reach out.",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:189",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This step confirmed your email only. It did NOT log you in and did NOT change your two-factor authentication. You will still need to enroll a fresh authenticator once an admin approves your reset.",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:194",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Continue to home",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:209",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If you did not request an MFA recovery, contact your organization administrator immediately.",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:324",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/auth/mfa-recovery/verify/page.tsx:335",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Confirming your recovery link",
+     "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:109"
+    },
+    {
+     "role": "TEXT",
+     "label": "Your two-factor recovery request is now waiting for an administrator in your organization to review. You do not need to do anything else until they reach out.",
+     "at": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx:116"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:569"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "at": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 0,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 0,
+  "webCompetingRules": 0,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 76,
+  "webDistinctColors": 0,
+  "natDistinctColors": 19,
+  "sharedColors": 0,
+  "webOnlyColors": 0,
+  "webOnlyColorSample": [],
+  "sharedColorSample": []
+ },
+ "level6": {
+  "webConditionals": 52,
+  "natConditionals": 1004,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 0,
+  "natHandlers": 26,
+  "webHandlerSample": [],
+  "natHandlerSample": [
+   "onPress=() => state.sessionPresent ? router.replace(\"/(tabs)\") : rou @apps/mobile/app/(stack)/mfa-recovery-verify.tsx:122",
+   "onPress=() => router.replace(\"/(stack)/auth\") @apps/mobile/app/(stack)/mfa-recovery-verify.tsx:134",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 3,
+  "natApi": 4,
+  "shared": 3,
+  "onlyWeb": 0,
+  "onlyNative": 1,
+  "onlyWebList": [],
+  "onlyNativeList": [
+   "/v1/identity/mfa-admin/recovery-requests"
+  ],
+  "sharedList": [
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
+   "/v1/identity/mfa/recovery-requests/${…}",
+   "/v1/auth/session-light"
+  ],
+  "webApiWhere": {
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed": "apps/web/app/auth/mfa-recovery/verify/page.tsx:70",
+   "/v1/identity/mfa/recovery-requests/${…}": "apps/web/app/auth/mfa-recovery/verify/page.tsx:105",
+   "/v1/auth/session-light": "apps/web/app/auth/mfa-recovery/verify/page.tsx:131"
+  },
+  "natApiWhere": {
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed": "apps/mobile/src/product/mfa-recovery.ts:30",
+   "/v1/auth/session-light": "apps/mobile/src/product/mfa-recovery.ts:32",
+   "/v1/identity/mfa/recovery-requests/${…}": "apps/mobile/src/product/mfa-recovery.ts:152",
+   "/v1/identity/mfa-admin/recovery-requests": "apps/mobile/src/product/mfa-recovery.ts:145"
+  }
+ }
+}

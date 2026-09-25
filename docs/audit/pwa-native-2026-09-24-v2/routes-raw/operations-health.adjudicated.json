@@ -1,0 +1,342 @@
+{
+ "route": "/operations/health",
+ "disposition": "NO_NATIVE_SCREEN",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "No workspace is currently selected. Workspace health describes one workspace at a time.",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:260",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace health",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:273",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unresolved operational conditions recorded against",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:275",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ". Every figure below is a record in this workspace — none of it is platform runtime.",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:276",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Scope: Workspace",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:281",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Refresh",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:287",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Current posture",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:301",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evaluating…",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:306",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unknown",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:309",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Attempted",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:311",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ". This is not a statement that the workspace is healthy — the evaluation did not complete.",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:311",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open conditions",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:332",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open or acknowledged",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:336",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last condition activity",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:340",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evaluated",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:348",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "open",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:359",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unresolved conditions",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:375",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open the conditions queue",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:378",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading…",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:383",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Unknown",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:386",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Attempted",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:388",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ". The list below is not empty because there is nothing to show; it is empty because it could not be read.",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:388",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "No unresolved conditions are recorded against this workspace as of",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:395",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": ".",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:396",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Severity",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:403",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Condition",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:404",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Category",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:405",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "First seen",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:406",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last seen",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:407",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Occurrences",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:408",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Platform runtime — process counters, queue depth, worker heartbeat and dependency probes — is not shown here. It is identical for every workspace on the instance and is administered by PROOVRA platform staff.",
+   "at": "apps/web/app/(app)/operations/health/page.tsx:447",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal Space isn't available right now",
+   "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "↗",
+   "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Let's get you back into the product",
+   "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "·",
+   "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "BOX",
+   "label": "Operational breadcrumb",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "›",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:101",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "TEXT",
+   "label": "›",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:120",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": false,
+   "verdict": "SUBSUMED_BY_MISSING_SCREEN",
+   "why": "no native screen exists for this route"
+  }
+ ]
+}

@@ -62,7 +62,9 @@ export function parseClosureState(payload: unknown): ClosureState {
     requestId: str(req.id),
     requestStatus: str(req.status),
     requestedAtIso: str(req.requestedAtUtc) ?? str(req.requestedAt),
-    effectiveAtIso: str(req.effectiveAtUtc) ?? str(req.effectiveAt),
+    // The server's date is the END OF COOLING-OFF (org + workspace closure selects);
+    // `effectiveAtUtc` was never sent, so the scheduled date never showed.
+    effectiveAtIso: str(req.coolingOffEndsAtUtc),
     blockers: rows(d.blockers)
       .map((raw) => {
         const b = obj(raw);
@@ -81,15 +83,25 @@ export function parseClosureState(payload: unknown): ClosureState {
   };
 }
 
-/** A request that is open and still inside its cooling-off period. */
+/** The server's sets (org-closure.service.ts / workspace-closure.service.ts). PENDING was never a status. */
+const CANCELLABLE_CLOSURE = ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED"];
+const ACTIVE_CLOSURE = ["REQUESTED", "COOLING_OFF", "SCHEDULED", "PROCESSING"];
+
+/**
+ * A request the owner can still cancel. A request is created as COOLING_OFF,
+ * which this used to omit — so a just-requested closure read as not open: no
+ * Cancel, and the request form came back only to meet a 409.
+ */
 export function hasOpenClosure(state: ClosureState): boolean {
   const s = (state.requestStatus ?? "").toUpperCase();
-  return state.requestId !== null && (s === "PENDING" || s === "SCHEDULED" || s === "REQUESTED");
+  return state.requestId !== null && CANCELLABLE_CLOSURE.includes(s);
 }
 
-/** Closure may be requested only when the SERVER listed no blockers. */
+/** Closure may be requested only when none is active or open and the SERVER listed no blockers. */
 export function canRequestClosure(state: ClosureState): boolean {
-  return !hasOpenClosure(state) && state.blockers.length === 0;
+  const s = (state.requestStatus ?? "").toUpperCase();
+  const active = state.requestId !== null && ACTIVE_CLOSURE.includes(s);
+  return !hasOpenClosure(state) && !active && state.blockers.length === 0;
 }
 
 /**
@@ -119,3 +131,73 @@ export function closureFailureNeedsReload(err: unknown): boolean {
   const code = str(obj(obj(e.body).error).code) ?? str(e.code);
   return code === "closure_blocked" || code === "closure_request_active";
 }
+
+// ---------------------------------------------------------------------------
+// Workspace closure card parity (web teams/[id]/components/WorkspaceClosureCard)
+// ---------------------------------------------------------------------------
+
+/** How many OTHER members lose access (GET /v1/teams/:id/closure, teams.routes.ts:3470). Null when not sent. */
+export function parseMembersLosingAccess(payload: unknown): number | null {
+  return num(obj(payload).membersLosingAccess);
+}
+
+/**
+ * The blockers stored ON a BLOCKED request (`request.blockersJson`, a JSON
+ * string). The web lists them under the status line; a malformed value lists
+ * nothing rather than throwing.
+ */
+export function parseRequestBlockers(payload: unknown): ClosureBlocker[] {
+  const raw = str(obj(obj(payload).request).blockersJson);
+  if (!raw) return [];
+  try {
+    return rows(JSON.parse(raw))
+      .map(obj)
+      .filter((b) => str(b.code))
+      .map((b) => ({ code: str(b.code) as string, message: str(b.message) ?? (str(b.code) as string), count: num(b.count) }));
+  } catch {
+    return [];
+  }
+}
+
+/** The web's status labels (WorkspaceClosureCard STATUS_LABEL). */
+const CLOSURE_STATUS_LABEL: Readonly<Record<string, string>> = {
+  BLOCKED: "Blocked — action needed",
+  COOLING_OFF: "Scheduled — cancellation window open",
+  SCHEDULED: "Scheduled",
+  PROCESSING: "Closing…",
+  COMPLETED: "Closed",
+  CANCELLED: "Cancelled",
+  FAILED: "Failed",
+};
+export function closureStatusLabel(status: string): string {
+  return CLOSURE_STATUS_LABEL[status.toUpperCase()] ?? status;
+}
+
+/** A request still in flight — the web's `open` (includes PROCESSING, which cannot be cancelled). */
+export function isClosureInFlight(state: ClosureState): boolean {
+  const s = (state.requestStatus ?? "").toUpperCase();
+  return state.requestId !== null && ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(s);
+}
+
+/** Reopen is offered only where it can work: the latest request COMPLETED. */
+export function canReopenWorkspace(state: ClosureState): boolean {
+  return !isClosureInFlight(state) && (state.requestStatus ?? "").toUpperCase() === "COMPLETED";
+}
+
+export function buildWorkspaceReopenPath(teamId: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/reopen`;
+}
+
+/** POST /v1/teams/:id/reopen refusals (teams.routes.ts:3709), as the web words them. */
+export function reopenFailureCopy(err: unknown, fallback: string | null): string {
+  const status = num(obj(err).statusCode) ?? 0;
+  if (status === 403) return "You don't have permission to reopen this workspace. Only its owner can.";
+  if (status === 404) return "This workspace no longer exists.";
+  if (status === 409) {
+    return "There is nothing to reopen: either a closure request is still open — cancel that instead — or this workspace was never closed.";
+  }
+  return fallback ?? "Could not reopen this workspace. Nothing was changed.";
+}
+
+export const WORKSPACE_REOPENED_NOTICE =
+  "Workspace reopened. Your owner access is back; other members, API credentials and webhooks stay revoked until you restore them explicitly.";

@@ -390,7 +390,8 @@ export const NATIVE_DESTINATIONS = {
       "list, revoke, submissions, archive/unarchive, and the audited recipient-contact reveal",
       "the reveal is the ONLY place a raw recipient address leaves the API - every projection ships the masked form for everybody - so the surface states the consequence BEFORE the tap and requires a reason, rather than letting the user discover the WARNING-severity disclosure in an audit log afterwards",
       "submissions render the server's MASKED previews and the projection has no un-masked field at all, so there is nothing for this surface to leak by accident",
-      "SEND is deliberately not offered on an arbitrary row: a resend needs the link's rawToken, which the API never persists, so it can only be formed in the session that created the link. A Send control on a reloaded list would build a request that cannot be made. Creation stays on the web for the same reason, and the screen says so.",
+      "SEND is deliberately not offered on an arbitrary row: a resend needs the link's rawToken, which the API never persists, so it can only be formed in the session that created the link. A Send control on a reloaded list would build a request that cannot be made.",
+      "T-16 / RC-20 CORRECTION: creation was ALSO withheld \"for the same reason\" — it is not the same reason. The create response carries the raw token, so the creating session can show, share and send it. Native now creates links ((stack)/intake-link-create.tsx): the 4-step wizard, the shared message preview, and the one-time link view with send-by-email/SMS in that session.",
     ],
   },
   "/evidence-requests/[id]": {
@@ -546,6 +547,33 @@ export const NATIVE_DESTINATIONS = {
       "the projection reads the CANONICAL block, not the legacy organizations array, because that array's own type warns it 'is named organizations but is populated with EVERY non-personal workspace' with workspace ids and workspace member counts",
       "an absent Personal Space is absent: an ENTERPRISE identity under a noPersonalSpace policy has none, and the envelope says it is never substituted",
       "the people/seats half stays on the shared workspace roster screen with /teams/[id] and /people - one workspace roster, not three",
+    ],
+  },
+  "/operations": {
+    routeFile: "(stack)/operations/index.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/(app)/operations/page.tsx",
+      "apps/web/app/(app)/operations/_components/",
+      "apps/web/app/(app)/operations/_lib/",
+    ],
+    gaps: [
+      "T-11 / RC-12: this CORE surface had NO native screen. It was out of scope only because tools/derive-product-manifest.mjs inferred 'enterprise' from the registry domain (OPS) while lib/surface/tiers.ts — the web's stated single source of truth — rules /operations CORE/allow. The classifier now defers to tiers.ts (T-21 / RC-22).",
+      "ported: queue summary cards as filter toggles, grouped + flat views, every filter axis, saved views (apply/save/share/rename/delete), incident inspector (what happened, remediation, how much, when, ownership, history, technical references), acknowledge/resolve/stop-notifying with the three server refusal notices, assignment + Take it, bulk acknowledge/stop-notifying/assign through the challenge step-up the endpoint requires, reconciliation notices + Check again with the web's poll schedule",
+      "DELIBERATE divergence from web defects (docs/audit/pwa-native-2026-09-24-v2/T-11-OPERATIONS-SPEC.md): bulk success is COMPLETED (the web counts SUCCEEDED, which the server never sends); a failed grouped read is shown, not rendered as 'no match'; a refused remediation shows the server's message; saved views keep the SLA filter",
+      "REMAINING GAP: the web offers a Copy button per technical reference; native renders the identifiers but has no clipboard module (expo-clipboard is not a dependency; adding it is a native-module change that needs a new build)",
+    ],
+  },
+  "/operations/health": {
+    routeFile: "(stack)/operations/health.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/operations/health/page.tsx"],
+    gaps: [
+      "T-11 / RC-12: no native screen existed; out of scope for the same classifier defect as /operations",
+      "ported: both reads polled every 30 s and failing independently, posture panel, severity breakdown, unresolved list, every state's verbatim copy, the platform-runtime footnote, the link into the queue",
+      "DELIBERATE divergence: the API orders alerts least-severe first (severity asc) and silently caps at 100; native sorts most severe first and says when the cap is reached",
     ],
   },
   "/operations/batch-analysis": {

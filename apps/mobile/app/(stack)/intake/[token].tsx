@@ -17,7 +17,8 @@
  * there.
  */
 import { useCallback, useEffect, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
+import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { publicFetch } from "../../../src/api";
@@ -37,6 +38,7 @@ import {
   ProovraEmpty,
 } from "../../../src/ui";
 import {
+  buildIntakeCaptureHref,
   buildIntakeConsentBody,
   buildIntakeConsentPath,
   buildIntakeIdentityBody,
@@ -45,6 +47,10 @@ import {
   classifyIntakeFailure,
   identityFieldsFor,
   intakeFailureMessage,
+  intakeFailureNote,
+  intakeFailureTitle,
+  intakeDisclosure,
+  intakeItemMetaLine,
   parseValidatedIntake,
   type IntakeFailure,
   type ValidatedIntake,
@@ -116,13 +122,26 @@ export default function IntakeScreen() {
     }
   }, [phase, token, pseudonym, displayName, email]);
 
+  // The web consent step: the disclosure shown IS the one hashed and recorded,
+  // "I have read and accept" is required, identity disclosure only when named.
+  const [termsAcknowledged, setTermsAcknowledged] = useState(false);
+  const [identityDisclosed, setIdentityDisclosed] = useState(false);
   const acceptConsent = useCallback(async () => {
-    if (phase.kind !== "consent" || !token || !phase.intake.session) return;
+    if (phase.kind !== "consent" || !token || !phase.intake.session || !termsAcknowledged) return;
     setBusy(true);
     try {
+      const disclosure = intakeDisclosure(phase.intake.template);
+      const disclosureTextHash = (await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, disclosure.text)).toLowerCase();
       await publicFetch(buildIntakeConsentPath(token, phase.intake.session.id), {
         method: "POST",
-        body: JSON.stringify(buildIntakeConsentBody({ accepted: true })),
+        body: JSON.stringify(
+          buildIntakeConsentBody({
+            policyVersion: disclosure.policyVersion,
+            disclosureTextHash,
+            termsAcknowledged,
+            identityDisclosed: !phase.intake.template.isAnonymous && identityDisclosed,
+          }),
+        ),
       });
       setPhase({ kind: "ready", intake: phase.intake });
     } catch (err) {
@@ -130,7 +149,7 @@ export default function IntakeScreen() {
     } finally {
       setBusy(false);
     }
-  }, [phase, token]);
+  }, [phase, token, termsAcknowledged, identityDisclosed]);
 
   const intake = phase.kind === "failed" || phase.kind === "validating" ? null : phase.intake;
   const fields = intake ? identityFieldsFor(intake.template) : null;
@@ -148,8 +167,9 @@ export default function IntakeScreen() {
       {phase.kind === "failed" ? (
         <ProovraEmpty
           presence="page"
-          title="This link is not open"
+          title={intakeFailureTitle(phase.failure)}
           purpose={intakeFailureMessage(phase.failure)}
+          note={intakeFailureNote(phase.failure)}
         />
       ) : null}
 
@@ -158,11 +178,35 @@ export default function IntakeScreen() {
           <ProovraText variant="body" weight="semibold">
             {intake.request.title ?? "What has been asked for"}
           </ProovraText>
-          {intake.request.deliverables.map((d, i) => (
-            <ProovraText key={i} variant="label" color={theme.color.ink.secondary}>
-              {`• ${d}`}
-            </ProovraText>
-          ))}
+          {/* The web completion bar (IntakeCompletionProgress): the server's numbers only. */}
+          {intake.request.completion ? (
+            <View style={{ gap: 4 }} testID="intake-completion">
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <ProovraText variant="label" weight="semibold">Completion</ProovraText>
+                <ProovraBadge label={`${intake.request.completion.completionPercent}%`} tone="neutral" />
+                <ProovraBadge
+                  label={intake.request.completion.reviewReady ? "Review-ready" : "Required items remaining"}
+                  tone={intake.request.completion.reviewReady ? "verified" : "pending"}
+                />
+              </View>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {`Required: ${intake.request.completion.requiredFulfilled} / ${intake.request.completion.requiredTotal} · Optional: ${intake.request.completion.optionalFulfilled} / ${intake.request.completion.optionalTotal}`}
+              </ProovraText>
+            </View>
+          ) : null}
+          {intake.request.items.length > 0
+            ? intake.request.items.map((d, i) => (
+                <View key={i} style={{ gap: 2 }}>
+                  <ProovraText variant="bodySm" weight="semibold">{`${d.title}${d.required ? " (required)" : " (optional)"}`}</ProovraText>
+                  {d.description ? <ProovraText variant="label" color={theme.color.ink.secondary}>{d.description}</ProovraText> : null}
+                  <ProovraText variant="label" color={theme.color.ink.muted}>{intakeItemMetaLine(d)}</ProovraText>
+                </View>
+              ))
+            : intake.request.deliverables.map((d, i) => (
+                <ProovraText key={i} variant="label" color={theme.color.ink.secondary}>
+                  {`• ${d}`}
+                </ProovraText>
+              ))}
           {intake.request.dueAtIso ? (
             <ProovraBadge label={`Due ${formatUserDateTime(intake.request.dueAtIso)}`} tone="pending" />
           ) : null}
@@ -223,14 +267,38 @@ export default function IntakeScreen() {
               person agreed to is the kind of gap that matters years later, in
               front of somebody who was not there.
             */}
-            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+            <ProovraText variant="bodySm" testID="intake-disclosure">{intakeDisclosure(phase.intake.template).text}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
               What you send is preserved as evidence by the organization that sent you this link.
               Its integrity is recorded so it can be checked later. PROOVRA does not decide whether
               what you send is true, who created it, or whether it is admissible anywhere.
             </ProovraText>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: termsAcknowledged }}
+              accessibilityLabel="I have read and accept the terms above."
+              onPress={() => setTermsAcknowledged((v) => !v)}
+              style={{ flexDirection: "row", gap: theme.space.s2, alignItems: "center" }}
+            >
+              <ProovraText variant="bodySm">{termsAcknowledged ? "☑" : "☐"}</ProovraText>
+              <ProovraText variant="bodySm">I have read and accept the terms above.</ProovraText>
+            </Pressable>
+            {!phase.intake.template.isAnonymous ? (
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: identityDisclosed }}
+                accessibilityLabel="My submission may be associated with my email address."
+                onPress={() => setIdentityDisclosed((v) => !v)}
+                style={{ flexDirection: "row", gap: theme.space.s2, alignItems: "center" }}
+              >
+                <ProovraText variant="bodySm">{identityDisclosed ? "☑" : "☐"}</ProovraText>
+                <ProovraText variant="bodySm">My submission may be associated with my email address. The sender needs this to know who responded.</ProovraText>
+              </Pressable>
+            ) : null}
             <ProovraButton
               label="I understand — continue"
               loading={busy}
+              disabled={!termsAcknowledged}
               onPress={() => void acceptConsent()}
             />
             <ProovraButton label="Not now" variant="ghost" onPress={() => router.replace("/")} />
@@ -265,10 +333,9 @@ export default function IntakeScreen() {
             <ProovraButton
               label="Add files"
               onPress={() =>
-                router.push(
-                  `/intake/capture?token=${encodeURIComponent(token ?? "")}` +
-                    `&sid=${encodeURIComponent(phase.intake.session!.id)}`,
-                )
+                // The link's location policy (the server's submit gate) and its
+                // checklist ride along: the capture step cannot re-validate.
+                router.push(buildIntakeCaptureHref(token ?? "", phase.intake.session!.id, phase.intake.template))
               }
             />
           </ProovraCard>

@@ -15,6 +15,8 @@ export interface CaseNote {
   body: string;
   createdAt: string;
   resolved: boolean;
+  /** When it was resolved; the web prints "resolved <date>" beside the note. */
+  resolvedAt: string | null;
 }
 
 export interface CaseAssignment {
@@ -46,6 +48,7 @@ export function parseCaseNotes(envelope: unknown): CaseNote[] {
       body: c["body"] as string,
       createdAt: typeof c["createdAt"] === "string" ? (c["createdAt"] as string) : "",
       resolved: !!c["resolvedAtUtc"],
+      resolvedAt: typeof c["resolvedAtUtc"] === "string" ? (c["resolvedAtUtc"] as string) : null,
     });
   }
   return out;
@@ -197,6 +200,8 @@ const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
 
 export interface CaseViewer {
+  /** The caller's own id — a note is deletable by its AUTHOR only (the route answers 403 otherwise). */
+  userId: string | null;
   canManage: boolean;
   canMutate: boolean;
   canAssign: boolean;
@@ -226,6 +231,7 @@ export function parseCaseViewer(envelope: unknown): CaseViewer {
     if (typeof val === "string" && val.length > 0) reasons[k] = val;
   }
   return {
+    userId: typeof v.userId === "string" && v.userId.length > 0 ? v.userId : null,
     canManage: flag("canManage"),
     canMutate: flag("canMutate"),
     canAssign: flag("canAssign"),
@@ -271,8 +277,14 @@ export function validateCaseNote(body: string): string | null {
   return null;
 }
 
-export function buildResolveCommentBody(resolved: boolean) {
-  return { resolved };
+/**
+ * POST /v1/cases/:id/comments/:commentId/resolve reads NO body and only ever
+ * RESOLVES (case-lifecycle.service.ts:575 stamps resolvedAtUtc). There is no
+ * reopen: the `{ resolved: false }` this used to send was ignored and the note
+ * was re-resolved, so the client sends what the web sends — `{}`.
+ */
+export function buildResolveCommentBody() {
+  return {};
 }
 
 /**
@@ -353,3 +365,111 @@ export function validateCaseName(name: string, current: string): string | null {
 export const DELETE_CASE_CONSEQUENCE =
   "Deleting this case will not delete preserved evidence records. Evidence remains " +
   "available in the Evidence Library unless separately archived or restricted.";
+
+// ---------------------------------------------------------------------------
+// T-14 — "What needs attention" (web simple-case-detail helpers.ts
+// deriveNeedsAttention + generation-labels.ts caseOutputNeedsAttention).
+// ---------------------------------------------------------------------------
+
+/** Only states with a real action behind them need attention (READY / NOT_INCLUDED / NOT_APPLICABLE / QUEUED / GENERATING do not). */
+export function caseOutputNeedsAttention(state: string | null): boolean {
+  return state === "ELIGIBLE_NOT_GENERATED" || state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE" || state === "BLOCKED";
+}
+
+export function deriveCaseNeedsAttention(envelope: unknown): Array<{ key: string; label: string }> {
+  const items = rows(obj(obj(obj(envelope).sections).evidence).items).map(obj);
+  if (items.length === 0) return [{ key: "no-evidence", label: "No evidence linked yet. Add evidence to begin building this case workspace." }];
+  const reportState = (i: Record<string, unknown>) => str(obj(obj(i.outputs).report).state);
+  const packageState = (i: Record<string, unknown>) => str(obj(obj(i.outputs).verificationPackage).state);
+  const missingReport = items.filter((i) => caseOutputNeedsAttention(reportState(i))).length;
+  const missingPackage = items.filter((i) => caseOutputNeedsAttention(packageState(i))).length;
+  const integrity = items.filter((i) => {
+    const v = str(i.verificationStatus);
+    return v === "FAILED" || v === "REVIEW_REQUIRED";
+  }).length;
+  const out: Array<{ key: string; label: string }> = [];
+  if (missingReport > 0)
+    out.push({
+      key: "missing-report",
+      label: missingReport === 1 ? "1 evidence record still needs its report generated." : `${missingReport} evidence records still need their reports generated.`,
+    });
+  if (missingPackage > 0)
+    out.push({
+      key: "missing-package",
+      label:
+        missingPackage === 1
+          ? "1 evidence record still needs its verification package generated."
+          : `${missingPackage} evidence records still need their verification packages generated.`,
+    });
+  if (integrity > 0)
+    out.push({
+      key: "integrity",
+      label: integrity === 1 ? "1 evidence record has an integrity issue that needs review." : `${integrity} evidence records have integrity issues that need review.`,
+    });
+  return out;
+}
+
+/** The web's formatRelative for a case (a UTC calendar date: "Sep 24, 2026"). */
+export function formatCaseDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "—";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+// ---------------------------------------------------------------------------
+// T-14 — the per-record Reports & Packages list the web "Generate report"
+// button opens (SimpleCaseDetail ReportsPackagesTab). Generation itself lives
+// on the evidence record, so each row opens it.
+// ---------------------------------------------------------------------------
+
+/** The web caseOutputLabel: total, and free of "missing" where nothing is. */
+export function caseOutputLabel(state: string | null, noun: "Report" | "Package"): string | null {
+  switch (state) {
+    case "READY":
+      return `${noun} ready`;
+    case "NOT_INCLUDED":
+      return `${noun} not included`;
+    case "NOT_APPLICABLE":
+      return `${noun} not applicable`;
+    case "QUEUED":
+    case "GENERATING":
+      return `${noun} generating`;
+    case "ELIGIBLE_NOT_GENERATED":
+      return `${noun} not generated`;
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return `${noun} generation failed`;
+    case "BLOCKED":
+      return `${noun} blocked`;
+    default:
+      return null;
+  }
+}
+
+export interface CaseDeliverableRow {
+  id: string;
+  title: string;
+  report: string;
+  pack: string;
+  needsAttention: boolean;
+}
+
+export function parseCaseDeliverableRows(envelope: unknown): CaseDeliverableRow[] {
+  return rows(obj(obj(obj(envelope).sections).evidence).items)
+    .map(obj)
+    .filter((i) => str(i.id))
+    .map((i) => {
+      const reportState = str(obj(obj(i.outputs).report).state);
+      const packageState = str(obj(obj(i.outputs).verificationPackage).state);
+      return {
+        id: str(i.id) as string,
+        title: str(i.title)?.trim() || str(i.displayFileName)?.trim() || str(i.originalFileName)?.trim() || "Untitled evidence",
+        // Without an outputs projection the web falls back to the readiness booleans.
+        report: caseOutputLabel(reportState, "Report") ?? (i.reportReady === true ? "Report ready" : "Report not available"),
+        pack: caseOutputLabel(packageState, "Package") ?? (i.packageReady === true ? "Package ready" : "Package not available"),
+        needsAttention: caseOutputNeedsAttention(reportState) || caseOutputNeedsAttention(packageState),
+      };
+    });
+}

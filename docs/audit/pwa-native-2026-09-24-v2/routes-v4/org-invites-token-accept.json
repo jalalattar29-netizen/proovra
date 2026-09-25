@@ -1,0 +1,245 @@
+{
+ "route": "/org-invites/[token]/accept",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/org-invite/[token].tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 18,
+   "labelled": 13,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 20,
+   "labelled": 13,
+   "unboundExports": 3
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 0,
+  "unpaired": 13,
+  "extraInNative": 13,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "We couldn't accept this invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:277",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept organization invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:189",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization. Redirecting…",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:228",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You are now a",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "of the organization",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:231",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "You&apos;ve been invited to join an organization.",
+    "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx:259",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "STATE_EMPTY",
+   "label": "Invitation unavailable",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:112"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Go to app",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:115"
+  },
+  {
+   "role": "SECTION",
+   "label": "You've joined",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:132"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Go to home",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:155"
+  },
+  {
+   "role": "BUTTON",
+   "label": "See your teams",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:156"
+  },
+  {
+   "role": "SECTION",
+   "label": "Join organization",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:170"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Accept invitation",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:180"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Not now",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:181"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your personal space is unchanged — this adds a workspace you can switch to.",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:140"
+  },
+  {
+   "role": "TEXT",
+   "label": "You&apos;ve been invited to join an organization.",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:173"
+  },
+  {
+   "role": "TEXT",
+   "label": "Accepting adds the organization to the spaces you can switch between. Your personal space is not merged or converted.",
+   "at": "apps/mobile/app/(stack)/org-invite/[token].tsx:176"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\org-invite.ts",
+   "name": "OrgInviteAccepted"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  }
+ ]
+}

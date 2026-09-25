@@ -1,0 +1,613 @@
+{
+ "route": "/auth/mfa-challenge",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/mfa-challenge/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/mfa.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 130,
+   "elements": 200,
+   "texts": 52,
+   "distinctTexts": 49,
+   "handlers": 42,
+   "conditionals": 1100,
+   "apiPaths": 9,
+   "distinctApi": 7,
+   "styleRefs": 157,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 146,
+   "elements": 161,
+   "texts": 22,
+   "distinctTexts": 17,
+   "handlers": 32,
+   "conditionals": 1092,
+   "apiPaths": 20,
+   "distinctApi": 17,
+   "styleRefs": 201,
+   "stylesheetRules": 89,
+   "themeTokens": 263,
+   "cssImports": 0,
+   "assetImports": 1,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-apple-authentication",
+    "expo-auth-session/providers/google",
+    "expo-auth-session",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 46,
+  "natLabelled": 21,
+  "paired": 2,
+  "roleDiff": 3,
+  "missing": 41,
+  "extraInNative": 13,
+  "webUnlabelled": 190,
+  "missingWithRolePresent": 40,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Two-factor verification",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/auth/mfa-challenge/page.tsx:318",
+     "nat": "apps/mobile/app/(stack)/mfa.tsx:48"
+    },
+    {
+     "label": "Loading...",
+     "webRole": "TEXT",
+     "natRole": "BOX",
+     "web": "apps/web/app/auth/mfa-challenge/page.tsx:441",
+     "nat": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "label": "What happened?",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:533",
+     "nat": "apps/mobile/src/ui/mfa-recovery-request.tsx:164"
+    }
+   ],
+   "missing": [
+    {
+     "role": "INPUT",
+     "label": "Six-digit authenticator code",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:331",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Single-use recovery code",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:360",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Set up two-factor authentication",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your organization requires two-factor authentication. To continue, you need to enroll an authenticator on your account.",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:232",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign in again and your operator menu will guide you through enrollment. You will not be able to access workspace data until enrollment is complete.",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:237",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign in to start enrollment",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Need help?",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:256",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact support",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:258",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:260",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign-in session expired",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:283",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Return to sign in",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:300",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Authenticator code",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:329",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recovery code",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:358",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Still stuck?",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:427",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact support",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:429",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/auth/mfa-challenge/page.tsx:431",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g. My phone was replaced and the recovery codes were on it.",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:535",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request an administrator reset",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:480",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "If your authenticator and your recovery codes are both gone, file a request here. A workspace administrator reviews it. Approval only clears your second factor so you can enroll a new one — it never signs you in and never grants access on its own.",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:483",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:493",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select a workspace…",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:511",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "–",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:555",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "characters. An administrator reads this. Do not include codes, passwords, or links.",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:555",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading your recovery request…",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:661",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This recovery request is no longer available.",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:668",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:677",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your recovery request",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:710",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Expires",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:713",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:714",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Verify",
+     "at": "apps/mobile/app/(stack)/mfa.tsx:62"
+    },
+    {
+     "role": "IMAGE",
+     "label": "PROOVRA",
+     "at": "apps/mobile/src/ui/brand.tsx:22"
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA",
+     "at": "apps/mobile/src/ui/brand.tsx:31"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    },
+    {
+     "role": "BUTTON",
+     "label": "File recovery request",
+     "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:179"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Resend email",
+     "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:190"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Cancel request",
+     "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:197"
+    },
+    {
+     "role": "TEXT",
+     "label": "Lost your authenticator?",
+     "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:148"
+    },
+    {
+     "role": "TEXT",
+     "label": "File a recovery request for an administrator in your organization to review. It does not sign you in or reset your second factor by itself.",
+     "at": "apps/mobile/src/ui/mfa-recovery-request.tsx:151"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 103,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 9,
+  "webCompetingRules": 8,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 241,
+  "natTokenUnresolved": 82,
+  "webDistinctColors": 16,
+  "natDistinctColors": 19,
+  "sharedColors": 1,
+  "webOnlyColors": 15,
+  "webOnlyColorSample": [
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)",
+   "#f1f4f9"
+  ],
+  "sharedColorSample": [
+   "#7c3aed"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1100,
+  "natConditionals": 1092,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 42,
+  "natHandlers": 32,
+  "webHandlerSample": [
+   "onSubmit=handleSubmit @apps/web/app/auth/mfa-challenge/page.tsx:325",
+   "onChange=(e) => setCode(e.target.value) @apps/web/app/auth/mfa-challenge/page.tsx:331",
+   "onChange=(e) => setRecoveryCode(e.target.value) @apps/web/app/auth/mfa-challenge/page.tsx:360",
+   "onClick=toggleMode @apps/web/app/auth/mfa-challenge/page.tsx:400",
+   "onSubmit=onSubmit @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:489",
+   "onChange=(e) => { setSelectedTeamId(e.target.value); setWorkspaceErro @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:495",
+   "onChange=(e) => { setReason(e.target.value); if (reasonError) setReas @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:535",
+   "onResend=() => void onResend() @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:614",
+   "onCancel=() => void onCancelRequest() @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:614",
+   "onRetry=() => { setDetail({ kind: \"loading\" }); void readDetail(requ @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:614",
+   "onClick=onRetry @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:676",
+   "onClick=onResend @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:717",
+   "onClick=onCancel @apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:728",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onChangeText=setCode @apps/mobile/app/(stack)/mfa.tsx:54",
+   "onSubmitEditing=() => void submit() @apps/mobile/app/(stack)/mfa.tsx:54",
+   "onPress=() => void submit() @apps/mobile/app/(stack)/mfa.tsx:62",
+   "onPress=() => { setUseRecovery((v) => !v); setCode(\"\"); setError(nul @apps/mobile/app/(stack)/mfa.tsx:64",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45",
+   "onChangeText=setReason @apps/mobile/src/ui/mfa-recovery-request.tsx:165",
+   "onPress=() => void file() @apps/mobile/src/ui/mfa-recovery-request.tsx:179",
+   "onPress=() => void act(\"resend\") @apps/mobile/src/ui/mfa-recovery-request.tsx:190",
+   "onPress=() => void act(\"cancel\") @apps/mobile/src/ui/mfa-recovery-request.tsx:197"
+  ]
+ },
+ "level8": {
+  "webApi": 7,
+  "natApi": 17,
+  "shared": 5,
+  "onlyWeb": 2,
+  "onlyNative": 12,
+  "onlyWebList": [
+   "/v1/identity/mfa-admin/recovery-requests/detail/${…}",
+   "/v1/teams"
+  ],
+  "onlyNativeList": [
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
+   "/v1/auth/email/login",
+   "/v1/auth/email/register",
+   "/v1/auth/email/verify",
+   "/v1/auth/email/resend-verification",
+   "/v1/auth/password-reset/request",
+   "/v1/auth/password-reset/confirm",
+   "/v1/auth/google",
+   "/v1/auth/apple",
+   "/v1/auth/logout",
+   "/v1/users/legal-status",
+   "/v1/users/legal-acceptance"
+  ],
+  "sharedList": [
+   "/v1/auth/mfa/verify",
+   "/v1/auth/me",
+   "/v1/identity/mfa/recovery-requests/${…}",
+   "/v1/auth/session-light",
+   "/v1/identity/mfa-admin/recovery-requests"
+  ],
+  "webApiWhere": {
+   "/v1/auth/mfa/verify": "apps/web/app/auth/mfa-challenge/page.tsx:132",
+   "/v1/auth/me": "apps/web/app/auth/mfa-challenge/page.tsx:141",
+   "/v1/identity/mfa-admin/recovery-requests/detail/${…}": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:178",
+   "/v1/identity/mfa/recovery-requests/${…}": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:290",
+   "/v1/auth/session-light": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:341",
+   "/v1/teams": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:355",
+   "/v1/identity/mfa-admin/recovery-requests": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:415"
+  },
+  "natApiWhere": {
+   "/v1/identity/mfa/recovery-requests/analytics/page-viewed": "apps/mobile/src/product/mfa-recovery.ts:30",
+   "/v1/auth/session-light": "apps/mobile/src/product/mfa-recovery.ts:32",
+   "/v1/identity/mfa/recovery-requests/${…}": "apps/mobile/src/product/mfa-recovery.ts:152",
+   "/v1/identity/mfa-admin/recovery-requests": "apps/mobile/src/product/mfa-recovery.ts:145",
+   "/v1/auth/email/login": "apps/mobile/src/auth/auth-api.ts:44",
+   "/v1/auth/email/register": "apps/mobile/src/auth/auth-api.ts:61",
+   "/v1/auth/email/verify": "apps/mobile/src/auth/auth-api.ts:69",
+   "/v1/auth/email/resend-verification": "apps/mobile/src/auth/auth-api.ts:77",
+   "/v1/auth/password-reset/request": "apps/mobile/src/auth/auth-api.ts:84",
+   "/v1/auth/password-reset/confirm": "apps/mobile/src/auth/auth-api.ts:91",
+   "/v1/auth/mfa/verify": "apps/mobile/src/auth/auth-api.ts:103",
+   "/v1/auth/google": "apps/mobile/src/auth/auth-api.ts:113",
+   "/v1/auth/apple": "apps/mobile/src/auth/auth-api.ts:117",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88",
+   "/v1/auth/logout": "apps/mobile/src/auth/auth-api.ts:129",
+   "/v1/users/legal-status": "apps/mobile/src/auth/auth-api.ts:144",
+   "/v1/users/legal-acceptance": "apps/mobile/src/auth/auth-api.ts:155"
+  }
+ }
+}

@@ -15,7 +15,8 @@
  * therefore lists routing states only, derived by subtraction from the schema
  * so a state added later cannot land on the wrong side of the line.
  */
-import { useCallback, useEffect, useState } from "react";
+import { formatLocalDueInput, parseLocalDueInput } from "../product/team-responsibility";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
@@ -60,7 +61,12 @@ type State<T> =
   | { status: "failed"; reason: string }
   | { status: "ready"; value: T };
 
-export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
+/**
+ * `openRequest` — a counter the screen bumps to open the editor from outside
+ * (the web opens this same modal from the Review hero's "Assign reviewer" and
+ * the attention strip's "Review not started · Start", page.tsx:1306).
+ */
+export function ReviewerWorkflowPanel({ evidenceId, openRequest = 0 }: { evidenceId: string; openRequest?: number }) {
   const [workflow, setWorkflow] = useState<State<ReviewerWorkflow | null>>({ status: "loading" });
   const [events, setEvents] = useState<State<ReviewerWorkflowEvent[]>>({ status: "loading" });
   const [busy, setBusy] = useState(false);
@@ -72,6 +78,7 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
   const [draftStatus, setDraftStatus] = useState<string | null>(null);
   const [draftPriority, setDraftPriority] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [dueDraft, setDueDraft] = useState("");
 
   const load = useCallback(async () => {
     setWorkflow({ status: "loading" });
@@ -96,10 +103,20 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
   const openEditor = useCallback(() => {
     setDraftStatus(current?.status ?? null);
     setDraftPriority(current?.priority ?? null);
+    setDueDraft(formatLocalDueInput(current?.dueAtIso ?? null));
     setNote("");
     setMessage(null);
     setEditing(true);
   }, [current]);
+
+  // Opened from outside once the workflow is read, so the drafts start from it.
+  const handledRequest = useRef(0);
+  useEffect(() => {
+    if (openRequest > handledRequest.current && workflow.status !== "loading") {
+      handledRequest.current = openRequest;
+      openEditor();
+    }
+  }, [openRequest, workflow.status, openEditor]);
 
   const save = useCallback(async () => {
     const invalidNote = validateWorkflowNote(note);
@@ -107,11 +124,18 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
       setMessage(invalidNote);
       return;
     }
+    // The web modal's Due date (page.tsx:1548): local wall time, sent as that instant; cleared = null.
+    const dueIso = parseLocalDueInput(dueDraft);
+    if (dueIso === undefined) {
+      setMessage("Use YYYY-MM-DD HH:MM, in your local time.");
+      return;
+    }
     let body: Record<string, unknown>;
     try {
       body = buildWorkflowUpdateBody({
         status: draftStatus,
         priority: draftPriority,
+        dueAtIso: dueIso,
         note,
         current,
       });
@@ -140,7 +164,7 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
     } finally {
       setBusy(false);
     }
-  }, [evidenceId, draftStatus, draftPriority, note, current, load]);
+  }, [evidenceId, draftStatus, draftPriority, dueDraft, note, current, load]);
 
   if (workflow.status === "loading") {
     return <ProovraLoadingState label="Loading review state" />;
@@ -213,6 +237,7 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
             {[
               // A raw user id is not a person.
               current.assignedToLabel ? `Assigned to ${current.assignedToLabel}` : "Unassigned",
+              current.assignedByLabel ? `Assigned by ${current.assignedByLabel}` : null,
               current.dueAtIso ? `Due ${formatUserDateTime(current.dueAtIso)}` : null,
               current.lastReviewedAtIso
                 ? `Last reviewed ${formatUserDateTime(current.lastReviewedAtIso)}`
@@ -234,6 +259,11 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
       <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
         Review history
       </ProovraText>
+      {events.status === "ready" ? (
+        <ProovraText variant="label" color={theme.color.ink.muted}>
+          {`${events.value.length} recorded event${events.value.length === 1 ? "" : "s"}`}
+        </ProovraText>
+      ) : null}
       {events.status === "loading" ? null : events.status === "failed" ? (
         <ProovraEmpty
           presence="inline"
@@ -283,6 +313,9 @@ export function ReviewerWorkflowPanel({ evidenceId }: { evidenceId: string }) {
           subtitle={workflowPriorityLabel(draftPriority)}
           onPress={() => setPriorityPicker(true)}
         />
+        <ProovraFormField label="Due date (optional)">
+          <ProovraInput value={dueDraft} onChangeText={setDueDraft} placeholder="YYYY-MM-DD HH:MM" autoCapitalize="none" accessibilityLabel="Due date" />
+        </ProovraFormField>
         <ProovraFormField label="Note (optional)">
           <ProovraInput
             value={note}

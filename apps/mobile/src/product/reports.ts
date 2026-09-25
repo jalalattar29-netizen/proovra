@@ -87,6 +87,39 @@ export interface ArtifactRow {
   caseTitle: string | null;
   reportState: string | null;
   packageState: string | null;
+  /** Org-supplied business metadata (web "Customer:"); asserts nothing about integrity. */
+  intakeCustomerId: string | null;
+  /** The SERVER's verb (outputs.report.action, else the package's); the list derives none. */
+  action: ReportOutputAction;
+  /** Why the verb was withdrawn (e.g. WORKSPACE_UNRESOLVED), when it was. */
+  actionWithheldReason: string | null;
+  /** `report.version` / `package.version` — the web's "· vN". */
+  reportVersion?: number | null;
+  packageVersion?: number | null;
+  /** `package.blockedReason` — the governance reason a package export is blocked. */
+  packageBlockedReason?: string | null;
+  /** The record's capture time (`createdAt`) — the web's "Captured 3d ago". */
+  createdAt?: string | null;
+}
+
+export type ReportOutputAction = "GENERATE" | "RETRY" | "REGENERATE" | "NONE";
+
+/** The web's compact row labels (generation-labels.ts GENERATION_ACTION_LABEL_COMPACT). */
+export const REPORT_ACTION_COMPACT_LABEL: Record<Exclude<ReportOutputAction, "NONE">, string> = {
+  GENERATE: "Generate report & package",
+  RETRY: "Retry report & package",
+  REGENERATE: "Regenerate report & package",
+};
+
+/** The web ReportsIndex integrityLabel: the enum said once, without a repeated "Integrity". */
+export function reportIntegrityLabel(status: string): string {
+  const raw = status.trim().toUpperCase();
+  const stripped = raw.replace(/^RECORDED_INTEGRITY_/, "").replace(/^INTEGRITY_/, "");
+  return (stripped || raw).toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function asAction(v: unknown): ReportOutputAction | null {
+  return v === "GENERATE" || v === "RETRY" || v === "REGENERATE" || v === "NONE" ? v : null;
 }
 
 /**
@@ -139,8 +172,27 @@ export function parseArtifacts(payload: unknown): ArtifactPage {
         verificationStatus: str(r.verificationStatus),
         caseId: str(r.caseId),
         caseTitle: str(r.caseTitle),
-        reportState: str(r.reportState) ?? str(obj(r.report).state),
-        packageState: str(r.packageState) ?? str(obj(r.verificationPackage).state),
+        // The aggregator sends `report.state` / `package.state`
+        // (reports-aggregator.service.ts :768-778). The top-level `reportState`
+        // / `packageState` and `verificationPackage.state` this also read are
+        // keys the server never sends.
+        reportState: str(obj(r.report).state),
+        packageState: str(obj(r.package).state),
+        reportVersion: int(obj(r.report).version),
+        packageVersion: int(obj(r.package).version),
+        packageBlockedReason: str(obj(r.package).blockedReason),
+        createdAt: str(r.createdAt),
+        intakeCustomerId: str(r.intakeCustomerId),
+        ...(() => {
+          const out = obj(r.outputs);
+          const reportAction = asAction(obj(out.report).action);
+          const action: ReportOutputAction =
+            reportAction && reportAction !== "NONE" ? reportAction : asAction(obj(out.verificationPackage).action) ?? "NONE";
+          return {
+            action,
+            actionWithheldReason: str(obj(out.report).actionUnavailableReason) ?? str(obj(out.verificationPackage).actionUnavailableReason),
+          };
+        })(),
       };
     }),
   };
@@ -156,6 +208,8 @@ export type LifecycleFilter =
   | "package_ready"
   | "package_pending"
   | "package_blocked";
+
+export const REPORTS_SEARCH_MAX = 80;
 
 /** The canonical lifecycle filters, in the web's order. */
 export const REPORTS_FILTERS: ReadonlyArray<{ value: LifecycleFilter; label: string }> = [
@@ -173,12 +227,23 @@ export function buildReportsPath(input: {
   filter?: LifecycleFilter;
   cursor?: string | null;
   limit?: number;
+  /** T-12 — "Search by evidence title" (ReportsIndex.tsx:671-700); 1–80 chars (ArtifactsQuery). */
+  search?: string | null;
+  /**
+   * `false` sends `summary=0` (ArtifactsQuery): the six workspace counters no
+   * filter, search or page can change, so the LIST does not ask for them —
+   * they are read once by `buildReportsSummaryPath` (ReportsIndex.tsx:325).
+   */
+  summary?: boolean;
 }): string | null {
   if (!input.teamId) return null;
   const params = new URLSearchParams();
   params.set("teamId", input.teamId);
   params.set("limit", String(input.limit ?? REPORTS_PAGE_SIZE));
+  if (input.summary === false) params.set("summary", "0");
   if (input.filter && input.filter !== "all") params.set("lifecycle", input.filter);
+  const q = (input.search ?? "").trim().slice(0, REPORTS_SEARCH_MAX);
+  if (q) params.set("search", q);
   if (input.cursor) params.set("cursor", input.cursor);
   return `/v1/reports/artifacts?${params.toString()}`;
 }
@@ -242,4 +307,229 @@ export function parseReportUrl(payload: unknown): string | null {
  */
 export function isReportRetrievable(row: ArtifactRow): boolean {
   return (row.reportState ?? "").toUpperCase() === "READY";
+}
+
+// ---------------------------------------------------------------------------
+// Web-parity additions (ReportsIndex.tsx)
+// ---------------------------------------------------------------------------
+
+/** The summary, read on its own and once per workspace (ReportsIndex.tsx:325-339). */
+export function buildReportsSummaryPath(teamId: string): string {
+  return `/v1/reports/artifacts?teamId=${encodeURIComponent(teamId)}&limit=1`;
+}
+
+export const REPORTS_TITLE = "Reports & Artifacts";
+export const REPORTS_EYEBROW = "Deliverables";
+export const REPORTS_DESCRIPTION =
+  'Generated report snapshots and verification packages. These are workspace deliverables — they record integrity at the time of generation and do NOT assert legal admissibility, authenticity, or "court-ready" status.';
+export const REPORTS_SUMMARY_UNAVAILABLE = "Summary is temporarily unavailable. The artifact list below remains usable.";
+export const REPORTS_LIST_UNAVAILABLE = "Artifact list is temporarily unavailable. Retry shortly.";
+export const REPORTS_FOOTNOTE =
+  "Browsing this page never triggers report or package generation and never marks any artifact as viewed. Signed download URLs are only minted on explicit per-row action (the Download buttons above), the same gated path used by the evidence-detail page.";
+export const CUSTOMER_ID_HINT = "Customer ID supplied by your organization";
+/** generation-labels.ts DOWNLOAD_REPORT_LABEL / DOWNLOAD_PACKAGE_LABEL. */
+export const DOWNLOAD_REPORT_LABEL = "Download Report PDF";
+export const DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP";
+
+const lc = (s: string | null | undefined) => String(s ?? "").toLowerCase();
+
+/** "Report ready · v2" (web reportLabel + version). */
+export function reportStatusText(row: ArtifactRow): string {
+  const s = lc(row.reportState);
+  const word = s === "not_requested" || s === "" ? "not requested" : s;
+  return `Report ${word}${row.reportVersion ? ` · v${row.reportVersion}` : ""}`;
+}
+
+/** "Package blocked by governance" (web packageLabel + version). */
+export function packageStatusText(row: ArtifactRow): string {
+  const s = lc(row.packageState);
+  const word = s === "blocked" ? "blocked by governance" : s === "not_requested" || s === "" ? "not requested" : s;
+  return `Package ${word}${row.packageVersion ? ` · v${row.packageVersion}` : ""}`;
+}
+
+/** The lifecycle → tone the web gives the status text (green / amber / red / slate). */
+export function lifecycleTone(state: string | null | undefined): ProovraStatusTone {
+  switch (lc(state)) {
+    case "ready":
+      return "verified";
+    case "pending":
+      return "pending";
+    case "failed":
+      return "risk";
+    case "blocked":
+      return "governance";
+    default:
+      return "neutral";
+  }
+}
+
+/** Verified is the only positive integrity outcome (web integrityToneAttr). */
+export function integrityTone(status: string): ProovraStatusTone {
+  const raw = status.trim().toUpperCase();
+  if (raw.endsWith("VERIFIED")) return "verified";
+  if (raw.includes("FAIL") || raw.includes("MISMATCH")) return "risk";
+  return "neutral";
+}
+
+/** What the row says where a download is not offered (ReportsIndex.tsx:1162-1215). */
+export function reportActionStatus(row: ArtifactRow): string | null {
+  switch (lc(row.reportState)) {
+    case "ready":
+      return null;
+    case "pending":
+      return "Report generating — refresh shortly";
+    case "failed":
+      return "Report generation failed";
+    case "not_requested":
+      return "Report not generated yet";
+    default:
+      return "Report not included for this record";
+  }
+}
+
+export function packageActionStatus(row: ArtifactRow): string | null {
+  switch (lc(row.packageState)) {
+    case "ready":
+      return null;
+    case "blocked":
+      return `Package blocked — ${row.packageBlockedReason ?? "governance policy"}`;
+    case "pending":
+      return "Package generating — refresh shortly";
+    case "failed":
+      return "Package generation failed";
+    case "not_requested":
+      return "Package not generated yet";
+    default:
+      return "Package not included for this record";
+  }
+}
+
+export function isPackageRetrievable(row: ArtifactRow): boolean {
+  return lc(row.packageState) === "ready";
+}
+
+/** The web's per-row download failures, by status (ReportsIndex.tsx:950-1010). */
+export function reportDownloadError(status: number | null, safeMessage: string | null): string {
+  if (status === 202) return "Report is still generating. Try again in a moment.";
+  if (status === 403) return "You don't have permission to download this report.";
+  if (status === 409) return safeMessage ?? "Report download blocked by workspace policy.";
+  return safeMessage ?? "Could not start download.";
+}
+
+export function packageDownloadError(status: number | null, safeMessage: string | null): string {
+  if (status === 202) return "Package is still generating. Try again in a moment.";
+  if (status === 403) return "You don't have permission to download this package.";
+  if (status === 409) return safeMessage ?? "Package blocked by workspace policy.";
+  return safeMessage ?? "Could not start download.";
+}
+
+/** The package endpoint's 200 answer without a URL (ReportsIndex.tsx:990-996). */
+export function packageNoUrlMessage(payload: unknown): string {
+  return obj(payload).code === "verification_package_pending" ? "Package is still generating." : "Package URL is unavailable.";
+}
+
+/** THE EMPTY STATE, aware of what was asked (ReportsEmptyState). */
+export function reportsEmptyCopy(
+  filter: LifecycleFilter,
+  search: string,
+): { title: string; body: string; offerEvidence: boolean } {
+  const searched = search.trim().length > 0;
+  const filtered = filter !== "all" || searched;
+  return {
+    title: !filtered ? "No reports yet" : searched ? "No reports match your search." : "No reports match this filter.",
+    body: !filtered
+      ? "Reports are generated from signed evidence. Capture or upload evidence to create your first report."
+      : "Adjust the filter or the search to widen the query.",
+    offerEvidence: !filtered,
+  };
+}
+
+/** The web's relative time (formatRelativeTime): "just now", "5m ago", "3h ago", "2d ago", else the date. */
+export function formatRelativeTime(iso: string, nowMs: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const minutes = Math.floor((nowMs - t) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/** `generatedAt` of the aggregator envelope — the web's "Refreshed …" strip. */
+export function parseGeneratedAt(payload: unknown): string | null {
+  return str(obj(payload).generatedAt);
+}
+
+// ---------------------------------------------------------------- fallback
+
+/**
+ * The user-scoped fallback, `GET /v1/reports` (reports.routes.ts
+ * UserReportsEnvelope: `{ items, nextCursor }`).
+ *
+ * The web reads it when the workspace aggregator 404s (not a TeamMember of the
+ * active workspace — a personal-bootstrap gap) or returns an EMPTY unfiltered
+ * list (ReportsIndex.tsx:381-420). Its rows carry the canonical
+ * `reportLifecycle` / `packageLifecycle`, mapped here onto the aggregator's row
+ * vocabulary exactly as the web's toReportLifecycle / toPackageLifecycle do.
+ */
+export const USER_REPORTS_PATH = "/v1/reports";
+
+function toLifecycle(state: unknown): string {
+  switch (state) {
+    case "READY":
+      return "ready";
+    case "QUEUED":
+    case "GENERATING":
+      return "pending";
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return "failed";
+    case "NOT_INCLUDED":
+      return "unavailable";
+    default:
+      return "not_requested";
+  }
+}
+
+export function parseUserScopedReports(payload: unknown): ArtifactPage {
+  const d = obj(payload);
+  return {
+    unavailable: false,
+    nextCursor: str(d.nextCursor),
+    // The fallback route has no total; the count falls back to the page length.
+    total: null,
+    items: rows(d.items).map((raw) => {
+      const r = obj(raw);
+      const out = obj(r.outputs);
+      const reportAction = asAction(obj(out.report).action);
+      const action: ReportOutputAction =
+        reportAction && reportAction !== "NONE" ? reportAction : asAction(obj(out.verificationPackage).action) ?? "NONE";
+      return {
+        evidenceId: str(r.evidenceId) ?? "",
+        displayTitle: resolveDisplayTitle({
+          title: str(r.title),
+          displayFileName: str(r.displayFileName),
+          originalFileName: str(r.originalFileName),
+        }),
+        type: str(r.type) ?? "DOCUMENT",
+        status: str(r.status) ?? "",
+        verificationStatus: null,
+        caseId: str(r.caseId),
+        caseTitle: str(r.caseTitle),
+        reportState: toLifecycle(r.reportLifecycle),
+        packageState: toLifecycle(r.packageLifecycle),
+        reportVersion: int(obj(r.report).version),
+        packageVersion: int(obj(r.package).version),
+        packageBlockedReason: null,
+        createdAt: str(r.createdAt),
+        intakeCustomerId: str(r.intakeCustomerId),
+        action,
+        actionWithheldReason:
+          str(obj(out.report).actionUnavailableReason) ?? str(obj(out.verificationPackage).actionUnavailableReason),
+      };
+    }),
+  };
 }

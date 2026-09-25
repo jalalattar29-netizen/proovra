@@ -48,9 +48,36 @@ export function buildWorkspacePath(teamId: string): string {
   return `/v1/teams/${encodeURIComponent(teamId)}`;
 }
 
-export function buildWorkspaceMembersPath(teamId: string, cursor?: string | null): string {
+/** T-12 — the roster filters the web sends (WorkspaceMembersPanel.tsx:91-157; teams.routes.ts:96-104). */
+export type MemberStatusFilter = "ALL" | "ACTIVE" | "SUSPENDED";
+export const MEMBER_STATUS_FILTERS: ReadonlyArray<{ value: MemberStatusFilter; label: string }> = [
+  { value: "ALL", label: "All statuses" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "SUSPENDED", label: "Suspended" },
+];
+
+export function buildWorkspaceMembersPath(
+  teamId: string,
+  cursor?: string | null,
+  filter?: { status?: MemberStatusFilter; q?: string; limit?: number } | null,
+): string {
   const base = `/v1/teams/${encodeURIComponent(teamId)}/members`;
-  return cursor ? `${base}?cursor=${encodeURIComponent(cursor)}` : base;
+  const p = new URLSearchParams();
+  // "ALL" is omitted, as the web omits it; the server's default is every status.
+  if (filter?.status && filter.status !== "ALL") p.set("status", filter.status);
+  if (filter?.q && filter.q.trim()) p.set("q", filter.q.trim());
+  if (filter?.limit) p.set("limit", String(filter.limit));
+  if (cursor) p.set("cursor", cursor);
+  const qs = p.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+/** The web's filtered-empty copy; admins can search by address too. */
+export function rosterNoMatchCopy(canSeeEmail: boolean) {
+  return {
+    title: "Nobody here matches that",
+    body: canSeeEmail ? "Try a different name, address or status." : "Try a different name or status.",
+  };
 }
 
 export function buildWorkspaceInvitesPath(teamId: string): string {
@@ -81,6 +108,17 @@ export interface WorkspaceSeats {
 export interface WorkspaceOverview {
   id: string | null;
   name: string | null;
+  /** The owner's user id (teams.routes.ts:763). */
+  ownerUserId: string | null;
+  /**
+   * The owner's NAME, resolved from the embedded first member page the way the
+   * web does (teams/[id]/page.tsx:659). Null when the owner is not on that
+   * page — the Overview then omits the row rather than printing "unknown".
+   */
+  ownerLabel: string | null;
+  /** stats.pendingInviteCount / stats.caseCount (teams.routes.ts:211-214). */
+  pendingInviteCount: number | null;
+  caseCount: number | null;
   effectivePlan: string | null;
   currentUserRole: string | null;
   canManageMembers: boolean;
@@ -95,10 +133,20 @@ export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
   const stats = obj(d.stats);
   const page = obj(d.memberPage);
 
+  const ownerUserId = str(d.ownerUserId);
+  const owner = ownerUserId
+    ? rows(d.members).map(obj).find((m) => str(m.userId) === ownerUserId) ?? null
+    : null;
+  const ownerUser = obj(owner?.user);
   return {
     id: str(d.id),
     name: str(d.name),
-    effectivePlan: str(d.effectivePlan),
+    ownerUserId,
+    ownerLabel: owner ? str(ownerUser.displayName)?.trim() || str(ownerUser.email)?.trim() || null : null,
+    pendingInviteCount: num(stats.pendingInviteCount),
+    caseCount: num(stats.caseCount),
+    // The web normalises the plan label (normalizePlanLabel) and never invents one.
+    effectivePlan: str(d.effectivePlan)?.trim().toUpperCase() || null,
     currentUserRole: str(d.currentUserRole),
     canManageMembers: d.canManageMembers === true,
     canManageWorkspace: d.canManageWorkspace === true,
@@ -148,7 +196,8 @@ export function parseWorkspaceMembers(payload: unknown): MemberPage {
         status: str(m.status) ?? "ACTIVE",
         // A member with no display name is shown by email, and one with
         // neither is shown as an unnamed member — never as a blank row.
-        displayName: str(user.displayName) ?? email ?? "Unnamed member",
+        // `label` is the server's own contact-safe fallback (teams.routes.ts:1031).
+        displayName: str(user.displayName)?.trim() || email || str(m.label) || "Unnamed member",
         email,
         joinedAtIso: str(m.createdAt),
       };
@@ -356,6 +405,8 @@ export interface WorkspaceCase {
   name: string;
   status: string | null;
   createdAtIso: string | null;
+  /** The workspace the case is already linked to, if any (the full Case row GET /v1/cases returns). */
+  teamId: string | null;
 }
 
 export function parseWorkspaceCases(payload: unknown): WorkspaceCase[] {
@@ -369,18 +420,24 @@ export function parseWorkspaceCases(payload: unknown): WorkspaceCase[] {
         name: str(c.name) ?? "Untitled case",
         status: str(c.status),
         createdAtIso: str(c.createdAt),
+        teamId: str(c.teamId),
       };
     })
     .filter((c): c is WorkspaceCase => c !== null);
 }
 
-/** Cases not already linked, so the picker cannot offer a duplicate link. */
+/**
+ * Cases not already linked, so the picker cannot offer a duplicate link — and
+ * not linked to ANY workspace: the link route refuses a case that already has
+ * a `teamId` ("Case is already linked to a team", teams.routes.ts:2599), so the
+ * web filters `!item.teamId` (teams/[id]/page.tsx:966) and so does this.
+ */
 export function linkableCases(
   all: WorkspaceCase[],
   linked: WorkspaceCase[],
 ): WorkspaceCase[] {
   const have = new Set(linked.map((c) => c.id));
-  return all.filter((c) => !have.has(c.id));
+  return all.filter((c) => !have.has(c.id) && !c.teamId);
 }
 
 /** ADMIN and above may unlink; a MEMBER may only link. */
@@ -430,10 +487,87 @@ export function parseWorkspaceActivity(payload: unknown): WorkspaceActivity[] {
     .filter((a): a is WorkspaceActivity => a !== null);
 }
 
+/**
+ * The web's activity vocabulary (teams/[id]/page.tsx:220). A stored eventType
+ * is never shown raw; anything unmapped degrades to sentence case (lowercased
+ * first, so a SHOUTY enum does not shout).
+ */
+const ACTIVITY_LABELS: Readonly<Record<string, string>> = {
+  invite_created: "Invitation sent",
+  invite_revoked: "Invitation revoked",
+  invite_accepted: "Invitation accepted",
+  member_added: "Person added",
+  member_removed: "Person removed",
+  member_role_changed: "Role changed",
+  team_renamed: "Workspace renamed",
+  case_linked: "Case linked",
+  case_unlinked: "Case removed",
+  DECISION_LOGGED: "Review decision recorded",
+  STAGE_CHANGED: "Review stage changed",
+  REVIEWER_NOTE_CREATED: "Reviewer note added",
+  reviewer_governance_flags_updated: "Reviewer governance updated",
+  reviewer_sla_policy_updated: "Reviewer SLA policy updated",
+  workspace_closed: "Workspace closed",
+  workspace_reopened: "Workspace reopened",
+  workspace_suspended: "Workspace suspended",
+  workspace_resumed: "Workspace resumed",
+  workspace_ownership_transferred: "Ownership transferred",
+  "integration.api_key.created": "API key created",
+  "integration.api_key.revoked": "API key revoked",
+  "integration.api_key.rotated": "API key rotated",
+  "integration.api_key.expiry_changed": "API key expiry changed",
+  "integration.webhook.secret_rotated": "Webhook secret rotated",
+  "integration.webhook.test_sent": "Webhook test sent",
+  "integration.webhook.delivery_retried": "Webhook delivery retried",
+};
+
 export function activityLabel(eventType: string): string {
-  const s = eventType.replace(/[._]/g, " ").trim();
+  const mapped = ACTIVITY_LABELS[eventType];
+  if (mapped) return mapped;
+  const s = eventType.replace(/[._]/g, " ").trim().toLowerCase();
   return s.length === 0 ? "Activity" : s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** "What — who", as the web's humanizeActivity writes it. */
+export function describeActivity(a: WorkspaceActivity): string {
+  const what = activityLabel(a.eventType);
+  return a.actorLabel ? `${what} — ${a.actorLabel}` : what;
+}
+
+/**
+ * The web's marker colour (activityTone): access gained, access removed, a
+ * change to the workspace itself, review work. Never the only carrier of
+ * meaning — the sentence beside it says what happened.
+ */
+export function activityTone(eventType: string): ProovraStatusTone {
+  switch (eventType) {
+    case "member_added":
+    case "invite_accepted":
+    case "workspace_reopened":
+    case "workspace_resumed":
+      return "verified";
+    case "member_removed":
+    case "invite_revoked":
+    case "workspace_closed":
+    case "workspace_suspended":
+    case "integration.api_key.revoked":
+      return "risk";
+    case "member_role_changed":
+    case "team_renamed":
+    case "invite_created":
+    case "workspace_ownership_transferred":
+      return "governance";
+    case "DECISION_LOGGED":
+    case "STAGE_CHANGED":
+    case "REVIEWER_NOTE_CREATED":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+/** The web shows the twelve most recent events (teams/[id]/page.tsx:1708). */
+export const RECENT_ACTIVITY_LIMIT = 12;
 
 // ---------------------------------------------------------------------------
 // Renaming the workspace
@@ -481,9 +615,16 @@ export function buildWorkspaceClosureCancelPath(teamId: string, requestId: strin
   return `${buildWorkspaceClosurePath(teamId)}/${encodeURIComponent(requestId)}/cancel`;
 }
 
-/** Only the workspace OWNER may transfer ownership or close it. */
-export function isWorkspaceOwner(overview: WorkspaceOverview): boolean {
-  return (overview.currentUserRole ?? "").toUpperCase() === "OWNER";
+/**
+ * Only the workspace OWNER may transfer ownership, close or delete it. The
+ * server projects that as `canManageWorkspace` (teams.routes.ts:846), the
+ * web's only authority (teams/[id]/page.tsx:561); the role is the fallback for
+ * a response that predates the projection.
+ */
+export function isWorkspaceOwner(
+  overview: Pick<WorkspaceOverview, "currentUserRole"> & { canManageWorkspace?: boolean },
+): boolean {
+  return overview.canManageWorkspace === true || (overview.currentUserRole ?? "").toUpperCase() === "OWNER";
 }
 
 /**
@@ -523,4 +664,207 @@ export function workspaceLifecycleFailureMessage(err: unknown, fallback: string)
     default:
       return fallback;
   }
+}
+
+// ---------------------------------------------------------------------------
+// T-14 — removing a member (web MemberRemovalDialog):
+//   GET    /v1/teams/:id/members/:memberId/removal-impact   (ADMIN+)
+//   DELETE /v1/teams/:id/members/:memberId   [{ transferToUserId }]
+// A member who owns active records cannot be removed without an ADMIN/OWNER
+// transfer target; the transfer happens atomically with the removal.
+// ---------------------------------------------------------------------------
+
+export function buildMemberRemovalImpactPath(teamId: string, memberId: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(memberId)}/removal-impact`;
+}
+export function buildMemberRemovePath(teamId: string, memberId: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(memberId)}`;
+}
+
+export interface RemovalImpact {
+  ownedEvidence: number;
+  ownedCases: number;
+  openAssignments: number;
+  requiresTransfer: boolean;
+  targets: Array<{ userId: string; label: string; role: string }>;
+}
+
+export function parseRemovalImpact(payload: unknown): RemovalImpact {
+  const d = obj(payload);
+  const i = obj(d.impact);
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    ownedEvidence: n(i.ownedEvidence),
+    ownedCases: n(i.ownedCases),
+    openAssignments: n(i.openAssignments),
+    requiresTransfer: i.requiresTransfer === true,
+    targets: rows(d.eligibleTransferTargets)
+      .map(obj)
+      .filter((t) => str(t.userId))
+      .map((t) => ({
+        userId: str(t.userId) as string,
+        label: str(t.displayName)?.trim() || str(t.email) || `User ${(str(t.userId) as string).slice(0, 8)}`,
+        role: str(t.role) ?? "",
+      })),
+  };
+}
+
+/** The web's rule: a manager may remove anyone but themself and the owner. */
+export function canRemoveMember(m: WorkspaceMember, canManage: boolean, selfUserId: string | null): boolean {
+  return canManage && Boolean(m.userId) && m.userId !== selfUserId && m.role.toUpperCase() !== "OWNER";
+}
+
+export function removalImpactFailure(status: number | null, fallback: string | null): string {
+  if (status === 403) return "You don't have permission to view this member's removal impact.";
+  if (status === 404) return "This member is no longer in the workspace — refresh the page.";
+  return fallback ?? "Failed to load removal impact. Try again.";
+}
+
+export function removalFailure(code: string | null, status: number | null, fallback: string | null): string {
+  if (code === "TRANSFER_TARGET_REQUIRED") return "This member still owns active records. Pick a transfer target above before removing.";
+  if (code === "INVALID_TRANSFER_TARGET") return "That transfer target isn't eligible anymore — refresh and try again.";
+  if (status === 403) return "You don't have permission to remove members from this workspace.";
+  return fallback ?? "Failed to remove member.";
+}
+
+// ---------------------------------------------------------------------------
+// Web parity (teams/[id]/page.tsx + components) — summary, invitations,
+// ownership-transfer candidates, delete.
+// ---------------------------------------------------------------------------
+
+/** Seats left from the SERVER's projection; null means UNKNOWN (rendered "—"). */
+export function seatsAvailable(seats: WorkspaceSeats): number | null {
+  if (seats.seatAvailable !== null) return seats.seatAvailable;
+  if (seats.seatLimit !== null && seats.seatUsed !== null) return Math.max(0, seats.seatLimit - seats.seatUsed);
+  return null;
+}
+
+/** The web roster's status text (WorkspaceMembersPanel statusText). */
+export function memberStatusLabel(status: string): string {
+  const s = status.toUpperCase();
+  if (s === "SUSPENDED") return "Suspended";
+  if (s === "REVOKED") return "Access removed";
+  return "Active";
+}
+
+/**
+ * The pending-invitations read has three outcomes and only one is a list
+ * (teams/[id]/page.tsx:106): a 403 is "refused", anything else "failed".
+ */
+export type InvitesReadState = "ready" | "refused" | "failed";
+export function invitesReadFailure(err: unknown): InvitesReadState {
+  return obj(err).statusCode === 403 ? "refused" : "failed";
+}
+
+/** Bounded copy for the resend route's WorkspaceInvitationError codes (teams/[id]/page.tsx:109). */
+export const RESEND_ERROR_COPY: Readonly<Record<string, string>> = {
+  INVITE_NOT_FOUND: "That invitation no longer exists. The list has been reloaded.",
+  INVITE_NOT_PENDING:
+    "That invitation was already accepted or revoked, so it cannot be resent. The list has been reloaded.",
+};
+
+export function resendErrorCopy(err: unknown): string | null {
+  const e = obj(err);
+  const code = (str(obj(obj(e.body).error).code) ?? str(e.code) ?? "").toUpperCase();
+  return RESEND_ERROR_COPY[code] ?? null;
+}
+
+/**
+ * What a resend did, said from the RE-READ list and the route's `emailSent`
+ * (POST …/resend → { invite, emailSent }, teams.routes.ts:2441).
+ */
+export function resendOutcome(
+  invite: { id: string; email: string },
+  emailSent: boolean,
+  reread: WorkspaceInvite[] | null,
+): { tone: "success" | "warning" | "error"; message: string } {
+  if (!reread) {
+    return {
+      tone: "error",
+      message:
+        "The invitation was resent, but the invitation list could not be reloaded to confirm it. Reload the page.",
+    };
+  }
+  if (!reread.some((r) => r.id === invite.id)) {
+    return {
+      tone: "error",
+      message:
+        "The resend was accepted, but the reloaded list no longer shows this invitation. Reload before trying again.",
+    };
+  }
+  if (emailSent) {
+    return { tone: "success", message: `Invitation resent to ${invite.email}. The previous link no longer works.` };
+  }
+  return {
+    tone: "warning",
+    message: `A new invitation link was issued for ${invite.email}, but the email could not be delivered. The previous link no longer works; try resending later.`,
+  };
+}
+
+/**
+ * D46 — the ownership-transfer picker reads the SERVER's eligible list
+ * (GET /v1/teams/:id/members?eligible=ownership_transfer&q&cursor&limit,
+ * teams.routes.ts:975) instead of filtering the roster page on screen, so every
+ * eligible member of a large workspace is reachable.
+ */
+export const TRANSFER_CANDIDATE_PAGE_SIZE = 50;
+
+export function buildTransferCandidatesPath(teamId: string, q: string, cursor: string | null): string {
+  const p = new URLSearchParams({ eligible: "ownership_transfer", limit: String(TRANSFER_CANDIDATE_PAGE_SIZE) });
+  if (q.trim()) p.set("q", q.trim());
+  if (cursor) p.set("cursor", cursor);
+  return `/v1/teams/${encodeURIComponent(teamId)}/members?${p.toString()}`;
+}
+
+export interface TransferCandidate {
+  userId: string;
+  label: string;
+}
+
+export function parseTransferCandidates(
+  payload: unknown,
+  currentUserId: string | null,
+): { rows: TransferCandidate[]; nextCursor: string | null; total: number } {
+  const d = obj(payload);
+  const list = rows(d.members)
+    .map(obj)
+    .filter((m) => str(m.userId) && str(m.userId) !== currentUserId)
+    .map((m) => {
+      const u = obj(m.user);
+      return {
+        userId: str(m.userId) as string,
+        label: str(u.displayName)?.trim() || str(u.email) || str(m.label) || "Workspace member",
+      };
+    });
+  return { rows: list, nextCursor: str(d.nextCursor), total: num(d.total) ?? list.length };
+}
+
+/** The transfer refusals by status (WorkspaceOwnershipTransferCard denialCopy). */
+export function transferDenialCopy(err: unknown, fallback: string | null): string {
+  const status = num(obj(err).statusCode) ?? 0;
+  if (status === 403) return "You don't have permission to transfer this workspace. Only its owner can.";
+  if (status === 404) return "This workspace no longer exists.";
+  if (status === 409) {
+    return "Ownership couldn't be transferred: a personal space can't change owners, an organization workspace is governed at the organization level, and the new owner must already be an active member of this workspace.";
+  }
+  if (status === 429) return "Too many verification attempts. Wait a minute and try again.";
+  return fallback ?? "Could not transfer ownership. Nothing was changed.";
+}
+
+export function transferOutcome(targetLabel: string, teamName: string): string {
+  return `${targetLabel || "the new owner"} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
+}
+
+/**
+ * DELETE /v1/teams/:id — OWNER only; 204 on success. It refuses with 403
+ * (not owner / LEGAL_HOLD_BLOCKED) or 409 with its own sentence (an active
+ * subscription, evidence still in the workspace — teams.routes.ts:1290,1312).
+ */
+export function deleteWorkspaceFailure(err: unknown, fallback: string | null): string {
+  const e = obj(err);
+  const body = obj(e.body);
+  if (str(body.denial) === "LEGAL_HOLD_BLOCKED") {
+    return "This workspace is under a legal hold and cannot be deleted.";
+  }
+  return str(body.message) ?? fallback ?? "Failed to delete workspace";
 }

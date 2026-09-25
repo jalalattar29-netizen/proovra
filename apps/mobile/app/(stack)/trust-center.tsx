@@ -10,6 +10,8 @@
  * read failure per kind and one unreadable section must not hide the other
  * four on a surface whose whole purpose is being checkable.
  */
+import { View } from "react-native";
+import { AiCapabilityStatus } from "../../src/ui/ai-capability-status";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 
@@ -44,7 +46,11 @@ import {
   isEntitlementDenial,
   type TrustArticle,
   type TrustSectionState,
+  TRUST_FLOW,
+  TRUST_FLOW_INTRO,
+  TRUST_FLOW_TITLE,
 } from "../../src/product/trust-center";
+import { SubprocessorRegistry, TrustStatusPanel } from "../../src/ui/trust-live";
 
 export default function TrustCenterScreen() {
   const router = useRouter();
@@ -100,7 +106,7 @@ export default function TrustCenterScreen() {
   }, [open?.id]);
 
   return (
-    <ProovraScreen testID="trust-center">
+    <ProovraScreen shell testID="trust-center">
       <ProovraPageHeader
         title="Trust Center"
         eyebrow="Trust"
@@ -139,6 +145,21 @@ export default function TrustCenterScreen() {
           {TRUST_CENTER_PAGE_BOUNDARY_CALLOUT}
         </ProovraText>
       </ProovraCard>
+
+      {/* The public Trust page's seven-step flow (app/trust/page.tsx:904), verbatim. */}
+      <ProovraPageSection title="Trust flow">
+        <ProovraCard testID="trust-flow">
+          <ProovraText variant="h3" weight="semibold">{TRUST_FLOW_TITLE}</ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>{TRUST_FLOW_INTRO}</ProovraText>
+          {TRUST_FLOW.map((step, i) => (
+            <View key={step.title} style={{ gap: 2, paddingVertical: theme.space.s1 }}>
+              <ProovraText variant="label" color={theme.color.ink.muted}>{`Step ${String(i + 1).padStart(2, "0")}`}</ProovraText>
+              <ProovraText variant="bodySm" weight="semibold">{step.title}</ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>{step.body}</ProovraText>
+            </View>
+          ))}
+        </ProovraCard>
+      </ProovraPageSection>
 
       <ProovraPageSection title="How PROOVRA works">
         {TRUST_CENTER_SECTIONS.map((section) => (
@@ -179,6 +200,11 @@ export default function TrustCenterScreen() {
         const state = sections[section.kind];
         return (
           <ProovraPageSection key={section.kind} title={section.label}>
+            {/* T-15 — the web gives these two sections LIVE pages, not article lists. */}
+            {section.kind === "STATUS" ? <TrustStatusPanel /> : null}
+            {section.kind === "SUBPROCESSOR" ? <SubprocessorRegistry /> : null}
+            {/* T-14 — the live per-workspace capability table the web mounts on /trust-center/ai-disclosure. */}
+            {section.kind === "AI_DISCLOSURE" ? <AiCapabilityStatus /> : null}
             {state === "loading" || state === undefined ? (
               <ProovraEmpty presence="inline" title="Loading…" framed={false} />
             ) : state.phase === "locked" ? (

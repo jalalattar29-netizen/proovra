@@ -1,0 +1,544 @@
+{
+ "route": "/register",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/register/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/register.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 22,
+   "labelled": 50,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 18,
+   "labelled": 17,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 2,
+  "copyDiffers": 2,
+  "roleDiffers": 4,
+  "unpaired": 42,
+  "extraInNative": 7,
+  "unpairedRoleAbsent": 2
+ },
+ "exactList": [
+  {
+   "role": "INPUT",
+   "label": "Password",
+   "web": "apps/web/app/register/page.tsx:1244",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "webClass": "auth-input auth-input--with-trailing-action",
+   "webStyle": "{ background: \"rgba(255,255,255,0.9)\", border: passwordTouched && !passwordEval.allMet ? \"1px solid rgba(209,67,67,0.4)\"",
+   "natStyle": null,
+   "natTag": "ProovraInput"
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA",
+   "web": "apps/web/app/register/page.tsx:889",
+   "nat": "apps/mobile/src/ui/brand.tsx:31",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "INPUT",
+   "webLabel": "Confirm password",
+   "natLabel": "Password",
+   "score": 0.5,
+   "web": "apps/web/app/register/page.tsx:1442",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "webClass": "auth-input auth-input--with-trailing-action",
+   "webStyle": "{ background: \"rgba(255,255,255,0.9)\", border: passwordsMismatch ? \"1px solid rgba(209,67,67,0.6)\" : \"1px solid rgba(79,",
+   "natStyle": null,
+   "natTag": "ProovraInput"
+  },
+  {
+   "role": "TEXT",
+   "webLabel": "We&rsquo;ve sent a verification email to",
+   "natLabel": "We sent a verification link to",
+   "score": 0.5,
+   "web": "apps/web/app/register/page.tsx:959",
+   "nat": "apps/mobile/app/(stack)/register.tsx:53",
+   "natTag": "#text"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Email",
+   "webRole": "INPUT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/register/page.tsx:1128",
+   "nat": "apps/mobile/app/(stack)/register.tsx:73"
+  },
+  {
+   "label": "Create Account",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/app/register/page.tsx:874",
+   "nat": "apps/mobile/app/(stack)/register.tsx:68"
+  },
+  {
+   "label": "Back to sign in",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/register/page.tsx:1014",
+   "nat": "apps/mobile/app/(stack)/register.tsx:57"
+  },
+  {
+   "label": "Password",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/register/page.tsx:1231",
+   "nat": "apps/mobile/app/(stack)/register.tsx:76"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "BOX",
+   "label": "Continue with Google",
+   "at": "apps/web/app/register/page.tsx:1063",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Continue with Apple",
+   "at": "apps/web/app/register/page.tsx:1081",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "LIST",
+   "label": "Password requirements",
+   "at": "apps/web/app/register/page.tsx:1377",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "LIST",
+   "label": "Security and privacy commitments",
+   "at": "apps/web/app/register/page.tsx:1665",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your secure",
+   "at": "apps/web/app/register/page.tsx:878",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "account.",
+   "at": "apps/web/app/register/page.tsx:891",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Register to manage evidence records, verification pages, reports, and protected review workflows from one place.",
+   "at": "apps/web/app/register/page.tsx:895",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify your email",
+   "at": "apps/web/app/register/page.tsx:951",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify your email address",
+   "at": "apps/web/app/register/page.tsx:955",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". Please open the email and click the verification link to activate your PROOVRA account.",
+   "at": "apps/web/app/register/page.tsx:963",
+   "natHasRole": true,
+   "bestScore": 0.18,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "If you don&rsquo;t see the email within a minute, check your spam folder. Verification links expire after 24&nbsp;hours.",
+   "at": "apps/web/app/register/page.tsx:968",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "We sent a verification link to",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Change email",
+   "at": "apps/web/app/register/page.tsx:1007",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Account setup",
+   "at": "apps/web/app/register/page.tsx:1049",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your account",
+   "at": "apps/web/app/register/page.tsx:1053",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create your account using Google, Apple, or email and continue directly into your PROOVRA workspace.",
+   "at": "apps/web/app/register/page.tsx:1057",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "PROOVRA",
+    "at": "apps/mobile/src/ui/brand.tsx:31"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Continue with Apple",
+   "at": "apps/web/app/register/page.tsx:1099",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Email address",
+   "at": "apps/web/app/register/page.tsx:1118",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enter a valid email address.",
+   "at": "apps/web/app/register/page.tsx:1176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking email…",
+   "at": "apps/web/app/register/page.tsx:1188",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Email is available.",
+   "at": "apps/web/app/register/page.tsx:1191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "An account already exists for this email.",
+   "at": "apps/web/app/register/page.tsx:1202",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Sign in",
+   "at": "apps/web/app/register/page.tsx:1208",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Forgot password?",
+   "at": "apps/web/app/register/page.tsx:1216",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Could not verify email — you can still try to register.",
+   "at": "apps/web/app/register/page.tsx:1221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Caps Lock is enabled",
+   "at": "apps/web/app/register/page.tsx:1317",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Password strength",
+   "at": "apps/web/app/register/page.tsx:1362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm password",
+   "at": "apps/web/app/register/page.tsx:1429",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Passwords do not match.",
+   "at": "apps/web/app/register/page.tsx:1483",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "I agree to the",
+   "at": "apps/web/app/register/page.tsx:1512",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Terms of Service",
+   "at": "apps/web/app/register/page.tsx:1518",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Privacy Policy",
+   "at": "apps/web/app/register/page.tsx:1526",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Cookie Policy",
+   "at": "apps/web/app/register/page.tsx:1534",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+    "at": "apps/mobile/app/(stack)/register.tsx:96"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Creating account…",
+   "at": "apps/web/app/register/page.tsx:1549",
+   "natHasRole": true,
+   "bestScore": 0.29,
+   "bestNat": {
+    "label": ". Open it on this device to finish creating your account and accept the terms.",
+    "at": "apps/mobile/app/(stack)/register.tsx:53"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Primary",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Open menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close menu",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Mobile",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request a demo",
+   "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Select language",
+   "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "SECTION",
+   "label": "Check your email",
+   "at": "apps/mobile/app/(stack)/register.tsx:50"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Resend email",
+   "at": "apps/mobile/app/(stack)/register.tsx:56"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Name",
+   "at": "apps/mobile/app/(stack)/register.tsx:70"
+  },
+  {
+   "role": "INPUT",
+   "label": "Your name",
+   "at": "apps/mobile/app/(stack)/register.tsx:71"
+  },
+  {
+   "role": "INPUT",
+   "label": "you@example.com",
+   "at": "apps/mobile/app/(stack)/register.tsx:74"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Already have an account? Sign in",
+   "at": "apps/mobile/app/(stack)/register.tsx:93"
+  },
+  {
+   "role": "TEXT",
+   "label": "Creating an account means you agree to the Terms and Privacy Policy.",
+   "at": "apps/mobile/app/(stack)/register.tsx:96"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\analytics\\PublicPageView.tsx",
+   "name": "PublicPageView"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "Locale"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "evaluatePassword"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "PASSWORD_RULES"
+  }
+ ]
+}

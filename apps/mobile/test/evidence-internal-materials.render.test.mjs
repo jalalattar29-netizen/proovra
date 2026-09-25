@@ -201,3 +201,35 @@ test("adding a note posts the canonical body and re-reads the list", async () =>
     "the list must be re-read after a write, not left stale",
   );
 });
+
+test("T-12: a legal note can be EDITED — body and type in one PATCH (LegalNotesPanel.tsx:112)", async () => {
+  let patched = null;
+  // First, so the more specific path wins the prefix match.
+  routes = {
+    [`/v1/evidence/ev-1/legal-notes/${NOTE.id}`]: (_p, init) => {
+      if ((init.method ?? "GET") === "PATCH") patched = JSON.parse(init.body);
+      return { body: {} };
+    },
+    ...routes,
+  };
+  const r = await render();
+  await r.press("Edit legal note: Privileged");
+  await r.type("Edit legal note text", "Counsel re-reviewed the custody chain.");
+  await r.press("Legal note type");
+  // The sheet lists every type; the edited note's type is marked Current.
+  await r.press("General");
+  await r.press("Save");
+  assert.deepEqual(patched, { body: "Counsel re-reviewed the custody chain.", noteType: "GENERAL" });
+  assert.ok(requests.some((q) => q.method === "PATCH" && q.path === `/v1/evidence/ev-1/legal-notes/${NOTE.id}`));
+});
+
+test("each area states what it is not, in the web's words (LegalNotesPanel :76, AnnotationPanel :66/:76)", async () => {
+  routes = {
+    "/v1/evidence/ev-1/legal-notes": () => ({ body: { items: [] } }),
+    "/v1/evidence/ev-1/annotations": () => ({ body: { items: [] } }),
+  };
+  const r = await render();
+  assert.ok(r.hasText("Legal notes are internal workspace notes. They do not determine legal outcome or evidentiary weight."));
+  assert.ok(r.hasText("Annotations are reviewer notes layered over the review surface. They do not modify preserved evidence."));
+  assert.ok(r.byLabel("Add Text Annotation").length >= 1, "the add control does not say it writes a text annotation");
+});

@@ -1,0 +1,5215 @@
+{
+ "route": "/evidence/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/evidence/[id]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/evidence/[id].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 262,
+   "elements": 2183,
+   "texts": 774,
+   "distinctTexts": 637,
+   "handlers": 341,
+   "conditionals": 2952,
+   "apiPaths": 102,
+   "distinctApi": 34,
+   "styleRefs": 1649,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 1,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/navigation",
+    "lucide-react",
+    "zod",
+    "react-dom",
+    "next/link",
+    "@sentry/browser",
+    "@proovra/shared/legal-revisions"
+   ]
+  },
+  "native": {
+   "files": 152,
+   "elements": 383,
+   "texts": 113,
+   "distinctTexts": 93,
+   "handlers": 85,
+   "conditionals": 1460,
+   "apiPaths": 19,
+   "distinctApi": 5,
+   "styleRefs": 357,
+   "stylesheetRules": 94,
+   "themeTokens": 367,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "zod",
+    "expo-secure-store",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 750,
+  "natLabelled": 110,
+  "paired": 9,
+  "roleDiff": 39,
+  "missing": 702,
+  "extraInNative": 79,
+  "webUnlabelled": 2033,
+  "missingWithRolePresent": 688,
+  "missingWithRoleAbsent": 14,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "TEXT",
+     "label": "Annotations",
+     "web": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:64",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:298"
+    },
+    {
+     "role": "TEXT",
+     "label": "Legal notes",
+     "web": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:74",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:206"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/components/identity-security/StepUpModal.tsx:582",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/components/identity-security/StepUpModal.tsx:696",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:409",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:969",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Status",
+     "webRole": "SELECT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1486",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Priority",
+     "webRole": "SELECT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1509",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Status",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1485",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Priority",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1508",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Note",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1644",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:231"
+    },
+    {
+     "label": "Move to trash",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/page.tsx:1878",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:876"
+    },
+    {
+     "label": "Technical Metadata",
+     "webRole": "CARD",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:286",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:965"
+    },
+    {
+     "label": "Unlock",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1325",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:849"
+    },
+    {
+     "label": "Lock",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1337",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:851"
+    },
+    {
+     "label": "Archive",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1363",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:854"
+    },
+    {
+     "label": "Move to trash",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1385",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:876"
+    },
+    {
+     "label": "Derived Review",
+     "webRole": "TEXT",
+     "natRole": "STATE_LOADING",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:67",
+     "nat": "apps/mobile/src/ui/derived-review-tab.tsx:109"
+    },
+    {
+     "label": "Status:",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:229",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Move to trash",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:520",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:876"
+    },
+    {
+     "label": "Priority",
+     "webRole": "SELECT",
+     "natRole": "LIST",
+     "web": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:553",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Priority",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:551",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Note",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:585",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:231"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:298",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:157"
+    },
+    {
+     "label": "Status",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:88",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Priority",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:92",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Related evidence",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:115",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:997"
+    },
+    {
+     "label": "Duplicate detection",
+     "webRole": "BOX",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:221",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:1109"
+    },
+    {
+     "label": "Duplicate detection",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:213",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:1109"
+    },
+    {
+     "label": "Delete",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:91",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:271"
+    },
+    {
+     "label": "Save",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:129",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:296"
+    },
+    {
+     "label": "Delete",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:149",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:271"
+    },
+    {
+     "label": "Reviewer comments",
+     "webRole": "TEXT",
+     "natRole": "SECTION",
+     "web": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:68",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:1225"
+    },
+    {
+     "label": "Loading comments...",
+     "webRole": "TEXT",
+     "natRole": "STATE_LOADING",
+     "web": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:87",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:1237"
+    },
+    {
+     "label": "Save",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:108",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:296"
+    },
+    {
+     "label": "Delete",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:127",
+     "nat": "apps/mobile/src/ui/evidence-internal-materials.tsx:271"
+    },
+    {
+     "label": "Priority",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:96",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Declarations",
+     "webRole": "SECTION",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:634",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:925"
+    },
+    {
+     "label": "Try again",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:161",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:157"
+    },
+    {
+     "label": "Declarations",
+     "webRole": "LIST",
+     "natRole": "TEXT",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:373",
+     "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:925"
+    },
+    {
+     "label": "Status",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:382",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Status:",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:216",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Priority",
+     "webRole": "SELECT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:641",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    },
+    {
+     "label": "Status:",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:327",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:276"
+    },
+    {
+     "label": "Priority",
+     "webRole": "TEXT",
+     "natRole": "LIST",
+     "web": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:640",
+     "nat": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:281"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BOX",
+     "label": "Breadcrumb",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1096",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Evidence label",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1115",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Evidence detail sections",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1315",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Assign evidence to case",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1403",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Select case",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1447",
+     "natHasRole": false
+    },
+    {
+     "role": "DIALOG",
+     "label": "Update reviewer workflow",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1466",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Assigned reviewer",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1522",
+     "natHasRole": false
+    },
+    {
+     "role": "DIALOG",
+     "label": "Record evidence relationship",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1568",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Linked evidence record ID",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1600",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Relationship type",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1627",
+     "natHasRole": false
+    },
+    {
+     "role": "DIALOG",
+     "label": "Lock evidence record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1658",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Unlock evidence record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1704",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g. correcting label after upload",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1758",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Archive evidence record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1770",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Restore archived evidence",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1813",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Move evidence to trash",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1853",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading evidence review workspace…",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:800",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:811",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unable to load the record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:812",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:820",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrity check failed",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1036",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The uploaded file&rsquo;s SHA-256 does not match the recomputed server-side fingerprint. This evidence record cannot be used. Re-upload or recapture the source material as a new evidence record. The original record is preserved for forensic inspection.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1039",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This record is in trash",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1069",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Mutating actions (download, lock, archive, assign to case, generate report/package) are disabled while the record is in trash. Restore it to bring it back to the active library.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1072",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Library",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1103",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1106",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1109",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save label",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1127",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1169",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Record",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1172",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1175",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download Report PDF",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1259",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download Verification Package ZIP",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1279",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1417",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save assignment",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1426",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No attachable cases are available in this workspace.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1443",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1475",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save workflow",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1478",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned reviewer",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer assignment uses currently accessible reviewer identities from the loaded workflow state.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1542",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Due date",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1548",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workflow note",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1558",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1577",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save relationship",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1590",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enter the linked evidence record ID. The target must be an accessible evidence record.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1597",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Relationship type",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1626",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1672",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm lock",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1687",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Locking preserves the current record state and prevents further mutable updates to this evidence record.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1693",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1718",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm unlock",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1741",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unlocking allows permitted workspace users to make mutable updates again. The unlock action is recorded in the audit trail.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1747",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unlocking does not change retention, legal hold, Object Lock, generated reports, verification packages, or the custody chain.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1751",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason for unlocking (optional)",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1756",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1784",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archive evidence",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1799",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archive removes this record from Active evidence while preserving it under retention and keeping verification materials available.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1805",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1827",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restore evidence",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1842",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restoring returns this record to Active evidence. Retention and verification history remain unchanged.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1848",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1867",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing is deleted. The record leaves Active evidence and can be restored from Trash; its content, custody history and verification state are unchanged.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1890",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Any retention or legal hold on this record continues to apply in Trash — moving it here does not shorten either.",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1895",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What needs attention",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1972",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No case assigned · Assign",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2002",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review not started · Start",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2012",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report not available · Artifacts",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2022",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verification package not available · Artifacts",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2032",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open review workspace",
+     "at": "apps/web/app/(app)/evidence/[id]/page.tsx:2043",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "How verification hashes are computed",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:122",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Event counts (forensic and access)",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:164",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Boundary divergence detail",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Custody chain detail",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:221",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Raw technical snapshot · debug",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:246",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical Appendix • Advanced",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:94",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Forensic and technical reviewer details",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:95",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Advanced detail for forensic or technical reviewers. None of this is required to use the record — expand each block below for the underlying material.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:99",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Forensic custody events are technical chain events (creation, signature, retention, timestamp). Access events are read-only views and downloads. The two are kept separate so the chain is not diluted by analytics traffic.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:186",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The trust decision shown elsewhere is sourced from the fixed snapshot taken at report or package generation time. The reasons below explain what changed later in the live state.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:208",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No per-reason detail recorded.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:215",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Internal projection shape. Visible because the URL carries",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:252",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "?debug=1",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Not intended for normal review.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Media intelligence",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:320",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Media intelligence",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:330",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Derived preview",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:674",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close preview",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:687",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace context is required to load media intelligence.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:323",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "These are deterministic metadata observations. They are advisory workflow signals only: they do not establish authenticity, factual truth, or legal admissibility.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:334",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Analysis complete",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:352",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Completed",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:370",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry analysis",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:386",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refresh status",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:396",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Could not load signals (",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "). Retry from the analyzer button above.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:416",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No signals recorded yet. Run the analyzer to populate the known categories below.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:421",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Acknowledge",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:428",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "marks an observation as reviewed for workflow purposes; it does not verify the evidence.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:428",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Dismiss",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:430",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "marks it as not actionable; it does not delete the evidence or its audit history.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:430",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Resolved observations (",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:458",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:458",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Categories not yet computed for this evidence (",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:482",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:483",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Derived previews",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:537",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operator-facing thumbnails generated from the recorded material. Advisory aids only; never a substitute for the preserved original.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:539",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "generating",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:562",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "failed",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:567",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "unsupported",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:572",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:609",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "unavailable",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:641",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(derived)",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:648",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "sha256",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:656",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Derived preview",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:684",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:693",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading preview…",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:701",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Preview unavailable",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:715",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This preview is an operator-facing rendering derived from the recorded material. It is an advisory aid only and is not a substitute for the preserved original or the canonical custody record.",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:719",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "sha256",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:731",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Media intelligence",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:772",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Deterministic metadata observations",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:774",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recorded",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:838",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Acknowledge",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:856",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Dismiss",
+     "at": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:874",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust decision is not yet available for this record.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:105",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust decision summary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:151",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Primary reason",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer next step",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:207",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Per-signal detail",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Weighting:",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "points",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Scores show each signal’s contribution to the 100-point technical assessment; they are not counts of separate checks.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:237",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:271",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "points",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:272",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No further detail was recorded for this signal.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Evidence Acquisition",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:166",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Capture Device",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:190",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Camera / EXIF",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Exposure",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:226",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Client / Browser Environment",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:240",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Advanced client details",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:251",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Upload Session",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Chain of Custody",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:339",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading technical evidence context…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical Evidence Context",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:155",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The same acquisition, device, media and integrity context recorded in the PDF report and Verification Package, presented for reviewers.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:157",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Submitter &amp; identity",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:183",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No EXIF camera metadata recorded for this item.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:219",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The raw User-Agent and IP are never stored — only a hash and a masked IP are retained.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open full custody timeline",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:364",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The full custody timeline is not available for this record.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:368",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Some technical metadata could not be loaded. Integrity and custody context above is unaffected.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx:377",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Security & Integrity",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/IntegrityContextCard.tsx:33",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "These values summarize the recorded integrity state. Full signature, RFC 3161 timestamp token, and OpenTimestamps proofs are preserved in the Verification Package and the verification endpoint.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/IntegrityContextCard.tsx:44",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Location",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx:76",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Copy coordinates",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx:90",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Location was not provided for this evidence.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx:83",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open map",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "View full EXIF",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx:25",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Representative EXIF is shown for the primary media item. Full per-file EXIF for every part is included in the Verification Package.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx:29",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Type",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:138",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Size",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Dimensions",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:140",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Duration",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:141",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Pages",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Codec",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:146",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Container",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:147",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Metadata",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:148",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Copy SHA-256",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:154",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No per-part technical metadata is available for this record.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:40",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "SHA-256",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx:152",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Evidence files",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:945",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy verification link",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1299",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Edit the evidence name",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1388",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open the original evidence record to review preserved content.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:840",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer-facing preview is not available for this selection in the current response.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:841",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your browser could not load this video preview.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:866",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your browser could not load this audio preview.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:880",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Preview is not available for this file type.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:902",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use the original access actions to review the preserved material directly.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:913",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Preview",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:924",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open original",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:931",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:938",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Size",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:993",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Role",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:997",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capture role (private)",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1005",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Source",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1014",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Private item note",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1023",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Unmapped required step",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1192",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ":",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1192",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No events recorded in the current API response.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1218",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Verification link",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1312",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restore",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1351",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edit name",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1396",
+     "natHasRole": true
+    },
+    {
+     "role": "IMAGE",
+     "label": "Derived source keyframe",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:288",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Machine-derived, source-linked review material reconstructed from the original screen evidence. It is",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:72",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "not",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:73",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "original acquisition: a visible sender label is not a verified identity, a displayed timestamp is not a provider-verified time, and machine-extracted text is not verified truth. Every block links back to its source.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:73",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Generate Derived Review",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:97",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retry",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:107",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Regenerate",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:117",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Coverage",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:127",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· OCR",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:127",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· Acquisition",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:128",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:129",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "keyframes ·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:130",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "reconstructed blocks",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:131",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Limitations:",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:135",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:140",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Previous",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:167",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "–",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Next",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:179",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No derived review has been generated for this evidence yet.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:192",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Could not load derived review (",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:238",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ").",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:238",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Observed in",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "frame(s) · overlap",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Source part",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:281",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:281",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:281",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "s–",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:282",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "s",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:282",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open Original",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:304",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Discussion",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx:40",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational coordination attached to this evidence. Threads are workspace-scoped and audit-visible — use this surface instead of external chat tools to preserve traceability.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx:42",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Boundary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx:50",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace discussion is a collaboration record, not part of the forensic custody chain, the recorded integrity state, public verification, or the verification package. Posting a message does not change what was preserved about this evidence.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx:52",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Filter threads by title",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:460",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Thread filter",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:469",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Write an operational message. Use @username to mention a workspace member.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:697",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Discussion threads are workspace-scoped. This evidence does not have an active workspace context. Switch to a workspace this evidence belongs to in order to coordinate with reviewers.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:382",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Read-only discussion",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:422",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Existing discussion history is preserved, but new messages cannot be posted in the current workspace context.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:424",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Discussion could not be loaded",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:436",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Threads",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:445",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading threads…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:497",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Escalated",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:530",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Threads could not be loaded, so none are listed. Reload the tab to try again.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:544",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No threads match the current filter.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:552",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No discussion threads yet. Threads created from the classic reviewer surfaces appear here. Operational coordination on this evidence should be recorded as a thread so the audit trail remains complete.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:559",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Escalated",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:586",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Updated",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:590",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading messages…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:605",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Messages could not be loaded. Select the thread again to retry.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:611",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No messages in this thread yet. Post one below — it will be attributed to your account in the workspace audit trail.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:619",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edited",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:652",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This workspace is in read-only mode for discussion. History above is preserved; new messages cannot be posted.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:672",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Post a message",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:695",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Audit-attributed. Workspace-scoped.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:712",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select a thread to read its operational history and post a coordinating message.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:731",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Thread lifecycle",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:338",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Assign to",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:390",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading thread details…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:294",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned to",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:303",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Resolution note (internal)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:316",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Escalation reason (internal)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:322",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Times reopened",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:330",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refresh thread",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:375",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Visible only to workspace reviewers.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:419",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:435",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Choose a member",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Search members",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:145",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:168",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading workspace members…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:176",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Also here:",
+     "at": "apps/web/components/presence/PresenceIndicator.tsx:156",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "+",
+     "at": "apps/web/components/presence/PresenceIndicator.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Confirm regeneration",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:141",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This creates a",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "new immutable version",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Previous versions are retained and remain downloadable, and the new one uses additional workspace storage. No evidence credit is charged.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:172",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This older record needs a workspace association before a new report or verification package can be requested. Everything already generated for it stays available.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:220",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Outputs cannot be produced for this record",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:251",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This record did not pass its integrity check: the fingerprint recomputed from the stored bytes did not match the value recorded when it was completed. A report and verification package can only be produced from a record whose integrity is intact, so none will be generated for this one. The record itself is preserved exactly as received, for inspection. To capture this material as evidence, re-upload or re-capture it as a new record.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:254",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Outputs become available once this record is finalized",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A report and verification package are produced from a finalized record — its fingerprint, signature and chain of custody. This record has not reached that point yet, so there is nothing to generate from and no action to take.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:277",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reports are not included for this record",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:293",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report PDFs and verification packages are included with Pay-per-evidence credits and with the Pro, Team and Enterprise plans. Your evidence record itself is signed and preserved — the chain of custody is intact, and public verification still works — but no downloadable report artifact is produced for it.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:295",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Your current plan includes a report and verification package for this record",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:313",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Nothing has been generated for it yet — records captured before this entitlement applied are not produced automatically. Generating uses no evidence credit; it does use workspace storage.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:317",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report and verification package are queued for generation",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:335",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Work has been accepted and is waiting for a worker. This page checks for completion on its own; nothing further is needed from you.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:338",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Generating report and verification package…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:353",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Both artifacts are produced by one job. They will appear below when it completes.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:355",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report generation failed",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:369",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The last attempt did not complete",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". The evidence record and its integrity state are unaffected.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:372",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report generation stopped",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:388",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report generation is blocked",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:411",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A governance or lifecycle decision is currently preventing generation for this record. It becomes possible again when that decision changes; the evidence record and its integrity state are unaffected.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:413",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Report generation is taking longer than expected",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:514",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The signed evidence record is preserved — the chain-of-custody and integrity columns are intact. The downstream report and verification package are still pending. Re-check status below, or contact support if this persists.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:516",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Re-check status",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:531",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest verification link",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:570",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open verification surface",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:581",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Public verification &amp; sharing",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:628",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "External verification and export activity",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx:631",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "PDF reports",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:292",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Verification Packages",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:309",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Download v",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:176",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "v",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:242",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:264",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Immutable recorded",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:272",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Artifacts &amp; Versions",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Latest and prior generated materials",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx:287",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "A workspace context is required to check eligibility.",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Checking eligibility for",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "— eligibility unavailable",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:235",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "—",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Lifecycle:",
+     "at": "apps/web/components/governance/GovernedExportAction.tsx:295",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Private notes &amp; annotations",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Attach to case",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:201",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assign reviewer",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open report",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Boundary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:287",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Private review notes are not included in public verification or external packages unless explicitly exported.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:289",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:301",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ",",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:303",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ", and",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:304",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "are internal workspace materials. They are not included in public verification, the fixed PDF report, or the verification package.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:305",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Private session note",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:315",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Lifecycle management",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:377",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Legal hold: active",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:420",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This record has been destroyed",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:438",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Its content was permanently removed from storage and the removal was verified. The record is retained as a tombstone so the destruction remains auditable.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:440",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restore to active",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:463",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Archive evidence",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:477",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Restore from trash",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx:488",
+     "natHasRole": true
+    },
+    {
+     "role": "DIALOG",
+     "label": "Assign this record to a team",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:332",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Team",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:515",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Assignee",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:533",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Team responsibility",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:217",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assign to a team",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:237",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No collaboration team is currently responsible for this record. Assign it from a team&rsquo;s Work tab to coordinate it there.",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:248",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edit",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:306",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove from team",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:314",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Responsibility coordinates work. It does not change who owns this record or who can open it.",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:326",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:495",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Team",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:513",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assignee",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:531",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Team-level work belongs to the whole team and notifies nobody in particular.",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:544",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Due",
+     "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:572",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Confirm report regeneration",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:157",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Evidence Copilot",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:240",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggested actions",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Actions run through the standard PROOVRA workflow with your normal permissions and audit logging. Nothing runs without your confirmation.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:136",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm:",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:167",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "queue report regeneration for this evidence record via the standard endpoint. This creates a new report version; it does not alter evidence bytes, hashes, custody, or verification state.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:167",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Copilot",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:242",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI-generated",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Advisory only",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:245",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Metadata only",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:246",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Explains this record&apos;s operational state — missing context, deterministic integrity/custody/timestamping signals, and report/package readiness. It never determines truth, authenticity, or admissibility.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:250",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI is currently unavailable. Evidence workflows are unaffected.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence AI is disabled for this workspace (",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ").",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:285",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The AI response did not meet PROOVRA&apos;s output contract and was discarded. Nothing from it was saved or shown.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:293",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The AI output contained language PROOVRA cannot present and was blocked.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:306",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational summary",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:311",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Validated sources",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:327",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "unverifiable citation(s) were removed.",
+     "at": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:329",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Source no longer available",
+     "at": "apps/web/components/ai-copilot/CopilotCitation.tsx:57",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No validated sources.",
+     "at": "apps/web/components/ai-copilot/CopilotCitation.tsx:71",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workspace review activity",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:30",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "recorded",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:34",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer audit is separate from forensic custody and records workspace review actions only.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:43",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No reviewer audit activity recorded yet.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx:49",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review actions",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Internal review decisions",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Internal-only actions. Decisions and notes stay in the workspace and are never shared with public verify, external contributors, or the report.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:214",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "assigned to",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "unassigned",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:232",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Claim review",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer Workflow",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:60",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assignment and review state",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:61",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Refresh history",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned reviewer",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:96",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Due date",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:100",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Last reviewed",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:104",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned by",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:108",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workflow event history",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:125",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "recorded events",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:126",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading workflow history…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:129",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No workflow history recorded yet.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx:131",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case &amp; relationships",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:70",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove case",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:88",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Manage relationships",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:99",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case assignment",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:109",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Structure",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:123",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Item count",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:129",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Linked evidence relationships",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "recorded",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No linked evidence relationships recorded.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:150",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:168",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open linked evidence",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove relationship",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "AI categorization",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:89",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI categorization",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:81",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI categorization is advisory and metadata-only. It does not determine factual truth, authorship, integrity, or legal outcome.",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:96",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading AI categorization...",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:100",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI categorization is not active for this record.",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:110",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Summary",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:154",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggested categories",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:158",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggested tags",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:162",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Risk flags",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:166",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No AI risk flags recorded.",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:177",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Model and timing",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx:183",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open record →",
+     "at": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Duplicate detection is limited to accessible records and recorded hashes or metadata.",
+     "at": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Checking accessible duplicates...",
+     "at": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:234",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No accessible duplicate or related records found.",
+     "at": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Comparison mode",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:205",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Comparison not available.",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:66",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Technical details",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:88",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Comparison mode",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:197",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Comparison uses recorded metadata and export references only. It does not establish factual truth, authorship, or legal outcome.",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading comparison data...",
+     "at": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx:216",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Not recorded",
+     "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:163",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View raw snapshot",
+     "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:296",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Not recorded",
+     "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:342",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Marked fields differ from",
+     "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:355",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Unmarked fields match, or have no equivalent to compare.",
+     "at": "apps/web/app/(app)/evidence/components/StructuredSnapshot.tsx:355",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Annotations are reviewer notes layered over the review surface. They do not modify preserved evidence.",
+     "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:66",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add Text Annotation",
+     "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:76",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading annotations...",
+     "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:79",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No annotations yet.",
+     "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:86",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Legal note type",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:79",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Legal note type",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:112",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Legal notes are internal workspace notes. They do not determine legal outcome or evidentiary weight.",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:76",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save Legal Note",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:97",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading legal notes...",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:100",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No legal notes yet.",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "•",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:107",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:132",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edit",
+     "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:147",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer comments are operational notes and do not alter the recorded integrity state.",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:70",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add comment",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:73",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save Comment",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No reviewer comments yet.",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:89",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:111",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Edit",
+     "at": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx:125",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Risk Signals",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:62",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No advisory risk signals in the current response.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review Workflow",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:86",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational summary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:87",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Attributes",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:115",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Case",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:117",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Due date",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:123",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Public Verification",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open verification surface",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx:156",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Forensic Custody",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx:213",
+     "natHasRole": true
+    },
+    {
+     "role": "CARD",
+     "label": "Access Activity",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "&times;",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx:157",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Show raw events",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No escalations open.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:440",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No workload snapshots yet.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:457",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No governance incidents open.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No SLA breaches detected.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:489",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No operational activity recorded.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:502",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Runtime is in degraded mode.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:523",
+     "natHasRole": true
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Governance state could not be loaded.",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:545",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Runtime dependency:",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:289",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "→",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:308",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "→",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:351",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "→",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:393",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "→",
+     "at": "apps/web/components/operational/OperationalEmptyState.tsx:405",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Overdue",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:183",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Due soon",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:188",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Escalated",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:193",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Completed 7d",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:198",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "active reviews",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:172",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "IMBALANCED",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:220",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "INACTIVE",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "d",
+     "at": "apps/web/components/operational/WorkloadHeatTile.tsx:229",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "+",
+     "at": "apps/web/components/operational/AssignmentSuggestionRow.tsx:153",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "STUCK",
+     "at": "apps/web/components/operational/StuckBadge.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "+",
+     "at": "apps/web/components/operational/StuckBadge.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "STUCK",
+     "at": "apps/web/components/operational/StuckBadge.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "+",
+     "at": "apps/web/components/operational/StuckBadge.tsx:147",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "collecting samples…",
+     "at": "apps/web/components/operational/Sparkline.tsx:222",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Operational runtime summary",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Refresh runtime status",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:344",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Degraded subsystems",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:386",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Active incidents",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:429",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reviewer escalations",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:474",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Operations Center",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:550",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Escalations",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:566",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Runbooks",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Runtime ·",
+     "at": "apps/web/components/operational/GlobalRuntimeIndicator.tsx:336",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Runtime readiness could not be loaded — treat dashboard as unknown state.",
+     "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:133",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "UNKNOWN",
+     "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:144",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Runtime status is currently unknown.",
+     "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "for detail.",
+     "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:195",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational timeline could not be loaded. The platform is failing closed — assume activity exists until the timeline is available.",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:180",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading operational activity…",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:196",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:362",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Lifecycle",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:408",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:412",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "actor",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:414",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/operational/OperationalTimelinePanel.tsx:418",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Lifecycle",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:221",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Review state",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:226",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Legal hold",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:231",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Retention",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:246",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Storage governance",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:259",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Governance warnings",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:301",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Open incidents",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:346",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading governance state…",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:191",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open incidents (",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:365",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:365",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason:",
+     "at": "apps/web/components/operational/GovernanceSnapshotPanel.tsx:504",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Source &amp; Capture Context",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:340",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Boundary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:427",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Capture location",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:437",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Boundary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:451",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Verification &amp; Preservation",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "SECTION",
+     "label": "Snapshot timing",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:649",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Record boundary noted",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:684",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Boundary updated",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:689",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Check latest status",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "How this record reached PROOVRA",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:133",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading the provenance record…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:142",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Preservation steps recorded",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:246",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "These steps are the same events listed on the Custody tab — open Custody for the full timeline, including who performed each step.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:249",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Files derived from this one",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:256",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:261",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:261",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:262",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What this does not tell you",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:271",
+     "natHasRole": true
+    },
+    {
+     "role": "IMAGE",
+     "label": "Capture context map preview",
+     "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:101",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Capture Context",
+     "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:255",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Copy coordinates",
+     "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:313",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open in map",
+     "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:335",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Proovra",
+     "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:396",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Choose declaration type",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:544",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Refresh declarations",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading declarations…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:362",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No declaration is attached to this record.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:370",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Version",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:383",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Requested",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:384",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Signed",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:387",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Signer",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:389",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Revoked",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:398",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Revocation reason",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:399",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Declaration hash",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:404",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sign declaration",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:423",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Statement to be signed",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:460",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No declaration statement is recorded for this request. Signing is unavailable until an approved statement is attached.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:467",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason (required, recorded in custody history)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:502",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:533",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a declaration",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:541",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Declaration statement (the signer signs exactly this text)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:559",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request declaration",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:579",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Capture note (private)",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:136",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Visible only inside the signed-in app. Excluded from public verification, the fixed PDF report, and the verification package.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Record Summary",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:159",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recommended next actions",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Entities and content summaries",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:184",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading extracted entity summary…",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:188",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No OCR or transcript extraction has been recorded yet for this record.",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:202",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Provider:",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:212",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confidence:",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:223",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "%",
+     "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Extracted entities are advisory observations from OCR and transcript text. They do not classify the recorded material and they do not establish legal weight.",
+     "at": "apps/web/components/intelligence/EntityChipGroup.tsx:127",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Why is this being published or withdrawn?",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Public verification",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:240",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Current state:",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". Publishing lets anyone with the link confirm this record&apos;s integrity without signing in. It does not assert legal admissibility.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:244",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Internal note (optional)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:251",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recorded in the custody chain only. Never shown on the public page. Up to",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:273",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "characters.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Step-up confirmation",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:488",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:525",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Preparing your verification…",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:543",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:552",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:567",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Settings → Security",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:571",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ", then start this action again.",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:573",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:658",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm + retry",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:666",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirmed — retrying the original action…",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:674",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Start again",
+     "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Governance indicators",
+     "at": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx:139",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance",
+     "at": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx:140",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance indicators reflect internal preservation and workflow controls. They do not assert authenticity, legal admissibility, or evidentiary truth.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx:149",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance summary",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:110",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational governance posture. Not a legal admissibility statement.",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:112",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Lifecycle",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:134",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retention",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:148",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Legal holds",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:160",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "active",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:174",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "None active",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:177",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Destruction",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:186",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review in flight",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:198",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Exports",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:209",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retention conflicts (",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:227",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ".",
+     "at": "apps/web/components/governance/GovernanceSummary.tsx:238",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retention policy inherited from organization.",
+     "at": "apps/web/components/governance/LifecycleStateBadge.tsx:171",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Retention policy:",
+     "at": "apps/web/components/governance/LifecycleStateBadge.tsx:175",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Evidence requests",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Request type",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:625",
+     "natHasRole": false
+    },
+    {
+     "role": "SELECT",
+     "label": "Recipient",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:656",
+     "natHasRole": false
+    },
+    {
+     "role": "INPUT",
+     "label": "e.g. John Smith — claim 4842",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:669",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Title (e.g. Damage close-up)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:706",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Description (optional)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:712",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence requests",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:256",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Linked requests",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:257",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New request",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:264",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No linked requests yet. Use “New request” to ask a contributor or reviewer for additional evidence or context.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:272",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:283",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:302",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Responses",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:314",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:323",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Activity",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:368",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Needs more info",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:393",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:422",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Intake link created",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:460",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send this link to the intended recipient. It will not be shown again.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:462",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Copy",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:479",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Close (forget link)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:486",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "New evidence request",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:602",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Title",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:608",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Instructions",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:615",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:624",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recipient",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:655",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recipient label (optional)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:668",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recipient email (optional)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:678",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Due in (hours)",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:688",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Deliverables",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:700",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:730",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Add deliverable",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:749",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:759",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Please add a short reviewer note explaining the decision. The note is internal — it is not shared with the contributor or any public surface.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:851",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:863",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Confirm",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:871",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request activity",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:943",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:947",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No activity yet.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:949",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "External intake source",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:486",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Workflow",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:498",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Submitted at",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:501",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Customer ID",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:513",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Intake sent to",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Submitter provided",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:557",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Upload Agreement",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:559",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Link opened",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:568",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Session status",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:572",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Link status",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:573",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Intake reference",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:581",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Case / matter",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:586",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Recorded with the decision. Internal to this workspace.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:673",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Source",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:489",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "External intake",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:490",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(v",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:499",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:499",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Supplied by the organization that created this intake.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:516",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Delivery address on the intake link. Not proof of who submitted.",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:552",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(used",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:574",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Expires",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:576",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Session",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:583",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer status",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:592",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Record decision",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:692",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:704",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Saved",
+     "at": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:726",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "changed since you opened it",
+     "at": "apps/web/components/presence/CollisionWarning.tsx:72",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Another operator updated this",
+     "at": "apps/web/components/presence/CollisionWarning.tsx:75",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "while you were working. Reload to see the latest state before continuing — the server will reject conflicting writes.",
+     "at": "apps/web/components/presence/CollisionWarning.tsx:75",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reload",
+     "at": "apps/web/components/presence/CollisionWarning.tsx:96",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:607"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Record not found",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:614"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:614"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:662"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Rename record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:678"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Rename record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:700"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Record name",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:711"
+    },
+    {
+     "role": "INPUT",
+     "label": "Record name",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:712"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Save name",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:723"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Link another record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:734"
+    },
+    {
+     "role": "LIST",
+     "label": "Relationship",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:739"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Note (optional)",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:744"
+    },
+    {
+     "role": "INPUT",
+     "label": "Link note",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:745"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading records",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:755"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Nothing to link",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:757"
+    },
+    {
+     "role": "BADGE",
+     "label": "Selected",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:770"
+    },
+    {
+     "role": "DIALOG",
+     "label": "How do these records relate?",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:786"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Restore from archive",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:857"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open original file",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:869"
+    },
+    {
+     "role": "SECTION",
+     "label": "Integrity",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:909"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Share verification link",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:940"
+    },
+    {
+     "role": "SECTION",
+     "label": "Custody & access",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:946"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No custody events yet",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:948"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No technical metadata",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:967"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "No linked evidence",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:999"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Link another record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1041"
+    },
+    {
+     "role": "SECTION",
+     "label": "Report & artifacts",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1060"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Download report",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1062"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Checking accessible records",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1120"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Regenerate the report and package?",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1164"
+    },
+    {
+     "role": "SECTION",
+     "label": "Files in this record",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1176"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open file",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1211"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Add a comment",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1265"
+    },
+    {
+     "role": "INPUT",
+     "label": "Add a comment",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1266"
+    },
+    {
+     "role": "TAB",
+     "label": "Visible to",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1275"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Post comment",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1284"
+    },
+    {
+     "role": "TEXT",
+     "label": "The original file name is part of the record and never changes.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:721"
+    },
+    {
+     "role": "TEXT",
+     "label": "A legal hold is in force on this record.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:902"
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrity is computed and sealed by the server; this view reflects that record, it does not recompute it.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:937"
+    },
+    {
+     "role": "TEXT",
+     "label": "EXIF",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:981"
+    },
+    {
+     "role": "TEXT",
+     "label": "Long press a linked record to remove the link.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1051"
+    },
+    {
+     "role": "TEXT",
+     "label": "No other accessible record matched this one.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1133"
+    },
+    {
+     "role": "TEXT",
+     "label": "No comments on this record yet.",
+     "at": "apps/mobile/app/(stack)/evidence/[id].tsx:1241"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading review state",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:146"
+    },
+    {
+     "role": "SECTION",
+     "label": "Review",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:151"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "The review state could not be loaded.",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:152"
+    },
+    {
+     "role": "SECTION",
+     "label": "Review",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:170"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This record has no review yet.",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:178"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Start a review",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:183"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Update review state",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:224"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "The review history could not be loaded.",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:238"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing has happened to this review yet.",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:252"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Update review state",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:271"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Note (optional)",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:286"
+    },
+    {
+     "role": "INPUT",
+     "label": "Review note",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:287"
+    },
+    {
+     "role": "DIALOG",
+     "label": "Review status",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:299"
+    },
+    {
+     "role": "TEXT",
+     "label": "Review history",
+     "at": "apps/mobile/src/ui/reviewer-workflow-panel.tsx:235"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 11009,
+  "webClassesUnresolved": 13,
+  "webNonLiteralClass": 27,
+  "webCompetingRules": 545,
+  "webDistinctUnresolvedClasses": 7,
+  "natPropsResolved": 258,
+  "natTokenUnresolved": 122,
+  "webDistinctColors": 104,
+  "natDistinctColors": 19,
+  "sharedColors": 9,
+  "webOnlyColors": 95,
+  "webOnlyColorSample": [
+   "rgba(255, 255, 255, 0.58)",
+   "rgba(109, 40, 217, 0.5)",
+   "rgba(15, 23, 42, 0.12)",
+   "#f4cfc8",
+   "#fcedea",
+   "#8f3324",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "#667085",
+   "#172033",
+   "rgba(79, 70, 229, 0.16)",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(141, 100, 56, 0.38)",
+   "#475467",
+   "rgba(15, 23, 42, 0.07)",
+   "rgba(255, 255, 255, 0.38)",
+   "rgba(15, 23, 42, 0.025)",
+   "#b8861f",
+   "#fdf3e4",
+   "#8a6414",
+   "rgba(184, 134, 31, 0.5)",
+   "rgba(255, 255, 255, 0.80)",
+   "rgba(255, 255, 255, 0.62)",
+   "#dce6f8",
+   "#167a5b",
+   "#344054"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#6d28d9",
+   "#ffffff",
+   "#475569",
+   "rgba(15, 23, 42, 0.06)",
+   "#0f172a",
+   "#f2ecfe",
+   "#dc2626",
+   "rgba(15, 23, 42, 0.42)"
+  ]
+ },
+ "level6": {
+  "webConditionals": 2952,
+  "natConditionals": 1460,
+  "webStateRoles": [
+   "STATE_EMPTY"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 341,
+  "natHandlers": 85,
+  "webHandlerSample": [
+   "onClick=() => void loadWorkspace() @apps/web/app/(app)/evidence/[id]/page.tsx:815",
+   "onReload=() => void loadWorkspace({ bumpBaseline: true }) @apps/web/app/(app)/evidence/[id]/page.tsx:1018",
+   "onClick=() => void restoreTrash() @apps/web/app/(app)/evidence/[id]/page.tsx:1078",
+   "onClick=() => router.push(\"/evidence\") @apps/web/app/(app)/evidence/[id]/page.tsx:1097",
+   "onChange=(event) => setLabelDraft(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1115",
+   "onClick=() => void handleSaveLabel() @apps/web/app/(app)/evidence/[id]/page.tsx:1121",
+   "onClick=() => setEditingLabel(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1129",
+   "onCopyShareLink=() => void copyShareLink() @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onUnlock=() => { setUnlockReasonDraft(\"\"); setUnlockOpen(true); } @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onLock=() => setLockOpen(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onRestoreArchived=() => setRestoreArchivedOpen(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onArchive=() => setArchiveOpen(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onMoveToTrash=() => setTrashOpen(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onEditLabel=() => setEditingLabel(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1190",
+   "onEligibilityChange=(s) => { setExportDisabled(!s.loading && !s.unknown && !s.el @apps/web/app/(app)/evidence/[id]/page.tsx:1219",
+   "onEligibilityChange=(s) => { setPackageDisabled(!s.loading && !s.unknown && !s.e @apps/web/app/(app)/evidence/[id]/page.tsx:1228",
+   "onClick=() => void downloadReport() @apps/web/app/(app)/evidence/[id]/page.tsx:1241",
+   "onClick=() => void downloadVerificationPackage() @apps/web/app/(app)/evidence/[id]/page.tsx:1261",
+   "onAssignCase=() => { setSelectedCaseId(workspace.relationships.caseId ||  @apps/web/app/(app)/evidence/[id]/page.tsx:1300",
+   "onAssignReviewer=() => setWorkflowOpen(true) @apps/web/app/(app)/evidence/[id]/page.tsx:1300",
+   "onGoToArtifacts=() => setActiveTab(\"artifacts\") @apps/web/app/(app)/evidence/[id]/page.tsx:1300",
+   "onGoToReview=() => setActiveTab(\"review\") @apps/web/app/(app)/evidence/[id]/page.tsx:1300",
+   "onClick=() => setActiveTab(tab.id) @apps/web/app/(app)/evidence/[id]/page.tsx:1322",
+   "onKeyDown=(event) => { const idx = visibleTabs.findIndex((t) => t.id = @apps/web/app/(app)/evidence/[id]/page.tsx:1322",
+   "onGoToArtifacts=() => setActiveTab(\"artifacts\") @apps/web/app/(app)/evidence/[id]/page.tsx:1378",
+   "onGoToCustody=() => setActiveTab(\"custody\") @apps/web/app/(app)/evidence/[id]/page.tsx:1381",
+   "onClose=() => setAssignCaseOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1403",
+   "onClick=() => setAssignCaseOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1411",
+   "onClick=() => void assignCase() @apps/web/app/(app)/evidence/[id]/page.tsx:1419",
+   "onChange=(next) => setSelectedCaseId(next) @apps/web/app/(app)/evidence/[id]/page.tsx:1447",
+   "onClose=() => setWorkflowOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1466",
+   "onClick=() => setWorkflowOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1474",
+   "onClick=() => void saveWorkflow() @apps/web/app/(app)/evidence/[id]/page.tsx:1477",
+   "onChange=(next) => setWorkflowStatusDraft(next) @apps/web/app/(app)/evidence/[id]/page.tsx:1486",
+   "onChange=(next) => setWorkflowPriorityDraft(next) @apps/web/app/(app)/evidence/[id]/page.tsx:1509",
+   "onChange=(next) => setWorkflowAssigneeDraft(next) @apps/web/app/(app)/evidence/[id]/page.tsx:1522",
+   "onChange=(event) => setWorkflowDueAtDraft(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1549",
+   "onChange=(event) => setWorkflowNoteDraft(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1559",
+   "onClose=() => setRelationshipOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1568",
+   "onClick=() => setRelationshipOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1576",
+   "onClick=() => void saveRelationship() @apps/web/app/(app)/evidence/[id]/page.tsx:1579",
+   "onChange=(event) => setRelationshipTargetId(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1600",
+   "onChange=(next) => setRelationshipType(next) @apps/web/app/(app)/evidence/[id]/page.tsx:1627",
+   "onChange=(event) => setRelationshipNote(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1645",
+   "onClose=() => setLockOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1658",
+   "onClick=() => setLockOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1666",
+   "onClick=() => void runRecordAction( `/v1/evidence/${evidenceId}/lock @apps/web/app/(app)/evidence/[id]/page.tsx:1674",
+   "onClose=() => setUnlockOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1704",
+   "onClick=() => setUnlockOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1712",
+   "onClick=() => void runRecordAction( `/v1/evidence/${evidenceId}/unlo @apps/web/app/(app)/evidence/[id]/page.tsx:1720",
+   "onChange=(event) => setUnlockReasonDraft(event.target.value) @apps/web/app/(app)/evidence/[id]/page.tsx:1758",
+   "onClose=() => setArchiveOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1770",
+   "onClick=() => setArchiveOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1778",
+   "onClick=() => void runRecordAction( `/v1/evidence/${evidenceId}/arch @apps/web/app/(app)/evidence/[id]/page.tsx:1786",
+   "onClose=() => setRestoreArchivedOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1813",
+   "onClick=() => setRestoreArchivedOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1821",
+   "onClick=() => void runRecordAction( `/v1/evidence/${evidenceId}/unar @apps/web/app/(app)/evidence/[id]/page.tsx:1829",
+   "onClose=() => setTrashOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1853",
+   "onClick=() => setTrashOpen(false) @apps/web/app/(app)/evidence/[id]/page.tsx:1861",
+   "onClick=() => void moveToTrash({ onSuccess: () => setTrashOpen(false @apps/web/app/(app)/evidence/[id]/page.tsx:1869"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/evidence/[id].tsx:614",
+   "onRetry=load @apps/mobile/app/(stack)/evidence/[id].tsx:621",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/evidence/[id].tsx:662",
+   "onPress=() => { setLabelDraft(c.displayTitle?.trim() || c.originalFi @apps/mobile/app/(stack)/evidence/[id].tsx:678",
+   "onClose=() => setRenaming(false) @apps/mobile/app/(stack)/evidence/[id].tsx:700",
+   "onChangeText=setLabelDraft @apps/mobile/app/(stack)/evidence/[id].tsx:712",
+   "onPress=() => void renameRecord() @apps/mobile/app/(stack)/evidence/[id].tsx:723",
+   "onClose=() => setLinking(false) @apps/mobile/app/(stack)/evidence/[id].tsx:734",
+   "onPress=() => setLinkTypePicker(true) @apps/mobile/app/(stack)/evidence/[id].tsx:739",
+   "onChangeText=setLinkNote @apps/mobile/app/(stack)/evidence/[id].tsx:745",
+   "onPress=() => setLinkTarget({ id: cand.id, title: cand.title }) @apps/mobile/app/(stack)/evidence/[id].tsx:764",
+   "onPress=() => void createLink() @apps/mobile/app/(stack)/evidence/[id].tsx:778",
+   "onClose=() => setLinkTypePicker(false) @apps/mobile/app/(stack)/evidence/[id].tsx:786",
+   "onPress=() => { setLinkType(t); setLinkTypePicker(false); } @apps/mobile/app/(stack)/evidence/[id].tsx:792",
+   "onPress=() => { setTab(tb.key); if (tb.key === \"duplicates\" && dupli @apps/mobile/app/(stack)/evidence/[id].tsx:807",
+   "onPress=() => runAction(\"Unlock\", { buildPath: buildEvidenceUnlockPa @apps/mobile/app/(stack)/evidence/[id].tsx:849",
+   "onPress=() => runAction(\"Lock\", { buildPath: buildEvidenceLockPath } @apps/mobile/app/(stack)/evidence/[id].tsx:851",
+   "onPress=() => runAction(\"Archive\", { buildPath: buildEvidenceArchive @apps/mobile/app/(stack)/evidence/[id].tsx:854",
+   "onPress=() => runAction(\"Restore\", { buildPath: buildEvidenceUnarchi @apps/mobile/app/(stack)/evidence/[id].tsx:857",
+   "onPress=openOriginal @apps/mobile/app/(stack)/evidence/[id].tsx:869",
+   "onPress=() => runAction(\"Move to Trash\", { buildPath: buildEvidenceP @apps/mobile/app/(stack)/evidence/[id].tsx:876",
+   "onPress=() => void shareVerification() @apps/mobile/app/(stack)/evidence/[id].tsx:940",
+   "onPress=() => router.push(`/evidence/${rel.linkedId}`) @apps/mobile/app/(stack)/evidence/[id].tsx:1006",
+   "onLongPress=linkRefusal ? undefined : () => removeLink(rel) @apps/mobile/app/(stack)/evidence/[id].tsx:1006",
+   "onPress=() => { setLinking(true); void loadLinkCandidates(); } @apps/mobile/app/(stack)/evidence/[id].tsx:1041",
+   "onPress=() => void Linking.openURL(reportUrl) @apps/mobile/app/(stack)/evidence/[id].tsx:1062",
+   "onPress=() => { if (generationNeedsConfirmation(reportState === \"REA @apps/mobile/app/(stack)/evidence/[id].tsx:1078",
+   "onRetry=() => void loadDuplicates() @apps/mobile/app/(stack)/evidence/[id].tsx:1124",
+   "onPress=() => router.push(`/(stack)/evidence/${m.evidenceId}` as nev @apps/mobile/app/(stack)/evidence/[id].tsx:1147",
+   "onConfirm=() => void requestGeneration() @apps/mobile/app/(stack)/evidence/[id].tsx:1164",
+   "onCancel=() => setConfirmingRegenerate(false) @apps/mobile/app/(stack)/evidence/[id].tsx:1164",
+   "onPress=() => void Linking.openURL(m.viewUrl as string) @apps/mobile/app/(stack)/evidence/[id].tsx:1211",
+   "onChangeText=setDraft @apps/mobile/app/(stack)/evidence/[id].tsx:1266",
+   "onChange=(v: string) => setVisibility(v as EvidenceCommentVisibility) @apps/mobile/app/(stack)/evidence/[id].tsx:1275",
+   "onPress=() => void postComment() @apps/mobile/app/(stack)/evidence/[id].tsx:1284",
+   "onPress=() => void load() @apps/mobile/src/ui/reviewer-workflow-panel.tsx:157",
+   "onPress=openEditor @apps/mobile/src/ui/reviewer-workflow-panel.tsx:183",
+   "onPress=openEditor @apps/mobile/src/ui/reviewer-workflow-panel.tsx:224",
+   "onPress=() => void load() @apps/mobile/src/ui/reviewer-workflow-panel.tsx:243",
+   "onClose=() => setEditing(false) @apps/mobile/src/ui/reviewer-workflow-panel.tsx:271",
+   "onPress=() => setStatusPicker(true) @apps/mobile/src/ui/reviewer-workflow-panel.tsx:276",
+   "onPress=() => setPriorityPicker(true) @apps/mobile/src/ui/reviewer-workflow-panel.tsx:281",
+   "onChangeText=setNote @apps/mobile/src/ui/reviewer-workflow-panel.tsx:287",
+   "onPress=() => void save() @apps/mobile/src/ui/reviewer-workflow-panel.tsx:296",
+   "onClose=() => setStatusPicker(false) @apps/mobile/src/ui/reviewer-workflow-panel.tsx:299",
+   "onPress=() => { setDraftStatus(s); setStatusPicker(false); } @apps/mobile/src/ui/reviewer-workflow-panel.tsx:309",
+   "onClose=() => setPriorityPicker(false) @apps/mobile/src/ui/reviewer-workflow-panel.tsx:324",
+   "onPress=() => { setDraftPriority(p); setPriorityPicker(false); } @apps/mobile/src/ui/reviewer-workflow-panel.tsx:330",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185"
+  ]
+ },
+ "level8": {
+  "webApi": 34,
+  "natApi": 5,
+  "shared": 2,
+  "onlyWeb": 32,
+  "onlyNative": 3,
+  "onlyWebList": [
+   "/v1/cases?eligibleForEvidenceId=${…}",
+   "/v1/cases/${…}",
+   "/v1/external-intake/:token/* (POST)",
+   "/v1/external-review/access/:token/*",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)",
+   "/v1/media-intelligence/signals/${…}",
+   "/v1/collaboration/threads?teamId=${…}",
+   "/v1/collaboration/catalogs",
+   "/v1/collaboration/threads/${…}",
+   "/v1/teams/${…}",
+   "/v1/me/presence/here?teamId=${…}",
+   "/v1/me/presence/heartbeat",
+   "/v1/governance/export-eligibility?teamId=${…}",
+   "/v1/collaboration-teams",
+   "/v1/collaboration-team-invites/accept",
+   "/v1/ai/evidence/${…}",
+   "/v1/review-operations/evidence/${…}",
+   "/v1/platform/context/switch-workspace",
+   "/v1/runtime/status",
+   "/v1/ops/incidents?teamId=${…}",
+   "/v1/reviewer-ops/escalations?teamId=${…}",
+   "/v1/provenance/${…}",
+   "/v1/intelligence/evidence/${…}",
+   "/v1/investigation/cross-evidence?teamId=${…}",
+   "/v1/governance/evidence/${…}",
+   "/v1/identity-security/step-up/start",
+   "/v1/identity-security/step-up/check",
+   "/v1/evidence-requests?teamId=${…}",
+   "/v1/evidence-requests/${…}",
+   "/v1/evidence-requests",
+   "/v1/workflow/intake-links/${…}",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/evidence?${…}",
+   "/v1/evidence/saved-views/${…}",
+   "/v1/auth/me"
+  ],
+  "sharedList": [
+   "/v1/evidence/${…}",
+   "/v1/platform/context"
+  ],
+  "webApiWhere": {
+   "/v1/evidence/${…}": "apps/web/app/(app)/evidence/[id]/_hooks/useArtifactReadinessPoll.ts:94",
+   "/v1/cases?eligibleForEvidenceId=${…}": "apps/web/app/(app)/evidence/[id]/page.tsx:285",
+   "/v1/cases/${…}": "apps/web/app/(app)/evidence/[id]/page.tsx:762",
+   "/v1/external-intake/:token/* (POST)": "packages/shared-evidence-presentation/src/external-access-content.ts:114",
+   "/v1/external-review/access/:token/*": "packages/shared-evidence-presentation/src/external-access-content.ts:128",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)": "packages/shared-evidence-presentation/src/external-access-content.ts:142",
+   "/v1/media-intelligence/signals/${…}": "apps/web/lib/media-intelligence/useMediaIntelligence.ts:154",
+   "/v1/collaboration/threads?teamId=${…}": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:235",
+   "/v1/collaboration/catalogs": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx:256",
+   "/v1/collaboration/threads/${…}": "apps/web/app/(app)/evidence/[id]/components/DiscussionThreadLifecycle.tsx:117",
+   "/v1/teams/${…}": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:46",
+   "/v1/me/presence/here?teamId=${…}": "apps/web/components/presence/PresenceIndicator.tsx:95",
+   "/v1/me/presence/heartbeat": "apps/web/components/presence/PresenceIndicator.tsx:99",
+   "/v1/governance/export-eligibility?teamId=${…}": "apps/web/components/governance/GovernedExportAction.tsx:124",
+   "/v1/collaboration-teams": "apps/web/lib/api/collaboration-teams.ts:277",
+   "/v1/collaboration-team-invites/accept": "apps/web/lib/api/collaboration-teams.ts:716",
+   "/v1/ai/evidence/${…}": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:208",
+   "/v1/review-operations/evidence/${…}": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:286",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/runtime/status": "apps/web/components/operational/RuntimeStatusBanner.tsx:80",
+   "/v1/ops/incidents?teamId=${…}": "apps/web/lib/useGlobalRuntimeState.ts:377",
+   "/v1/reviewer-ops/escalations?teamId=${…}": "apps/web/lib/useGlobalRuntimeState.ts:391",
+   "/v1/provenance/${…}": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:81",
+   "/v1/intelligence/evidence/${…}": "apps/web/lib/api/intelligence.ts:83",
+   "/v1/investigation/cross-evidence?teamId=${…}": "apps/web/lib/api/intelligence.ts:143",
+   "/v1/governance/evidence/${…}": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx:63",
+   "/v1/identity-security/step-up/start": "apps/web/components/identity-security/StepUpModal.tsx:226",
+   "/v1/identity-security/step-up/check": "apps/web/components/identity-security/StepUpModal.tsx:323",
+   "/v1/evidence-requests?teamId=${…}": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:157",
+   "/v1/evidence-requests/${…}": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:926",
+   "/v1/evidence-requests": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:562",
+   "/v1/workflow/intake-links/${…}": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:465",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/evidence/${…}": "apps/mobile/src/product/evidence-detail.ts:864",
+   "/v1/evidence?${…}": "apps/mobile/src/product/evidence-library.ts:53",
+   "/v1/evidence/saved-views/${…}": "apps/mobile/src/product/evidence-library.ts:507",
+   "/v1/platform/context": "apps/mobile/src/product/platform-context.ts:141",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88"
+  }
+ }
+}

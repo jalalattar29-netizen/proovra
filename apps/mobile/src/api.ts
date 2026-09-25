@@ -96,8 +96,12 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
       (obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined) ||
       headerReqId;
 
+    // Nested { error: { code } } first; then the TOP-LEVEL { code } many routes send
+    // (e.g. GRANT_NOT_FOUND / INTERNAL_MEMBER), exactly as the web apiFetch reads it.
+    // Dropping it turned every such refusal into "API_ERROR".
     const code =
       (errObj && typeof errObj["code"] === "string" ? (errObj["code"] as string) : undefined) ||
+      (obj && typeof obj["code"] === "string" ? (obj["code"] as string) : undefined) ||
       "API_ERROR";
 
     const err: MobileApiError = new Error(
@@ -128,10 +132,21 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
   return res;
 }
 
+/**
+ * A successful JSON body — or null for a reply with none. Ten server routes
+ * answer 204 No Content (case delete among them); res.json() threw on the
+ * empty body, so a write that SUCCEEDED was reported to the user as failed.
+ */
+async function readJsonBody(res: Response): ReturnType<Response["json"]> {
+  if (res.status === 204 || res.status === 205) return null;
+  const raw = await res.text();
+  return raw.trim() ? JSON.parse(raw) : null;
+}
+
 /** A JSON endpoint. */
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const res = await apiRequest(path, init);
-  return res.json();
+  return readJsonBody(res);
 }
 
 /**
@@ -214,14 +229,30 @@ export async function publicFetch(
     err.code =
       (errObj && typeof errObj["code"] === "string" ? (errObj["code"] as string) : undefined) ||
       (obj && typeof obj["denial"] === "string" ? (obj["denial"] as string) : undefined) ||
+      // A top-level { code } too — the same fallback apiFetch reads.
+      (obj && typeof obj["code"] === "string" ? (obj["code"] as string) : undefined) ||
       "API_ERROR";
+    // The support reference and the refusal's details, as apiFetch keeps them —
+    // a public intake fault shows its Support ID, and a 412 SUBMISSION_NOT_READY
+    // names the missing steps in details (external-intake.routes.ts:300-307, :755).
+    err.requestId =
+      (errObj && typeof errObj["requestId"] === "string" ? (errObj["requestId"] as string) : undefined) ||
+      (obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined) ||
+      res.headers.get("x-request-id") ||
+      undefined;
+    const detailsRaw = errObj ? errObj["details"] : undefined;
+    if (detailsRaw && typeof detailsRaw === "object") err.details = detailsRaw as Record<string, unknown>;
     if (obj && typeof obj["denial"] === "string") {
-      err.details = { denial: obj["denial"] };
+      err.details = { ...(err.details ?? {}), denial: obj["denial"] };
     }
+    // The whole parsed body, as apiFetch keeps it: a public refusal can carry
+    // what the next step needs beside its code — the portal MFA step's masked
+    // destination, resend wait and attempts remaining (portal-session.service.ts:261-291).
+    if (obj) err.body = obj;
     // A public flow never triggers the app's legal-acceptance gate: the caller
     // has no account for that gate to be about.
     throw err;
   }
 
-  return res.json();
+  return readJsonBody(res);
 }

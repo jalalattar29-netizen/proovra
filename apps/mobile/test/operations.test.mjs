@@ -230,11 +230,10 @@ test("cancel is offered wherever the service actually cancels", () => {
   }
 });
 
-test("the export waits until the job has stopped running", () => {
-  assert.equal(O.canExportBatch(j("processing")), false);
-  assert.equal(O.canExportBatch(j("pending")), false);
-  for (const s of ["completed", "failed", "cancelled"]) {
-    assert.equal(O.canExportBatch(j(s)), true);
+test("export is offered on a completed job only — the web rule (batch-analysis/page.tsx:742)", () => {
+  assert.equal(O.canExportBatch(j("completed")), true);
+  for (const s of ["processing", "pending", "failed", "cancelled"]) {
+    assert.equal(O.canExportBatch(j(s)), false, s);
   }
 });
 

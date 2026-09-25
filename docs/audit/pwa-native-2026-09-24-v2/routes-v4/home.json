@@ -1,0 +1,4478 @@
+{
+ "route": "/home",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/home/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(tabs)/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 62,
+   "labelled": 480,
+   "unboundExports": 57
+  },
+  "native": {
+   "files": 28,
+   "labelled": 19,
+   "unboundExports": 9
+  }
+ },
+ "pairing": {
+  "exact": 1,
+  "copyDiffers": 2,
+  "roleDiffers": 8,
+  "unpaired": 467,
+  "extraInNative": 8,
+  "unpairedRoleAbsent": 6
+ },
+ "exactList": [
+  {
+   "role": "TEXT",
+   "label": "used",
+   "web": "apps/web/components/home-experience/HomeSections.tsx:619",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:426",
+   "natTag": "#text"
+  }
+ ],
+ "copyList": [
+  {
+   "role": "CARD",
+   "webLabel": "Cases with evidence gaps",
+   "natLabel": "Search evidence and cases",
+   "score": 0.5,
+   "web": "apps/web/components/command-center/CommandCenter.tsx:3328",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:278",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": "styles.searchBar",
+   "natTag": "ProovraCard"
+  },
+  {
+   "role": "STATE_EMPTY",
+   "webLabel": "No evidence captured yet",
+   "natLabel": "No evidence yet",
+   "score": 0.75,
+   "web": "apps/web/components/command-center/CommandCenter.tsx:4059",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:369",
+   "webClass": null,
+   "webStyle": null,
+   "natStyle": null,
+   "natTag": "ProovraEmptyState"
+  }
+ ],
+ "roleDiffList": [
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:572",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:323"
+  },
+  {
+   "label": "Try again",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:949",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:323"
+  },
+  {
+   "label": "Workspace health",
+   "webRole": "CARD",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/HomeSections.tsx:1181",
+   "nat": "apps/mobile/src/ui/home-operations-sections.tsx:56"
+  },
+  {
+   "label": "Active matters",
+   "webRole": "CARD",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/HomeSections.tsx:375",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:401"
+  },
+  {
+   "label": "Recent activity",
+   "webRole": "CARD",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/HomeSections.tsx:1500",
+   "nat": "apps/mobile/src/ui/home-operations-sections.tsx:134"
+  },
+  {
+   "label": "Recent activity",
+   "webRole": "CARD",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/HomeSections.tsx:1506",
+   "nat": "apps/mobile/src/ui/home-operations-sections.tsx:134"
+  },
+  {
+   "label": "What needs you now",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:167",
+   "nat": "apps/mobile/app/(tabs)/index.tsx:340"
+  },
+  {
+   "label": "Records by type",
+   "webRole": "TEXT",
+   "natRole": "SECTION",
+   "web": "apps/web/components/home-experience/HomeDashboardSections.tsx:1041",
+   "nat": "apps/mobile/src/ui/home-operations-sections.tsx:86"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Three operational steps",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4948",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Priority sections for this persona",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:402",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operational pressure read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3183",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No operational pressure detected · workspace healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3245",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Routing read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2476",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No actionable items in the routing queue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2487",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Routing queue clear · no operator action required",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2491",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Investigation read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2598",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No active investigations under risk",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2609",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No investigations flagged",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2613",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2713",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workload read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2720",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Case operations read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3307",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Unreviewed evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3333",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence without case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3338",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No investigations underway",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3345",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3448",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reviewer orchestration read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3458",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Queue depth",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3479",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3484",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Due in 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3490",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Unassigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3495",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Open escalations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3500",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Inactive reviewers",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3506",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No reviewer assignments active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3524",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pipeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3615",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pipeline visibility",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3626",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Created",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3629",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Uploading",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3630",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Uploaded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3635",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Signed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3636",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reported",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3637",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Ready",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queued",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3643",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3644",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Ready",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3653",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queued",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3654",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Blocked",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3655",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3660",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Published",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3669",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Unpublished",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Suspended",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3671",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3726",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Governance read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3736",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence-level holds",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3762",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "CARD",
+   "label": "Case-level holds",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3767",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Retention candidates",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3772",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Pending destruction",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3777",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Active policies",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3782",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Policy conflicts",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3787",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Blocked exports",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3793",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Lifecycle events · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3799",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Queue congestion read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2829",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Audit readiness read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3983",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Audit readiness · no blockers detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4005",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Throughput read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3829",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Workspace throughput",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3840",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence created · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3845",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "CARD",
+   "label": "Evidence created · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3850",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "CARD",
+   "label": "Finalized · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3855",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Reports generated · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3860",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Packages generated · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3865",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Workspace activity · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3870",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Custody/integrity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2884",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No integrity signals require review",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2895",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No integrity anomalies detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2899",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Security watch rollup degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2959",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No high-severity security events · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2970",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No suspicious access activity in the last 24 hours",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2974",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Timeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3896",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No recent operational events · 14d window",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3907",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Operational heartbeat — no recent events in the last 14 days",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3911",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recent evidence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4051",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No recent evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4058",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Recent evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4069",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Incidents read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4416",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No open incidents · workspace healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4428",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No open operational incidents",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4429",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Root-cause causality chains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4111",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Active operational workflows",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4206",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Available operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4295",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Cross-system correlations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4335",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Forecast read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1331",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No risk forecasts based on current signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1338",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No deterministic risk signals firing",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1342",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Org intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1403",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Relationship intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No relationship clusters detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1508",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No evidence relationship clusters",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1512",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1564",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Cross-case intelligence read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1574",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No cross-case signals firing",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1585",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No cross-case patterns detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1589",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Deep integrity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No deep integrity signals require review",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1653",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No deep integrity anomalies detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1657",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "TSA timestamp intelligence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1700",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "NOTICE",
+   "label": "Security rollup",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1782",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No security anomalies detected · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1796",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No suspicious activity in the last 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1800",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Telemetry read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1942",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "NOTICE",
+   "label": "Reviewer reconcile",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1972",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "NOTICE",
+   "label": "Worker/queue telemetry",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1977",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BOX",
+   "label": "Worker heartbeats",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2032",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No worker heartbeats yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2046",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Queue snapshots",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2118",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No queue telemetry yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2132",
+   "natHasRole": true,
+   "bestScore": 0.4,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2253",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Coordination read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2260",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No coordination signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2272",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No unresolved coordination items",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2274",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reconstructed timeline read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2326",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No reconstructed events · 14d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2337",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Reconstructed timeline empty",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2341",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Personal workspace — capacity board not applicable",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:985",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Capacity read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:995",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No active reviewer load",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1008",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No reviewer with active assignments",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1012",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Routing recommendations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1084",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Graph read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1136",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No graph topology yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1149",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Graph empty — no incidents or workflows to project",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1150",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Top root causes",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1189",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Health read degraded",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1241",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No health snapshot yet",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1253",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No open matters",
+    "at": "apps/mobile/app/(tabs)/index.tsx:403"
+   }
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Organizational health snapshot not yet computed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1254",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No evidence yet",
+    "at": "apps/mobile/app/(tabs)/index.tsx:369"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Bulk operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5407",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4592",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4912",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace…",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4913",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4938",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace setup incomplete",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4939",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your workspace is still being prepared, or you can create or join an organization to enable team operations. The account priorities above show what is waiting for you across all your contexts.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4941",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create or join an organization.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4960",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations are the governance + identity tenant.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4961",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Organizations →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4963",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture evidence.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4967",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal workspace is available immediately — record hashed, signed media without waiting for an org.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4968",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Start a capture →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4971",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage workspaces.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4975",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Set retention, invite members, configure governance from",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4976",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace administration →",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4978",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Organizations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4991",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture personal evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4998",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5015",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5041",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Dashboard read could not complete",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5042",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Request ID:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5045",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:341",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational command surface",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:342",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational pressure, investigation status, reviewer coordination, governance posture, and audit readiness — sourced from real workspace state.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:344",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Role ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:355",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Persona ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:358",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:362",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Critical",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "High",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3228",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Warning",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3235",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Info",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3241",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open runbook",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2569",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2654",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2671",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cross-case signals",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2679",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Source:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2696",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Team health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2746",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Saturation (0–10)",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2756",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottlenecks",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2764",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No reviewer assignments active. Workload engine has no data to score.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2769",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "saturation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2789",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2793",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2796",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottleneck",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2801",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Inactive",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2806",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal workspace uses basic evidence controls.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4849",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3395",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3405",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "escalation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3414",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal preservation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3420",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3428",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Throughput · last 7d:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3515",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "vs prev 7d:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3518",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Full reviewer console at",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3536",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer Ops",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3537",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3578",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3584",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "due soon",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3588",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Inactive",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3592",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last action",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3596",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence lifecycle",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3627",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reports",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3640",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verification packages",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3651",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verify",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3667",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "stuck",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3706",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Full control plane at",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3806",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3807",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ". Preservation controls are workspace policy — they do not assert legal admissibility or authenticity of any record.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3807",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Remaining gaps are listed in the Unsupported Signals section. BullMQ depth + worker heartbeat are now persisted by Phase 32.8C+++++ telemetry snapshots; see the Queue / Worker Telemetry section.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2864",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Audit-readiness counters surface gaps an external auditor would expect to find resolved. Each row sources from real workspace state.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4018",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Throughput reflects realized workspace activity over the last 24 hours and 7 days — sourced from real evidence + report + package + activity records.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3877",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Bounded language: each signal reports an operator-side review request, not a claim of authenticity or admissibility.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2938",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "user",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3004",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4510",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "ack",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4518",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operator actions (acknowledge / assign / resolve / suppress, workflow ownership transitions) live on the",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4543",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operations Center",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4545",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "incident + workflow detail pages. The dashboard is read-only.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4545",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Root-cause causality chains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4117",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "active chain",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4119",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "incident",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4156",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workflow",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4160",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "correlation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4165",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "last seen",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4176",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active operational workflows",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4214",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4255",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "owner",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4265",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Unassigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4268",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "escalated ×",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4272",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "retry ×",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "due",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4285",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "next retry",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4290",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Root-cause correlations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4337",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "correlation",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4339",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "incident",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4365",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "confidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4368",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "detected",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:4379",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "confidence ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1377",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Likely impact:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1381",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1384",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Forecasts are derived from real engine outputs — no ML, no AI claims.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1390",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 24h",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1430",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1434",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence · 30d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1438",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Bottleneck domains",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1443",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "pressure item",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1453",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Top pressure sources",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1462",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1544",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1547",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1617",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "affected case",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1619",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1626",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1705",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "policy ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1716",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA issuer parsing not yet available",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1722",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA parse failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1727",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "TSA ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1731",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Source ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1736",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Each signal includes the exact source field(s). Language is operator-side review — no claim of authenticity or admissibility.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1744",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Detection is operational via the canonical SecurityEvent audit log. The dashboard rollup will re-classify on the next refresh.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1788",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "× ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1825",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recommended:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1835",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "source ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1838",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· eventType:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1838",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "canonical source healthy",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5109",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last successful run:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5115",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Telemetry sampler returning delayed snapshots. The worker remains operational; the latest sample is older than the freshness threshold.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1991",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reconcile health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1999",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Heartbeat age",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2007",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Review queue depth",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2011",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Report queue pending",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2015",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Package queue pending",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2019",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry storms",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2027",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Worker heartbeats",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2038",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Heartbeat stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2078",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "heartbeat",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2089",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "processed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2093",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Queue snapshots",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2124",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "waiting",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2161",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "active",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "delayed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "failed",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2166",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "stalled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2171",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2175",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Worker heartbeats are sampled by the worker every 60s and persisted to WorkerTelemetrySnapshot. Queue depth is sampled from BullMQ when the worker is online; DB-derived counts are written by the API on dashboard load when no fresh BullMQ sample is available.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2185",
+   "natHasRole": true,
+   "bestScore": 0.03,
+   "bestNat": {
+    "label": "You're offline — showing the latest available data.",
+    "at": "apps/mobile/src/ui/shell.tsx:109"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2209",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2217",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Case comments resolved",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2224",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer comments open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2232",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Annotations open",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2240",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1047",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "capacity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1059",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "assigned",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1062",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "overdue",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1065",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "due soon",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1069",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "stale",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1072",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "done · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1074",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "done · 30d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1075",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1077",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Routing recommendations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1090",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted evidence",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1177",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted cases",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1181",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Impacted reviewers",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1185",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Top root causes",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "out-degree",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1221",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Overall health",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1276",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1280",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1284",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Audit readiness",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1288",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer maturity",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1292",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Queue reliability",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1296",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Artifact reliability",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1300",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows resolved · 7d",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1304",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Active incidents",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1308",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Scores derive from real counters via deterministic thresholds — no AI/ML, no fabricated metrics. Snapshot sampled",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1312",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk operator actions",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5415",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk actions are executed on the Operations Center page (",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5464",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "/operations",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5465",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "). The dashboard is read-only — chips above link to the canonical surface. Every bulk run fans out to the underlying lifecycle service and is audited per-target.",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:5465",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Health ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2448",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "cases at risk ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2448",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "pressure items",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2449",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Next:",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:2458",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Engineering diagnostics · capability catalog ·",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3029",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(intelligence signals the platform does not yet compute — not a platform failure)",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:3030",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Operational quick actions",
+   "at": "apps/web/components/command-center/CommandCenterQuickActions.tsx:32",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime readiness could not be loaded — treat dashboard as unknown state.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:133",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "UNKNOWN",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:144",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime status is currently unknown.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "for detail.",
+   "at": "apps/web/components/operational/RuntimeStatusBanner.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Runtime is in degraded mode.",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Runtime dependency:",
+   "at": "apps/web/components/operational/OperationalEmptyState.tsx:289",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Bulk mitigation note",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:617",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Bulk retry time",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:626",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflow Operations",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:541",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading operational workflows…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:552",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Access restricted",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:558",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows unavailable",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:565",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You can see operational pressure in this workspace but cannot act on it. Taking workflow actions needs an operations role.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:585",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No operational workflows open",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:592",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows are generated from real incidents and correlations. An empty list means nothing in this workspace currently needs operator action — it is not a failed read.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:594",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Causes could not be loaded, so workflows below show no &quot;Why&quot; explanation. This is a failed read, not an absence of causes.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:603",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Bulk actions ·",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:613",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "selected",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:613",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "escalation",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:725",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "retries",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:730",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "owner",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:735",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "unassigned",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:738",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Why:",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:759",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Action availability is resolved by the server from your workspace permissions and each workflow&apos;s state — this surface renders that decision, it does not make it.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:861",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading the cause…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:928",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This cause is no longer recorded in this workspace. Refresh the workflows.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:933",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "You do not have access to this cause in this workspace.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:940",
+   "natHasRole": true,
+   "bestScore": 0.12,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Root cause",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:967",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Severity",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:968",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Status",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:969",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Started",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:970",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Last seen",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:971",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Resolved",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:973",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked incidents",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:976",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked cases",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:977",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Linked evidence",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:978",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workflows with this cause",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:980",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No linked workflow is visible in this workspace.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:982",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Go to",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:989",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "(not in the current list)",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:992",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Cause ID",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1000",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading history…",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1060",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No operator events recorded for this workflow yet.",
+   "at": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:1068",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Step-up confirmation",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:488",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:525",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Preparing your verification…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:543",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:552",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:567",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Settings → Security",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:571",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": ", then start this action again.",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:573",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:582",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:658",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirm + retry",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:666",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Confirmed — retrying the original action…",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:674",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:696",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Start again",
+   "at": "apps/web/components/identity-security/StepUpModal.tsx:705",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Start your first evidence workflow",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1766",
+   "natHasRole": true,
+   "bestScore": 0.17,
+   "bestNat": {
+    "label": "Search evidence and cases",
+    "at": "apps/mobile/app/(tabs)/index.tsx:278"
+   }
+  },
+  {
+   "role": "CARD",
+   "label": "Public verification links",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1028",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Not published",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1057",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Suspended",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1058",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Verification summary",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1343",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Report production",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:735",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reports ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:737",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Packages ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:738",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pending",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:739",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Failed",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:740",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "More actions",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:902",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:555",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:574",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Intake status",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:590",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "CARD",
+   "label": "Team work",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1704",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Awaiting review",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1710",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Reports today",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1711",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Members",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1712",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Pending invites",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1713",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture your first record or create a case to get started.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1768",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "with evidence gaps",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:380",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "blocked",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:385",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "unlinked record",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:391",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "not reviewed",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:396",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No active matters yet. Group related evidence into a case to track a matter end-to-end.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:404",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create case",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:411",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· R",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· P",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· V",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:452",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Legal hold",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:455",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open matter →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:469",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View all",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:482",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Public verification links appear once you publish a record — letting anyone independently confirm your evidence.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1031",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "verification page",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1054",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "live",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1054",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Publish verification",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1066",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recently published",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1074",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Live",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1119",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open verify →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1122",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View all links →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1134",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No evidence captured yet — these are the integrity signals each record will earn once captured.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1346",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Capture first evidence",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1411",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1417",
+   "natHasRole": true,
+   "bestScore": 0.04,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No reports generated yet — the counts above update as production runs.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:764",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Report",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:784",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Package ready",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:786",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "No package",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:789",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open reports →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:805",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:898",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Verify page",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:981",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Request evidence securely from a client, witness, source, or contributor — with delivery tracking and a review queue. Available on Pro and Team.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:558",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "See plans",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:566",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Request evidence securely from a client, witness, source, or contributor — then track delivery and review what comes back.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:576",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Create intake link",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:584",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "· expires",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:623",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Not yet sent",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:645",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Open →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:656",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "View intake →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:670",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry scheduled",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:330",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open delivery →",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:351",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity appears when evidence is captured, reports are generated, or intake submissions are received.",
+   "at": "apps/web/components/home-experience/HomeSections.tsx:1501",
+   "natHasRole": true,
+   "bestScore": 0.08,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Workspace views",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:117",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SECTION",
+   "label": "Verification & production",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:208",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SECTION",
+   "label": "Workspace analytics",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:238",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Workspace health",
+    "at": "apps/mobile/src/ui/home-operations-sections.tsx:56"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace health and the priorities ranked by severity.",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:169",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your recent work",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:173",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "The latest evidence you captured and the matters in progress.",
+   "at": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx:175",
+   "natHasRole": true,
+   "bestScore": 0.14,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "BOX",
+   "label": "Records or preserved files",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1051",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "SELECT",
+   "label": "Activity period",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:752",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "👋",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:181",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Here&apos;s what&apos;s happening across your digital evidence operations today.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0.09,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Also:",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:253",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "What needs attention",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:558",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Checking…",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:580",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Reading this workspace's operational status.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:583",
+   "natHasRole": true,
+   "bestScore": 0.06,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "All clear",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:614",
+   "natHasRole": true,
+   "bestScore": 0.07,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "No workspace priorities need attention right now.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:617",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+    "at": "apps/mobile/app/(tabs)/index.tsx:312"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "lower-priority item",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "tracked",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:685",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Recent evidence",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:890",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "All evidence →",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:892",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Your newest records appear here after the first capture.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:897",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Records",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1078",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Preserved files",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:1101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence activity",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:726",
+   "natHasRole": true,
+   "bestScore": 0.25,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence (",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:763",
+   "natHasRole": true,
+   "bestScore": 0.33,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Reports (",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:767",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Activity appears here as evidence is captured and reports are generated.",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:778",
+   "natHasRole": true,
+   "bestScore": 0.11,
+   "bestNat": {
+    "label": "Search evidence, cases…",
+    "at": "apps/mobile/app/(tabs)/index.tsx:284"
+   }
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Nothing is waiting on you",
+   "at": "apps/mobile/app/(tabs)/index.tsx:342"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No open matters",
+   "at": "apps/mobile/app/(tabs)/index.tsx:403"
+  },
+  {
+   "role": "SECTION",
+   "label": "Storage",
+   "at": "apps/mobile/app/(tabs)/index.tsx:423"
+  },
+  {
+   "role": "TEXT",
+   "label": "Search evidence, cases…",
+   "at": "apps/mobile/app/(tabs)/index.tsx:284"
+  },
+  {
+   "role": "TEXT",
+   "label": "No workspace is selected, so six of the figures below are not requested at all. Choose a workspace to see them.",
+   "at": "apps/mobile/app/(tabs)/index.tsx:312"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're offline — showing the latest available data.",
+   "at": "apps/mobile/src/ui/shell.tsx:109"
+  },
+  {
+   "role": "SECTION",
+   "label": "What happened",
+   "at": "apps/mobile/src/ui/home-operations-sections.tsx:182"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextActiveSpace"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\state-observability.ts",
+   "name": "emitStateEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "CommandCenterEnvelope"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "SeverityTone"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardSectionsInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardSectionsResult"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "OrderedSectionId"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\workspace-experience\\types.ts",
+   "name": "WorkspaceExperienceInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\workspace-experience\\types.ts",
+   "name": "WorkspaceExperienceResult"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardQuickActionsInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardQuickAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardOnboardingInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\dashboard\\types.ts",
+   "name": "DashboardOnboardingHint"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "SectionStatus"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "OperationalPressureItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "CaseOperationsItem"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "ReviewerOrchestrationRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "PipelineDetail"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "AuditReadinessCounter"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "TimelineEvent"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "CapabilityKey"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\command-center\\types.ts",
+   "name": "WorkspaceScope"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\lib\\platform-context\\types.ts",
+   "name": "PlatformContextOrganization"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomePlan"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeSliceKey"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeCommandCenterInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeTrustSummaryInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeRecordsByTypeInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeBillingInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeReportsInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeIntakeLinksInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeInboxInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeOperationsSummaryInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeCommunicationsInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeEvidenceListInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HomeOrgsInput"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "HeroAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\home-experience\\home-view-model.ts",
+   "name": "ExecutiveSummary"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\errors\\safe-error.ts",
+   "name": "SafeError"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\home-dashboard.ts",
+   "name": "HomeSources"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\home-operations.ts",
+   "name": "TypeDistribution"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\domain-enums.generated.ts",
+   "name": "EvidenceType"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\home-operations.ts",
+   "name": "HealthMetric"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\home-operations.ts",
+   "name": "ActivitySeries"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\home-operations.ts",
+   "name": "ActivityGroup"
+  }
+ ]
+}

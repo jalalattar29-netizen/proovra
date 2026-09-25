@@ -1,0 +1,560 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "distinct": 63,
+ "occurrences": 101,
+ "byRole": {
+  "TABLE": 1,
+  "SELECT": 39,
+  "STATE_EMPTY": 8,
+  "LIST": 3,
+  "LINK": 3,
+  "IMAGE": 2,
+  "FORM": 1,
+  "NOTICE": 3,
+  "SECTION": 3
+ },
+ "items": [
+  {
+   "role": "TABLE",
+   "label": "Actions",
+   "at": "apps/web/components/ui/DataTable.tsx:182",
+   "routes": [
+    "/auth/callback/ui",
+    "/auth/mfa-challenge",
+    "/auth/verify-email",
+    "/billing",
+    "/capture",
+    "/cases/[id]",
+    "/cases",
+    "/collaboration-teams/invites/[token]/accept",
+    "/collaboration-teams/[teamId]",
+    "/collaboration-teams",
+    "/evidence/[id]",
+    "/evidence",
+    "/home",
+    "/inbox",
+    "/intake-links",
+    "/invite/[token]",
+    "/legal/[slug]",
+    "/login",
+    "/notifications",
+    "/operations/batch-analysis",
+    "/operations/quotas",
+    "/organizations/[id]",
+    "/pricing",
+    "/register",
+    "/reports",
+    "/reset-password",
+    "/settings",
+    "/share/[id]",
+    "/support",
+    "/teams/[id]",
+    "/trust",
+    "/verify/[token]",
+    "/verify"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Choose a member",
+   "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]",
+    "/evidence-requests/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Team",
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:515",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Assignee",
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:533",
+   "routes": [
+    "/cases/[id]",
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Session inventory unavailable",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1848",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No security events in the recent window",
+   "at": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2008",
+   "routes": [
+    "/organizations/[id]",
+    "/teams/[id]"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Billing is managed for you",
+   "at": "apps/web/app/(app)/billing/page.tsx:952",
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No payments yet",
+   "at": "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx:444",
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "role": "LIST",
+   "label": "Billing account",
+   "at": "apps/web/app/(app)/billing/_sections/AccountSelector.tsx:158",
+   "routes": [
+    "/billing"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Priority",
+   "at": "apps/web/components/collaboration/TeamResponsibilityPanel.tsx:553",
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Investigation status filter",
+   "at": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx:641",
+   "routes": [
+    "/cases/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Risk level",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:667",
+   "routes": [
+    "/cases"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Bulk action",
+   "at": "apps/web/components/cases-experience/CasesIndex.tsx:1033",
+   "routes": [
+    "/cases"
+   ]
+  },
+  {
+   "role": "LINK",
+   "label": "Owner can upgrade to add more seats",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:405",
+   "routes": [
+    "/collaboration-teams/invites/[token]/accept"
+   ]
+  },
+  {
+   "role": "LINK",
+   "label": "View billing and upgrade options",
+   "at": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx:440",
+   "routes": [
+    "/collaboration-teams/invites/[token]/accept"
+   ]
+  },
+  {
+   "role": "LINK",
+   "label": "Invite and manage external reviewers via the External Review console",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx:794",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by status",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx:363",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by assignee",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx:375",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by priority",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx:385",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by work type",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx:396",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Assignee",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx:964",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Role in this team",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx:1031",
+   "routes": [
+    "/collaboration-teams/[teamId]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Which teams to show",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:738",
+   "routes": [
+    "/collaboration-teams"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by status",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:750",
+   "routes": [
+    "/collaboration-teams"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by team type",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:758",
+   "routes": [
+    "/collaboration-teams"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Sort teams",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:766",
+   "routes": [
+    "/collaboration-teams"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Team template",
+   "at": "apps/web/app/(app)/collaboration-teams/page.tsx:1560",
+   "routes": [
+    "/collaboration-teams"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Select case",
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1447",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Assigned reviewer",
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1522",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Relationship type",
+   "at": "apps/web/app/(app)/evidence/[id]/page.tsx:1627",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "IMAGE",
+   "label": "Derived source keyframe",
+   "at": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:288",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Legal note type",
+   "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:79",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Legal note type",
+   "at": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx:112",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "IMAGE",
+   "label": "Capture context map preview",
+   "at": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx:101",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Choose declaration type",
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceCertificationsPanel.tsx:544",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Request type",
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:625",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Recipient",
+   "at": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:656",
+   "routes": [
+    "/evidence/[id]"
+   ]
+  },
+  {
+   "role": "FORM",
+   "label": "Assign reviewer",
+   "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:279",
+   "routes": [
+    "/evidence-requests/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Bulk action",
+   "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:300",
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Target case",
+   "at": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx:307",
+   "routes": [
+    "/evidence"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Activity period",
+   "at": "apps/web/components/home-experience/HomeDashboardSections.tsx:752",
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "role": "NOTICE",
+   "label": "Security rollup",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1782",
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "role": "NOTICE",
+   "label": "Reviewer reconcile",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1972",
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "role": "NOTICE",
+   "label": "Worker/queue telemetry",
+   "at": "apps/web/components/command-center/CommandCenter.tsx:1977",
+   "routes": [
+    "/home"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "What are you asking for?",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:166",
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Link expires in",
+   "at": "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx:490",
+   "routes": [
+    "/intake-links"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "No workspaces bound to this organization.",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1016",
+   "routes": [
+    "/organizations/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "New owner",
+   "at": "apps/web/app/(app)/organizations/[id]/page.tsx:1472",
+   "routes": [
+    "/organizations/[id]"
+   ]
+  },
+  {
+   "role": "LIST",
+   "label": "Password requirements",
+   "at": "apps/web/app/register/page.tsx:1377",
+   "routes": [
+    "/register"
+   ]
+  },
+  {
+   "role": "LIST",
+   "label": "Security and privacy commitments",
+   "at": "apps/web/app/register/page.tsx:1665",
+   "routes": [
+    "/register"
+   ]
+  },
+  {
+   "role": "SECTION",
+   "label": "Operational summary",
+   "at": "apps/web/components/reports-experience/ReportsIndex.tsx:632",
+   "routes": [
+    "/reports"
+   ]
+  },
+  {
+   "role": "SECTION",
+   "label": "Operational summary",
+   "at": "apps/web/components/reports-experience/ReportsIndex.tsx:656",
+   "routes": [
+    "/reports"
+   ]
+  },
+  {
+   "role": "SECTION",
+   "label": "Filters",
+   "at": "apps/web/components/reports-experience/ReportsIndex.tsx:671",
+   "routes": [
+    "/reports"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Reports & Artifacts couldn't load",
+   "at": "apps/web/components/reports-experience/ReportsIndex.tsx:1543",
+   "routes": [
+    "/reports"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Sort results",
+   "at": "apps/web/app/(app)/search/page.tsx:1986",
+   "routes": [
+    "/search"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Compare from version",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:199",
+   "routes": [
+    "/settings/reviewer-criteria"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Compare to version",
+   "at": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx:203",
+   "routes": [
+    "/settings/reviewer-criteria"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "UI language",
+   "at": "apps/web/app/(app)/settings/_sections/PreferencesSection.tsx:171",
+   "routes": [
+    "/settings"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Workspace role",
+   "at": "apps/web/app/(app)/teams/[id]/page.tsx:2235",
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter members by status",
+   "at": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:326",
+   "routes": [
+    "/teams/[id]"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Verification Failed",
+   "at": "apps/web/app/verify/[token]/page.tsx:4612",
+   "routes": [
+    "/verify/[token]"
+   ]
+  },
+  {
+   "role": "STATE_EMPTY",
+   "label": "Evidence Not Found",
+   "at": "apps/web/app/verify/[token]/page.tsx:4634",
+   "routes": [
+    "/verify/[token]"
+   ]
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by outcome",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:129",
+   "routes": [
+    "/workspaces"
+   ]
+  }
+ ]
+}

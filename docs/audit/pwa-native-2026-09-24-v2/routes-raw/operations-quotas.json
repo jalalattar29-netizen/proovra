@@ -1,0 +1,512 @@
+{
+ "route": "/operations/quotas",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/quotas/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/operations/quotas.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 161,
+   "elements": 302,
+   "texts": 37,
+   "distinctTexts": 35,
+   "handlers": 30,
+   "conditionals": 1229,
+   "apiPaths": 8,
+   "distinctApi": 8,
+   "styleRefs": 226,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 6,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 137,
+   "elements": 160,
+   "texts": 20,
+   "distinctTexts": 17,
+   "handlers": 27,
+   "conditionals": 1027,
+   "apiPaths": 3,
+   "distinctApi": 3,
+   "styleRefs": 195,
+   "stylesheetRules": 83,
+   "themeTokens": 255,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 35,
+  "natLabelled": 19,
+  "paired": 2,
+  "roleDiff": 0,
+  "missing": 33,
+  "extraInNative": 15,
+  "webUnlabelled": 291,
+  "missingWithRolePresent": 32,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "COMPONENT",
+     "label": "Monitor platform usage and",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:200",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "used ·",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "remaining",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:170",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "% used",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:194",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review analysis activity, cost metrics, quota consumption, and active service usage from one dashboard.",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:206",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Current Quotas",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:428",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Quotas reset on",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:460",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cost Overview",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:486",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Total Cost",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:499",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This Month",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:519",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active Services",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:546",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active API Keys",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:559",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active Batch Jobs",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:579",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Types Analyzed",
+     "at": "apps/web/app/(app)/operations/quotas/page.tsx:610",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Quotas & usage",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:133"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:138"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Allowances",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:142"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading allowances",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:143"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No allowances are published for this account.",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:148"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Analyses",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:161"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading usage",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:162"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "No usage has been recorded.",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:169"
+    },
+    {
+     "role": "TEXT",
+     "label": "No limit is published for this allowance.",
+     "at": "apps/mobile/app/(stack)/operations/quotas.tsx:66"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 195,
+  "webClassesUnresolved": 125,
+  "webNonLiteralClass": 10,
+  "webCompetingRules": 17,
+  "webDistinctUnresolvedClasses": 42,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 80,
+  "webDistinctColors": 16,
+  "natDistinctColors": 20,
+  "sharedColors": 2,
+  "webOnlyColors": 14,
+  "webOnlyColorSample": [
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)"
+  ],
+  "sharedColorSample": [
+   "#7c3aed",
+   "#f1f4f9"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1229,
+  "natConditionals": 1027,
+  "webStateRoles": [
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 30,
+  "natHandlers": 27,
+  "webHandlerSample": [
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/operations/quotas.tsx:138",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/operations/quotas.tsx:145",
+   "onRetry=() => void load() @apps/mobile/app/(stack)/operations/quotas.tsx:166",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 8,
+  "natApi": 3,
+  "shared": 2,
+  "onlyWeb": 6,
+  "onlyNative": 1,
+  "onlyWebList": [
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace",
+   "/v1/users/me",
+   "/v1/auth/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/batch-analysis"
+  ],
+  "sharedList": [
+   "/v1/quotas",
+   "/v1/usage-stats"
+  ],
+  "webApiWhere": {
+   "/v1/quotas": "apps/web/app/(app)/operations/quotas/page.tsx:65",
+   "/v1/usage-stats": "apps/web/app/(app)/operations/quotas/page.tsx:66",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476",
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/quotas": "apps/mobile/src/product/operations.ts:48",
+   "/v1/usage-stats": "apps/mobile/src/product/operations.ts:49",
+   "/v1/batch-analysis": "apps/mobile/src/product/operations.ts:50"
+  }
+ }
+}

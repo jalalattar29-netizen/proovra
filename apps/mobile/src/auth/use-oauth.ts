@@ -28,8 +28,15 @@ export interface UseOAuth {
 
 export function useOAuth(opts: {
   onResult: (result: LoginResult, mode: OAuthMode) => void;
+  /**
+   * T-15 — LINK mode. When set, the provider's ID token is handed here and is
+   * NOT exchanged for a session: Settings → Sign-in methods posts it to
+   * `/v1/identity/links/:provider` to add Google/Apple to the SIGNED-IN
+   * account. Sign-in screens leave it unset.
+   */
+  onIdToken?: (mode: OAuthMode, idToken: string) => Promise<void> | void;
 }): UseOAuth {
-  const { onResult } = opts;
+  const { onResult, onIdToken } = opts;
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState<OAuthMode | null>(null);
   const [error, setError] = useState<SafeError | null>(null);
@@ -117,14 +124,15 @@ export function useOAuth(opts: {
       setBusy("google");
       setError(null);
       try {
-        onResult(await oauthGoogle(idToken), "google");
+        if (onIdToken) await onIdToken("google", idToken);
+        else onResult(await oauthGoogle(idToken), "google");
       } catch (err) {
         setError(toSafeUserError(err));
       } finally {
         setBusy(null);
       }
     })();
-  }, [googleResponse, onResult]);
+  }, [googleResponse, onResult, onIdToken]);
 
   const promptGoogle = useCallback(() => {
     if (!googleConfigured || !googleRequest) {
@@ -149,7 +157,8 @@ export function useOAuth(opts: {
           ],
         });
         if (!result.identityToken) throw new Error("No identity token");
-        onResult(await oauthApple(result.identityToken), "apple");
+        if (onIdToken) await onIdToken("apple", result.identityToken);
+        else onResult(await oauthApple(result.identityToken), "apple");
       } catch (err) {
         const isCancel =
           (err as { code?: string })?.code === "ERR_REQUEST_CANCELED" ||
@@ -159,7 +168,7 @@ export function useOAuth(opts: {
         setBusy(null);
       }
     })();
-  }, [onResult]);
+  }, [onResult, onIdToken]);
 
   return {
     googleReady: googleConfigured && !!googleRequest,

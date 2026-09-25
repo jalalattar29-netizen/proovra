@@ -1,0 +1,2642 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "pairs": 111,
+ "withWebClass": 16,
+ "natLiteralStyle": 6,
+ "rows": [
+  {
+   "route": "/cases/[id]",
+   "role": "BUTTON",
+   "label": "Close",
+   "webClass": "app-ghost-action",
+   "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "natTag": "Pressable",
+   "natStyle": "styles.scrim",
+   "props": {
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "6px",
+     "raw": "6px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid transparent",
+     "raw": "1px solid transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "transparent",
+     "raw": "transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "rgba(15, 23, 42, 0.05)",
+       "raw": "rgba(15, 23, 42, 0.05)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#344054",
+     "raw": "var(--app-ink-label)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [
+      "--app-ink-label"
+     ],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#172033",
+       "raw": "#172033",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border-radius": {
+     "value": "8px",
+     "raw": "8px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "6px 10px",
+     "raw": "6px 10px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "12.5px",
+     "raw": "12.5px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "600",
+     "raw": "600",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "pointer",
+     "raw": "pointer",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "background-color 140ms ease, color 140ms ease",
+     "raw": "background-color 140ms ease, color 140ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "44px",
+     "raw": "44px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-primary-action,\n  .app-secondary-action,\n  .app-ghost-action,\n  .app-danger-link,\n  .app-tab,\n  .app-listbox__trigger",
+     "chain": [],
+     "atRule": "@media (pointer: coarse), (max-width: 900px)",
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/evidence/[id]",
+   "role": "BUTTON",
+   "label": "Close",
+   "webClass": "app-ghost-action",
+   "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "natTag": "Pressable",
+   "natStyle": "styles.scrim",
+   "props": {
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "6px",
+     "raw": "6px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid transparent",
+     "raw": "1px solid transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "transparent",
+     "raw": "transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "rgba(15, 23, 42, 0.05)",
+       "raw": "rgba(15, 23, 42, 0.05)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#344054",
+     "raw": "var(--app-ink-label)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [
+      "--app-ink-label"
+     ],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#172033",
+       "raw": "#172033",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border-radius": {
+     "value": "8px",
+     "raw": "8px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "6px 10px",
+     "raw": "6px 10px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "12.5px",
+     "raw": "12.5px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "600",
+     "raw": "600",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "pointer",
+     "raw": "pointer",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "background-color 140ms ease, color 140ms ease",
+     "raw": "background-color 140ms ease, color 140ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "44px",
+     "raw": "44px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-primary-action,\n  .app-secondary-action,\n  .app-ghost-action,\n  .app-danger-link,\n  .app-tab,\n  .app-listbox__trigger",
+     "chain": [],
+     "atRule": "@media (pointer: coarse), (max-width: 900px)",
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/evidence/[id]",
+   "role": "BUTTON",
+   "label": "Copy verification link",
+   "webClass": "app-secondary-action app-secondary-action--filled evidence-detail-hero-action",
+   "web": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx:1299",
+   "nat": "apps/mobile/app/(stack)/evidence/[id].tsx:940",
+   "natTag": "ProovraButton",
+   "natStyle": null,
+   "props": {
+    "flex": {
+     "value": "1 1 calc(50% - 4px)",
+     "raw": "1 1 calc(50% - 4px)",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/evidence-library.css .evidence-library-header .app-secondary-action",
+     "chain": [],
+     "atRule": "@media (max-width: 720px)",
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 auto",
+       "raw": "0 0 auto",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action svg",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "1 1 140px",
+       "raw": "1 1 140px",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": "@media (max-width: 900px)",
+       "unresolved": null
+      }
+     ]
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+     "chain": [],
+     "atRule": "@media (max-width: 900px)",
+     "unresolved": null
+    },
+    "min-block-size": {
+     "value": "44px",
+     "raw": "44px",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .ta-card-footer .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "32px",
+       "raw": "32px",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "min-inline-size": {
+     "value": "132px",
+     "raw": "132px",
+     "from": "D:/digital-witness/apps/web/app/(app)/search/search.css .search-results__more > .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "42px !important",
+     "raw": "42px !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell [data-settings-preferences] input[type=\"text\"] + button:not(.app-secondary-action),\n.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]):not(.app-secondary-action)",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 !important",
+       "raw": "0 !important",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "44px",
+       "raw": "44px",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action",
+       "chain": [],
+       "atRule": "@media (max-width: 640px)",
+       "unresolved": null
+      },
+      {
+       "value": "44px",
+       "raw": "44px",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-primary-action,\n  .app-secondary-action,\n  .app-ghost-action,\n  .app-danger-link,\n  .app-tab,\n  .app-listbox__trigger",
+       "chain": [],
+       "atRule": "@media (pointer: coarse), (max-width: 900px)",
+       "unresolved": null
+      }
+     ]
+    },
+    "border-radius": {
+     "value": "var(--set-radius-sm) !important",
+     "raw": "var(--set-radius-sm) !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell [data-settings-preferences] input[type=\"text\"] + button:not(.app-secondary-action),\n.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]):not(.app-secondary-action)",
+     "chain": [
+      "--set-radius-sm"
+     ],
+     "atRule": null,
+     "unresolved": "--set-radius-sm is not declared in :root",
+     "conflicts": [
+      {
+       "value": "8px",
+       "raw": "8px",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "8px",
+       "raw": "8px",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "padding": {
+     "value": "0 !important",
+     "raw": "0 !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count)",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 14px",
+       "raw": "0 14px",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border": {
+     "value": "0 !important",
+     "raw": "0 !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count)",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "1px solid rgba(124, 58, 237, 0.24)",
+       "raw": "1px solid rgba(124, 58, 237, 0.24)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "background": {
+     "value": "none !important",
+     "raw": "none !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled > *",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "rgba(255, 255, 255, 0.9)",
+       "raw": "rgba(255, 255, 255, 0.9)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#F2ECFE",
+       "raw": "#F2ECFE",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#172033",
+       "raw": "var(--app-ink-heading)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled",
+       "chain": [
+        "--app-ink-heading"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#0F1723",
+       "raw": "#0F1723",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "inherit !important",
+     "raw": "inherit !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count)",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#344054 !important",
+       "raw": "var(--app-ink-label) !important",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled,\n.settings-page-shell .set-main .app-secondary-action:disabled *",
+       "chain": [
+        "--app-ink-label"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#344054 !important",
+       "raw": "var(--app-ink-label) !important",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled,\n.settings-page-shell .set-main .app-secondary-action:disabled *",
+       "chain": [
+        "--app-ink-label"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#344054",
+       "raw": "var(--app-ink-label)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [
+        "--app-ink-label"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#172033",
+       "raw": "var(--app-ink-heading)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:hover:not(:disabled)",
+       "chain": [
+        "--app-ink-heading"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#ffffff",
+       "raw": "#ffffff",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#ffffff",
+       "raw": "#ffffff",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "-webkit-text-fill-color": {
+     "value": "inherit !important",
+     "raw": "inherit !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count)",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#344054 !important",
+       "raw": "var(--app-ink-label) !important",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled,\n.settings-page-shell .set-main .app-secondary-action:disabled *",
+       "chain": [
+        "--app-ink-label"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#344054 !important",
+       "raw": "var(--app-ink-label) !important",
+       "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled,\n.settings-page-shell .set-main .app-secondary-action:disabled *",
+       "chain": [
+        "--app-ink-label"
+       ],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none !important",
+     "raw": "none !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "none",
+       "raw": "none",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:focus-visible",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.28) !important",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.28) !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 1px 2px rgba(15, 23, 42, 0.06)",
+       "raw": "0 1px 2px rgba(15, 23, 42, 0.06)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "0 0 0 3px rgba(124, 58, 237, 0.28)",
+       "raw": "0 0 0 3px rgba(124, 58, 237, 0.28)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:focus-visible",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border-color": {
+     "value": "rgba(124, 58, 237, 0.24) !important",
+     "raw": "rgba(124, 58, 237, 0.24) !important",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action:disabled,\n.settings-page-shell .set-main .app-secondary-action:disabled *",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#D9C7FB",
+       "raw": "#D9C7FB",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#172033",
+       "raw": "var(--app-ink-heading)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled",
+       "chain": [
+        "--app-ink-heading"
+       ],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "#0F1723",
+       "raw": "#0F1723",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action--filled:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "opacity": {
+     "value": "0.55",
+     "raw": "0.55",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0.45",
+       "raw": "0.45",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action:disabled",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "cursor": {
+     "value": "not-allowed",
+     "raw": "not-allowed",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "margin-block-start": {
+     "value": "auto",
+     "raw": "auto",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-grid--summary > .set-card > .set-card__action,\n.settings-page-shell .set-grid--summary > .set-card > .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "10px",
+       "raw": "10px",
+       "from": "D:/digital-witness/apps/web/components/notifications/notifications.css .ops-empty .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "white-space": {
+     "value": "normal",
+     "raw": "normal",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action",
+     "chain": [],
+     "atRule": "@media (max-width: 640px)",
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "nowrap",
+       "raw": "nowrap",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "nowrap",
+       "raw": "nowrap",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "height": {
+     "value": "auto",
+     "raw": "auto",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action",
+     "chain": [],
+     "atRule": "@media (max-width: 640px)",
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "36px",
+       "raw": "36px",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "padding-block": {
+     "value": "10px",
+     "raw": "10px",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action",
+     "chain": [],
+     "atRule": "@media (max-width: 640px)",
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0",
+       "raw": "0",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "text-align": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/app/(app)/settings/settings.css .settings-page-shell .set-main .app-secondary-action",
+     "chain": [],
+     "atRule": "@media (max-width: 640px)",
+     "unresolved": null
+    },
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "7px",
+     "raw": "7px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "8px",
+       "raw": "8px",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "font-size": {
+     "value": "12.5px",
+     "raw": "12.5px",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "650",
+     "raw": "650",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "letter-spacing": {
+     "value": "-0.006em",
+     "raw": "-0.006em",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "text-decoration": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+     "raw": "background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-secondary-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "inline-size": {
+     "value": "100%",
+     "raw": "100%",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "auto",
+       "raw": "auto",
+       "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+       "chain": [],
+       "atRule": "@media (max-width: 900px)",
+       "unresolved": null
+      }
+     ]
+    },
+    "padding-inline": {
+     "value": "10px",
+     "raw": "10px",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-detail-hero-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/evidence",
+   "role": "BUTTON",
+   "label": "Close",
+   "webClass": "app-ghost-action",
+   "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "nat": "apps/mobile/app/(tabs)/evidence.tsx:182",
+   "natTag": "ProovraButton",
+   "natStyle": null,
+   "props": {
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "6px",
+     "raw": "6px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid transparent",
+     "raw": "1px solid transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "transparent",
+     "raw": "transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "rgba(15, 23, 42, 0.05)",
+       "raw": "rgba(15, 23, 42, 0.05)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#344054",
+     "raw": "var(--app-ink-label)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [
+      "--app-ink-label"
+     ],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#172033",
+       "raw": "#172033",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border-radius": {
+     "value": "8px",
+     "raw": "8px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "6px 10px",
+     "raw": "6px 10px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "12.5px",
+     "raw": "12.5px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "600",
+     "raw": "600",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "pointer",
+     "raw": "pointer",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "background-color 140ms ease, color 140ms ease",
+     "raw": "background-color 140ms ease, color 140ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "44px",
+     "raw": "44px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-primary-action,\n  .app-secondary-action,\n  .app-ghost-action,\n  .app-danger-link,\n  .app-tab,\n  .app-listbox__trigger",
+     "chain": [],
+     "atRule": "@media (pointer: coarse), (max-width: 900px)",
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/login",
+   "role": "BUTTON",
+   "label": "Continue with Apple",
+   "webClass": "auth-social-btn",
+   "web": "apps/web/app/login/page.tsx:812",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:126",
+   "natTag": "ProovraButton",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100%",
+     "raw": "100%",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px",
+     "raw": "16px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 18px",
+     "raw": "0 18px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "10px",
+     "raw": "10px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "0.96rem",
+     "raw": "0.96rem",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "600",
+     "raw": "600",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "pointer",
+     "raw": "pointer",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "not-allowed",
+       "raw": "not-allowed",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn:disabled",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "opacity": {
+     "value": "0.7",
+     "raw": "0.7",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-social-btn:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "linear-gradient(\n    180deg,\n    rgba(62, 96, 99, 0.96) 0%,\n    rgba(24, 43, 48, 0.98) 100%\n  )",
+     "raw": "linear-gradient(\n    180deg,\n    rgba(62, 96, 99, 0.96) 0%,\n    rgba(24, 43, 48, 0.98) 100%\n  )",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-premium .auth-social-btn:not([type=\"submit\"])",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "color": {
+     "value": "#eef3f1",
+     "raw": "#eef3f1",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-premium .auth-social-btn:not([type=\"submit\"])",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.28)",
+     "raw": "1px solid rgba(79, 112, 107, 0.28)",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-premium .auth-social-btn:not([type=\"submit\"])",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 14px 28px rgba(20, 48, 52, 0.16)",
+     "raw": "0 14px 28px rgba(20, 48, 52, 0.16)",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-premium .auth-social-btn:not([type=\"submit\"])",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/login",
+   "role": "INPUT",
+   "label": "you@example.com",
+   "webClass": "mt-2 w-full rounded-2xl px-4 py-3 text-[15px]",
+   "web": "apps/web/components/marketing/ForgotPasswordModal.tsx:285",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:73",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "margin-top": {
+     "value": "0.5rem",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "width": {
+     "value": "100%",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "background": {
+     "value": "var(--capture-glass-card) !important",
+     "raw": "var(--capture-glass-card) !important",
+     "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-integrity-block,\n.capture-notes-card,\n.capture-bottom-bar-inner,\n.capture-right-panel > .card,\n.capture-right-panel > .card .rounded-2xl,\n.capture-right-panel > .card .rounded-3xl",
+     "chain": [
+      "--capture-glass-card"
+     ],
+     "atRule": null,
+     "unresolved": "--capture-glass-card is not declared in :root",
+     "conflicts": [
+      {
+       "value": "rgba(255, 255, 255, 0.34) !important",
+       "raw": "rgba(255, 255, 255, 0.34) !important",
+       "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-enterprise-title-card,\n\n.capture-enterprise-card,\n\n.capture-requirement-row,\n\n.capture-integrity-block,\n\n.capture-notes-card,\n\n.capture-bottom-bar-inner,\n\n.capture-right-panel > .card,\n\n.capture-right-panel > .card .rounded-2xl,\n\n.capture-right-panel > .card .rounded-3xl,\n\n.capture-audio-card",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "rgba(255, 255, 255, 0.24) !important",
+       "raw": "rgba(255, 255, 255, 0.24) !important",
+       "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-right-panel > .card .rounded-2xl,\n.capture-right-panel > .card .rounded-3xl",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border": {
+     "value": "1px solid var(--capture-glass-border) !important",
+     "raw": "1px solid var(--capture-glass-border) !important",
+     "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-integrity-block,\n.capture-notes-card,\n.capture-bottom-bar-inner,\n.capture-right-panel > .card,\n.capture-right-panel > .card .rounded-2xl,\n.capture-right-panel > .card .rounded-3xl",
+     "chain": [
+      "--capture-glass-border"
+     ],
+     "atRule": null,
+     "unresolved": "--capture-glass-border is not declared in :root",
+     "conflicts": [
+      {
+       "value": "1px solid rgba(255, 255, 255, 0.42) !important",
+       "raw": "1px solid rgba(255, 255, 255, 0.42) !important",
+       "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-enterprise-title-card,\n\n.capture-enterprise-card,\n\n.capture-requirement-row,\n\n.capture-integrity-block,\n\n.capture-notes-card,\n\n.capture-bottom-bar-inner,\n\n.capture-right-panel > .card,\n\n.capture-right-panel > .card .rounded-2xl,\n\n.capture-right-panel > .card .rounded-3xl,\n\n.capture-audio-card",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      },
+      {
+       "value": "1px solid rgba(255, 255, 255, 0.36) !important",
+       "raw": "1px solid rgba(255, 255, 255, 0.36) !important",
+       "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-right-panel > .card .rounded-2xl,\n.capture-right-panel > .card .rounded-3xl",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "box-shadow": {
+     "value": "0 8px 24px rgba(15, 23, 42, 0.035),\n    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important",
+     "raw": "0 8px 24px rgba(15, 23, 42, 0.035),\n    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important",
+     "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-enterprise-title-card,\n\n.capture-enterprise-card,\n\n.capture-requirement-row,\n\n.capture-integrity-block,\n\n.capture-notes-card,\n\n.capture-bottom-bar-inner,\n\n.capture-right-panel > .card,\n\n.capture-right-panel > .card .rounded-2xl,\n\n.capture-right-panel > .card .rounded-3xl,\n\n.capture-audio-card",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "backdrop-filter": {
+     "value": "blur(10px) !important",
+     "raw": "blur(10px) !important",
+     "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-enterprise-title-card,\n\n.capture-enterprise-card,\n\n.capture-requirement-row,\n\n.capture-integrity-block,\n\n.capture-notes-card,\n\n.capture-bottom-bar-inner,\n\n.capture-right-panel > .card,\n\n.capture-right-panel > .card .rounded-2xl,\n\n.capture-right-panel > .card .rounded-3xl,\n\n.capture-audio-card",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-backdrop-filter": {
+     "value": "blur(10px) !important",
+     "raw": "blur(10px) !important",
+     "from": "D:/digital-witness/apps/web/components/capture-v2/capture-v2.css .capture-enterprise-title-card,\n\n.capture-enterprise-card,\n\n.capture-requirement-row,\n\n.capture-integrity-block,\n\n.capture-notes-card,\n\n.capture-bottom-bar-inner,\n\n.capture-right-panel > .card,\n\n.capture-right-panel > .card .rounded-2xl,\n\n.capture-right-panel > .card .rounded-3xl,\n\n.capture-audio-card",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding-inline": {
+     "value": "1rem",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "padding-block": {
+     "value": "0.75rem",
+     "from": "stock tailwind default",
+     "stock": true
+    }
+   }
+  },
+  {
+   "route": "/login",
+   "role": "INPUT",
+   "label": "Password",
+   "webClass": "auth-input auth-input--with-trailing-action",
+   "web": "apps/web/app/login/page.tsx:892",
+   "nat": "apps/mobile/app/(stack)/auth.tsx:83",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100% !important",
+     "raw": "100% !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 16px 0 46px !important",
+     "raw": "0 16px 0 46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px !important",
+     "raw": "16px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "15px !important",
+     "raw": "15px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.2 !important",
+     "raw": "1.2 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92) !important",
+     "raw": "rgba(255, 255, 255, 0.92) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "raw": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "raw": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "raw": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#102126 !important",
+     "raw": "#102126 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#8b989c !important",
+       "raw": "#8b989c !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "rgba(79, 112, 107, 0.34) !important",
+     "raw": "rgba(79, 112, 107, 0.34) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding-inline-end": {
+     "value": "46px !important",
+     "raw": "46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input--with-trailing-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/register",
+   "role": "INPUT",
+   "label": "Password",
+   "webClass": "auth-input auth-input--with-trailing-action",
+   "web": "apps/web/app/register/page.tsx:1244",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100% !important",
+     "raw": "100% !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 16px 0 46px !important",
+     "raw": "0 16px 0 46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px !important",
+     "raw": "16px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "15px !important",
+     "raw": "15px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.2 !important",
+     "raw": "1.2 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92) !important",
+     "raw": "rgba(255, 255, 255, 0.92) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "raw": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "raw": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "raw": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#102126 !important",
+     "raw": "#102126 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#8b989c !important",
+       "raw": "#8b989c !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "rgba(79, 112, 107, 0.34) !important",
+     "raw": "rgba(79, 112, 107, 0.34) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding-inline-end": {
+     "value": "46px !important",
+     "raw": "46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input--with-trailing-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/register",
+   "role": "INPUT",
+   "label": "Confirm password",
+   "webClass": "auth-input auth-input--with-trailing-action",
+   "web": "apps/web/app/register/page.tsx:1442",
+   "nat": "apps/mobile/app/(stack)/register.tsx:77",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100% !important",
+     "raw": "100% !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 16px 0 46px !important",
+     "raw": "0 16px 0 46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px !important",
+     "raw": "16px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "15px !important",
+     "raw": "15px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.2 !important",
+     "raw": "1.2 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92) !important",
+     "raw": "rgba(255, 255, 255, 0.92) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "raw": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "raw": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "raw": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#102126 !important",
+     "raw": "#102126 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#8b989c !important",
+       "raw": "#8b989c !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "rgba(79, 112, 107, 0.34) !important",
+     "raw": "rgba(79, 112, 107, 0.34) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding-inline-end": {
+     "value": "46px !important",
+     "raw": "46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input--with-trailing-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/reset-password",
+   "role": "INPUT",
+   "label": "New password",
+   "webClass": "auth-input",
+   "web": "apps/web/app/reset-password/page.tsx:323",
+   "nat": "apps/mobile/app/(stack)/reset-password.tsx:59",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100% !important",
+     "raw": "100% !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 16px 0 46px !important",
+     "raw": "0 16px 0 46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px !important",
+     "raw": "16px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "15px !important",
+     "raw": "15px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.2 !important",
+     "raw": "1.2 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92) !important",
+     "raw": "rgba(255, 255, 255, 0.92) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "raw": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "raw": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "raw": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#102126 !important",
+     "raw": "#102126 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#8b989c !important",
+       "raw": "#8b989c !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "rgba(79, 112, 107, 0.34) !important",
+     "raw": "rgba(79, 112, 107, 0.34) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/reset-password",
+   "role": "INPUT",
+   "label": "Confirm new password",
+   "webClass": "auth-input",
+   "web": "apps/web/app/reset-password/page.tsx:510",
+   "nat": "apps/mobile/app/(stack)/reset-password.tsx:59",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100% !important",
+     "raw": "100% !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "52px",
+     "raw": "52px",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "0 16px 0 46px !important",
+     "raw": "0 16px 0 46px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "16px !important",
+     "raw": "16px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "15px !important",
+     "raw": "15px !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.2 !important",
+     "raw": "1.2 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92) !important",
+     "raw": "rgba(255, 255, 255, 0.92) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "raw": "1px solid rgba(79, 112, 107, 0.16) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "raw": "0 12px 28px rgba(6, 16, 22, 0.08) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "raw": "0 0 0 3px rgba(79, 112, 107, 0.10) !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#102126 !important",
+     "raw": "#102126 !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#8b989c !important",
+       "raw": "#8b989c !important",
+       "from": "D:/digital-witness/apps/web/app/globals.css .auth-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "-webkit-appearance": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "rgba(79, 112, 107, 0.34) !important",
+     "raw": "rgba(79, 112, 107, 0.34) !important",
+     "from": "D:/digital-witness/apps/web/app/globals.css .auth-input:focus",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/settings",
+   "role": "INPUT",
+   "label": "Display name",
+   "webClass": "cases-form-input",
+   "web": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx:230",
+   "nat": "apps/mobile/app/(tabs)/settings.tsx:108",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "width": {
+     "value": "100%",
+     "raw": "100%",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(100, 116, 139, 0.22)",
+     "raw": "1px solid rgba(100, 116, 139, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92)",
+     "raw": "rgba(255, 255, 255, 0.92)",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "10px",
+     "raw": "10px",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "color": {
+     "value": "#172033",
+     "raw": "#172033",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#98a2b3",
+       "raw": "#98a2b3",
+       "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input::placeholder",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "transition": {
+     "value": "border-color 160ms ease, box-shadow 160ms ease,\n    background-color 160ms ease",
+     "raw": "border-color 160ms ease, box-shadow 160ms ease,\n    background-color 160ms ease",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input:focus,\n.cases-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "#8b7cf6",
+     "raw": "#8b7cf6",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input:focus,\n.cases-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.14)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.14)",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input:focus,\n.cases-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "opacity": {
+     "value": "0.6",
+     "raw": "0.6",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "not-allowed",
+     "raw": "not-allowed",
+     "from": "D:/digital-witness/apps/web/components/cases-experience/cases-experience.css .cases-form-input:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/share/[id]",
+   "role": "BUTTON",
+   "label": "Close menu",
+   "webClass": "flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] text-[#0F172A]",
+   "web": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "natTag": "Pressable",
+   "natStyle": "styles.scrim",
+   "props": {
+    "display": {
+     "value": "flex",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "align-items": {
+     "value": "center",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "justify-content": {
+     "value": "center",
+     "from": "stock tailwind default",
+     "stock": true
+    }
+   }
+  },
+  {
+   "route": "/teams/[id]",
+   "role": "INPUT",
+   "label": "Workspace name",
+   "webClass": "app-form-input",
+   "web": "apps/web/app/(app)/teams/[id]/page.tsx:1924",
+   "nat": "apps/mobile/app/(stack)/workspace-people.tsx:917",
+   "natTag": "ProovraInput",
+   "natStyle": null,
+   "props": {
+    "box-sizing": {
+     "value": "border-box",
+     "raw": "border-box",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-lifecycle__field .app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "inline-size": {
+     "value": "100%",
+     "raw": "100%",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-lifecycle__field .app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-inline-size": {
+     "value": "0",
+     "raw": "0",
+     "from": "D:/digital-witness/apps/web/app/(app)/evidence/[id]/evidence-detail.css .evidence-lifecycle__field .app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "width": {
+     "value": "100%",
+     "raw": "100%",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "40px",
+     "raw": "40px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "84px",
+       "raw": "84px",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css textarea.app-form-input",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "padding": {
+     "value": "9px 12px",
+     "raw": "9px 12px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid rgba(100, 116, 139, 0.22)",
+     "raw": "1px solid rgba(100, 116, 139, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "rgba(255, 255, 255, 0.92)",
+     "raw": "rgba(255, 255, 255, 0.92)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-radius": {
+     "value": "10px",
+     "raw": "10px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "color": {
+     "value": "#263247",
+     "raw": "var(--app-ink-control)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [
+      "--app-ink-control"
+     ],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#98A2B3",
+       "raw": "var(--app-ink-placeholder)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input::placeholder",
+       "chain": [
+        "--app-ink-placeholder"
+       ],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "font-size": {
+     "value": "13.5px",
+     "raw": "13.5px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-family": {
+     "value": "inherit",
+     "raw": "inherit",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+     "raw": "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input,\ntextarea.app-form-input,\nselect.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input:focus,\n.app-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border-color": {
+     "value": "#8b7cf6",
+     "raw": "#8b7cf6",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input:focus,\n.app-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.14)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.14)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input:focus,\n.app-form-input:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "opacity": {
+     "value": "0.6",
+     "raw": "0.6",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "not-allowed",
+     "raw": "not-allowed",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-form-input:disabled",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "resize": {
+     "value": "vertical",
+     "raw": "vertical",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css textarea.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "line-height": {
+     "value": "1.5",
+     "raw": "1.5",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css textarea.app-form-input",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/teams/[id]",
+   "role": "BUTTON",
+   "label": "Close",
+   "webClass": "app-ghost-action",
+   "web": "apps/web/components/cases-experience/matter-modals/Modal.tsx:223",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "natTag": "Pressable",
+   "natStyle": "styles.scrim",
+   "props": {
+    "display": {
+     "value": "inline-flex",
+     "raw": "inline-flex",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "align-items": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "justify-content": {
+     "value": "center",
+     "raw": "center",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "gap": {
+     "value": "6px",
+     "raw": "6px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "border": {
+     "value": "1px solid transparent",
+     "raw": "1px solid transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "background": {
+     "value": "transparent",
+     "raw": "transparent",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "rgba(15, 23, 42, 0.05)",
+       "raw": "rgba(15, 23, 42, 0.05)",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "color": {
+     "value": "#344054",
+     "raw": "var(--app-ink-label)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [
+      "--app-ink-label"
+     ],
+     "atRule": null,
+     "unresolved": null,
+     "conflicts": [
+      {
+       "value": "#172033",
+       "raw": "#172033",
+       "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:hover:not(:disabled)",
+       "chain": [],
+       "atRule": null,
+       "unresolved": null
+      }
+     ]
+    },
+    "border-radius": {
+     "value": "8px",
+     "raw": "8px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "padding": {
+     "value": "6px 10px",
+     "raw": "6px 10px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-size": {
+     "value": "12.5px",
+     "raw": "12.5px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "font-weight": {
+     "value": "600",
+     "raw": "600",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "cursor": {
+     "value": "pointer",
+     "raw": "pointer",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "transition": {
+     "value": "background-color 140ms ease, color 140ms ease",
+     "raw": "background-color 140ms ease, color 140ms ease",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "outline": {
+     "value": "none",
+     "raw": "none",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "box-shadow": {
+     "value": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "raw": "0 0 0 3px rgba(124, 58, 237, 0.22)",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-ghost-action:focus-visible",
+     "chain": [],
+     "atRule": null,
+     "unresolved": null
+    },
+    "min-height": {
+     "value": "44px",
+     "raw": "44px",
+     "from": "D:/digital-witness/apps/web/components/app-primitives/app-primitives.css .app-primary-action,\n  .app-secondary-action,\n  .app-ghost-action,\n  .app-danger-link,\n  .app-tab,\n  .app-listbox__trigger",
+     "chain": [],
+     "atRule": "@media (pointer: coarse), (max-width: 900px)",
+     "unresolved": null
+    }
+   }
+  },
+  {
+   "route": "/trust",
+   "role": "BUTTON",
+   "label": "Close menu",
+   "webClass": "flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] text-[#0F172A]",
+   "web": "apps/web/components/marketing/MarketingHeader.tsx:401",
+   "nat": "apps/mobile/src/ui/patterns.tsx:563",
+   "natTag": "Pressable",
+   "natStyle": "styles.scrim",
+   "props": {
+    "display": {
+     "value": "flex",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "align-items": {
+     "value": "center",
+     "from": "stock tailwind default",
+     "stock": true
+    },
+    "justify-content": {
+     "value": "center",
+     "from": "stock tailwind default",
+     "stock": true
+    }
+   }
+  }
+ ]
+}

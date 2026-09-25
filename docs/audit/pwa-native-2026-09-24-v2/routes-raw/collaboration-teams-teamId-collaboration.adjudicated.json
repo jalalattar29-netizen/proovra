@@ -1,0 +1,14 @@
+{
+ "route": "/collaboration-teams/[teamId]/collaboration",
+ "disposition": "COMPARED",
+ "items": [
+  {
+   "role": "TEXT",
+   "label": "Opening the team discussion…",
+   "at": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx:40",
+   "natHasRole": true,
+   "verdict": "COPY_OR_COMPOSITION_DIFF",
+   "why": "native screen has TEXT elements but not this literal — needs a read to separate \"absent\" from \"worded differently\""
+  }
+ ]
+}

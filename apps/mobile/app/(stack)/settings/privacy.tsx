@@ -12,6 +12,7 @@
  * told BEFORE they confirm rather than after.
  */
 import { useCallback, useEffect, useState } from "react";
+import { CookieConsentRecord, LegalRecordsSection, PrivacyReferences } from "../../../src/ui/legal-records";
 import { Linking, View } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -135,7 +136,7 @@ export default function PrivacyScreen() {
   const countdown = closure ? closureCountdown(closure) : null;
 
   return (
-    <ProovraScreen testID="settings-privacy">
+    <ProovraScreen shell testID="settings-privacy">
       <ProovraPageHeader
         title="Privacy"
         eyebrow="Settings"
@@ -149,15 +150,27 @@ export default function PrivacyScreen() {
         <ProovraErrorState message="Privacy settings could not be loaded." onRetry={() => void load()} />
       ) : null}
 
+      {/* T-14 — the recorded cookie consent (web PrivacySection A), read-only. */}
+      <ProovraPageSection title="Privacy preferences">
+        <CookieConsentRecord />
+      </ProovraPageSection>
+
+      {/* T-14 — Policies & consent (web PrivacySection B + LegalAcceptanceStatusCard). */}
+      <ProovraPageSection title="Policies & consent">
+        <LegalRecordsSection />
+      </ProovraPageSection>
+
       <ProovraPageSection title="Your data">
         {exports === null ? (
           <ProovraLoadingState label="Loading exports" />
         ) : (
           <>
             <ProovraCard>
+              {/* The web's words for what the package holds, and what it never holds (PrivacySection :256). */}
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                A data export is a package of your account's records, prepared once and available
-                for a limited time.
+                Request a copy of your personal account data — profile, login methods, preferences, consent records,
+                account activity, sessions, and organization memberships. Evidence and organization records are excluded
+                and remain available through their own authorized surfaces.
               </ProovraText>
               <ProovraButton
                 label="Request a data export"
@@ -175,7 +188,7 @@ export default function PrivacyScreen() {
             </ProovraCard>
 
             {exports.length === 0 ? (
-              <ProovraEmpty presence="inline" title="You have not requested an export yet." />
+              <ProovraEmpty presence="inline" title="No exports requested yet." />
             ) : (
               <ProovraCard>
                 {exports.map((e) => (
@@ -186,9 +199,14 @@ export default function PrivacyScreen() {
                       </ProovraText>
                       <ProovraBadge label={exportStatusLabel(e)} tone={exportStatusTone(e.status)} />
                     </View>
-                    {e.failureCode ? (
+                    {e.status === "FAILED" || e.failureCode ? (
                       <ProovraText variant="label" color={theme.color.status.risk.fg}>
-                        {`This export did not complete (${e.failureCode}).`}
+                        The export could not be generated. You can request a new one below.
+                      </ProovraText>
+                    ) : null}
+                    {e.status === "READY" && e.sha256 ? (
+                      <ProovraText variant="label" mono selectable color={theme.color.ink.muted}>
+                        {`Checksum (SHA-256): ${e.sha256.slice(0, 16)}…`}
                       </ProovraText>
                     ) : null}
                     {/*
@@ -235,7 +253,7 @@ export default function PrivacyScreen() {
             */}
             {countdown ? <ProovraText variant="body">{countdown}</ProovraText> : null}
             <ProovraButton
-              label="Cancel closure and keep my account"
+              label="Cancel closure request"
               loading={busy}
               onPress={() => void cancelClosure()}
             />
@@ -246,24 +264,28 @@ export default function PrivacyScreen() {
               The server's blockers, shown before the form. A closure form that
               submits into a blocker produces a refusal the user cannot act on.
             */}
+            {/* What closure does, and what it never does (PrivacySection :556). */}
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {`Closing your account signs you out everywhere, removes your login methods, and anonymizes your personal details after a ${closure.coolingOffDays ?? 7}-day cancellation window. Evidence is never deleted by account closure — it stays governed by retention and legal-hold rules.`}
+            </ProovraText>
             {closure.blockers.length > 0 ? (
               <>
                 <ProovraText variant="body" weight="semibold">
-                  Closure cannot proceed yet
+                  These must be resolved before your account can close:
                 </ProovraText>
                 {closure.blockers.map((b, i) => (
                   <ProovraText key={i} variant="label" color={theme.color.status.pending.fg}>
                     {`• ${b}`}
                   </ProovraText>
                 ))}
+                {/* Visible but disabled, with its reason beside it — never a request the server must refuse. */}
+                <ProovraButton label="Close my account…" accessibilityLabel="Close my account… Resolve the items above first." variant="secondary" disabled />
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  Resolve the items above to enable account closure.
+                </ProovraText>
               </>
             ) : (
               <>
-                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                  {closure.coolingOffDays !== null
-                    ? `Closing your account is not immediate: there is a ${closure.coolingOffDays}-day cooling-off period, and you can cancel at any point during it.`
-                    : "Closing your account starts a cooling-off period during which you can cancel."}
-                </ProovraText>
 
                 <ProovraFormField label="Why are you closing it? (optional)">
                   <ProovraInput
@@ -303,6 +325,10 @@ export default function PrivacyScreen() {
             )}
           </ProovraCard>
         )}
+      </ProovraPageSection>
+
+      <ProovraPageSection title="Privacy actions & references">
+        <PrivacyReferences />
       </ProovraPageSection>
     </ProovraScreen>
   );

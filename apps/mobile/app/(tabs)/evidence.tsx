@@ -1,91 +1,114 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, View, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Linking, Pressable, Share, StyleSheet, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
+import { buildEvidenceBulkRequest, type EvidenceBulkActionName } from "@proovra/shared";
+
 import { apiFetch } from "../../src/api";
-import {
-  buildEvidenceBulkRequest,
-  EVIDENCE_BULK_MAX_IDS,
-  type EvidenceBulkActionName,
-} from "@proovra/shared";
+import { shareFile } from "../../src/lib/share-file";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
-import { theme, statusTone } from "../../src/theme/theme";
+import { theme } from "../../src/theme/theme";
 import { useResponsive } from "../../src/theme/responsive";
+import { useToast } from "../../src/toast-context";
+import { usePlatformContext } from "../../src/product/platform-context";
+import { webOrigin } from "../../src/product/intake-create";
+import { publicVerifyUrl } from "../../src/product/public-verify";
 import {
   ProovraShell,
   ProovraCard,
   ProovraText,
   ProovraButton,
   ProovraBadge,
-  ProovraListRow,
   ProovraInput,
-  ProovraSection,
-  ProovraEmptyState,
   ProovraErrorState,
   ProovraLoadingState,
-  ProovraSheet,
-  ProovraFormField,
 } from "../../src/ui";
-import { evidenceLifecycleDisplay, evidenceStatusDisplay, evidenceTypeLabel, EVIDENCE_TYPES, humanizeEnum } from "../../src/product/domain-display";
+import { ProovraEmpty, ProovraFilterChips, ProovraKpiGrid, ProovraPageHeader } from "../../src/ui/patterns";
+import { EvidenceLibraryInspector, type InspectorLoadState } from "../../src/ui/evidence-library-inspector";
+import { EvidenceLibraryBulkToolbar } from "../../src/ui/evidence-library-bulk";
+import { EvidenceLibrarySavedViews, type SavedViewDraft } from "../../src/ui/evidence-library-saved-views";
+import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 import {
+  DEFAULT_LIBRARY_FILTERS,
+  SCOPE_OPTIONS,
+  STATUS_OPTIONS,
+  TYPE_OPTIONS,
+  SOURCE_OPTIONS,
+  REVIEW_OPTIONS,
+  EXPORT_OPTIONS,
+  CASE_OPTIONS,
+  RETENTION_OPTIONS,
+  SORT_OPTIONS,
+  activeTrustChips,
+  applyLoadedRowFilters,
+  buildLibraryMetrics,
   buildLibraryQuery,
-  projectLibraryMetrics,
-  hasActiveFilters,
-  nextSort,
-  sortLabel,
-  parseSavedViews,
+  buildLibrarySummaryPath,
   buildSavedViewBody,
-  buildSavedViewPath,
   buildSavedViewDefaultPath,
-  buildSavedViewRenameBody,
-  validateSavedViewName,
-  withDefaultSavedView,
-  defaultSavedViewToApply,
-  SAVED_VIEW_NAME_MAX,
+  buildSavedViewPath,
+  buildSavedViewUpdateBody,
+  filterPanelActive,
+  filtersAreDefault,
+  filtersToQuery,
   parseEvidenceBulkResponse,
-  resolveBulkSelection,
-  projectInspectorEvidence,
-  resolveInspectorPreview,
+  parseLibrarySummary,
+  parseSavedViews,
+  projectInspectorArtifactFacts,
   projectInspectorArtifactState,
+  projectInspectorCapabilities,
+  projectInspectorEvidence,
+  readFilterOverrides,
+  recordStatusLabel,
+  rowActivityLine,
   safeCsvFilename,
-  bulkActionsForScope,
-  type InspectorEvidence,
+  savedViewTeamOptions,
+  savedViewToFilters,
+  shortId,
+  withDefaultSavedView,
+  type EvidenceBulkResponse,
+  type InspectorArtifactFacts,
   type InspectorArtifactState,
-  STATUS_FILTERS,
-  SOURCE_FILTERS,
-  REPORT_FILTERS,
+  type InspectorCapabilities,
+  type InspectorEvidence,
+  type LibraryFilters,
+  type LibraryScope,
   type LibrarySort,
-  type LibraryMetric,
+  type LibrarySummary,
   type SavedViewItem,
 } from "../../src/product/evidence-library";
 
-type Scope = "active" | "archived" | "trash" | "locked";
+/** A row of GET /v1/evidence (mapEvidenceListItem), the fields this surface reads. */
 type EvidenceItem = {
   id: string;
   type: string;
   status: string;
   createdAt: string;
   statusLabel?: string | null;
+  verificationStatus?: string | null;
   displayTitle?: string | null;
   title?: string | null;
-  displaySubtitle?: string | null;
   displayFileName?: string | null;
   originalFileName?: string | null;
+  itemCount?: number | null;
+  caseId?: string | null;
+  reportReady?: boolean | null;
+  reviewReadyAtUtc?: string | null;
+  acquisition?: { mode?: string | null; category?: string | null; label?: string | null } | null;
+  lifecycle?: unknown;
+  /** The storage-protection summary; `verified` drives Retention. */
+  storage?: { verified?: boolean } | null;
 };
 type PageInfo = { nextCursor?: string | null; hasMore?: boolean };
-type CaseOption = {
-  id: string;
-  name: string;
-  status?: string;
-};
+type CaseOption = { id: string; name: string };
 
-const SCOPES: Array<{ key: Scope; label: string }> = [
-  { key: "active", label: "Active" },
-  { key: "archived", label: "Archived" },
-  { key: "trash", label: "Trash" },
-  { key: "locked", label: "Locked" },
-];
+/** EVIDENCE_LIBRARY_* (evidence-library-formatters.ts), verbatim. */
+const LIBRARY_TITLE = "Evidence Library";
+const LIBRARY_DESCRIPTION = "Operational workspace for managing, reviewing, and exporting preserved evidence records.";
+const LEGAL_BOUNDARY_TITLE = "Legal boundary";
+const LEGAL_BOUNDARY =
+  "PROOVRA verifies the recorded integrity state of evidence records. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.";
 
 function rowTitle(item: EvidenceItem): string {
   return (
@@ -97,882 +120,229 @@ function rowTitle(item: EvidenceItem): string {
   );
 }
 
-/** A single filter chip. */
-function Chip({
-  label,
-  active,
-  onPress,
-  onLongPress,
-  accessibilityHint,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  /** A saved view chip carries its manage actions here. */
-  onLongPress?: () => void;
-  accessibilityHint?: string;
-}) {
+function parseCases(data: unknown): CaseOption[] {
+  const raw = data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)
+    ? ((data as { items: unknown[] }).items)
+    : [];
+  return raw
+    .map((c) => (c && typeof c === "object" ? (c as Record<string, unknown>) : {}))
+    .filter((c) => typeof c.id === "string" && typeof c.name === "string" && (c.name as string).trim())
+    .map((c) => ({ id: c.id as string, name: (c.name as string).trim() }));
+}
+
+/** A checkbox with the canonical touch target. */
+function Check({ checked, label, onPress, disabled }: { checked: boolean; label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      accessibilityRole="button"
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityRole="checkbox"
       accessibilityLabel={label}
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ selected: active }}
-      style={[styles.smallChip, { backgroundColor: active ? theme.color.accent.a050 : theme.color.surface.card, borderColor: active ? theme.color.accent.a500 : theme.color.border.default }]}
+      accessibilityState={{ checked, disabled: !!disabled }}
+      hitSlop={8}
+      style={styles.checkHit}
     >
-      <ProovraText variant="label" weight="semibold" color={active ? theme.color.accent.a600 : theme.color.ink.secondary}>
-        {label}
-      </ProovraText>
+      <View style={[styles.box, checked ? styles.boxOn : null, disabled ? styles.boxDisabled : null]}>
+        {checked ? (
+          <ProovraText variant="label" weight="bold" color={theme.color.ink.inverse}>
+            ✓
+          </ProovraText>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
 
-
-type InspectorLoadState = "idle" | "loading" | "ready" | "error";
-
-function EvidenceInspector({
-  item,
-  evidence,
-  artifacts,
-  state,
-  error,
-  presentation,
-  actionBusy,
-  onClose,
-  onRetry,
-  onOpenRecord,
-  onOpenReport,
-  onOpenPackage,
-  onShareVerification,
-}: {
-  item: EvidenceItem | null;
-  evidence: InspectorEvidence | null;
-  artifacts: InspectorArtifactState | null;
-  state: InspectorLoadState;
-  error: SafeError | null;
-  presentation: "modal" | "rail";
-  actionBusy: string | null;
-  onClose: () => void;
-  onRetry: () => void;
-  onOpenRecord: () => void;
-  onOpenReport: () => void;
-  onOpenPackage: () => void;
-  onShareVerification: () => void;
-}) {
-  const preview = evidence ? resolveInspectorPreview(evidence) : null;
-  const title =
-    evidence?.displayTitle?.trim() ||
-    evidence?.displayFileName?.trim() ||
-    evidence?.originalFileName?.trim() ||
-    (item ? rowTitle(item) : "Evidence");
-
-  const body = (
-    <View style={styles.inspector}>
-      <View style={styles.inspectorHeader}>
-        <View style={styles.inspectorHeading}>
-          <ProovraText variant="h2" weight="bold" numberOfLines={2}>
-            {title}
-          </ProovraText>
-          <ProovraText variant="label" color={theme.color.ink.muted}>
-            Evidence Inspector
-          </ProovraText>
-        </View>
-        <ProovraButton
-          label="Close"
-          variant="ghost"
-          fullWidth={false}
-          onPress={onClose}
-        />
-      </View>
-
-      {state === "loading" ? (
-        <ProovraLoadingState label="Loading selected record" />
-      ) : state === "error" && error ? (
-        <ProovraErrorState message={error.message} onRetry={onRetry} />
-      ) : !evidence ? (
-        <ProovraEmptyState
-          title="Preview unavailable"
-          message="The selected evidence record could not be projected."
-        />
-      ) : (
-        <>
-          <View style={styles.inspectorBadgeRow}>
-            <ProovraBadge
-              tone={evidenceStatusDisplay(evidence.status).tone}
-              label={
-                evidence.statusLabel?.trim() ||
-                evidenceStatusDisplay(evidence.status).label
-              }
-            />
-            {evidence.verificationStatus ? (
-              <ProovraBadge
-                tone="neutral"
-                label={
-                  evidence.verificationStatusLabel?.trim() ||
-                  humanizeEnum(evidence.verificationStatus)
-                }
-              />
-            ) : null}
-            {/*
-              Lifecycle, shown only when it says something the scope does not.
-              The tabs already separate ARCHIVED and TRASHED; LOCKED is the one
-              that coexists with ACTIVE, and a locked record was rendering
-              identically to an unlocked one. "This cannot be changed" is not a
-              detail to leave the user to discover by trying.
-            */}
-            {evidence.lifecycleState && evidence.lifecycleState !== "ACTIVE" ? (
-              <ProovraBadge
-                tone={evidenceLifecycleDisplay(evidence.lifecycleState).tone}
-                label={evidenceLifecycleDisplay(evidence.lifecycleState).label}
-              />
-            ) : null}
-          </View>
-
-          <ProovraCard style={styles.inspectorMeta}>
-            <InspectorMetaRow
-              label="Type"
-              value={evidenceTypeLabel(evidence.type)}
-            />
-            <InspectorMetaRow
-              label="Created"
-              value={
-                evidence.createdAt
-                  ? formatUserDateTime(evidence.createdAt)
-                  : "—"
-              }
-            />
-            <InspectorMetaRow
-              label="Record"
-              value={evidence.id}
-            />
-          </ProovraCard>
-
-          <View style={styles.inspectorBlock}>
-            <ProovraText variant="body" weight="semibold">
-              Evidence Preview
-            </ProovraText>
-
-            {preview?.kind === "image" ? (
-              <Image
-                source={{ uri: preview.url }}
-                resizeMode="contain"
-                style={styles.inspectorImage}
-                accessibilityLabel={
-                  preview.item.label ||
-                  preview.item.originalFileName ||
-                  "Evidence preview"
-                }
-              />
-            ) : preview?.kind === "external" ? (
-              <ProovraCard style={styles.previewNotice}>
-                <ProovraText variant="bodySm" weight="semibold">
-                  Preview available
-                </ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  This media type opens with the device viewer.
-                </ProovraText>
-                <ProovraButton
-                  label="Open Preview"
-                  variant="secondary"
-                  fullWidth={false}
-                  onPress={() => void Linking.openURL(preview.url)}
-                />
-              </ProovraCard>
-            ) : preview?.kind === "restricted" ? (
-              <ProovraCard style={styles.previewNotice}>
-                <ProovraText variant="bodySm" weight="semibold">
-                  Preview restricted
-                </ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Content access is not granted for this projection.
-                </ProovraText>
-              </ProovraCard>
-            ) : preview?.kind === "unsupported" ? (
-              <ProovraCard style={styles.previewNotice}>
-                <ProovraText variant="bodySm" weight="semibold">
-                  Preview not supported
-                </ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  The evidence record is available, but this item cannot be
-                  rendered inline.
-                </ProovraText>
-              </ProovraCard>
-            ) : (
-              <ProovraCard style={styles.previewNotice}>
-                <ProovraText variant="bodySm" weight="semibold">
-                  No preview available
-                </ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  No previewable content item is available for this record.
-                </ProovraText>
-              </ProovraCard>
-            )}
-          </View>
-
-          <View style={styles.inspectorBlock}>
-            <ProovraText variant="body" weight="semibold">
-              Technical Materials
-            </ProovraText>
-
-            <ProovraListRow
-              title="Report"
-              subtitle={
-                artifacts?.report
-                  ? humanizeEnum(artifacts.report)
-                  : "Status unavailable"
-              }
-              trailing={
-                artifacts?.report === "READY" ? (
-                  <ProovraButton
-                    label="Open"
-                    variant="secondary"
-                    fullWidth={false}
-                    loading={actionBusy === "report"}
-                    onPress={onOpenReport}
-                  />
-                ) : (
-                  <ProovraBadge
-                    tone="neutral"
-                    label={
-                      artifacts?.report
-                        ? humanizeEnum(artifacts.report)
-                        : "Unavailable"
-                    }
-                  />
-                )
-              }
-            />
-
-            <ProovraListRow
-              title="Verification Package"
-              subtitle={
-                artifacts?.verificationPackage
-                  ? humanizeEnum(artifacts.verificationPackage)
-                  : "Requested only when you open it"
-              }
-              trailing={
-                <ProovraButton
-                  label="Open"
-                  variant="secondary"
-                  fullWidth={false}
-                  loading={actionBusy === "package"}
-                  onPress={onOpenPackage}
-                />
-              }
-            />
-
-            <ProovraListRow
-              title="Public Verification"
-              subtitle="Use the server-published verification URL"
-              trailing={
-                <ProovraButton
-                  label="Share"
-                  variant="secondary"
-                  fullWidth={false}
-                  loading={actionBusy === "verify"}
-                  onPress={onShareVerification}
-                />
-              }
-            />
-          </View>
-
-          <View style={styles.inspectorFooter}>
-            <ProovraButton
-              label="Open Evidence"
-              onPress={onOpenRecord}
-            />
-          </View>
-        </>
-      )}
-    </View>
-  );
-
-  if (presentation === "rail") {
-    return (
-      <View style={styles.inspectorRail}>
-        <ScrollView
-          contentContainerStyle={styles.inspectorScroll}
-          showsVerticalScrollIndicator={false}
-        >
-          {body}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
-    <Modal
-      visible
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.inspectorModalBackdrop}>
-        <View style={styles.inspectorModal}>
-          <ScrollView
-            contentContainerStyle={styles.inspectorScroll}
-            showsVerticalScrollIndicator={false}
-          >
-            {body}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function InspectorMetaRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={styles.inspectorMetaRow}>
-      <ProovraText variant="label" color={theme.color.ink.muted}>
-        {label}
-      </ProovraText>
-      <ProovraText
-        variant="bodySm"
-        weight="semibold"
-        numberOfLines={2}
-        style={styles.inspectorMetaValue}
-      >
-        {value}
-      </ProovraText>
-    </View>
-  );
-}
-
-/** Canonical Native Evidence Library — one surface, four lifecycle scopes. */
+/** Canonical Native Evidence Library — the web's /evidence page. */
 export default function EvidenceLibraryScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const responsive = useResponsive();
-  const [scope, setScope] = useState<Scope>("active");
-  const [typeFilter, setTypeFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
-  const [reportFilter, setReportFilter] = useState<string>("ALL");
-  const [sort, setSort] = useState<LibrarySort>("newest");
-  const [showFilters, setShowFilters] = useState(false);
-  const [query, setQuery] = useState("");
-  const [items, setItems] = useState<EvidenceItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [error, setError] = useState<SafeError | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<LibraryMetric[] | null>(null);
-  const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
-  const [savingView, setSavingView] = useState(false);
-  const [newViewName, setNewViewName] = useState("");
-  const [showSaveView, setShowSaveView] = useState(false);
-  /** The view whose manage sheet is open: rename, default, delete. */
-  const [managingView, setManagingView] = useState<SavedViewItem | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
-  const [viewBusy, setViewBusy] = useState(false);
-  /** The default view is applied at most once, and never over a live filter. */
-  const defaultViewApplied = useRef(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [caseChooserOpen, setCaseChooserOpen] = useState(false);
-  const [caseOptions, setCaseOptions] = useState<CaseOption[]>([]);
-  const [caseOptionsState, setCaseOptionsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [caseOptionsError, setCaseOptionsError] = useState<SafeError | null>(null);
+  const { addToast } = useToast();
+  const platform = usePlatformContext();
 
-  // Inspector selection is deliberately independent from checkbox/bulk selection.
+  const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [items, setItems] = useState<EvidenceItem[]>([]);
+  const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
+  const [summary, setSummary] = useState<LibrarySummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<SafeError | null>(null);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [cases, setCases] = useState<CaseOption[]>([]);
+  const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
+  const [viewsLoaded, setViewsLoaded] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Inspector selection is deliberately independent from the checkbox/bulk selection.
   const [inspectorId, setInspectorId] = useState<string | null>(null);
   const [inspectorEvidence, setInspectorEvidence] = useState<InspectorEvidence | null>(null);
-  const [inspectorArtifacts, setInspectorArtifacts] = useState<InspectorArtifactState | null>(null);
+  const [inspectorOutputs, setInspectorOutputs] = useState<InspectorArtifactState | null>(null);
+  const [inspectorFacts, setInspectorFacts] = useState<InspectorArtifactFacts | null>(null);
+  const [inspectorCaps, setInspectorCaps] = useState<InspectorCapabilities | null>(null);
   const [inspectorState, setInspectorState] = useState<InspectorLoadState>("idle");
   const [inspectorError, setInspectorError] = useState<SafeError | null>(null);
-  const [inspectorActionBusy, setInspectorActionBusy] = useState<string | null>(null);
+  const [inspectorBusy, setInspectorBusy] = useState<string | null>(null);
 
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listRequest = useRef(0);
+  const inspectorRequest = useRef(0);
+  const defaultViewApplied = useRef(false);
+  const overridesApplied = useRef(false);
 
-  const fetchPage = useCallback(
-    async (opts: {
-      scope: Scope; search: string; type: string; status: string; source: string; report: string; sort: LibrarySort; cursor?: string | null; append: boolean;
-    }) => {
-      if (!opts.append) setState("loading");
-      setError(null);
-      try {
-        const path = buildLibraryQuery({
-          scope: opts.scope, search: opts.search, type: opts.type, status: opts.status,
-          source: opts.source, reportReady: opts.report, sort: opts.sort, cursor: opts.cursor,
-        });
-        const data = await apiFetch(path);
-        const page = (data.items ?? []) as EvidenceItem[];
-        const info = (data.pageInfo ?? {}) as PageInfo;
-        setItems((prev) => (opts.append ? [...prev, ...page] : page));
-        setCursor(info.nextCursor ?? null);
-        setHasMore(!!info.hasMore && !!info.nextCursor);
-        setState("ready");
-      } catch (err) {
-        setError(toSafeUserError(err));
-        setState("error");
-      }
-    },
-    [],
-  );
-
-  const reload = useCallback(
-    (append = false, nextCursor: string | null = null) =>
-      fetchPage({ scope, search: query, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, cursor: nextCursor, append }),
-    [fetchPage, scope, query, typeFilter, statusFilter, sourceFilter, reportFilter, sort],
-  );
-
-  // Reload on any filter/scope/sort change (search is debounced separately).
+  // readUrlFilterOverrides (page.tsx:220) — a deep link lands pre-filtered, once.
   useEffect(() => {
-    // `query` intentionally omitted — search is debounced in onSearch; a scope/
-    // filter/sort change reloads with the current query. fetchPage is stable.
-    void fetchPage({ scope, search: query, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, append: false });
-  }, [scope, typeFilter, statusFilter, sourceFilter, reportFilter, sort, fetchPage]);
+    if (overridesApplied.current) return;
+    overridesApplied.current = true;
+    const overrides = readFilterOverrides(params as Record<string, unknown>);
+    if (Object.keys(overrides).length > 0) setFilters((prev) => ({ ...prev, ...overrides }));
+    // Read once on mount, as the web reads window.location once.
+  }, []);
 
-  // Real workspace metrics (library-summary) — refresh on scope change; a failure
-  // just hides the strip (never blocks the list).
   useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const data = await apiFetch(`/v1/evidence/library-summary?scope=${scope}`);
-        if (alive) setMetrics(projectLibraryMetrics(data));
-      } catch {
-        if (alive) setMetrics(null);
-      }
-    })();
-    return () => { alive = false; };
-  }, [scope]);
+    const t = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(t);
+  }, [filters.search]);
 
-  const onSearch = useCallback(
-    (text: string) => {
-      setQuery(text);
-      if (debounce.current) clearTimeout(debounce.current);
-      debounce.current = setTimeout(() => {
-        void fetchPage({ scope, search: text, type: typeFilter, status: statusFilter, source: sourceFilter, report: reportFilter, sort, append: false });
-      }, 300);
-    },
-    [scope, typeFilter, statusFilter, sourceFilter, reportFilter, sort, fetchPage],
+  /** Any filter change returns to page 1 and drops the bulk selection (page.tsx:392). */
+  const updateFilters = useCallback((next: LibraryFilters) => {
+    setFilters(next);
+    setCurrentCursor(null);
+    setCursorHistory([]);
+    setPageNumber(1);
+    setSelected(new Set());
+  }, []);
+  const setFilter = useCallback(
+    <K extends keyof LibraryFilters>(key: K, value: LibraryFilters[K]) => updateFilters({ ...filters, [key]: value }),
+    [filters, updateFilters],
   );
 
-  const restore = useCallback(
-    (item: EvidenceItem) => {
-      const isTrash = scope === "trash";
-      Alert.alert(isTrash ? "Restore from Trash" : "Restore from Archive", `Restore this ${evidenceTypeLabel(item.type).toLowerCase()} record?`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Restore",
-          onPress: () => {
-            void (async () => {
-              setBusyId(item.id);
-              try {
-                await apiFetch(`/v1/evidence/${item.id}/${isTrash ? "restore" : "unarchive"}`, { method: "POST", body: isTrash ? JSON.stringify({ restore: true }) : undefined });
-                setItems((prev) => prev.filter((i) => i.id !== item.id));
-              } catch (err) {
-                Alert.alert("Could not restore", toSafeUserError(err).message);
-              } finally {
-                setBusyId(null);
-              }
-            })();
-          },
-        },
+  const serverFilters = useMemo<LibraryFilters>(() => ({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
+  const serverKey = JSON.stringify({ ...serverFilters, review: "", retention: "", cursor: currentCursor });
+
+  const loadPage = useCallback(async (f: LibraryFilters, cursor: string | null) => {
+    const id = ++listRequest.current;
+    setError(null);
+    try {
+      // List + summary in parallel; a summary failure is soft (honest fallback labels).
+      const [data, summaryData] = await Promise.all([
+        apiFetch(buildLibraryQuery(filtersToQuery(f, cursor))),
+        apiFetch(buildLibrarySummaryPath(f)).catch(() => null),
       ]);
+      if (listRequest.current !== id) return;
+      setItems(Array.isArray(data?.items) ? (data.items as EvidenceItem[]) : []);
+      setPageInfo((data?.pageInfo ?? null) as PageInfo | null);
+      setSummary(parseLibrarySummary(summaryData));
+    } catch (err) {
+      if (listRequest.current !== id) return;
+      setError(toSafeUserError(err));
+      setItems([]);
+      setPageInfo(null);
+      setSummary(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void loadPage(serverFilters, currentCursor).then(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // serverKey captures every server-side input; review/retention are applied locally.
+  }, [serverKey, loadPage]);
+
+  const loadSupport = useCallback(async () => {
+    const [casesRes, viewsRes] = await Promise.allSettled([apiFetch("/v1/cases"), apiFetch("/v1/evidence/saved-views")]);
+    if (casesRes.status === "fulfilled") setCases(parseCases(casesRes.value));
+    if (viewsRes.status === "fulfilled") setSavedViews(parseSavedViews(viewsRes.value));
+    setViewsLoaded(true);
+  }, []);
+  useEffect(() => {
+    void loadSupport();
+  }, [loadSupport]);
+
+  const caseMap = useMemo(() => new Map(cases.map((c) => [c.id, c.name] as const)), [cases]);
+
+  const applyView = useCallback(
+    (view: SavedViewItem, announce = true) => {
+      updateFilters(savedViewToFilters(view));
+      if (announce) addToast(`Loaded saved view: ${view.name}`, "success");
     },
-    [scope],
+    [updateFilters, addToast],
   );
 
-  const clearFilters = useCallback(() => {
-    setTypeFilter("ALL"); setStatusFilter("ALL"); setSourceFilter("ALL"); setReportFilter("ALL");
-  }, []);
-
-  // Server-persisted saved views (GET /v1/evidence/saved-views) — not fake local.
-  const loadViews = useCallback(async () => {
-    try {
-      setSavedViews(parseSavedViews(await apiFetch("/v1/evidence/saved-views")));
-    } catch {
-      setSavedViews([]);
-    }
-  }, []);
-  useEffect(() => { void loadViews(); }, [loadViews]);
-
-  /**
-   * The default saved view, applied once on first load.
-   *
-   * It was read and ignored: an operator could set a default on the web and
-   * the phone opened on the unfiltered library every time. Never applied over
-   * a filter or a search the user has already set - a default that overrode a
-   * live choice would be the surface arguing with them - and never twice, so
-   * clearing it stays cleared.
-   */
+  // The default saved view applies once, and never over a filter already set (page.tsx:589).
   useEffect(() => {
-    if (defaultViewApplied.current || savedViews.length === 0) return;
-    const untouched =
-      !hasActiveFilters({
-        type: typeFilter,
-        status: statusFilter,
-        source: sourceFilter,
-        reportReady: reportFilter,
-      }) && query.trim() === "";
-    const view = defaultSavedViewToApply(savedViews, untouched);
+    if (defaultViewApplied.current || !viewsLoaded) return;
     defaultViewApplied.current = true;
-    if (view) applyView(view);
-    // Intentionally keyed on the views alone: this runs on the FIRST list
-    // that arrives, reading the filters as they are at that moment. The ref
-    // guard is what makes running once correct rather than accidental.
-  }, [savedViews]);
+    const view = savedViews.find((v) => v.isDefault);
+    if (view && filtersAreDefault(filters)) applyView(view, false);
+    // Runs on the first views that arrive, reading the filters as they are then.
+  }, [viewsLoaded]);
 
-  const openViewManager = useCallback((v: SavedViewItem) => {
-    setManagingView(v);
-    setRenameDraft(v.name);
-  }, []);
+  const visibleItems = useMemo(() => applyLoadedRowFilters(items, filters), [items, filters]);
+  const metrics = useMemo(() => buildLibraryMetrics(summary, visibleItems), [summary, visibleItems]);
+  const trustChips = activeTrustChips(filters);
+  const allLoadedSelected = visibleItems.length > 0 && visibleItems.every((i) => selected.has(i.id));
+  const panelActive = filterPanelActive(filters);
 
-  /**
-   * Rename. The route also accepts scope / filters / sortKey, and neither
-   * client sends them from the list: overwriting a view's filters is a
-   * different act from renaming it, and one control doing both is how an
-   * operator loses the view they meant to keep.
-   */
-  const renameView = useCallback(async () => {
-    const target = managingView;
-    if (!target) return;
-    const invalid = validateSavedViewName(renameDraft);
-    if (invalid) {
-      Alert.alert("Could not rename view", invalid);
-      return;
-    }
-    setViewBusy(true);
-    try {
-      await apiFetch(buildSavedViewPath(target.id), {
-        method: "PATCH",
-        body: JSON.stringify(buildSavedViewRenameBody(renameDraft)),
-      });
-      setManagingView(null);
-      await loadViews();
-    } catch (err) {
-      Alert.alert("Could not rename view", toSafeUserError(err).message);
-    } finally {
-      setViewBusy(false);
-    }
-  }, [managingView, renameDraft, loadViews]);
-
-  /**
-   * The server clears the previous default in the same workspace, so the local
-   * fold-in clears it too - otherwise the list shows two defaults until the
-   * next read.
-   */
-  const makeViewDefault = useCallback(async () => {
-    const target = managingView;
-    if (!target) return;
-    setViewBusy(true);
-    try {
-      await apiFetch(buildSavedViewDefaultPath(target.id), { method: "POST" });
-      setSavedViews((prev) => withDefaultSavedView(prev, target.id));
-      setManagingView(null);
-      await loadViews();
-    } catch (err) {
-      Alert.alert("Could not set default view", toSafeUserError(err).message);
-    } finally {
-      setViewBusy(false);
-    }
-  }, [managingView, loadViews]);
-
-  /** Deleting asks first: a saved view is a filter the operator composed. */
-  const deleteView = useCallback(() => {
-    const target = managingView;
-    if (!target) return;
-    Alert.alert(
-      "Delete saved view",
-      `Delete "${target.name}"? The evidence it filtered is not affected.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setViewBusy(true);
-              try {
-                await apiFetch(buildSavedViewPath(target.id), { method: "DELETE" });
-                setManagingView(null);
-                await loadViews();
-              } catch (err) {
-                Alert.alert("Could not delete view", toSafeUserError(err).message);
-              } finally {
-                setViewBusy(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
-  }, [managingView, loadViews]);
-
-  const applyView = useCallback((v: SavedViewItem) => {
-    setScope(v.scope as Scope);
-    setTypeFilter(v.type);
-    setStatusFilter(v.status);
-    setSort(v.sort);
-    setSourceFilter("ALL"); setReportFilter("ALL");
-    setQuery(v.search);
-  }, []);
-
-  const saveView = useCallback(async () => {
-    const name = newViewName.trim();
-    if (!name) return;
-    setSavingView(true);
-    try {
-      await apiFetch("/v1/evidence/saved-views", {
-        method: "POST",
-        body: JSON.stringify(buildSavedViewBody({ name, scope, type: typeFilter, status: statusFilter, search: query, sort })),
-      });
-      setNewViewName(""); setShowSaveView(false);
-      await loadViews();
-    } catch (err) {
-      Alert.alert("Could not save view", toSafeUserError(err).message);
-    } finally {
-      setSavingView(false);
-    }
-  }, [newViewName, scope, typeFilter, statusFilter, query, sort, loadViews]);
-
-  const toggleSelected = useCallback((idv: string) => {
+  const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-
-      if (next.has(idv)) {
-        next.delete(idv);
-        return next;
-      }
-
-      if (next.size >= EVIDENCE_BULK_MAX_IDS) {
-        Alert.alert(
-          "Selection limit",
-          `You can select up to ${EVIDENCE_BULK_MAX_IDS} evidence records at once.`,
-        );
-        return prev;
-      }
-
-      next.add(idv);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
-
-  const loadCaseOptions = useCallback(async () => {
-    setCaseOptionsState("loading");
-    setCaseOptionsError(null);
-
-    try {
-      const data = await apiFetch("/v1/cases");
-      const raw = Array.isArray(data?.items) ? data.items : [];
-
-      const cases: CaseOption[] = raw
-        .filter(
-          (item: unknown): item is Record<string, unknown> =>
-            !!item &&
-            typeof item === "object" &&
-            typeof (item as Record<string, unknown>).id === "string" &&
-            typeof (item as Record<string, unknown>).name === "string",
-        )
-        .map(
-          (item: Record<string, unknown>): CaseOption => ({
-            id: item.id as string,
-            name: (item.name as string).trim(),
-            status: typeof item.status === "string" ? item.status : undefined,
-          }),
-        )
-        .filter((item: CaseOption) => item.id.length > 0 && item.name.length > 0);
-
-      setCaseOptions(cases);
-      setCaseOptionsState("ready");
-    } catch (err) {
-      setCaseOptions([]);
-      setCaseOptionsError(toSafeUserError(err));
-      setCaseOptionsState("error");
-    }
-  }, []);
-
-  const executeBulk = useCallback(
-    (
-      spec: { action: EvidenceBulkActionName; label: string; destructive?: boolean },
-      ids: string[],
-      caseId?: string,
-    ) => {
-      Alert.alert(
-        spec.label,
-        `${spec.label} ${ids.length} record${ids.length === 1 ? "" : "s"}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: spec.label,
-            style: spec.destructive ? "destructive" : "default",
-            onPress: () => {
-              void (async () => {
-                setBulkBusy(true);
-
-                try {
-                  const response = await apiFetch("/v1/evidence/bulk", {
-                    method: "POST",
-                    body: JSON.stringify(
-                      buildEvidenceBulkRequest({
-                        action: spec.action,
-                        evidenceIds: ids,
-                        caseId,
-                      }),
-                    ),
-                  });
-
-                  const parsed = parseEvidenceBulkResponse(response);
-
-                  if (spec.action === "EXPORT_METADATA_CSV") {
-                    if (!parsed.csv) {
-                      Alert.alert(
-                        "Export unavailable",
-                        "The server did not return a CSV export for this selection.",
-                      );
-                      return;
-                    }
-
-                    if (!FileSystem.cacheDirectory) {
-                      Alert.alert(
-                        "Export unavailable",
-                        "A writable temporary directory is not available on this device.",
-                      );
-                      return;
-                    }
-
-                    const filename = safeCsvFilename(parsed.fileName);
-                    const uri = `${FileSystem.cacheDirectory}${filename}`;
-
-                    await FileSystem.writeAsStringAsync(uri, parsed.csv, {
-                      encoding: FileSystem.EncodingType.UTF8,
-                    });
-
-                    await Share.share({
-                      url: uri,
-                      title: filename,
-                      message: filename,
-                    });
-
-                    return;
-                  }
-
-                  const remainingIds = resolveBulkSelection(ids, parsed);
-
-                  // Accepted/queued is explicitly non-terminal. Keep the
-                  // operator's selection intact and do not claim completion.
-                  if (parsed.accepted === true || parsed.queued === true) {
-                    setSelected(new Set(remainingIds));
-                    setSelectionMode(true);
-                    setCaseChooserOpen(false);
-
-                    Alert.alert(
-                      "Bulk action queued",
-                      typeof parsed.pendingCount === "number" && parsed.pendingCount > 0
-                        ? `${parsed.pendingCount} record${parsed.pendingCount === 1 ? "" : "s"} pending.`
-                        : "The action was accepted and is still being processed.",
-                    );
-                    return;
-                  }
-
-                  setSelected(new Set(remainingIds));
-                  setSelectionMode(remainingIds.length > 0);
-                  setCaseChooserOpen(false);
-
-                  if (typeof parsed.failedCount === "number" && parsed.failedCount > 0) {
-                    Alert.alert(
-                      "Bulk action partially completed",
-                      `${parsed.successCount ?? 0} completed, ${parsed.failedCount} failed. Failed records remain selected.`,
-                    );
-                  }
-
-                  await reload();
-                } catch (err) {
-                  Alert.alert("Bulk action failed", toSafeUserError(err).message);
-                } finally {
-                  setBulkBusy(false);
-                }
-              })();
-            },
-          },
-        ],
-      );
-    },
-    [reload],
-  );
-
-  const runBulk = useCallback(
-    (spec: { action: EvidenceBulkActionName; label: string; destructive?: boolean }) => {
-      const ids = [...selected];
-      if (ids.length === 0) return;
-
-      if (spec.action === "ADD_TO_CASE") {
-        setCaseChooserOpen(true);
-
-        if (caseOptionsState === "idle" || caseOptionsState === "error") {
-          void loadCaseOptions();
-        }
-
-        return;
+  const toggleAllLoaded = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const all = visibleItems.every((i) => next.has(i.id));
+      for (const i of visibleItems) {
+        if (all) next.delete(i.id);
+        else next.add(i.id);
       }
+      return next;
+    });
+  }, [visibleItems]);
 
-      executeBulk(spec, ids);
-    },
-    [selected, caseOptionsState, loadCaseOptions, executeBulk],
-  );
-
-  const addSelectionToCase = useCallback(
-    (caseOption: CaseOption) => {
-      const ids = [...selected];
-      if (ids.length === 0) return;
-
-      executeBulk(
-        {
-          action: "ADD_TO_CASE",
-          label: `Add to ${caseOption.name}`,
-        },
-        ids,
-        caseOption.id,
-      );
-    },
-    [selected, executeBulk],
-  );
-
+  /* ------------------------------------------------------------ inspector */
 
   const loadInspector = useCallback(async (evidenceId: string) => {
+    const id = ++inspectorRequest.current;
     setInspectorState("loading");
     setInspectorError(null);
     setInspectorEvidence(null);
-    setInspectorArtifacts(null);
-
-    try {
-      // Core record first. This is the authority for preview/content policy.
-      const coreData = await apiFetch(`/v1/evidence/${evidenceId}`);
-      const projected = projectInspectorEvidence(coreData);
-
-      if (!projected) {
-        throw new Error("The selected evidence record could not be projected.");
-      }
-
-      setInspectorEvidence(projected);
-
-      // Side-effect-free artifact status. Do NOT mint report/package URLs here.
-      try {
-        const statusData = await apiFetch(
-          `/v1/evidence/${evidenceId}/artifacts/status`,
-        );
-        setInspectorArtifacts(projectInspectorArtifactState(statusData));
-      } catch {
-        setInspectorArtifacts(null);
-      }
-
-      setInspectorState("ready");
-    } catch (err) {
-      setInspectorError(toSafeUserError(err));
+    setInspectorOutputs(null);
+    setInspectorFacts(null);
+    setInspectorCaps(null);
+    // Status only: no report or package URL is minted by opening the Inspector.
+    const [core, status, workspace] = await Promise.allSettled([
+      apiFetch(`/v1/evidence/${evidenceId}`),
+      apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`),
+      apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
+    ]);
+    if (inspectorRequest.current !== id) return;
+    const projected = core.status === "fulfilled" ? projectInspectorEvidence(core.value) : null;
+    if (!projected) {
+      setInspectorError(core.status === "rejected" ? toSafeUserError(core.reason) : null);
       setInspectorState("error");
+      return;
     }
+    setInspectorEvidence(projected);
+    if (status.status === "fulfilled") {
+      setInspectorOutputs(projectInspectorArtifactState(status.value));
+      setInspectorFacts(projectInspectorArtifactFacts(status.value));
+    }
+    if (workspace.status === "fulfilled") setInspectorCaps(projectInspectorCapabilities(workspace.value));
+    setInspectorState("ready");
   }, []);
 
   const openInspector = useCallback(
@@ -984,483 +354,552 @@ export default function EvidenceLibraryScreen() {
   );
 
   const closeInspector = useCallback(() => {
-    // Never mutate bulk selection here.
+    inspectorRequest.current += 1;
     setInspectorId(null);
-    setInspectorEvidence(null);
-    setInspectorArtifacts(null);
-    setInspectorError(null);
     setInspectorState("idle");
-    setInspectorActionBusy(null);
+    setInspectorBusy(null);
   }, []);
 
-  const openInspectorReport = useCallback(async () => {
-    if (!inspectorId || inspectorArtifacts?.report !== "READY") return;
-
-    setInspectorActionBusy("report");
-    try {
-      // STATUS-BEFORE-URL: this is reached only after READY.
-      const response = await apiFetch(
-        `/v1/evidence/${inspectorId}/report/latest`,
-      );
-      const url =
-        typeof response?.url === "string" && response.url
-          ? response.url
-          : null;
-
-      if (!url) {
-        Alert.alert(
-          "Report unavailable",
-          "The report is marked ready, but no download URL was returned.",
-        );
-        return;
-      }
-
-      await Linking.openURL(url);
-    } catch (err) {
-      Alert.alert("Could not open report", toSafeUserError(err).message);
-    } finally {
-      setInspectorActionBusy(null);
-    }
-  }, [inspectorId, inspectorArtifacts]);
-
-  const openInspectorPackage = useCallback(async () => {
+  const downloadReport = useCallback(async () => {
     if (!inspectorId) return;
-
-    setInspectorActionBusy("package");
+    setInspectorBusy("report");
     try {
-      // Intentionally action-time only: never mint a package URL on Inspector mount.
-      const response = await apiFetch(
-        `/v1/evidence/${inspectorId}/verification-package`,
-      );
-      const url =
-        typeof response?.url === "string" && response.url
-          ? response.url
-          : null;
-
+      const data = await apiFetch(`/v1/evidence/${inspectorId}/report/latest`);
+      const url = typeof data?.url === "string" && data.url ? data.url : null;
       if (!url) {
-        const message =
-          typeof response?.message === "string" && response.message
-            ? response.message
-            : "The verification package is not available for this record.";
-        Alert.alert("Package unavailable", message);
+        addToast("Report not available", "info");
         return;
       }
-
       await Linking.openURL(url);
-    } catch (err) {
-      Alert.alert(
-        "Could not open verification package",
-        toSafeUserError(err).message,
-      );
+      addToast("Report downloaded", "success");
+    } catch {
+      addToast("Failed to download report", "error");
     } finally {
-      setInspectorActionBusy(null);
+      setInspectorBusy(null);
     }
-  }, [inspectorId]);
+  }, [inspectorId, addToast]);
 
-  const shareInspectorVerification = useCallback(async () => {
+  const downloadPackage = useCallback(async () => {
     if (!inspectorId) return;
-
-    setInspectorActionBusy("verify");
+    setInspectorBusy("package");
     try {
-      const response = await apiFetch(`/public/verify/${inspectorId}`);
-      const url =
-        typeof response?.publicUrl === "string" && response.publicUrl
-          ? response.publicUrl
-          : null;
-
+      const data = await apiFetch(`/v1/evidence/${inspectorId}/verification-package`);
+      const url = typeof data?.url === "string" && data.url ? data.url : null;
       if (!url) {
-        Alert.alert(
-          "Not published",
-          "Public verification is not published for this record.",
-        );
+        addToast("Verification package not available", "info");
         return;
       }
-
-      await Share.share({
-        url,
-        message: `Verify this PROOVRA record: ${url}`,
-      });
-    } catch (err) {
-      const safe = toSafeUserError(err);
-      Alert.alert(
-        safe.kind === "notFound" ? "Not published" : "Could not share",
-        safe.kind === "notFound"
-          ? "Public verification is not published for this record."
-          : safe.message,
-      );
+      await Linking.openURL(url);
+      addToast("Verification package downloaded", "success");
+    } catch {
+      addToast("Failed to download verification package", "error");
     } finally {
-      setInspectorActionBusy(null);
+      setInspectorBusy(null);
     }
-  }, [inspectorId]);
+  }, [inspectorId, addToast]);
 
-  const canRestore = scope === "archived" || scope === "trash";
-  const filtersActive = hasActiveFilters({ type: typeFilter, status: statusFilter, source: sourceFilter, reportReady: reportFilter });
+  const verifyUrl = inspectorId ? publicVerifyUrl(webOrigin(), inspectorId) : null;
+  const shareVerification = useCallback(async () => {
+    if (!verifyUrl) return;
+    try {
+      await Share.share({ url: verifyUrl, message: `Verify this PROOVRA record: ${verifyUrl}` });
+    } catch {
+      addToast("Failed to share verification link", "error");
+    }
+  }, [verifyUrl, addToast]);
+
+  /* ------------------------------------------------------------- refresh */
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.allSettled([loadSupport(), loadPage(serverFilters, currentCursor)]);
+    if (inspectorId) await loadInspector(inspectorId);
+    setRefreshing(false);
+  }, [loadSupport, loadPage, serverFilters, currentCursor, inspectorId, loadInspector]);
+
+  /* ---------------------------------------------------------------- bulk */
+
+  const runBulk = useCallback(
+    async (action: EvidenceBulkActionName, caseId?: string): Promise<EvidenceBulkResponse> => {
+      const ids = [...selected];
+      const response = parseEvidenceBulkResponse(
+        await apiFetch("/v1/evidence/bulk", {
+          method: "POST",
+          body: JSON.stringify(buildEvidenceBulkRequest({ action, evidenceIds: ids, caseId })),
+        }),
+      );
+      if (response.csv && FileSystem.cacheDirectory) {
+        const filename = safeCsvFilename(response.fileName);
+        const uri = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(uri, response.csv, { encoding: FileSystem.EncodingType.UTF8 });
+        await shareFile(uri, { mimeType: "text/csv", dialogTitle: filename, uti: "public.comma-separated-values-text" });
+      }
+      if (action !== "EXPORT_METADATA_CSV") await loadPage(serverFilters, currentCursor);
+      if (inspectorId && ids.includes(inspectorId)) await loadInspector(inspectorId);
+      const failed = response.failedCount ?? 0;
+      addToast(
+        failed > 0 ? `${response.successCount ?? 0} completed, ${failed} failed` : `${response.successCount ?? 0} records updated`,
+        failed > 0 ? "warning" : "success",
+      );
+      return response;
+    },
+    [selected, loadPage, serverFilters, currentCursor, inspectorId, loadInspector, addToast],
+  );
+
+  const restore = useCallback(
+    (item: EvidenceItem) => {
+      const isTrash = filters.scope === "trash";
+      Alert.alert(isTrash ? "Restore from Trash" : "Restore from Archive", `Restore this ${evidenceTypeLabel(item.type).toLowerCase()} record?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          onPress: () => {
+            void (async () => {
+              setBusyId(item.id);
+              try {
+                await apiFetch(`/v1/evidence/${item.id}/${isTrash ? "restore" : "unarchive"}`, {
+                  method: "POST",
+                  body: isTrash ? JSON.stringify({ restore: true }) : undefined,
+                });
+                setItems((prev) => prev.filter((i) => i.id !== item.id));
+              } catch (err) {
+                Alert.alert("Could not restore", toSafeUserError(err).message);
+              } finally {
+                setBusyId(null);
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [filters.scope],
+  );
+
+  /* --------------------------------------------------------- saved views */
+
+  const createView = useCallback(
+    async (draft: SavedViewDraft) => {
+      try {
+        const res = await apiFetch("/v1/evidence/saved-views", {
+          method: "POST",
+          body: JSON.stringify(buildSavedViewBody({ ...draft, filters })),
+        });
+        const created = parseSavedViews({ items: [res?.savedView] })[0];
+        if (created) {
+          setSavedViews((prev) => {
+            const rest = prev.filter((v) => v.id !== created.id);
+            return created.isDefault ? [created, ...rest.map((v) => (v.teamId === created.teamId ? { ...v, isDefault: false } : v))] : [created, ...rest];
+          });
+          addToast("Saved view created", "success");
+        }
+        return true;
+      } catch (err) {
+        addToast(toSafeUserError(err).message, "error");
+        return false;
+      }
+    },
+    [filters, addToast],
+  );
+
+  const updateView = useCallback(
+    async (id: string, draft: { name: string; description: string; isDefault: boolean }) => {
+      try {
+        const res = await apiFetch(buildSavedViewPath(id), { method: "PATCH", body: JSON.stringify(buildSavedViewUpdateBody(draft)) });
+        const updated = parseSavedViews({ items: [res?.savedView] })[0];
+        if (updated) {
+          setSavedViews((prev) =>
+            prev.map((v) => {
+              if (updated.isDefault && v.id !== updated.id && v.teamId === updated.teamId) return { ...v, isDefault: false };
+              return v.id === updated.id ? updated : v;
+            }),
+          );
+          addToast("Saved view updated", "success");
+        }
+        return true;
+      } catch (err) {
+        addToast(toSafeUserError(err).message, "error");
+        return false;
+      }
+    },
+    [addToast],
+  );
+
+  const deleteView = useCallback(
+    async (id: string) => {
+      try {
+        await apiFetch(buildSavedViewPath(id), { method: "DELETE" });
+        setSavedViews((prev) => prev.filter((v) => v.id !== id));
+        addToast("Saved view deleted", "success");
+        return true;
+      } catch (err) {
+        addToast(toSafeUserError(err).message, "error");
+        return false;
+      }
+    },
+    [addToast],
+  );
+
+  const setDefaultView = useCallback(
+    async (id: string) => {
+      try {
+        await apiFetch(buildSavedViewDefaultPath(id), { method: "POST" });
+        // The server clears the previous default in the same workspace.
+        setSavedViews((prev) => {
+          const target = prev.find((v) => v.id === id);
+          return withDefaultSavedView(prev.filter((v) => v.teamId === target?.teamId), id).concat(
+            prev.filter((v) => v.teamId !== target?.teamId),
+          );
+        });
+        addToast("Default saved view updated", "success");
+        return true;
+      } catch (err) {
+        addToast(toSafeUserError(err).message, "error");
+        return false;
+      }
+    },
+    [addToast],
+  );
+
+  const teamOptions = useMemo(() => savedViewTeamOptions(platform.envelope), [platform.envelope]);
+
+  /* ------------------------------------------------------------ paging */
+
+  const goPrevious = () => {
+    if (cursorHistory.length === 0) return;
+    const prev = cursorHistory[cursorHistory.length - 1] ?? null;
+    setCursorHistory((h) => h.slice(0, -1));
+    setCurrentCursor(prev);
+    setPageNumber((p) => Math.max(1, p - 1));
+  };
+  const goNext = () => {
+    const next = pageInfo?.nextCursor;
+    if (!next) return;
+    setCursorHistory((h) => [...h, currentCursor]);
+    setCurrentCursor(next);
+    setPageNumber((p) => p + 1);
+  };
+  const hasNext = Boolean(pageInfo?.hasMore && pageInfo?.nextCursor);
+  const canRestore = filters.scope === "archived" || filters.scope === "trash";
+
+  const inspectorItem = inspectorId ? items.find((i) => i.id === inspectorId) ?? null : null;
+  const inspector = (presentation: "rail" | "modal") => (
+    <EvidenceLibraryInspector
+      row={
+        inspectorItem
+          ? {
+              id: inspectorItem.id,
+              title: rowTitle(inspectorItem),
+              type: inspectorItem.type,
+              status: inspectorItem.status,
+              verificationStatus: inspectorItem.verificationStatus,
+              itemCount: inspectorItem.itemCount,
+              createdAt: inspectorItem.createdAt,
+              reportReady: inspectorItem.reportReady,
+            }
+          : null
+      }
+      caseName={inspectorItem?.caseId ? caseMap.get(inspectorItem.caseId) ?? null : null}
+      evidence={inspectorEvidence}
+      outputs={inspectorOutputs}
+      facts={inspectorFacts}
+      capabilities={inspectorCaps}
+      state={inspectorState}
+      error={inspectorError}
+      presentation={presentation}
+      actionBusy={inspectorBusy}
+      verifyUrl={verifyUrl}
+      onClose={closeInspector}
+      onRetry={() => inspectorId && void loadInspector(inspectorId)}
+      onOpenRecord={() => inspectorId && router.push(`/evidence/${inspectorId}`)}
+      onOpenPreview={(url) => void Linking.openURL(url)}
+      onDownloadReport={() => void downloadReport()}
+      onDownloadPackage={() => void downloadPackage()}
+      onShareVerification={() => void shareVerification()}
+    />
+  );
 
   return (
     <ProovraShell>
-      <ProovraSection title="Evidence">
-        <View style={styles.scopeRow}>
-          {SCOPES.map((s) => (
-            <Chip key={s.key} label={s.label} active={s.key === scope} onPress={() => setScope(s.key)} />
-          ))}
-        </View>
-
-        {metrics ? (
-          <View style={styles.metricStrip}>
-            {metrics.map((m) => {
-              const c = statusTone(m.tone);
-              return (
-                <View key={m.key} style={styles.metricTile}>
-                  <ProovraText variant="h3" weight="bold" color={c.solid}>{m.value}</ProovraText>
-                  <ProovraText variant="label" color={theme.color.ink.secondary} numberOfLines={2}>{m.label}</ProovraText>
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-
-        <View style={styles.search}>
-          <ProovraInput value={query} onChangeText={onSearch} placeholder="Search evidence" />
-        </View>
-
-        <View style={styles.filterRow}>
-          <Chip label="All types" active={typeFilter === "ALL"} onPress={() => setTypeFilter("ALL")} />
-          {EVIDENCE_TYPES.map((tf) => (
-            <Chip key={tf} label={evidenceTypeLabel(tf)} active={tf === typeFilter} onPress={() => setTypeFilter(tf)} />
-          ))}
-          <Chip label={sortLabel(sort)} active={false} onPress={() => setSort((s) => nextSort(s))} />
-          <Chip label={showFilters ? "Filters ▲" : `Filters${filtersActive ? " •" : ""} ▼`} active={filtersActive} onPress={() => setShowFilters((v) => !v)} />
-        </View>
-
-        {showFilters ? (
-          <ProovraCard style={styles.filterPanel}>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Status</ProovraText>
-            <View style={styles.filterRow}>
-              <Chip label="Any" active={statusFilter === "ALL"} onPress={() => setStatusFilter("ALL")} />
-              {STATUS_FILTERS.map((st) => (
-                <Chip key={st} label={evidenceStatusDisplay(st).label} active={st === statusFilter} onPress={() => setStatusFilter(st)} />
-              ))}
-            </View>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Source</ProovraText>
-            <View style={styles.filterRow}>
-              <Chip label="Any" active={sourceFilter === "ALL"} onPress={() => setSourceFilter("ALL")} />
-              {SOURCE_FILTERS.map((sf) => (
-                <Chip key={sf} label={humanizeEnum(sf)} active={sf === sourceFilter} onPress={() => setSourceFilter(sf)} />
-              ))}
-            </View>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Report</ProovraText>
-            <View style={styles.filterRow}>
-              <Chip label="Any" active={reportFilter === "ALL"} onPress={() => setReportFilter("ALL")} />
-              {REPORT_FILTERS.map((rf) => (
-                <Chip key={rf} label={rf === "ready" ? "Report ready" : "Report missing"} active={rf === reportFilter} onPress={() => setReportFilter(rf)} />
-              ))}
-            </View>
-            {filtersActive ? <ProovraButton label="Clear filters" variant="ghost" fullWidth={false} onPress={clearFilters} /> : null}
-          </ProovraCard>
-        ) : null}
-
-        <View style={styles.filterRow}>
-          {savedViews.map((v) => (
-            <Chip
-              key={v.id}
-              // The default is marked, because "which view am I in" is the
-              // first question a saved view raises.
-              label={v.isDefault ? `${v.name} ·` : v.name}
-              active={false}
-              onPress={() => applyView(v)}
-              onLongPress={() => openViewManager(v)}
-              accessibilityHint="Double tap to apply. Long press to rename, set as default, or delete."
-            />
-          ))}
-          <Chip label={showSaveView ? "Cancel save" : "＋ Save view"} active={showSaveView} onPress={() => setShowSaveView((s) => !s)} />
-          <Chip label={selectionMode ? "Done" : "Select"} active={selectionMode} onPress={() => { setSelectionMode((m) => !m); setSelected(new Set()); }} />
-        </View>
-
-        {showSaveView ? (
-          <ProovraCard style={styles.filterPanel}>
-            <ProovraInput value={newViewName} onChangeText={setNewViewName} placeholder="Name this view" autoCapitalize="sentences" onSubmitEditing={() => void saveView()} />
-            {sourceFilter !== "ALL" || reportFilter !== "ALL" ? (
-              <ProovraText variant="label" color={theme.color.ink.muted}>
-                Saved views preserve scope, search, type, status and sort. Source and report filters are not part of the current saved-view contract.
-              </ProovraText>
-            ) : null}
-            <ProovraButton label="Save current view" loading={savingView} disabled={!newViewName.trim()} onPress={() => void saveView()} />
-          </ProovraCard>
-        ) : null}
-
-        {/*
-          MANAGING ONE SAVED VIEW — rename, make default, delete.
-          All three routes existed from the beginning and none was called,
-          so a view saved under the wrong name was permanent on a phone.
-        */}
-        <ProovraSheet
-          visible={managingView !== null}
-          title={managingView ? managingView.name : "Saved view"}
-          onClose={() => setManagingView(null)}
-        >
-          <ProovraFormField label="Name">
-            <ProovraInput
-              value={renameDraft}
-              onChangeText={setRenameDraft}
-              placeholder={`Up to ${SAVED_VIEW_NAME_MAX} characters`}
-              autoCapitalize="sentences"
-              accessibilityLabel="Saved view name"
-            />
-          </ProovraFormField>
-          <ProovraButton
-            label="Rename view"
-            loading={viewBusy}
-            disabled={
-              validateSavedViewName(renameDraft) !== null ||
-              renameDraft.trim() === (managingView?.name ?? "")
-            }
-            onPress={() => void renameView()}
-          />
-          {managingView?.isDefault ? (
-            <ProovraText variant="label" color={theme.color.ink.muted}>
-              This is the view the library opens on.
-            </ProovraText>
-          ) : (
+      <ProovraPageHeader
+        title={LIBRARY_TITLE}
+        subtitle={LIBRARY_DESCRIPTION}
+        secondaryActions={
+          <>
+            <ProovraButton label="New Case" variant="secondary" fullWidth={false} onPress={() => router.push("/cases")} />
             <ProovraButton
-              label="Open the library on this view"
+              label={refreshing ? "Refreshing…" : "Refresh"}
+              accessibilityLabel="Refresh"
               variant="secondary"
-              loading={viewBusy}
-              onPress={() => void makeViewDefault()}
+              fullWidth={false}
+              disabled={refreshing}
+              onPress={() => void refresh()}
             />
-          )}
-          <ProovraButton
-            label="Delete view"
-            variant="ghost"
-            loading={viewBusy}
-            onPress={deleteView}
+          </>
+        }
+        primaryAction={<ProovraButton label="Upload / Capture Evidence" fullWidth={false} onPress={() => router.push("/capture")} />}
+      />
+
+      <ProovraCard style={styles.boundary}>
+        <ProovraText variant="bodySm" weight="bold" color={theme.color.accent.a600} accessibilityRole="header">
+          {LEGAL_BOUNDARY_TITLE}
+        </ProovraText>
+        <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+          {LEGAL_BOUNDARY}
+        </ProovraText>
+      </ProovraCard>
+
+      <View style={styles.block}>
+        <ProovraKpiGrid items={metrics} />
+      </View>
+
+      {trustChips.length > 0 ? (
+        <View style={styles.chipRow}>
+          {trustChips.map((c) => (
+            <Pressable
+              key={c.key}
+              onPress={() => setFilter(c.key, "all")}
+              accessibilityRole="button"
+              accessibilityLabel={`Clear ${c.label}`}
+              style={styles.trustChip}
+            >
+              <ProovraText variant="label" weight="semibold" color={theme.color.accent.a600}>
+                {`${c.label}  ✕`}
+              </ProovraText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      <ProovraCard style={styles.block}>
+        <View accessibilityLabel="Evidence filters" style={styles.filters}>
+          <ProovraInput
+            value={filters.search}
+            onChangeText={(text) => updateFilters({ ...filters, search: text })}
+            placeholder="Search title, filename, or record ID"
+            accessibilityLabel="Search title, filename, or record ID"
           />
-        </ProovraSheet>
-
-        {selectionMode && selected.size > 0 && caseChooserOpen ? (
-          <ProovraCard style={styles.caseChooser}>
-            <View style={styles.caseChooserHeader}>
-              <View style={styles.caseChooserTitle}>
-                <ProovraText variant="body" weight="semibold">
-                  Add selected evidence to a case
-                </ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Choose the target case for {selected.size} selected record{selected.size === 1 ? "" : "s"}.
-                </ProovraText>
-              </View>
-
+          <EvidenceLibrarySavedViews
+            views={savedViews}
+            teamOptions={teamOptions}
+            sourceNotSaved={filters.acquisition !== "all"}
+            onApply={(v) => applyView(v)}
+            onCreate={createView}
+            onUpdate={updateView}
+            onDelete={deleteView}
+            onSetDefault={setDefaultView}
+          />
+          <ProovraFilterChips<LibraryScope>
+            label="Workspace scope"
+            value={filters.scope}
+            options={SCOPE_OPTIONS as Array<{ value: LibraryScope; label: string }>}
+            onChange={(v) => setFilter("scope", v)}
+          />
+          <ProovraFilterChips<LibrarySort> label="Sort" value={filters.sort} options={SORT_OPTIONS} onChange={(v) => setFilter("sort", v)} />
+          <View style={styles.row}>
+            <ProovraButton
+              label={showFilters ? "Hide filters" : panelActive ? "More filters •" : "More filters"}
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => setShowFilters((v) => !v)}
+            />
+            {panelActive ? (
               <ProovraButton
-                label="Cancel"
+                label="Clear filters"
                 variant="ghost"
                 fullWidth={false}
-                onPress={() => setCaseChooserOpen(false)}
+                onPress={() => updateFilters({ ...DEFAULT_LIBRARY_FILTERS, scope: filters.scope, sort: filters.sort, search: filters.search })}
               />
-            </View>
+            ) : null}
+          </View>
+          {showFilters ? (
+            <>
+              <ProovraFilterChips label="Status" value={filters.status} options={STATUS_OPTIONS} onChange={(v) => setFilter("status", v)} />
+              <ProovraFilterChips label="Evidence type" value={filters.type} options={TYPE_OPTIONS} onChange={(v) => setFilter("type", v)} />
+              <ProovraFilterChips
+                label="How the record entered PROOVRA"
+                value={filters.acquisition}
+                options={SOURCE_OPTIONS}
+                onChange={(v) => setFilter("acquisition", v)}
+              />
+              <ProovraFilterChips label="Review" value={filters.review} options={REVIEW_OPTIONS} onChange={(v) => setFilter("review", v)} />
+              <ProovraFilterChips label="Export" value={filters.exportReadiness} options={EXPORT_OPTIONS} onChange={(v) => setFilter("exportReadiness", v)} />
+              <ProovraFilterChips label="Case" value={filters.caseAssignment} options={CASE_OPTIONS} onChange={(v) => setFilter("caseAssignment", v)} />
+              <ProovraFilterChips label="Retention" value={filters.retention} options={RETENTION_OPTIONS} onChange={(v) => setFilter("retention", v)} />
+            </>
+          ) : null}
+        </View>
+      </ProovraCard>
 
-            {caseOptionsState === "loading" ? (
-              <ProovraLoadingState label="Loading cases" />
-            ) : caseOptionsState === "error" && caseOptionsError ? (
-              <ProovraErrorState
-                message={caseOptionsError.message}
-                onRetry={() => void loadCaseOptions()}
-              />
-            ) : caseOptions.length === 0 ? (
-              <ProovraEmptyState
-                title="No cases available"
-                message="Create a case before adding evidence to one."
-              />
-            ) : (
-              <View style={styles.caseList}>
-                {caseOptions.map((caseOption) => (
-                  <ProovraListRow
-                    key={caseOption.id}
-                    title={caseOption.name}
-                    subtitle={caseOption.status ? humanizeEnum(caseOption.status) : undefined}
-                    onPress={() => addSelectionToCase(caseOption)}
-                    trailing={<ProovraBadge tone="neutral" label="Add" />}
-                  />
-                ))}
+      <ProovraCard style={styles.block}>
+        <View style={styles.queueHead}>
+          <ProovraText variant="h3" weight="semibold" accessibilityRole="header">
+            Evidence queue
+          </ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            Dense operational triage for reviewer queues, export readiness, and case-linked evidence operations.
+          </ProovraText>
+          <View style={styles.row}>
+            <ProovraBadge tone="neutral" label={filters.scope} />
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.flex1}>
+              Results are loaded from the server using the selected filters.
+            </ProovraText>
+          </View>
+        </View>
+
+        <View style={styles.selectAll}>
+          <Check
+            checked={allLoadedSelected}
+            label="Select all loaded pages"
+            disabled={visibleItems.length === 0}
+            onPress={toggleAllLoaded}
+          />
+          <ProovraText variant="bodySm">Select all loaded pages</ProovraText>
+        </View>
+
+        {selected.size > 0 ? (
+          <EvidenceLibraryBulkToolbar
+            scope={filters.scope}
+            selectedCount={selected.size}
+            selectedItems={visibleItems.filter((i) => selected.has(i.id))}
+            cases={cases}
+            onClear={() => setSelected(new Set())}
+            onRun={runBulk}
+            onSelectionResolved={(ids) => setSelected(new Set(ids))}
+          />
+        ) : null}
+
+        {loading ? (
+          <ProovraLoadingState label="Loading evidence records" />
+        ) : error ? (
+          <View>
+            <ProovraText variant="body" weight="semibold" center>
+              Evidence list unavailable
+            </ProovraText>
+            <ProovraErrorState message={error.message} requestId={error.requestId} onRetry={() => void refresh()} />
+          </View>
+        ) : visibleItems.length === 0 ? (
+          <ProovraEmpty
+            title="No evidence records in this scope"
+            purpose="Adjust the scope or filters, or capture new evidence to populate the reviewer queue."
+            action={
+              <View style={styles.row}>
+                <ProovraButton label="Upload / Capture Evidence" fullWidth={false} onPress={() => router.push("/capture")} />
+                <ProovraButton label="Review Cases" variant="secondary" fullWidth={false} onPress={() => router.push("/cases")} />
               </View>
-            )}
-          </ProovraCard>
-        ) : null}
-
-        {selectionMode && selected.size > 0 ? (
-          <ProovraCard style={styles.bulkBar}>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>{selected.size} selected</ProovraText>
-            <View style={styles.filterRow}>
-              {bulkActionsForScope(scope).map((a) => (
-                <ProovraButton key={a.action} label={a.label} variant={a.destructive ? "danger" : "secondary"} fullWidth={false} loading={bulkBusy} onPress={() => runBulk(a)} />
-              ))}
-            </View>
-          </ProovraCard>
-        ) : null}
-
-        {state === "loading" ? (
-          <ProovraLoadingState label="Loading evidence" />
-        ) : state === "error" && error ? (
-          <ProovraErrorState message={error.message} onRetry={() => void reload()} />
-        ) : items.length === 0 ? (
-          <ProovraEmptyState
-            title={scope === "active" && !filtersActive && !query ? "No evidence yet" : "No matches"}
-            message={scope === "active" && !filtersActive && !query ? "Captured records appear here." : "No records match the current filters."}
-            action={scope === "active" && !filtersActive ? <ProovraButton label="+ Capture" fullWidth={false} onPress={() => router.push("/capture")} /> : undefined}
+            }
           />
         ) : (
           <>
-            <ProovraCard>
-              {items.map((item) => {
+            <View style={styles.list}>
+              {visibleItems.map((item) => {
+                const title = rowTitle(item);
                 const status = evidenceStatusDisplay(item.status);
-                const isSel = selected.has(item.id);
+                const caseName = item.caseId ? caseMap.get(item.caseId) ?? null : null;
+                const active = item.id === inspectorId;
                 return (
-                  <ProovraListRow
-                    key={item.id}
-                    title={`${selectionMode ? (isSel ? "☑  " : "☐  ") : ""}${rowTitle(item)}`}
-                    subtitle={item.displaySubtitle?.trim() || `${evidenceTypeLabel(item.type)} · ${formatUserDateTime(item.createdAt)}`}
-                    onPress={() => (selectionMode ? toggleSelected(item.id) : openInspector(item.id))}
-                    trailing={
-                      selectionMode ? (
-                        <ProovraBadge tone={isSel ? "verified" : "neutral"} label={isSel ? "Selected" : "Tap"} />
-                      ) : canRestore ? (
-                        <ProovraButton label="Restore" variant="secondary" fullWidth={false} loading={busyId === item.id} onPress={() => restore(item)} />
-                      ) : (
-                        <ProovraBadge tone={status.tone} label={item.statusLabel?.trim() || status.label} />
-                      )
-                    }
-                  />
+                  <View key={item.id} style={[styles.rowCard, active ? styles.rowActive : null]} testID={`evidence-row-${item.id}`}>
+                    <Check checked={selected.has(item.id)} label={`Select evidence record ${title}`} onPress={() => toggleSelected(item.id)} />
+                    <Pressable
+                      style={styles.flex1}
+                      onPress={() => openInspector(item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={title}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <ProovraText variant="body" weight="semibold" numberOfLines={1}>
+                        {title}
+                      </ProovraText>
+                      <ProovraText variant="label" mono color={theme.color.ink.muted}>
+                        {shortId(item.id)}
+                        {caseName ? `   Case: ${caseName}` : ""}
+                      </ProovraText>
+                      <ProovraText variant="label" color={theme.color.ink.secondary}>
+                        {rowActivityLine(item)}
+                      </ProovraText>
+                      <ProovraText variant="label" color={theme.color.ink.muted}>
+                        {formatUserDateTime(item.createdAt)}
+                      </ProovraText>
+                    </Pressable>
+                    {canRestore ? (
+                      <ProovraButton
+                        label="Restore"
+                        accessibilityLabel={`Restore ${title}`}
+                        variant="secondary"
+                        fullWidth={false}
+                        loading={busyId === item.id}
+                        onPress={() => restore(item)}
+                      />
+                    ) : (
+                      <ProovraBadge tone={status.tone} label={recordStatusLabel(item.status)} />
+                    )}
+                  </View>
                 );
               })}
-            </ProovraCard>
-            {hasMore ? (
-              <View style={styles.more}>
-                <ProovraButton label="Load more" variant="secondary" onPress={() => void reload(true, cursor)} />
+            </View>
+
+            <View style={styles.pagination}>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {`Page ${pageNumber}`}
+              </ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {`${visibleItems.length} page results`}
+              </ProovraText>
+              <View style={styles.row}>
+                <ProovraButton label="Previous" variant="secondary" fullWidth={false} disabled={cursorHistory.length === 0} onPress={goPrevious} />
+                <ProovraButton label="Next" variant="secondary" fullWidth={false} disabled={!hasNext} onPress={goNext} />
               </View>
-            ) : null}
+            </View>
           </>
         )}
+      </ProovraCard>
 
-        {inspectorId && responsive.isTablet ? (
-          <EvidenceInspector
-            item={items.find((item) => item.id === inspectorId) ?? null}
-            evidence={inspectorEvidence}
-            artifacts={inspectorArtifacts}
-            state={inspectorState}
-            error={inspectorError}
-            presentation="rail"
-            actionBusy={inspectorActionBusy}
-            onClose={closeInspector}
-            onRetry={() => void loadInspector(inspectorId)}
-            onOpenRecord={() => router.push(`/evidence/${inspectorId}`)}
-            onOpenReport={() => void openInspectorReport()}
-            onOpenPackage={() => void openInspectorPackage()}
-            onShareVerification={() => void shareInspectorVerification()}
-          />
-        ) : null}
-
-        {inspectorId && !responsive.isTablet ? (
-          <EvidenceInspector
-            item={items.find((item) => item.id === inspectorId) ?? null}
-            evidence={inspectorEvidence}
-            artifacts={inspectorArtifacts}
-            state={inspectorState}
-            error={inspectorError}
-            presentation="modal"
-            actionBusy={inspectorActionBusy}
-            onClose={closeInspector}
-            onRetry={() => void loadInspector(inspectorId)}
-            onOpenRecord={() => router.push(`/evidence/${inspectorId}`)}
-            onOpenReport={() => void openInspectorReport()}
-            onOpenPackage={() => void openInspectorPackage()}
-            onShareVerification={() => void shareInspectorVerification()}
-          />
-        ) : null}
-      </ProovraSection>
+      {responsive.isTablet ? inspector("rail") : inspectorId ? inspector("modal") : null}
     </ProovraShell>
   );
 }
 
 const styles = StyleSheet.create({
-  scopeRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
-  metricStrip: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
-  metricTile: { flexGrow: 1, minWidth: "22%", backgroundColor: theme.color.surface.card, borderRadius: theme.radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.border.default, paddingVertical: theme.space.s3, paddingHorizontal: theme.space.s3, gap: 2 },
-  search: { marginBottom: theme.space.s3 },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
-  filterPanel: { marginBottom: theme.space.s3, gap: theme.space.s2 },
-  bulkBar: { marginBottom: theme.space.s3, gap: theme.space.s2 },
-  caseChooser: { marginBottom: theme.space.s3, gap: theme.space.s3 },
-  caseChooserHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: theme.space.s3 },
-  caseChooserTitle: { flex: 1, gap: 2 },
-  caseList: { gap: theme.space.s1 },
-  smallChip: { paddingHorizontal: theme.space.s3, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1, minHeight: 34, justifyContent: "center" },
-  more: { marginTop: theme.space.s4 },
-
-  inspectorRail: {
-    marginTop: theme.space.s4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.color.border.default,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.color.surface.card,
-    maxHeight: 720,
-    overflow: "hidden",
+  flex1: { flex: 1 },
+  block: { marginBottom: theme.space.s3 },
+  boundary: { marginBottom: theme.space.s3, gap: theme.space.s1, borderLeftWidth: 4, borderLeftColor: theme.color.accent.a500 },
+  filters: { gap: theme.space.s3 },
+  row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginBottom: theme.space.s3 },
+  trustChip: {
+    paddingHorizontal: theme.space.s3,
+    paddingVertical: 6,
+    minHeight: 34,
+    justifyContent: "center",
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.color.accent.a500,
+    backgroundColor: theme.color.accent.a050,
   },
-  inspectorModalBackdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.34)",
-  },
-  inspectorModal: {
-    maxHeight: "90%",
-    backgroundColor: theme.color.surface.app,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    overflow: "hidden",
-  },
-  inspectorScroll: {
-    padding: theme.space.s4,
-  },
-  inspector: {
-    gap: theme.space.s4,
-  },
-  inspectorHeader: {
+  queueHead: { gap: theme.space.s1, marginBottom: theme.space.s3 },
+  selectAll: { flexDirection: "row", alignItems: "center", gap: theme.space.s2, marginBottom: theme.space.s2 },
+  list: { gap: theme.space.s2 },
+  rowCard: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    alignItems: "center",
     gap: theme.space.s3,
-  },
-  inspectorHeading: {
-    flex: 1,
-    gap: 2,
-  },
-  inspectorBadgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.s2,
-  },
-  inspectorMeta: {
-    gap: theme.space.s2,
-  },
-  inspectorMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: theme.space.s3,
-  },
-  inspectorMetaValue: {
-    flex: 1,
-    textAlign: "right",
-  },
-  inspectorBlock: {
-    gap: theme.space.s2,
-  },
-  inspectorImage: {
-    width: "100%",
-    height: 260,
+    padding: theme.space.s3,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.color.surface.muted,
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    backgroundColor: theme.color.surface.card,
   },
-  previewNotice: {
-    gap: theme.space.s2,
+  rowActive: { borderColor: theme.color.accent.a500 },
+  checkHit: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: theme.color.border.strong,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  inspectorFooter: {
-    paddingTop: theme.space.s2,
-  },
+  boxOn: { backgroundColor: theme.color.accent.a500, borderColor: theme.color.accent.a500 },
+  boxDisabled: { opacity: 0.4 },
+  pagination: { marginTop: theme.space.s3, gap: theme.space.s2 },
 });

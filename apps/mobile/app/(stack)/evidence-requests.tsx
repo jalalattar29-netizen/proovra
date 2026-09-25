@@ -11,6 +11,7 @@ import { formatUserDateTime } from "../../src/lib/date";
 import { usePlatformContext } from "../../src/product/platform-context";
 import {
   parseEvidenceRequestList,
+  requestListSummary,
   requestStatusDisplay,
   type EvidenceRequestListItem,
 } from "../../src/product/evidence-requests";
@@ -62,13 +63,13 @@ export default function EvidenceRequestsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <ProovraScreen>
+    <ProovraScreen shell>
       <ProovraSection
         title="Evidence requests"
         action={<ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />}
       >
         {ctxLoading || phase === "loading" ? (
-          <ProovraLoadingState label="Loading requests" />
+          <ProovraLoadingState label="Loading requests…" />
         ) : phase === "unavailable" ? (
           <ProovraEmptyState title="Not available" message="Evidence requests aren’t available for this workspace." />
         ) : phase === "error" && error ? (
@@ -83,7 +84,8 @@ export default function EvidenceRequestsScreen() {
                 <ProovraListRow
                   key={req.id}
                   title={req.title}
-                  subtitle={req.dueAtUtc ? `Due ${formatUserDateTime(req.dueAtUtc)}` : undefined}
+                  // MatterWorkspace.tsx:1311-1321 — due, then the completion summary.
+                  subtitle={[req.dueAtUtc ? `Due ${formatUserDateTime(req.dueAtUtc)}` : null, requestListSummary(req)].filter(Boolean).join(" · ")}
                   trailing={<ProovraBadge tone={status.tone} label={status.label} />}
                   onPress={() => router.push(`/evidence-request/${req.id}`)}
                 />

@@ -38,6 +38,38 @@ import type {
   ScreenSegment,
 } from "../modules/proovra-screen-capture";
 
+/**
+ * T-18 / RC-18 — what this screen's controls may CLAIM.
+ *
+ * The review control used to be labelled "Finish & Sign" and its copy said it
+ * "seals these segments", while this module stages and Capture seals. The
+ * canonical "Finish & Sign" (capture.tsx) is the ONE control with that name.
+ */
+export const CONTINUOUS_REVIEW_COPY = {
+  action: "Continue to Finish & Sign",
+  explainer:
+    "Continue stages these segments and opens Capture, where Finish & Sign seals them into one evidence record. PROOVRA verifies every segment's integrity on the server and records whether the session was complete or interrupted. It does not claim continuity across any known gap.",
+  staging: (n: number) => `Staging ${n} segment(s) for Finish & Sign in Capture`,
+  staged: "Recording staged",
+} as const;
+
+/** The three steps between Stop and Capture, each with its own honest failure. */
+export type ContinuousStageStep = "drain" | "stage" | "handoff";
+
+export const CONTINUOUS_STAGE_FAILURE: Record<ContinuousStageStep, string> = {
+  drain:
+    "Some recorded segments did not finish uploading, so this recording could not be staged. Nothing was saved to your library — start a new recording.",
+  stage:
+    "The recording's continuity manifest could not be staged, so it cannot be sealed. The reserved record was released and nothing was saved — start a new recording.",
+  handoff:
+    "The recording was staged but could not be handed to Capture on this device. Open Capture: if it does not offer this recording, start a new one.",
+};
+
+/** The draft item's size is the sum of the declared (server-verified) segment sizes — never a hard-coded 0. */
+export function continuousSessionBytes(declared: ReadonlyArray<{ sizeBytes: number }>): number {
+  return declared.reduce((sum, d) => sum + (Number.isFinite(d.sizeBytes) && d.sizeBytes > 0 ? d.sizeBytes : 0), 0);
+}
+
 export const SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION =
   "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V1";
 

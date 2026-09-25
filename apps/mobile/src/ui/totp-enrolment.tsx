@@ -37,7 +37,6 @@ import {
 import {
   MFA_ENROLL_START_PATH,
   MFA_ENROLL_VERIFY_PATH,
-  RECOVERY_CODES_WARNING,
   buildEnrollStartBody,
   buildEnrollVerifyBody,
   classifyEnrollFailure,
@@ -47,6 +46,7 @@ import {
   validateTotpCode,
   type TotpEnrollment,
 } from "../product/account-security";
+import { RecoveryCodesSheet } from "./recovery-codes-sheet";
 
 type Stage =
   | { kind: "idle" }
@@ -112,14 +112,29 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
     }
   }, [stage, code, onEnrolled]);
 
+  /**
+   * Abandoning an enrolment removes its ENROLLING factor, as the web's Cancel
+   * does (`DELETE /v1/identity/mfa/factors/:id`). Best effort: an abandoned
+   * ENROLLING row is inert, but left behind it read as a second factor.
+   */
+  const cancel = useCallback(async () => {
+    if (stage.kind !== "enrolling") return;
+    const factorId = stage.enrollment.factorId;
+    setStage({ kind: "idle" });
+    setCode("");
+    setMessage(null);
+    try {
+      await apiFetch(`/v1/identity/mfa/factors/${encodeURIComponent(factorId)}`, { method: "DELETE" });
+    } catch {
+      /* inert row; ignore */
+    }
+  }, [stage]);
+
   return (
     <>
       <ProovraCard>
-        <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-          Add an authenticator
-        </ProovraText>
-        <ProovraText variant="label" color={theme.color.ink.muted}>
-          A code from an authenticator app, asked for when you sign in on a new device.
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          Protect your account with an authenticator app. After setup, sign-ins require a 6-digit code in addition to your login method — however you sign in.
         </ProovraText>
         <ProovraFormField label="Name it (optional)">
           <ProovraInput
@@ -131,7 +146,8 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
           />
         </ProovraFormField>
         <ProovraButton
-          label="Set up"
+          label="Set up two-factor authentication"
+          variant="secondary"
           fullWidth={false}
           loading={busy && stage.kind === "idle"}
           onPress={() => void start()}
@@ -146,7 +162,7 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
       <ProovraSheet
         visible={stage.kind === "enrolling"}
         title="Set up your authenticator"
-        onClose={() => setStage({ kind: "idle" })}
+        onClose={() => void cancel()}
       >
         {stage.kind === "enrolling" ? (
           <>
@@ -208,11 +224,12 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
             </ProovraFormField>
 
             <ProovraButton
-              label="Turn on two-factor"
+              label="Verify & enable"
               loading={busy}
               disabled={validateTotpCode(code) !== null}
               onPress={() => void verify()}
             />
+            <ProovraButton label="Cancel" variant="ghost" disabled={busy} onPress={() => void cancel()} />
 
             {message ? (
               <ProovraText variant="label" color={theme.color.status.risk.solid}>
@@ -223,35 +240,12 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
         ) : null}
       </ProovraSheet>
 
-      <ProovraSheet
-        visible={stage.kind === "codes"}
-        title="Save your recovery codes"
-        onClose={() => setStage({ kind: "idle" })}
-      >
-        {stage.kind === "codes" ? (
-          <>
-            <ProovraText variant="label" color={theme.color.status.risk.solid}>
-              {RECOVERY_CODES_WARNING}
-            </ProovraText>
-            <ProovraCard>
-              {stage.codes.map((c) => (
-                <ProovraText key={c} variant="bodySm" mono selectable>
-                  {c}
-                </ProovraText>
-              ))}
-            </ProovraCard>
-            <ProovraButton
-              label="Share these codes"
-              onPress={() => void Share.share({ message: stage.codes.join("\n") })}
-            />
-            <ProovraButton
-              label="I have saved them"
-              variant="ghost"
-              onPress={() => setStage({ kind: "idle" })}
-            />
-          </>
-        ) : null}
-      </ProovraSheet>
+      {/* Shown once, and not dismissed until the person says they saved them — the web's rule. */}
+      <RecoveryCodesSheet
+        codes={stage.kind === "codes" ? stage.codes : null}
+        context="enroll"
+        onDone={() => setStage({ kind: "idle" })}
+      />
     </>
   );
 }

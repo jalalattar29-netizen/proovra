@@ -11,6 +11,13 @@
  * MFA-pending are states a reviewer must be able to read and act on; "your
  * access expired" is actionable and "something went wrong" sends them to email
  * somebody to find out which of four things happened.
+ *
+ * The emailed-code step is the port of the web's PortalMfaCodeStep: it says
+ * where the code went (the server's masked address), how long until another
+ * may be requested, how many tries remain, and offers "Send a new code" —
+ * which, exactly as on the web, is the same token exchange sent WITHOUT a code
+ * (POST /v1/portal/auth issues a code on every code-less exchange; there is no
+ * separate resend route).
  */
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
@@ -40,13 +47,22 @@ import {
   assignmentTone,
   buildPortalAuthBody,
   classifyPortalDenial,
+  isPortalMfaStepDenial,
+  normalizePortalMfaCode,
   parsePortalAuth,
   parsePortalDashboard,
   portalCredential,
   portalDenialMessage,
+  portalMfaCooldownMessage,
+  portalMfaProblemMessage,
+  portalMfaSecondsLeft,
+  portalMfaStatusMessage,
+  readPortalDenialCode,
+  readPortalMfaDetail,
   sortAssignments,
   type PortalDashboard,
   type PortalDenial,
+  type PortalSession,
 } from "../../../src/product/portal";
 import {
   clearPortalSession,
@@ -62,6 +78,21 @@ type Phase =
   | { kind: "ready"; dashboard: PortalDashboard }
   | { kind: "denied"; denial: PortalDenial };
 
+type MfaProblem = { denial: string | null; attemptsRemaining: number | null; fallback?: string };
+
+type MfaState = {
+  codeSent: boolean;
+  destination: string | null;
+  /** Epoch ms after which another code may be requested; 0 = now. */
+  cooldownUntil: number;
+  problem: MfaProblem | null;
+};
+
+const NO_MFA: MfaState = { codeSent: false, destination: null, cooldownUntil: 0, problem: null };
+
+/** Not answered yet: tells "the exchange threw" apart from "it answered". */
+const PENDING = Symbol("pending");
+
 export default function PortalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string | string[] }>();
@@ -69,7 +100,23 @@ export default function PortalScreen() {
 
   const [phase, setPhase] = useState<Phase>({ kind: "authenticating" });
   const [mfaCode, setMfaCode] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
+  const [mfa, setMfa] = useState<MfaState>(NO_MFA);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  // The resend countdown: one tick a second while a cooldown is running on the
+  // code step, and no longer — a timer left ticking behind the dashboard keeps
+  // the JS thread busy for nothing.
+  const onCodeStep = phase.kind === "mfa";
+  useEffect(() => {
+    if (!onCodeStep || mfa.cooldownUntil <= Date.now()) return;
+    const t = setInterval(() => {
+      const at = Date.now();
+      setNow(at);
+      if (at >= mfa.cooldownUntil) clearInterval(t);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [onCodeStep, mfa.cooldownUntil]);
 
   const loadDashboard = useCallback(async () => {
     const data = await publicFetch(
@@ -85,53 +132,161 @@ export default function PortalScreen() {
     setPhase({ kind: "ready", dashboard });
   }, []);
 
-  const authenticate = useCallback(
-    async (code?: string) => {
-      if (!token) {
-        setPhase({ kind: "denied", denial: "NOT_FOUND" });
+  /** POST /v1/portal/auth: a 200 keeps and returns the session; a refusal throws. */
+  const exchange = useCallback(async (tok: string, code: string | null) => {
+    setPortalToken(tok);
+    const res = await publicFetch(
+      PORTAL_AUTH_PATH,
+      {
+        method: "POST",
+        body: JSON.stringify(
+          buildPortalAuthBody({
+            token: tok,
+            mfaToken: code,
+            existingSessionId: getPortalSessionId(),
+          }),
+        ),
+      },
+      portalCredential(tok, getPortalSessionId()),
+    );
+    const session = parsePortalAuth(res);
+    if (session) setPortalSessionId(session.sessionId);
+    return session;
+  }, []);
+
+  /** After a 200 exchange: open the dashboard, or say it could not be read. */
+  const openPortal = useCallback(
+    async (session: PortalSession | null) => {
+      if (!session) {
+        setPhase({ kind: "denied", denial: "UNKNOWN" });
         return;
       }
-      setBusy(true);
-      setPortalToken(token);
       try {
-        const res = await publicFetch(
-          PORTAL_AUTH_PATH,
-          {
-            method: "POST",
-            body: JSON.stringify(
-              buildPortalAuthBody({
-                token,
-                mfaToken: code ?? null,
-                existingSessionId: getPortalSessionId(),
-              }),
-            ),
-          },
-          portalCredential(token, getPortalSessionId()),
-        );
-
-        const session = parsePortalAuth(res);
-        if (!session) {
-          setPhase({ kind: "denied", denial: "UNKNOWN" });
-          return;
-        }
-        setPortalSessionId(session.sessionId);
         await loadDashboard();
       } catch (err) {
-        const denial = classifyPortalDenial(err);
-        setPhase(denial === "MFA" ? { kind: "mfa" } : { kind: "denied", denial });
-      } finally {
-        setBusy(false);
+        setPhase({ kind: "denied", denial: classifyPortalDenial(err) });
       }
     },
-    [token, loadDashboard],
+    [loadDashboard],
   );
 
+  /**
+   * What a refused exchange says about the code (the web's acceptFailure): a
+   * live code's masked address and cooldown, and — after MFA_CODE_EXHAUSTED —
+   * that the old email is worthless, because the server destroyed the challenge.
+   */
+  const acceptFailure = useCallback((err: unknown) => {
+    const denial = readPortalDenialCode(err);
+    const detail = readPortalMfaDetail(err);
+    const at = Date.now();
+    setMfa((m) => {
+      let next = m;
+      if (detail?.codeSent) {
+        next = {
+          ...next,
+          codeSent: true,
+          destination: detail.destination ?? next.destination,
+          cooldownUntil: detail.resendAvailableInSeconds
+            ? at + detail.resendAvailableInSeconds * 1000
+            : next.cooldownUntil,
+        };
+      }
+      if (denial === "MFA_CODE_EXHAUSTED") next = { ...next, codeSent: false, cooldownUntil: 0 };
+      return next;
+    });
+    setNow(at);
+    return { denial, detail };
+  }, []);
+
+  /** The first exchange, when the screen opens. */
+  const start = useCallback(async () => {
+    if (!token) {
+      setPhase({ kind: "denied", denial: "NOT_FOUND" });
+      return;
+    }
+    let session: PortalSession | null;
+    try {
+      session = await exchange(token, null);
+    } catch (err) {
+      const denial = readPortalDenialCode(err);
+      if (isPortalMfaStepDenial(denial) || classifyPortalDenial(err) === "MFA") {
+        setMfa(NO_MFA);
+        const { detail } = acceptFailure(err);
+        // MFA_REQUIRED is the step's normal opening, not a problem to report.
+        const problem: MfaProblem | null =
+          denial === "MFA_REQUIRED" || !isPortalMfaStepDenial(denial)
+            ? null
+            : { denial, attemptsRemaining: detail?.attemptsRemaining ?? null };
+        setMfa((m) => ({ ...m, problem }));
+        setPhase({ kind: "mfa" });
+      } else {
+        setPhase({ kind: "denied", denial: classifyPortalDenial(err) });
+      }
+      return;
+    }
+    await openPortal(session);
+  }, [token, exchange, acceptFailure, openPortal]);
+
+  const verify = useCallback(async () => {
+    if (!token) return;
+    setBusy("verify");
+    setMfa((m) => ({ ...m, problem: null }));
+    let session: PortalSession | null | typeof PENDING = PENDING;
+    try {
+      session = await exchange(token, mfaCode);
+    } catch (err) {
+      const { denial, detail } = acceptFailure(err);
+      setMfaCode("");
+      setMfa((m) => ({
+        ...m,
+        problem: {
+          denial,
+          attemptsRemaining: detail?.attemptsRemaining ?? null,
+          fallback: "We couldn't check your code. Try again.",
+        },
+      }));
+    } finally {
+      setBusy(null);
+    }
+    if (session !== PENDING) await openPortal(session);
+  }, [token, mfaCode, exchange, acceptFailure, openPortal]);
+
+  /** "Send a new code": the same exchange with no code, exactly as the web sends it. */
+  const resend = useCallback(async () => {
+    if (!token) return;
+    setBusy("resend");
+    setMfa((m) => ({ ...m, problem: null }));
+    let session: PortalSession | null | typeof PENDING = PENDING;
+    try {
+      // Nothing owed any more (satisfied elsewhere meanwhile) simply opens.
+      session = await exchange(token, null);
+    } catch (err) {
+      const { denial, detail } = acceptFailure(err);
+      // A fresh code on its way is the success case, not a problem.
+      if (!(denial === "MFA_REQUIRED" && detail?.codeSent)) {
+        setMfa((m) => ({
+          ...m,
+          problem: {
+            denial,
+            attemptsRemaining: null,
+            fallback: "We couldn't send a new code. Try again.",
+          },
+        }));
+      }
+    } finally {
+      setBusy(null);
+    }
+    if (session !== PENDING) await openPortal(session);
+  }, [token, exchange, acceptFailure, openPortal]);
+
   useEffect(() => {
-    void authenticate();
+    void start();
     // The credential is forgotten when this screen goes away: a phone that is
     // shared or handed over must not carry access to somebody else's evidence.
     return () => clearPortalSession();
-  }, [authenticate]);
+  }, [start]);
+
+  const cooldownMessage = portalMfaCooldownMessage(portalMfaSecondsLeft(mfa.cooldownUntil, now));
 
   const signOut = useCallback(async () => {
     try {
@@ -151,7 +306,7 @@ export default function PortalScreen() {
   return (
     <ProovraScreen testID="portal">
       <ProovraPageHeader
-        title="Review portal"
+        title={phase.kind === "mfa" ? "Confirm it is you" : "Review portal"}
         eyebrow="External review"
         subtitle={
           phase.kind === "ready"
@@ -166,22 +321,60 @@ export default function PortalScreen() {
 
       {phase.kind === "mfa" ? (
         <ProovraCard>
-          <ProovraText variant="body">{portalDenialMessage("MFA")}</ProovraText>
-          <ProovraFormField label="Verification code">
+          <ProovraText variant="h3" weight="semibold" accessibilityRole="header">
+            Enter your sign-in code
+          </ProovraText>
+          <View accessibilityLiveRegion="polite">
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {portalMfaStatusMessage(mfa.codeSent, mfa.destination)}
+            </ProovraText>
+          </View>
+          <ProovraFormField label="Six-digit code">
             <ProovraInput
               value={mfaCode}
-              onChangeText={setMfaCode}
+              onChangeText={(t) => setMfaCode(normalizePortalMfaCode(t))}
               placeholder="123456"
               keyboardType="number-pad"
-              accessibilityLabel="Verification code"
+              accessibilityLabel="Six-digit code"
+              onSubmitEditing={() => {
+                if (mfaCode.length === 6 && busy === null) void verify();
+              }}
             />
           </ProovraFormField>
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            Check your inbox and spam folder. Only the newest code works.
+          </ProovraText>
+
+          {mfa.problem ? (
+            <View accessibilityRole="alert" accessibilityLiveRegion="assertive">
+              <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                {portalMfaProblemMessage(
+                  mfa.problem.denial,
+                  mfa.problem.attemptsRemaining,
+                  mfa.problem.fallback,
+                )}
+              </ProovraText>
+            </View>
+          ) : null}
+
           <ProovraButton
-            label="Continue"
-            loading={busy}
-            disabled={mfaCode.trim().length === 0}
-            onPress={() => void authenticate(mfaCode.trim())}
+            label={busy === "verify" ? "Checking code…" : "Verify code"}
+            loading={busy === "verify"}
+            disabled={busy !== null || mfaCode.length !== 6}
+            onPress={() => void verify()}
           />
+          <ProovraButton
+            label={busy === "resend" ? "Sending…" : mfa.codeSent ? "Send a new code" : "Send a code"}
+            variant="secondary"
+            loading={busy === "resend"}
+            disabled={busy !== null || cooldownMessage !== null}
+            onPress={() => void resend()}
+          />
+          {cooldownMessage ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              {cooldownMessage}
+            </ProovraText>
+          ) : null}
         </ProovraCard>
       ) : null}
 

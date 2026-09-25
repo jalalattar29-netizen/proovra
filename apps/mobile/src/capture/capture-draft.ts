@@ -126,6 +126,8 @@ export async function openCaptureDraft(input: {
   items?: readonly DraftItemInput[];
   /** The collection plan the operator chose, snapshotted by the server. */
   templateId?: string | null;
+  /** The web Intake structure: Guided (CHECKLIST_REQUIRED) or Flexible. */
+  planMode?: "FLEXIBLE" | "CHECKLIST_REQUIRED";
 }): Promise<CaptureDraft> {
   const res = await apiFetch("/v1/capture/sessions", {
     method: "POST",
@@ -137,6 +139,7 @@ export async function openCaptureDraft(input: {
       // Absent, not null: the create body takes `templateId?` and sending an
       // empty one would record a plan that was not chosen.
       ...(input.templateId ? { templateId: input.templateId } : {}),
+      ...(input.planMode ? { planMode: input.planMode } : {}),
       useLocation: !!input.useLocation,
       items: toDraftItems(input.items ?? []),
     }),
@@ -160,6 +163,7 @@ export async function updateCaptureDraft(
      * `undefined` leaves whatever the session already records.
      */
     templateId?: string | null;
+    planMode?: "FLEXIBLE" | "CHECKLIST_REQUIRED";
   },
 ): Promise<void> {
   await apiFetch(`/v1/capture/sessions/${draftId}`, {
@@ -168,6 +172,7 @@ export async function updateCaptureDraft(
       items: toDraftItems(input.items),
       ...(input.useLocation === undefined ? {} : { useLocation: input.useLocation }),
       ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
+      ...(input.planMode === undefined ? {} : { planMode: input.planMode }),
     }),
   });
 }
@@ -184,28 +189,93 @@ export async function discardCaptureDraft(draftId: string): Promise<void> {
   await apiFetch(`/v1/capture/sessions/${draftId}`, { method: "DELETE" });
 }
 
-/** Read a draft back, for resume after a restart. */
-export async function readCaptureDraft(draftId: string): Promise<{
+/**
+ * One staged item as the server returns it in `session.items`
+ * (capture.routes.ts `toApiSession`: `items: s.itemsSnapshot ?? []`).
+ */
+export interface DraftSnapshotItem {
+  clientItemId: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  role: string | null;
+  privateNote: string | null;
+  checklistStepId: string | null;
+  sourceLabel: string | null;
+}
+
+/** A DRAFT session as `toApiSession` (capture.routes.ts:127) sends it. */
+export interface CaptureDraftDetail {
   id: string;
   status: string;
-  items: Array<Record<string, unknown>>;
-} | null> {
+  templateId: string | null;
+  templateName: string | null;
+  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED" | null;
+  internalNotes: string | null;
+  useLocation: boolean;
+  expiresAtUtc: string | null;
+  updatedAt: string | null;
+  items: DraftSnapshotItem[];
+}
+
+const text = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+
+function toSnapshotItem(raw: unknown): DraftSnapshotItem {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    clientItemId: text(r.clientItemId),
+    fileName: text(r.fileName),
+    mimeType: text(r.mimeType),
+    sizeBytes: typeof r.sizeBytes === "number" ? r.sizeBytes : null,
+    role: text(r.role),
+    privateNote: text(r.privateNote),
+    checklistStepId: text(r.checklistStepId),
+    sourceLabel: text(r.sourceLabel),
+  };
+}
+
+/**
+ * Parse one `toApiSession` row. The staged items travel under `items` — the
+ * column is `itemsSnapshot`, but the reply never uses that name, so a reader
+ * looking for it found nothing on every real response.
+ */
+export function parseCaptureDraft(raw: unknown): CaptureDraftDetail | null {
+  const s = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const id = text(s?.id);
+  if (!s || !id) return null;
+  const planMode = s.planMode === "FLEXIBLE" || s.planMode === "CHECKLIST_REQUIRED" ? s.planMode : null;
+  return {
+    id,
+    status: text(s.status) ?? "DRAFT",
+    templateId: text(s.templateId),
+    templateName: text(s.templateName),
+    planMode,
+    internalNotes: text(s.internalNotes),
+    useLocation: s.useLocation === true,
+    expiresAtUtc: text(s.expiresAtUtc),
+    updatedAt: text(s.updatedAt),
+    items: Array.isArray(s.items) ? s.items.map(toSnapshotItem) : [],
+  };
+}
+
+/** Read a draft back (`GET /v1/capture/sessions/:id` → `{ session }`). */
+export async function readCaptureDraft(draftId: string): Promise<CaptureDraftDetail | null> {
   try {
     const res = await apiFetch(`/v1/capture/sessions/${draftId}`);
-    const s = res?.session as
-      | { id?: string; status?: string; itemsSnapshot?: unknown }
-      | undefined;
-    if (!s?.id) return null;
-    const raw = s.itemsSnapshot;
-    const items = Array.isArray(raw)
-      ? (raw as Array<Record<string, unknown>>)
-      : Array.isArray((raw as { items?: unknown })?.items)
-        ? ((raw as { items: Array<Record<string, unknown>> }).items)
-        : [];
-    return { id: s.id, status: s.status ?? "DRAFT", items };
+    return parseCaptureDraft(res?.session);
   } catch {
     return null;
   }
+}
+
+/**
+ * The operator's unfinished drafts — the web `useCaptureDraftList`
+ * (`GET /v1/capture/sessions?status=DRAFT` → `{ sessions }`, capture.routes.ts:216).
+ */
+export async function listCaptureDrafts(): Promise<CaptureDraftDetail[]> {
+  const res = await apiFetch("/v1/capture/sessions?status=DRAFT");
+  const rows = Array.isArray(res?.sessions) ? (res.sessions as unknown[]) : [];
+  return rows.map(parseCaptureDraft).filter((d): d is CaptureDraftDetail => d !== null && d.status === "DRAFT");
 }
 
 /** A draft is resumable only while it is still a DRAFT. */

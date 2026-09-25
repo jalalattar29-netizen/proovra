@@ -22,14 +22,19 @@ export const calls = {
 };
 
 /* --------------------------------------------------------------- expo-router */
-export const useRouter = () => ({
+// ONE object, as expo-router's useRouter() returns its stable imperative
+// `router`. A fresh object per render made every effect that lists `router`
+// as a dependency re-run on each state change — behaviour the real app never
+// has, which reset screens mid-flow in tests only.
+const stableRouter = {
   push: (r) => calls.push.push(r),
   replace: (r) => calls.replace.push(r),
   back: () => {
     calls.back += 1;
   },
   navigate: (r) => calls.push.push(r),
-});
+};
+export const useRouter = () => stableRouter;
 export const usePathname = () => "/";
 export const useLocalSearchParams = () => globalThis.__EXPO_PARAMS__ ?? {};
 export const useFocusEffect = (cb) => {
@@ -71,19 +76,36 @@ export const FileSystemUploadType = { BINARY_CONTENT: 0 };
 export const getInfoAsync = async () => ({ exists: true, size: 0, md5: "d41d8cd98f00b204e9800998ecf8427e" });
 export const readAsStringAsync = async () => "";
 export const copyAsync = async () => {};
-export const uploadAsync = async () => ({ status: 200 });
+// A test observes the storage PUT by setting globalThis.__UPLOAD_ASYNC__.
+export const uploadAsync = async (...a) => (typeof globalThis.__UPLOAD_ASYNC__ === "function" ? globalThis.__UPLOAD_ASYNC__(...a) : { status: 200 });
 
 /* -------------------------------------------------------------- expo-crypto */
 export const CryptoDigestAlgorithm = { SHA256: "SHA-256" };
 export const digest = async () => new ArrayBuffer(32);
+// A REAL SHA-256 (hex), so a test can assert the exact hash the server will see.
+export const digestStringAsync = async (_alg, text) => {
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text)));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+let uuidSeq = 0;
+export const randomUUID = () => `00000000-0000-4000-8000-${String(++uuidSeq).padStart(12, "0")}`;
 
 /* ------------------------------------------------------------ expo-location */
 export const Accuracy = { Balanced: 3 };
-export const requestForegroundPermissionsAsync = async () => ({ status: "granted" });
-export const getCurrentPositionAsync = async () => ({ coords: { latitude: 0, longitude: 0, accuracy: 1 } });
+// globalThis.__LOCATION__ = { granted?: false, fail?: true, coords?, timestamp? } scripts the device.
+export const requestForegroundPermissionsAsync = async () => {
+  const granted = globalThis.__LOCATION__?.granted !== false;
+  return { status: granted ? "granted" : "denied", granted, canAskAgain: true };
+};
+export const getCurrentPositionAsync = async () => {
+  const l = globalThis.__LOCATION__ ?? {};
+  if (l.fail) throw new Error("Location unavailable");
+  return { coords: l.coords ?? { latitude: 0, longitude: 0, accuracy: 1 }, timestamp: l.timestamp ?? 0 };
+};
 
 /* ------------------------------------------------------- expo-document-picker */
-export const getDocumentAsync = async () => ({ canceled: true, assets: null });
+// A test stages a document by setting globalThis.__DOC_PICK__; unset, the picker is cancelled.
+export const getDocumentAsync = async () => globalThis.__DOC_PICK__ ?? { canceled: true, assets: null };
 
 /* --------------------------------------------------------------- expo-linking */
 export const useURL = () => null;
@@ -141,4 +163,48 @@ export const setItemAsync = async (k, v) => {
 };
 export const deleteItemAsync = async (k) => {
   secure.delete(k);
+};
+
+/* ------------------------------------------------------------------ expo-font
+ *
+ * T-04 — the real `expo-font` is a native module and the `@expo-google-fonts/*`
+ * packages ship .ttf binaries. Neither loads under Node.
+ *
+ * `useFonts` returns `[true, null]`: render tests then exercise the tree the
+ * user actually sees, i.e. AFTER registration. The root layout deliberately
+ * returns `null` until fonts load, so a stub that reported `false` would make
+ * every authenticated render test assert against an empty tree — the exact
+ * class of self-affirming test this harness exists to avoid.
+ *
+ * The font constants are opaque handles in production; identity is all that
+ * matters, so a string is sufficient and keeps the bundle free of binaries.
+ */
+export const useFonts = () => [true, null];
+export const loadAsync = async () => undefined;
+export const isLoaded = () => true;
+
+const face = (name) => name;
+export const PlusJakartaSans_400Regular = face("PlusJakartaSans_400Regular");
+export const PlusJakartaSans_500Medium = face("PlusJakartaSans_500Medium");
+export const PlusJakartaSans_600SemiBold = face("PlusJakartaSans_600SemiBold");
+export const PlusJakartaSans_700Bold = face("PlusJakartaSans_700Bold");
+export const PlusJakartaSans_800ExtraBold = face("PlusJakartaSans_800ExtraBold");
+export const NotoSansArabic_400Regular = face("NotoSansArabic_400Regular");
+export const NotoSansArabic_500Medium = face("NotoSansArabic_500Medium");
+export const NotoSansArabic_600SemiBold = face("NotoSansArabic_600SemiBold");
+export const NotoSansArabic_700Bold = face("NotoSansArabic_700Bold");
+
+/* ------------------------------------------------ expo-clipboard / expo-sharing */
+// A test reads what was copied from globalThis.__CLIPBOARD__ and what was
+// shared from globalThis.__SHARED__ (array of { uri, options }).
+export const setStringAsync = async (text) => {
+  globalThis.__CLIPBOARD__ = String(text);
+  return true;
+};
+export const getStringAsync = async () => globalThis.__CLIPBOARD__ ?? "";
+export const shareAsync = async (uri, options) => {
+  (globalThis.__SHARED__ ??= []).push({ uri, options });
+};
+export const writeAsStringAsync = async (uri, contents) => {
+  (globalThis.__WRITTEN__ ??= {})[uri] = contents;
 };

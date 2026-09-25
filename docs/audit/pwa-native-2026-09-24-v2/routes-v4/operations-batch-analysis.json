@@ -1,0 +1,356 @@
+{
+ "route": "/operations/batch-analysis",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/operations/batch-analysis.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 26,
+   "labelled": 21,
+   "unboundExports": 3
+  },
+  "native": {
+   "files": 20,
+   "labelled": 26,
+   "unboundExports": 4
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 4,
+  "unpaired": 17,
+  "extraInNative": 22,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "No Batch Jobs",
+   "webRole": "STATE_EMPTY",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:600",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:346"
+  },
+  {
+   "label": "Batch Name",
+   "webRole": "TEXT",
+   "natRole": "INPUT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:457",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:386"
+  },
+  {
+   "label": "Description (optional)",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:477",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:395"
+  },
+  {
+   "label": "Export CSV",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/app/(app)/operations/batch-analysis/page.tsx:749",
+   "nat": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:149"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "COMPONENT",
+   "label": "Analyze multiple evidence items",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g., Q1 2026 Review",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:459",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "INPUT",
+   "label": "Add notes about this batch",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:479",
+   "natHasRole": true,
+   "bestScore": 0.2,
+   "bestNat": {
+    "label": "Batch name",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:386"
+   }
+  },
+  {
+   "role": "INPUT",
+   "label": "e.g.\nabc-123\ndef-456\nghi-789",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:499",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create batch jobs, monitor progress, review outcomes, and export result sets for larger evidence workloads.",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:206",
+   "natHasRole": true,
+   "bestScore": 0.05,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "+ New Batch Job",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:216",
+   "natHasRole": true,
+   "bestScore": 0.1,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence IDs (one per line)",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:497",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create & Start Batch",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:513",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Progress",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:652",
+   "natHasRole": true,
+   "bestScore": 0.13,
+   "bestNat": {
+    "label": "This job declares no items, so it has no progress to report.",
+    "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+   }
+  },
+  {
+   "role": "TEXT",
+   "label": "Processed",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:679",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Failed",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:701",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Pending",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:723",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/operations/batch-analysis/page.tsx:759",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "COMPONENT",
+   "label": "Batch analysis",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:312"
+  },
+  {
+   "role": "BUTTON",
+   "label": "New batch job",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:317"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:324"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading jobs",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:339"
+  },
+  {
+   "role": "BUTTON",
+   "label": "New batch job",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:350"
+  },
+  {
+   "role": "DIALOG",
+   "label": "New batch job",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:384"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Name",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:385"
+  },
+  {
+   "role": "INPUT",
+   "label": "Batch description",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:396"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "Records",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:406"
+  },
+  {
+   "role": "INPUT",
+   "label": "Search evidence",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:407"
+  },
+  {
+   "role": "STATE_LOADING",
+   "label": "Loading your evidence",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:423"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "No records match that.",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:425"
+  },
+  {
+   "role": "BADGE",
+   "label": "Chosen",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:435"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Create and start",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:442"
+  },
+  {
+   "role": "DIALOG",
+   "label": "Cancel this batch job?",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:455"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Cancel job",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:163"
+  },
+  {
+   "role": "TEXT",
+   "label": "This job declares no items, so it has no progress to report.",
+   "at": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:120"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:563"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:569"
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/mobile/src/ui/patterns.tsx:571"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\dashboard\\DashboardShell.tsx",
+   "name": "DashboardShell"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\evidence-library.ts",
+   "name": "EvidencePickerRow"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\mobile\\src\\product\\operations.ts",
+   "name": "BatchJob"
+  },
+  {
+   "file": "D:\\digital-witness\\packages\\shared\\src\\queue-integrity\\index.ts",
+   "name": "userFacingErrorFor"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

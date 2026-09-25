@@ -1,0 +1,1132 @@
+{
+ "route": "/evidence-requests/[id]",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "CORE",
+ "policy": "allow",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 161,
+   "elements": 423,
+   "texts": 122,
+   "distinctTexts": 110,
+   "handlers": 46,
+   "conditionals": 1373,
+   "apiPaths": 20,
+   "distinctApi": 11,
+   "styleRefs": 288,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "next/link",
+    "next/navigation",
+    "react-dom",
+    "zod"
+   ]
+  },
+  "native": {
+   "files": 141,
+   "elements": 198,
+   "texts": 36,
+   "distinctTexts": 31,
+   "handlers": 38,
+   "conditionals": 1123,
+   "apiPaths": 6,
+   "distinctApi": 1,
+   "styleRefs": 217,
+   "stylesheetRules": 86,
+   "themeTokens": 268,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 122,
+  "natLabelled": 33,
+  "paired": 2,
+  "roleDiff": 2,
+  "missing": 118,
+  "extraInNative": 26,
+  "webUnlabelled": 410,
+  "missingWithRolePresent": 116,
+  "missingWithRoleAbsent": 2,
+  "samples": {
+   "paired": [
+    {
+     "role": "TEXT",
+     "label": "Close",
+     "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:799",
+     "nat": "apps/mobile/src/ui/patterns.tsx:571"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Reviewer note:",
+     "webRole": "TEXT",
+     "natRole": "INPUT",
+     "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:670",
+     "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:403"
+    },
+    {
+     "label": "Back",
+     "webRole": "TEXT",
+     "natRole": "BUTTON",
+     "web": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:735",
+     "nat": "apps/mobile/app/(stack)/evidence-request/[id].tsx:167"
+    }
+   ],
+   "missing": [
+    {
+     "role": "BADGE",
+     "label": "Review-ready",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:405",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Required items remaining",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:407",
+     "natHasRole": true
+    },
+    {
+     "role": "BADGE",
+     "label": "Needs more info",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "INPUT",
+     "label": "Reviewer note (workspace-internal, optional)",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:447",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading evidence request…",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:326",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence request unavailable",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:333",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Return to matter",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:337",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence Request ·",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:386",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request more information",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:440",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Flag this request as needing more information from the contributor. The contributor's intake page will show a re-request banner pointing at the unfulfilled deliverables. Workspace-internal note below is attached to the audit event.",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:442",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Completion",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:487",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "%",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:488",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Required:",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:518",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:518",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Optional:",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "/",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:521",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Deliverables",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:528",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This request has no deliverable checklist. It accepts free-form uploads only.",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:531",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "of",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "received",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:580",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Responses received",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:612",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No responses received yet. Responses appear here once the contributor submits via the intake link.",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:615",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open evidence",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:658",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Accept",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:685",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request more",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:694",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reject",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:703",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "← Back to matter",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:727",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Follow-up link created",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:749",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Copy link",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:792",
+     "natHasRole": true
+    },
+    {
+     "role": "FORM",
+     "label": "Assign reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:279",
+     "natHasRole": false
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:280",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assigned reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:207",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "This request is addressed to an internal team member. The assigned reviewer is the person who receives it.",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:220",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The reviewer cannot change on a closed or cancelled request.",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:225",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Remove reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:256",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Send to assigned reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:267",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Save reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:296",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Cancel",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:307",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Assign a reviewer",
+     "at": "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:325",
+     "natHasRole": true
+    },
+    {
+     "role": "SELECT",
+     "label": "Choose a member",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "Search members",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:145",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Search",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:168",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading workspace members…",
+     "at": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:176",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Matter risk snapshot",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:217",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sampled",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:234",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Evidence gaps:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:253",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open incidents:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:256",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Active workflows:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:259",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Overdue workflows:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:262",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance blockers:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:265",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Custody concerns:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:268",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Integrity concerns:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:271",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Package gaps:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:274",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Top reasons",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:280",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Recommended:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:300",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI categorization (advisory)",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:354",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI-suggested category and tags.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Advisory only",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "— a reviewer must verify before relying on any classification.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:362",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "AI categorization is not configured for this workspace.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:365",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Categorization is in progress…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:368",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggested categories",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Suggested tags",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:398",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "#",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:409",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Risk flags",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:417",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Immutable storage drift",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:509",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Show all checks",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:524",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reconciler-detected mismatches between the DB lifecycle state and the storage-bucket retention/legal-hold pin.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:528",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:535",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "drift row(s) out of",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:545",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "checked.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:545",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "evidence",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:580",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:580",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Approval history",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:645",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:649",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No approvals recorded yet.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:651",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Activity timeline",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:722",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:726",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No events recorded for this request.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:728",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Organizational health",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:830",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:834",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No health snapshot recorded yet.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:836",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Sampled",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:841",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Operational maturity:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:853",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Governance maturity:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:854",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Audit readiness:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:855",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reviewer maturity:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:856",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Incidents (7d):",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:857",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Workflows done (7d):",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:858",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Queue reliability:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:859",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Artifact reliability:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:860",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Routing recommendations",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:918",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:922",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No active routing recommendations.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:924",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Reason:",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:957",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Access anomalies",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:1016",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Bounded list of OPEN / ACKNOWLEDGED workspace access anomalies — login pattern shifts, unusual session origins, suspicious permission attempts.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:1018",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Loading…",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:1025",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "No active anomalies.",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:1027",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:1055",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Operational breadcrumb",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:101",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "›",
+     "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:120",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Personal Space isn't available right now",
+     "at": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx:69",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "↗",
+     "at": "apps/web/components/feedback/ProovraSystemState.tsx:380",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Let's get you back into the product",
+     "at": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx:51",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:82",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "·",
+     "at": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx:85",
+     "natHasRole": true
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This page is not available",
+     "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Email delivery for this request",
+     "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:79",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "· last attempt",
+     "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:97",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "(",
+     "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:102",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ")",
+     "at": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:102",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading request",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:166"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Request not available",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:167"
+    },
+    {
+     "role": "STATE_EMPTY",
+     "label": "Not available",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:168"
+    },
+    {
+     "role": "SECTION",
+     "label": "Instructions",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:190"
+    },
+    {
+     "role": "SECTION",
+     "label": "Requested items",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:195"
+    },
+    {
+     "role": "SECTION",
+     "label": "Submissions",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:217"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing has been submitted against this request yet.",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:219"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Capture evidence to fulfil",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:251"
+    },
+    {
+     "role": "SECTION",
+     "label": "Actions",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:262"
+    },
+    {
+     "role": "SECTION",
+     "label": "Deliveries",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:277"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading deliveries",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:279"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "This request has not been sent yet.",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:281"
+    },
+    {
+     "role": "SECTION",
+     "label": "History",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:306"
+    },
+    {
+     "role": "STATE_LOADING",
+     "label": "Loading history",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:308"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing has happened on this request yet.",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:310"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Note (optional)",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:345"
+    },
+    {
+     "role": "INPUT",
+     "label": "Note",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:346"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Reviewer note (optional)",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:402"
+    },
+    {
+     "role": "TEXT",
+     "label": "No specific items listed.",
+     "at": "apps/mobile/app/(stack)/evidence-request/[id].tsx:197"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "at": "apps/mobile/src/ui/patterns.tsx:185"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 288,
+  "webClassesUnresolved": 0,
+  "webNonLiteralClass": 6,
+  "webCompetingRules": 15,
+  "webDistinctUnresolvedClasses": 0,
+  "natPropsResolved": 236,
+  "natTokenUnresolved": 84,
+  "webDistinctColors": 25,
+  "natDistinctColors": 19,
+  "sharedColors": 7,
+  "webOnlyColors": 18,
+  "webOnlyColorSample": [
+   "#667085",
+   "rgba(100, 116, 139, 0.22)",
+   "rgba(255, 255, 255, 0.92)",
+   "#263247",
+   "#8b7cf6",
+   "rgba(124, 58, 237, 0.14)",
+   "rgba(124, 58, 237, 0.28)",
+   "rgba(124, 58, 237, 0.24)",
+   "#344054",
+   "rgba(124, 58, 237, 0.22)",
+   "rgba(255, 255, 255, 0.98)",
+   "rgba(15, 23, 42, 0.1)",
+   "rgba(15, 23, 42, 0.16)",
+   "rgba(99, 91, 255, 0.08)",
+   "#172033",
+   "rgba(100, 116, 139, 0.36)",
+   "#8793a6",
+   "rgba(15, 23, 42, 0.04)"
+  ],
+  "sharedColorSample": [
+   "#dc2626",
+   "#6d28d9",
+   "rgba(15, 23, 42, 0.09)",
+   "#ffffff",
+   "#0f172a",
+   "#475569",
+   "rgba(15, 23, 42, 0.14)"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1373,
+  "natConditionals": 1123,
+  "webStateRoles": [
+   "STATE_LOADING"
+  ],
+  "natStateRoles": [
+   "STATE_EMPTY",
+   "STATE_LOADING",
+   "STATE_ERROR"
+  ]
+ },
+ "level7": {
+  "webHandlers": 46,
+  "natHandlers": 38,
+  "webHandlerSample": [
+   "onSaved=(fresh) => { setData(fresh); setEventsRevision((value) => va @apps/web/app/(app)/evidence-requests/[id]/page.tsx:419",
+   "onChange=(e) => setReviewerNote(e.target.value) @apps/web/app/(app)/evidence-requests/[id]/page.tsx:447",
+   "onClick=markNeedsMoreInfo @apps/web/app/(app)/evidence-requests/[id]/page.tsx:456",
+   "onClick=() => waiveDeliverable(d.id) @apps/web/app/(app)/evidence-requests/[id]/page.tsx:594",
+   "onClick=() => reviewResponse(r.id, \"ACCEPTED\") @apps/web/app/(app)/evidence-requests/[id]/page.tsx:678",
+   "onClick=() => requestMoreEvidence(r.id) @apps/web/app/(app)/evidence-requests/[id]/page.tsx:687",
+   "onClick=() => reviewResponse(r.id, \"REJECTED\") @apps/web/app/(app)/evidence-requests/[id]/page.tsx:696",
+   "onClick=() => router.back() @apps/web/app/(app)/evidence-requests/[id]/page.tsx:730",
+   "onClick=(e) => (e.target as HTMLInputElement).select() @apps/web/app/(app)/evidence-requests/[id]/page.tsx:756",
+   "onClick=async () => { try { await navigator.clipboard.writeText(requ @apps/web/app/(app)/evidence-requests/[id]/page.tsx:781",
+   "onClick=() => setRequestMoreReveal(null) @apps/web/app/(app)/evidence-requests/[id]/page.tsx:794",
+   "onClick=() => { if (open) { setOpen(false); setChoice(null); toggle. @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:228",
+   "onClick=() => void unassign() @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:249",
+   "onClick=() => void send() @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:260",
+   "onSubmit=assign @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:279",
+   "onChange=setChoice @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:280",
+   "onClick=() => { setOpen(false); setChoice(null); toggle.current?.foc @apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestAssignment.tsx:298",
+   "onChange=(event) => setDraft(event.target.value) @apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:148",
+   "onKeyDown=(event) => { if (event.key === \"Enter\") { event.preventDefau @apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:148",
+   "onClick=() => setSearch(draft.trim()) @apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:162",
+   "onChange=(userId) => { const member = members.find((m) => m.userId == @apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:189",
+   "onClick=loadMore @apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:207",
+   "onFocus=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onClick=() => setOpen(true) @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onChange=(e) => { setOpen(true); setActiveIndex(-1); onSearchChange(e @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onKeyDown=onKeyDown @apps/web/components/app-primitives/AppSearchSelect.tsx:215",
+   "onPointerDownOutside=close @apps/web/components/app-primitives/AppSearchSelect.tsx:244",
+   "onMouseEnter=() => setActiveIndex(i) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onMouseDown=(e) => e.preventDefault() @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => commit(opt) @apps/web/components/app-primitives/AppSearchSelect.tsx:266",
+   "onClick=() => (open ? closeMenu() : openMenu()) @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onKeyDown=onTriggerKeyDown @apps/web/components/app-primitives/AppListbox.tsx:216",
+   "onPointerDownOutside=closeOnOutside @apps/web/components/app-primitives/AppListbox.tsx:267",
+   "onKeyDown=onListKeyDown @apps/web/components/app-primitives/AppListbox.tsx:273",
+   "onMouseEnter=() => !opt.disabled && setActiveIndex(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=() => commit(i) @apps/web/components/app-primitives/AppListbox.tsx:294",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onChange=(e) => setShowAll(e.target.checked) @apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:519",
+   "onClick=a.onClick @apps/web/components/feedback/ProovraSystemState.tsx:387",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=() => void retry(d.id) @apps/web/components/notifications/ContextualDeliveryStatus.tsx:105"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/evidence-request/[id].tsx:167",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/evidence-request/[id].tsx:168",
+   "onRetry=load @apps/mobile/app/(stack)/evidence-request/[id].tsx:169",
+   "onPress=() => router.back() @apps/mobile/app/(stack)/evidence-request/[id].tsx:178",
+   "onPress=() => { setReviewing(resp); setDecision(null); setReviewNote @apps/mobile/app/(stack)/evidence-request/[id].tsx:225",
+   "onPress=() => router.push(\"/capture\") @apps/mobile/app/(stack)/evidence-request/[id].tsx:251",
+   "onPress=() => setPending(t) @apps/mobile/app/(stack)/evidence-request/[id].tsx:265",
+   "onClose=() => { setPending(null); setNote(\"\"); } @apps/mobile/app/(stack)/evidence-request/[id].tsx:332",
+   "onChangeText=setNote @apps/mobile/app/(stack)/evidence-request/[id].tsx:346",
+   "onPress=() => void runTransition() @apps/mobile/app/(stack)/evidence-request/[id].tsx:355",
+   "onClose=() => { setReviewing(null); setDecision(null); setReviewNote @apps/mobile/app/(stack)/evidence-request/[id].tsx:363",
+   "onPress=() => setDecision(d) @apps/mobile/app/(stack)/evidence-request/[id].tsx:382",
+   "onChangeText=setReviewNote @apps/mobile/app/(stack)/evidence-request/[id].tsx:403",
+   "onPress=() => void reviewResponse() @apps/mobile/app/(stack)/evidence-request/[id].tsx:412",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 11,
+  "natApi": 1,
+  "shared": 1,
+  "onlyWeb": 10,
+  "onlyNative": 0,
+  "onlyWebList": [
+   "/v1/teams/${…}",
+   "/v1/cases/${…}",
+   "/v1/evidence/${…}",
+   "/v1/governance/immutable-storage-checks?${…}",
+   "/v1/identity/mfa-admin/recovery-requests/${…}",
+   "/v1/dashboard/org-health?teamId=${…}",
+   "/v1/reviewer/routing-recommendations?teamId=${…}",
+   "/v1/security-center/access-anomalies?teamId=${…}",
+   "/v1/platform/context",
+   "/v1/platform/context/switch-workspace"
+  ],
+  "onlyNativeList": [],
+  "sharedList": [
+   "/v1/evidence-requests/${…}"
+  ],
+  "webApiWhere": {
+   "/v1/evidence-requests/${…}": "apps/web/components/notifications/ContextualDeliveryStatus.tsx:63",
+   "/v1/teams/${…}": "apps/web/app/(app)/evidence/[id]/components/WorkspaceMemberSelect.tsx:46",
+   "/v1/cases/${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:190",
+   "/v1/evidence/${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:332",
+   "/v1/governance/immutable-storage-checks?${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:476",
+   "/v1/identity/mfa-admin/recovery-requests/${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:620",
+   "/v1/dashboard/org-health?teamId=${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:807",
+   "/v1/reviewer/routing-recommendations?teamId=${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:895",
+   "/v1/security-center/access-anomalies?teamId=${…}": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:993",
+   "/v1/platform/context": "apps/web/lib/platform-context/PlatformContextProvider.tsx:414",
+   "/v1/platform/context/switch-workspace": "apps/web/lib/platform-context/PlatformContextProvider.tsx:476"
+  },
+  "natApiWhere": {
+   "/v1/evidence-requests/${…}": "apps/mobile/src/product/evidence-requests.ts:455"
+  }
+ }
+}

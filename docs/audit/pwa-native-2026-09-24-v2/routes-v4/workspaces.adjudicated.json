@@ -1,0 +1,1173 @@
+{
+ "route": "/workspaces",
+ "disposition": "COMPARED",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "items": [
+  {
+   "label": "Spaces",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:51",
+   "nat": "apps/mobile/app/(stack)/spaces.tsx:126",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "label": "Organizations",
+   "webRole": "TEXT",
+   "natRole": "BUTTON",
+   "web": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:62",
+   "nat": "apps/mobile/app/(stack)/spaces.tsx:221",
+   "verdict": "MATCH_ROLE_DIFFERS"
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "BOX",
+   "label": "Operational breadcrumb",
+   "at": "apps/web/components/navigation/OperationalBreadcrumb.tsx:77",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:50",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Your Personal Space is private to you. Organizations are collaborative tenants — members, roles, governance, and billing live there. For org-level governance (members, invites, audit timeline), open",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:53",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal Space",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:79",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Personal Space",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:87",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:101",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage billing",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:108",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open Personal Space",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:115",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations ·",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:128",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "You're not in any organizations yet.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:148",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "An organization is set up with our team as part of an Enterprise agreement. Everything else — your evidence, your collaboration teams and your plan — lives in your Personal Workspace.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:150",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Role:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:180",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:184",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Active",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:187",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage governance",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:200",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Actions",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:216",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "View all organizations",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:250",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Account billing",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Legacy workspace diagnostics ·",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:270",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "We detected",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:274",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "workspace",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:274",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "that look like an older personal workspace created before the Personal Space model existed. These rows are NOT removed automatically. Please review them — if you no longer need a row, archive it from its team detail page.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:275",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Review",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx:315",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Dismiss contextual help",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:197",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Help ·",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:195",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "CONTENT_ABSENT",
+   "why": "role present on the native counterpart, but this literal appears nowhere in the native app and no same-role candidate scores above 0.25 (best 0)"
+  },
+  {
+   "role": "TEXT",
+   "label": "Hide",
+   "at": "apps/web/components/contextual-help/ContextualHelp.tsx:212",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "PRESENT_ELSEWHERE_IN_APP",
+   "why": "the literal exists on another native screen (placement difference)"
+  },
+  {
+   "role": "BOX",
+   "label": "Workspace admin tabs",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:174",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:134",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Role:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:144",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "pending invite",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:150",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:166",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Refreshed",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:169",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:772",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Loading workspace…",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:773",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:798",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:818",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace not found",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:819",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace Administration",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:831",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Temporarily unavailable",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:832",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Overview",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:228",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Overview",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:238",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Members",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:243",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Admins / Owner",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:247",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Pending invites",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:253",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Cases",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:257",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Evidence records",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:261",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace owner:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:265",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Created",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage billing",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:271",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage integrations",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:273",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access & Roles",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:297",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Access & Roles ·",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:306",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "No active members.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:309",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Joined",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:338",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Last seen",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:342",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Pending invites ·",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:356",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Invited",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:374",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Expires",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:377",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Member invite + role-change actions are performed on the legacy /teams/[id] surface (audited). This panel is read-only.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:393",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Role Permission Matrix",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:432",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Product-level summary. Backend permissions remain authoritative — capabilities marked \"partial\" depend on workspace policy (step-up flags, governance gates, role grants).",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:435",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Capability",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:442",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "OWNER",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:443",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "ADMIN",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:444",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "MEMBER",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:445",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "VIEWER",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:446",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance Snapshot",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:479",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Governance Snapshot",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:495",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Policy source:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:506",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Report downloads:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:512",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Package downloads:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:516",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "· Public verify:",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:520",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open governance control plane",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:525",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrations Posture",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:547",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Integrations Posture",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:557",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "API credentials",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:562",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Webhook endpoints",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:566",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Failed deliveries · 24h",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:574",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Secrets are never surfaced here.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:578",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Manage in Integrations",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:579",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing & Seats",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:604",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing & Seats",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:614",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Plan",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:619",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Billing status",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:623",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Seats used",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:629",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Over seat limit",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:637",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open billing",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:642",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "· This panel reads from the workspace billing row — it does not change billing state.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:646",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Operational Accountability",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:662",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Queued",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:668",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Assigned",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:672",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Overdue",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:680",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Open escalations",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:690",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "No recent team activity recorded yet.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:696",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "by",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:710",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer workload links to",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:730",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Reviewer Ops",
+   "at": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:731",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "INPUT",
+   "label": "Filter by action",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:121",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "SELECT",
+   "label": "Filter by outcome",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:129",
+   "natHasRole": false,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Audit history",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:113",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Every event is recorded against this workspace with a tamper-evident integrity chain. Filters run on the server.",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:115",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Any outcome",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:135",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Success",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:136",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Denied",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:137",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Error",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:138",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Export",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:146",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "When (UTC)",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:162",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Action",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:163",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Outcome",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:164",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Resource",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:165",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  },
+  {
+   "role": "TEXT",
+   "label": "Load more",
+   "at": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx:191",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null,
+   "verdict": "NOT_APPLICABLE_ENTERPRISE",
+   "why": "workspace administration — ENTERPRISE surfaces under /teams/[id] admin and /organizations/[id]/admin"
+  }
+ ]
+}

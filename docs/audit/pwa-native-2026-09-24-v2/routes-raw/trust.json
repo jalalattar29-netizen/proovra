@@ -1,0 +1,765 @@
+{
+ "route": "/trust",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/trust/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/trust-center.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 146,
+   "elements": 441,
+   "texts": 72,
+   "distinctTexts": 66,
+   "handlers": 42,
+   "conditionals": 1138,
+   "apiPaths": 7,
+   "distinctApi": 7,
+   "styleRefs": 473,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 8,
+   "unresolvedImports": 0,
+   "external": [
+    "next/link",
+    "lucide-react",
+    "react",
+    "next/navigation",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 168,
+   "texts": 23,
+   "distinctTexts": 19,
+   "handlers": 29,
+   "conditionals": 1072,
+   "apiPaths": 5,
+   "distinctApi": 5,
+   "styleRefs": 211,
+   "stylesheetRules": 83,
+   "themeTokens": 264,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 9,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "expo-router",
+    "react-native",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 72,
+  "natLabelled": 22,
+  "paired": 2,
+  "roleDiff": 3,
+  "missing": 67,
+  "extraInNative": 17,
+  "webUnlabelled": 428,
+  "missingWithRolePresent": 66,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [
+    {
+     "label": "Trust Center",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/trust/page.tsx:549",
+     "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+    },
+    {
+     "label": "Trust Center",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/app/trust/page.tsx:1350",
+     "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+    },
+    {
+     "label": "Trust Center",
+     "webRole": "TEXT",
+     "natRole": "COMPONENT",
+     "web": "apps/web/components/marketing/EnterpriseFooter.tsx:190",
+     "nat": "apps/mobile/app/(stack)/trust-center.tsx:104"
+    }
+   ],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Trust, security, privacy, and",
+     "at": "apps/web/app/trust/page.tsx:554",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "verification documentation.",
+     "at": "apps/web/app/trust/page.tsx:559",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Understand how PROOVRA records evidence integrity, custody context, verification materials, AI boundaries, security posture, privacy controls, and governance documentation — and where to review the policies behind each area.",
+     "at": "apps/web/app/trust/page.tsx:566",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Review documentation",
+     "at": "apps/web/app/trust/page.tsx:594",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact sales",
+     "at": "apps/web/app/trust/page.tsx:601",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust boundary",
+     "at": "apps/web/app/trust/page.tsx:621",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What PROOVRA records — and what it does not decide.",
+     "at": "apps/web/app/trust/page.tsx:622",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA is a digital evidence operations platform designed to help organizations capture, preserve, review, verify, govern, and share digital evidence through structured Evidence Records, custody visibility, verification materials, and reviewer-ready outputs.",
+     "at": "apps/web/app/trust/page.tsx:624",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What PROOVRA records",
+     "at": "apps/web/app/trust/page.tsx:641",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What PROOVRA does not decide",
+     "at": "apps/web/app/trust/page.tsx:669",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust boundary",
+     "at": "apps/web/app/trust/page.tsx:711",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA exposes recorded technical and operational context for review. Courts, regulators, investigators, insurers, employers, experts, reviewers, and customers remain responsible for factual, legal, procedural, and expert determinations.",
+     "at": "apps/web/app/trust/page.tsx:717",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust foundations",
+     "at": "apps/web/app/trust/page.tsx:740",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The trust areas behind PROOVRA.",
+     "at": "apps/web/app/trust/page.tsx:741",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA&apos;s Trust Center organizes the platform&apos;s public documentation around the areas security, legal, procurement, and review teams usually need to evaluate.",
+     "at": "apps/web/app/trust/page.tsx:743",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust flow",
+     "at": "apps/web/app/trust/page.tsx:850",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "How trust context travels through the evidence workflow.",
+     "at": "apps/web/app/trust/page.tsx:853",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Trust in PROOVRA is not a single claim. It is a set of recorded context that follows evidence from intake to review, reporting, governance, and external inspection.",
+     "at": "apps/web/app/trust/page.tsx:859",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Step",
+     "at": "apps/web/app/trust/page.tsx:904",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Documentation hub",
+     "at": "apps/web/app/trust/page.tsx:939",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "The documents behind PROOVRA&apos;s trust posture.",
+     "at": "apps/web/app/trust/page.tsx:940",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use this hub to review PROOVRA&apos;s privacy, security, evidence, governance, support, and legal documentation. These documents are written for customers, reviewers, legal teams, procurement teams, and security evaluators.",
+     "at": "apps/web/app/trust/page.tsx:942",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise evaluation",
+     "at": "apps/web/app/trust/page.tsx:1043",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Built for security, legal, and procurement review.",
+     "at": "apps/web/app/trust/page.tsx:1049",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise buyers often need to review more than product features. PROOVRA&apos;s public Trust Center helps security, privacy, legal, procurement, and operational stakeholders evaluate the platform&apos;s posture before and during adoption.",
+     "at": "apps/web/app/trust/page.tsx:1055",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Start enterprise review",
+     "at": "apps/web/app/trust/page.tsx:1066",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open Support Center",
+     "at": "apps/web/app/trust/page.tsx:1077",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Transparency commitments",
+     "at": "apps/web/app/trust/page.tsx:1158",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What we publish — and what we avoid.",
+     "at": "apps/web/app/trust/page.tsx:1161",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What PROOVRA publishes",
+     "at": "apps/web/app/trust/page.tsx:1188",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "What PROOVRA avoids",
+     "at": "apps/web/app/trust/page.tsx:1228",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request paths",
+     "at": "apps/web/app/trust/page.tsx:1261",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use the right path for sensitive requests.",
+     "at": "apps/web/app/trust/page.tsx:1262",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "These routes exist so privacy, abuse, legal, and procurement requests reach the right team with the right context.",
+     "at": "apps/web/app/trust/page.tsx:1264",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Open path",
+     "at": "apps/web/app/trust/page.tsx:1304",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Need to review PROOVRA for your organization?",
+     "at": "apps/web/app/trust/page.tsx:1356",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Use the Trust Center to review privacy, security, verification, AI, governance, legal, and support documentation. For enterprise security review, procurement, deployment, or legal evaluation, contact the PROOVRA team.",
+     "at": "apps/web/app/trust/page.tsx:1362",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Contact sales",
+     "at": "apps/web/app/trust/page.tsx:1373",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support Center",
+     "at": "apps/web/app/trust/page.tsx:1380",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "View Verification Methodology",
+     "at": "apps/web/app/trust/page.tsx:1391",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Enterprise infrastructure for digital evidence integrity, verification, and governance.",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:125",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "©",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": ". All rights reserved.",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:178",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Privacy Policy",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:181",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Terms of Service",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:184",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Security",
+     "at": "apps/web/components/marketing/EnterpriseFooter.tsx:187",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Primary",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:263",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Open menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:376",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close menu",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:401",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Mobile",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:410",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:371",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:455",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Request a demo",
+     "at": "apps/web/components/marketing/MarketingHeader.tsx:471",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Select language",
+     "at": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx:98",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "BUTTON",
+     "label": "Back",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:109"
+    },
+    {
+     "role": "BADGE",
+     "label": "What PROOVRA does not claim",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:137"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "How PROOVRA works",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:143"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Loading…",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:183"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Not included in your plan",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:185"
+    },
+    {
+     "role": "BADGE",
+     "label": "Unavailable",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:192"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:196"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Nothing published yet",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:204"
+    },
+    {
+     "role": "TEXT",
+     "label": "Limitations",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:165"
+    },
+    {
+     "role": "TEXT",
+     "label": "This section could not be read. The other sections are unaffected.",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:194"
+    },
+    {
+     "role": "TEXT",
+     "label": "This is the only version on record.",
+     "at": "apps/mobile/app/(stack)/trust-center.tsx:251"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 464,
+  "webClassesUnresolved": 598,
+  "webNonLiteralClass": 30,
+  "webCompetingRules": 10,
+  "webDistinctUnresolvedClasses": 222,
+  "natPropsResolved": 231,
+  "natTokenUnresolved": 85,
+  "webDistinctColors": 18,
+  "natDistinctColors": 19,
+  "sharedColors": 1,
+  "webOnlyColors": 17,
+  "webOnlyColorSample": [
+   "rgba(15, 23, 42, 0.035)",
+   "rgba(255, 255, 255, 0.28)",
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)",
+   "#f1f4f9"
+  ],
+  "sharedColorSample": [
+   "#7c3aed"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1138,
+  "natConditionals": 1072,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 42,
+  "natHandlers": 29,
+  "webHandlerSample": [
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:249",
+   "onMouseEnter=() => setOpenDropdown(group.label) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onMouseLeave=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:269",
+   "onClick=() => setOpenDropdown(null) @apps/web/components/marketing/MarketingHeader.tsx:309",
+   "onClick=() => setMobileOpen(true) @apps/web/components/marketing/MarketingHeader.tsx:376",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:389",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:401",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:419",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:436",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:459",
+   "onClick=() => setMobileOpen(false) @apps/web/components/marketing/MarketingHeader.tsx:466",
+   "onClick=() => setOpen((v) => !v) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:81",
+   "onClick=() => select(l.code) @apps/web/components/marketing/MarketingLanguageSwitcher.tsx:106",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onPress=() => router.back() @apps/mobile/app/(stack)/trust-center.tsx:109",
+   "onPress=() => void load() @apps/mobile/app/(stack)/trust-center.tsx:196",
+   "onPress=() => setOpen(a) @apps/mobile/app/(stack)/trust-center.tsx:212",
+   "onClose=() => setOpen(null) @apps/mobile/app/(stack)/trust-center.tsx:225",
+   "onPress=() => setShowVersions((v) => !v) @apps/mobile/app/(stack)/trust-center.tsx:255",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 7,
+  "natApi": 5,
+  "shared": 3,
+  "onlyWeb": 4,
+  "onlyNative": 2,
+  "onlyWebList": [
+   "/v1/users/me",
+   "/v1/auth/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/trust/articles?kind=${…}",
+   "/v1/trust/articles/${…}"
+  ],
+  "sharedList": [
+   "/v1/external-intake/:token/* (POST)",
+   "/v1/external-review/access/:token/*",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)"
+  ],
+  "webApiWhere": {
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227",
+   "/v1/external-intake/:token/* (POST)": "packages/shared-evidence-presentation/src/external-access-content.ts:114",
+   "/v1/external-review/access/:token/*": "packages/shared-evidence-presentation/src/external-access-content.ts:128",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)": "packages/shared-evidence-presentation/src/external-access-content.ts:142"
+  },
+  "natApiWhere": {
+   "/v1/trust/articles?kind=${…}": "apps/mobile/src/product/trust-center.ts:62",
+   "/v1/trust/articles/${…}": "apps/mobile/src/product/trust-center.ts:121",
+   "/v1/external-intake/:token/* (POST)": "packages/shared-evidence-presentation/src/external-access-content.ts:114",
+   "/v1/external-review/access/:token/*": "packages/shared-evidence-presentation/src/external-access-content.ts:128",
+   "/v1/evidence-requests/* (admin) + /v1/external-intake/:token/* (responder)": "packages/shared-evidence-presentation/src/external-access-content.ts:142"
+  }
+ }
+}

@@ -1,0 +1,465 @@
+{
+ "route": "/auth/callback/ui",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/auth/callback/ui/page.tsx",
+ "nativeEntry": "apps/mobile/app/(stack)/auth.tsx",
+ "ledgerStatus": "CODE_PARITY",
+ "physicallyAccepted": false,
+ "tier": "UNMATCHED(default CORE)",
+ "policy": "allow(default)",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 135,
+   "elements": 176,
+   "texts": 19,
+   "distinctTexts": 19,
+   "handlers": 29,
+   "conditionals": 1090,
+   "apiPaths": 4,
+   "distinctApi": 4,
+   "styleRefs": 140,
+   "stylesheetRules": 0,
+   "themeTokens": 0,
+   "cssImports": 0,
+   "assetImports": 0,
+   "maxDepth": 7,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "zod",
+    "@proovra/shared/legal-revisions",
+    "@sentry/browser"
+   ]
+  },
+  "native": {
+   "files": 144,
+   "elements": 159,
+   "texts": 24,
+   "distinctTexts": 20,
+   "handlers": 33,
+   "conditionals": 1059,
+   "apiPaths": 14,
+   "distinctApi": 13,
+   "styleRefs": 198,
+   "stylesheetRules": 92,
+   "themeTokens": 257,
+   "cssImports": 0,
+   "assetImports": 1,
+   "maxDepth": 10,
+   "unresolvedImports": 0,
+   "external": [
+    "react",
+    "react-native",
+    "expo-router",
+    "react-native-safe-area-context",
+    "@react-native-async-storage/async-storage",
+    "zod",
+    "expo-apple-authentication",
+    "expo-auth-session/providers/google",
+    "expo-auth-session",
+    "expo-secure-store"
+   ]
+  }
+ },
+ "level4": {
+  "webLabelled": 19,
+  "natLabelled": 24,
+  "paired": 2,
+  "roleDiff": 0,
+  "missing": 17,
+  "extraInNative": 20,
+  "webUnlabelled": 169,
+  "missingWithRolePresent": 16,
+  "missingWithRoleAbsent": 1,
+  "samples": {
+   "paired": [
+    {
+     "role": "BUTTON",
+     "label": "Close",
+     "web": "apps/web/components/ui/ConfirmActionModal.tsx:404",
+     "nat": "apps/mobile/src/ui/patterns.tsx:563"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Clear search",
+     "web": "apps/web/components/ui/FilterBar.tsx:256",
+     "nat": "apps/mobile/src/ui/patterns.tsx:185"
+    }
+   ],
+   "roleDiff": [],
+   "missing": [
+    {
+     "role": "TEXT",
+     "label": "Sign-in failed",
+     "at": "apps/web/app/auth/callback/ui/page.tsx:342",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Back to sign in",
+     "at": "apps/web/app/auth/callback/ui/page.tsx:353",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Authentication",
+     "at": "apps/web/app/auth/callback/ui/page.tsx:394",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Signing you in…",
+     "at": "apps/web/app/auth/callback/ui/page.tsx:398",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Please wait while we securely complete your sign-in.",
+     "at": "apps/web/app/auth/callback/ui/page.tsx:402",
+     "natHasRole": true
+    },
+    {
+     "role": "BOX",
+     "label": "Notifications",
+     "at": "apps/web/components/ui-legacy.tsx:121",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Close modal",
+     "at": "apps/web/components/ui-legacy.tsx:210",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "×",
+     "at": "apps/web/components/ui-legacy.tsx:211",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Select...",
+     "at": "apps/web/components/ui-legacy.tsx:367",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Dismiss notification",
+     "at": "apps/web/components/feedback/ProovraToast.tsx:119",
+     "natHasRole": true
+    },
+    {
+     "role": "BUTTON",
+     "label": "Copy support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Support reference",
+     "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "Type",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:461",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "to confirm:",
+     "at": "apps/web/components/ui/ConfirmActionModal.tsx:473",
+     "natHasRole": true
+    },
+    {
+     "role": "TEXT",
+     "label": "✕",
+     "at": "apps/web/components/ui/FilterBar.tsx:284",
+     "natHasRole": true
+    },
+    {
+     "role": "TABLE",
+     "label": "Actions",
+     "at": "apps/web/components/ui/DataTable.tsx:182",
+     "natHasRole": false
+    },
+    {
+     "role": "TEXT",
+     "label": "No records to display.",
+     "at": "apps/web/components/ui/DataTable.tsx:244",
+     "natHasRole": true
+    }
+   ],
+   "extra": [
+    {
+     "role": "COMPONENT",
+     "label": "Email",
+     "at": "apps/mobile/app/(stack)/auth.tsx:72"
+    },
+    {
+     "role": "INPUT",
+     "label": "you@example.com",
+     "at": "apps/mobile/app/(stack)/auth.tsx:73"
+    },
+    {
+     "role": "COMPONENT",
+     "label": "Password",
+     "at": "apps/mobile/app/(stack)/auth.tsx:82"
+    },
+    {
+     "role": "INPUT",
+     "label": "Your password",
+     "at": "apps/mobile/app/(stack)/auth.tsx:83"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Resend verification email",
+     "at": "apps/mobile/app/(stack)/auth.tsx:95"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Sign in",
+     "at": "apps/mobile/app/(stack)/auth.tsx:103"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Create account",
+     "at": "apps/mobile/app/(stack)/auth.tsx:105"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Forgot password?",
+     "at": "apps/mobile/app/(stack)/auth.tsx:106"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Continue with Google",
+     "at": "apps/mobile/app/(stack)/auth.tsx:119"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Continue with Apple",
+     "at": "apps/mobile/app/(stack)/auth.tsx:126"
+    },
+    {
+     "role": "TEXT",
+     "label": "or continue with",
+     "at": "apps/mobile/app/(stack)/auth.tsx:113"
+    },
+    {
+     "role": "TEXT",
+     "label": "By continuing you agree to the Terms and acknowledge the Privacy Policy.",
+     "at": "apps/mobile/app/(stack)/auth.tsx:137"
+    },
+    {
+     "role": "IMAGE",
+     "label": "PROOVRA",
+     "at": "apps/mobile/src/ui/brand.tsx:22"
+    },
+    {
+     "role": "TEXT",
+     "label": "PROOVRA",
+     "at": "apps/mobile/src/ui/brand.tsx:31"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/index.tsx:531"
+    },
+    {
+     "role": "TEXT",
+     "label": "Something went wrong",
+     "at": "apps/mobile/src/ui/index.tsx:523"
+    },
+    {
+     "role": "BOX",
+     "label": "Loading",
+     "at": "apps/mobile/src/ui/patterns.tsx:607"
+    },
+    {
+     "role": "BUTTON",
+     "label": "Try again",
+     "at": "apps/mobile/src/ui/patterns.tsx:625"
+    },
+    {
+     "role": "TEXT",
+     "label": "Clear",
+     "at": "apps/mobile/src/ui/patterns.tsx:193"
+    },
+    {
+     "role": "TEXT",
+     "label": "You're offline — showing the latest available data.",
+     "at": "apps/mobile/src/ui/shell.tsx:109"
+    }
+   ]
+  }
+ },
+ "level5": {
+  "webPropsResolved": 188,
+  "webClassesUnresolved": 102,
+  "webNonLiteralClass": 9,
+  "webCompetingRules": 10,
+  "webDistinctUnresolvedClasses": 44,
+  "natPropsResolved": 251,
+  "natTokenUnresolved": 76,
+  "webDistinctColors": 21,
+  "natDistinctColors": 19,
+  "sharedColors": 1,
+  "webOnlyColors": 20,
+  "webOnlyColorSample": [
+   "#446166",
+   "rgba(62, 96, 99, 0.96)",
+   "rgba(24, 43, 48, 0.98)",
+   "rgba(79, 112, 107, 0.28)",
+   "rgba(20, 48, 52, 0.16)",
+   "rgba(0, 0, 0, 0.7)",
+   "#102126",
+   "#1b3136",
+   "rgba(158, 216, 207, 0.2)",
+   "rgba(158, 216, 207, 0.1)",
+   "rgba(0, 0, 0, 0.4)",
+   "rgba(158, 216, 207, 0.15)",
+   "#e2e8f0",
+   "#cbd5e1",
+   "#f0f4f8",
+   "#64748b",
+   "#0f1d36",
+   "#d64545",
+   "rgba(107, 91, 255, 0.28)",
+   "#f1f4f9"
+  ],
+  "sharedColorSample": [
+   "#7c3aed"
+  ]
+ },
+ "level6": {
+  "webConditionals": 1090,
+  "natConditionals": 1059,
+  "webStateRoles": [],
+  "natStateRoles": [
+   "STATE_LOADING"
+  ]
+ },
+ "level7": {
+  "webHandlers": 29,
+  "natHandlers": 33,
+  "webHandlerSample": [
+   "onRemove=removeToast @apps/web/components/ui-legacy.tsx:100",
+   "onClose=() => onRemove(toast.id) @apps/web/components/ui-legacy.tsx:123",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:206",
+   "onClick=onClose @apps/web/components/ui-legacy.tsx:210",
+   "onClick=action @apps/web/components/ui-legacy.tsx:266",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:293",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui-legacy.tsx:360",
+   "onMouseEnter=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onMouseLeave=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onFocus=() => setPaused(true) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onBlur=() => setPaused(false) @apps/web/components/feedback/ProovraToast.tsx:67",
+   "onClick=toast.action.onClick @apps/web/components/feedback/ProovraToast.tsx:104",
+   "onClick=onClose @apps/web/components/feedback/ProovraToast.tsx:119",
+   "onClick=onCopy @apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "onClick=(e) => { if (e.target === e.currentTarget) close(false); } @apps/web/components/ui/ConfirmActionModal.tsx:293",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:404",
+   "onChange=(e) => setTyped(e.target.value) @apps/web/components/ui/ConfirmActionModal.tsx:474",
+   "onClick=() => close(false) @apps/web/components/ui/ConfirmActionModal.tsx:510",
+   "onClick=() => (noticeOnly ? close(false) : void handleConfirm()) @apps/web/components/ui/ConfirmActionModal.tsx:529",
+   "onClose=onClose @apps/web/components/ui/ConfirmActionModal.tsx:589",
+   "onClick=onReset @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseEnter=(e) => { e.currentTarget.style.borderColor = \"var(--border-d @apps/web/components/ui/FilterBar.tsx:124",
+   "onMouseLeave=(e) => { e.currentTarget.style.borderColor = \"transparent\";  @apps/web/components/ui/FilterBar.tsx:124",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:234",
+   "onClick=() => onChange(\"\") @apps/web/components/ui/FilterBar.tsx:256",
+   "onChange=(e) => onChange(e.target.value) @apps/web/components/ui/FilterBar.tsx:356",
+   "onClick=clickable ? () => onRowClick!(row, index) : undefined @apps/web/components/ui/DataTable.tsx:255",
+   "onKeyDown=clickable ? (e) => { if (e.key === \"Enter\" || e.key === \" \") @apps/web/components/ui/DataTable.tsx:255",
+   "onClick=(e) => e.stopPropagation() @apps/web/components/ui/DataTable.tsx:300"
+  ],
+  "natHandlerSample": [
+   "onChangeText=setEmail @apps/mobile/app/(stack)/auth.tsx:73",
+   "onChangeText=setPassword @apps/mobile/app/(stack)/auth.tsx:83",
+   "onSubmitEditing=() => void submit() @apps/mobile/app/(stack)/auth.tsx:83",
+   "onPress=() => void resendVerification(email.trim()) @apps/mobile/app/(stack)/auth.tsx:95",
+   "onPress=() => void submit() @apps/mobile/app/(stack)/auth.tsx:103",
+   "onPress=() => router.push(\"/register\") @apps/mobile/app/(stack)/auth.tsx:105",
+   "onPress=() => router.push(\"/forgot-password\") @apps/mobile/app/(stack)/auth.tsx:106",
+   "onPress=oauth.promptGoogle @apps/mobile/app/(stack)/auth.tsx:119",
+   "onPress=oauth.signInApple @apps/mobile/app/(stack)/auth.tsx:126",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:145",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:193",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:259",
+   "onChangeText=onChangeText @apps/mobile/src/ui/index.tsx:340",
+   "onFocus=() => setFocused(true) @apps/mobile/src/ui/index.tsx:340",
+   "onBlur=() => setFocused(false) @apps/mobile/src/ui/index.tsx:340",
+   "onSubmitEditing=onSubmitEditing @apps/mobile/src/ui/index.tsx:340",
+   "onPress=onPress @apps/mobile/src/ui/index.tsx:453",
+   "onLongPress=onLongPress @apps/mobile/src/ui/index.tsx:453",
+   "onPress=onRetry @apps/mobile/src/ui/index.tsx:531",
+   "onChangeText=onChange @apps/mobile/src/ui/patterns.tsx:172",
+   "onPress=() => onChange(\"\") @apps/mobile/src/ui/patterns.tsx:185",
+   "onPress=() => !disabled && onChange(opt.value) @apps/mobile/src/ui/patterns.tsx:242",
+   "onPress=onLoadMore @apps/mobile/src/ui/patterns.tsx:319",
+   "onPress=kpi.onPress @apps/mobile/src/ui/patterns.tsx:437",
+   "onRequestClose=onCancel @apps/mobile/src/ui/patterns.tsx:524",
+   "onPress=busy ? undefined : onCancel @apps/mobile/src/ui/patterns.tsx:525",
+   "onPress=onCancel @apps/mobile/src/ui/patterns.tsx:536",
+   "onPress=onConfirm @apps/mobile/src/ui/patterns.tsx:537",
+   "onRequestClose=onClose @apps/mobile/src/ui/patterns.tsx:562",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:563",
+   "onPress=onClose @apps/mobile/src/ui/patterns.tsx:569",
+   "onPress=onRetry @apps/mobile/src/ui/patterns.tsx:625",
+   "onPress=() => router.push(item.href) @apps/mobile/src/ui/shell.tsx:45"
+  ]
+ },
+ "level8": {
+  "webApi": 4,
+  "natApi": 13,
+  "shared": 1,
+  "onlyWeb": 3,
+  "onlyNative": 12,
+  "onlyWebList": [
+   "/v1/users/me",
+   "/v1/users/cookie-consent",
+   "/v1/"
+  ],
+  "onlyNativeList": [
+   "/v1/auth/email/login",
+   "/v1/auth/email/register",
+   "/v1/auth/email/verify",
+   "/v1/auth/email/resend-verification",
+   "/v1/auth/password-reset/request",
+   "/v1/auth/password-reset/confirm",
+   "/v1/auth/mfa/verify",
+   "/v1/auth/google",
+   "/v1/auth/apple",
+   "/v1/auth/logout",
+   "/v1/users/legal-status",
+   "/v1/users/legal-acceptance"
+  ],
+  "sharedList": [
+   "/v1/auth/me"
+  ],
+  "webApiWhere": {
+   "/v1/users/me": "apps/web/app/providers.tsx:93",
+   "/v1/auth/me": "apps/web/app/providers.tsx:97",
+   "/v1/users/cookie-consent": "apps/web/app/providers.tsx:252",
+   "/v1/": "apps/web/lib/privacy/redact.ts:227"
+  },
+  "natApiWhere": {
+   "/v1/auth/email/login": "apps/mobile/src/auth/auth-api.ts:44",
+   "/v1/auth/email/register": "apps/mobile/src/auth/auth-api.ts:61",
+   "/v1/auth/email/verify": "apps/mobile/src/auth/auth-api.ts:69",
+   "/v1/auth/email/resend-verification": "apps/mobile/src/auth/auth-api.ts:77",
+   "/v1/auth/password-reset/request": "apps/mobile/src/auth/auth-api.ts:84",
+   "/v1/auth/password-reset/confirm": "apps/mobile/src/auth/auth-api.ts:91",
+   "/v1/auth/mfa/verify": "apps/mobile/src/auth/auth-api.ts:103",
+   "/v1/auth/google": "apps/mobile/src/auth/auth-api.ts:113",
+   "/v1/auth/apple": "apps/mobile/src/auth/auth-api.ts:117",
+   "/v1/auth/me": "apps/mobile/src/auth-context.tsx:88",
+   "/v1/auth/logout": "apps/mobile/src/auth/auth-api.ts:129",
+   "/v1/users/legal-status": "apps/mobile/src/auth/auth-api.ts:144",
+   "/v1/users/legal-acceptance": "apps/mobile/src/auth/auth-api.ts:155"
+  }
+ }
+}

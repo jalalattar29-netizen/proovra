@@ -172,6 +172,10 @@ const TITLES: Record<SafeErrorKind, string> = {
   unknown: "Something went wrong",
 };
 
+/** The web 4xx bucket (toSafeUserError.ts fromStatus, status >= 400). */
+const REFUSED_TITLE = "We couldn’t complete that action";
+const REFUSED_MESSAGE = "Please review your input and try again.";
+
 const SAFE_MESSAGES: Record<SafeErrorKind, string> = {
   auth: "Please sign in again to continue.",
   legal: "Accept the updated terms to continue.",
@@ -206,7 +210,10 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
   const x = extract(err);
   const kind = classify(x);
 
-  const explained = userFacingErrorFor(x.code ?? null);
+  // A bare 429 is the rate-limit answer, as the web's fromStatus(429) reads it.
+  // "API_ERROR" is the transport's placeholder for "the body carried no code".
+  const realCode = x.code && x.code !== "API_ERROR" ? x.code : null;
+  const explained = userFacingErrorFor(realCode ?? (x.status === 429 ? "RATE_LIMITED" : null));
   if (explained) {
     return {
       kind,
@@ -242,10 +249,14 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
   // For input/forbidden/notFound the backend message is safe & useful; for
   // auth/legal/network/server/unknown we use the canonical safe copy.
   const useBackendMessage = (kind === "input" || kind === "forbidden" || kind === "notFound") && !!x.message;
+  // An unmapped refusal (409, 422, …) is the web 4xx bucket, in its words
+  // (apps/web/lib/feedback/toSafeUserError.ts fromStatus): "Please try again"
+  // told the user to repeat something the server had refused on its merits.
+  const refused = kind === "unknown" && typeof x.status === "number" && x.status >= 400 && x.status < 500;
   return {
     kind,
-    title: TITLES[kind],
-    message: useBackendMessage ? (x.message as string) : SAFE_MESSAGES[kind],
+    title: refused ? REFUSED_TITLE : TITLES[kind],
+    message: useBackendMessage ? (x.message as string) : refused ? REFUSED_MESSAGE : SAFE_MESSAGES[kind],
     explained: false,
     code: x.code,
     requestId: x.requestId,

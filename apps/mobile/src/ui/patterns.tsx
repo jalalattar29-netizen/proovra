@@ -400,6 +400,8 @@ export interface ProovraKpi {
   caption?: string;
   tone?: ProovraStatusTone;
   onPress?: () => void;
+  /** A pressable KPI that is also a filter toggle reports whether it is on (the web sets aria-pressed). */
+  selected?: boolean;
 }
 
 /**
@@ -439,7 +441,8 @@ export function ProovraKpiGrid({ items }: { items: ReadonlyArray<ProovraKpi> }) 
             onPress={kpi.onPress}
             accessibilityRole="button"
             accessibilityLabel={`${kpi.label}: ${kpi.value}`}
-            style={styles.kpiPressable}
+            accessibilityState={kpi.selected === undefined ? undefined : { selected: kpi.selected }}
+            style={[styles.kpiPressable, kpi.selected ? styles.kpiSelected : null]}
           >
             {body}
           </Pressable>
@@ -636,6 +639,7 @@ export function ProovraAsyncView<T>({
 
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
+  kpiSelected: { borderRadius: theme.radius.card, borderWidth: 2, borderColor: theme.color.accent.a500 },
   gapTop: { marginTop: theme.space.s2 },
 
   header: { gap: theme.space.s2, marginBottom: theme.space.s4 },

@@ -64,12 +64,18 @@ type Phase = "loading" | "ready" | "failed";
 
 const ALL = "ALL";
 
+/** `ASSIGNEE_TEAM_LEVEL_LABEL`, apps/web/lib/api/collaboration-teams.ts:215. */
+export const ASSIGNEE_TEAM_LEVEL_LABEL = "Team-level (no specific assignee)";
+
 export function CollaborationWorkSection({
   teamId,
   members,
+  reloadToken = 0,
 }: {
   teamId: string;
   members: CollaborationMember[];
+  /** Bumped by the screen after it creates an assignment. */
+  reloadToken?: number;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [items, setItems] = useState<TeamAssignment[]>([]);
@@ -80,6 +86,10 @@ export function CollaborationWorkSection({
 
   const [status, setStatus] = useState<string>(ALL);
   const [targetType, setTargetType] = useState<string>(ALL);
+  // T-12 / RC-13 — the web's two other filters (AssignmentsTab.tsx:375-394).
+  // The query builder already sent both; no screen let anyone set them.
+  const [assignee, setAssignee] = useState<string>(ALL);
+  const [priority, setPriority] = useState<string>(ALL);
   const [search, setSearch] = useState("");
 
   const [editing, setEditing] = useState<TeamAssignment | null>(null);
@@ -88,11 +98,13 @@ export function CollaborationWorkSection({
     (next?: string | null) => ({
       status: status === ALL ? null : status,
       targetType: targetType === ALL ? null : targetType,
+      assignee: assignee === ALL ? null : assignee,
+      priority: priority === ALL ? null : priority,
       search,
       limit: 25,
       cursor: next ?? null,
     }),
-    [status, targetType, search],
+    [status, targetType, assignee, priority, search],
   );
 
   const load = useCallback(async () => {
@@ -110,7 +122,8 @@ export function CollaborationWorkSection({
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // reloadToken: a new assignment was created elsewhere on the screen.
+  }, [load, reloadToken]);
 
   const loadMore = useCallback(async () => {
     if (!cursor) return;
@@ -193,6 +206,31 @@ export function CollaborationWorkSection({
         ]}
         value={targetType}
         onChange={setTargetType}
+      />
+      <ProovraFilterChips
+        label="Assignee"
+        options={[
+          { value: ALL, label: "All assignees" },
+          // The sentinel the SERVER understands for team-level work.
+          { value: ASSIGNEE_UNASSIGNED, label: ASSIGNEE_TEAM_LEVEL_LABEL },
+          ...members
+            .filter((m) => m.status === "ACTIVE")
+            .map((m) => ({ value: m.id, label: m.displayName })),
+        ]}
+        value={assignee}
+        onChange={setAssignee}
+      />
+      <ProovraFilterChips
+        label="Priority"
+        options={[
+          { value: ALL, label: "All priorities" },
+          ...COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES.map((v) => ({
+            value: v as string,
+            label: assignmentPriorityLabel(v),
+          })),
+        ]}
+        value={priority}
+        onChange={setPriority}
       />
 
       {phase === "loading" ? <ProovraLoadingState label="Loading work" /> : null}
@@ -326,7 +364,8 @@ export function CollaborationWorkSection({
             if (editing) void update(editing, { assigneeUserId: null });
           }}
         />
-        {members.map((m) => (
+        {/* ACTIVE members only, as the web's editor offers (AssignmentsTab.tsx:913-915). */}
+        {members.filter((m) => m.status === "ACTIVE").map((m) => (
           <ProovraListRow
             key={m.id}
             title={m.displayName}

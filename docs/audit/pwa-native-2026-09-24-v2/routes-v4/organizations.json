@@ -1,0 +1,376 @@
+{
+ "route": "/organizations",
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "webEntry": "apps/web/app/(app)/organizations/page.tsx",
+ "nativeCounterpartScreens": [
+  "apps/mobile/app/(stack)/organizations/index.tsx"
+ ],
+ "ledgerStatus": "CODE_PARITY",
+ "borderline": false,
+ "trees": {
+  "web": {
+   "files": 20,
+   "labelled": 38,
+   "unboundExports": 2
+  },
+  "native": {
+   "files": 17,
+   "labelled": 6,
+   "unboundExports": 1
+  }
+ },
+ "pairing": {
+  "exact": 0,
+  "copyDiffers": 0,
+  "roleDiffers": 2,
+  "unpaired": 36,
+  "extraInNative": 4,
+  "unpairedRoleAbsent": 0
+ },
+ "exactList": [],
+ "copyList": [],
+ "roleDiffList": [
+  {
+   "label": "Organizations",
+   "webRole": "TEXT",
+   "natRole": "COMPONENT",
+   "web": "apps/web/app/(app)/organizations/page.tsx:212",
+   "nat": "apps/mobile/app/(stack)/organizations/index.tsx:69"
+  },
+  {
+   "label": "Loading organizations…",
+   "webRole": "TEXT",
+   "natRole": "STATE_LOADING",
+   "web": "apps/web/app/(app)/organizations/page.tsx:370",
+   "nat": "apps/mobile/app/(stack)/organizations/index.tsx:78"
+  }
+ ],
+ "unpairedList": [
+  {
+   "role": "TEXT",
+   "label": "Account · Organizations",
+   "at": "apps/web/app/(app)/organizations/page.tsx:210",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations are the governance + billing tenant. Members, invites, and audit live here. Operational work — evidence, cases, reviewer queues — continues to live inside each",
+   "at": "apps/web/app/(app)/organizations/page.tsx:214",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workspace",
+   "at": "apps/web/app/(app)/organizations/page.tsx:218",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite token",
+   "at": "apps/web/app/(app)/organizations/page.tsx:241",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "About Enterprise organizations",
+   "at": "apps/web/app/(app)/organizations/page.tsx:249",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Enterprise organizations",
+   "at": "apps/web/app/(app)/organizations/page.tsx:265",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Organizations are the legal, billing, and governance boundary for PROOVRA Enterprise customers. They are provisioned as part of an Enterprise agreement — they cannot be created self-service.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:267",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Want to work with your team? Create a",
+   "at": "apps/web/app/(app)/organizations/page.tsx:273",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "workspace",
+   "at": "apps/web/app/(app)/organizations/page.tsx:273",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "from the Teams page — it has its own members, roles, and billing, without an Enterprise contract.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:274",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create a workspace",
+   "at": "apps/web/app/(app)/organizations/page.tsx:283",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Close",
+   "at": "apps/web/app/(app)/organizations/page.tsx:291",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite token",
+   "at": "apps/web/app/(app)/organizations/page.tsx:312",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Paste the invite token an organization administrator shared with you. Accepting binds your account to the organization at the role chosen by the inviter. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:314",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Invite token",
+   "at": "apps/web/app/(app)/organizations/page.tsx:321",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Cancel",
+   "at": "apps/web/app/(app)/organizations/page.tsx:352",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Couldn’t load organizations.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:376",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Retry",
+   "at": "apps/web/app/(app)/organizations/page.tsx:388",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "You’re not a member of any organization yet.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:400",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Create an organization",
+   "at": "apps/web/app/(app)/organizations/page.tsx:404",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "to become its ORG_OWNER. You can then invite members and bind workspaces.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:404",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept an invite token",
+   "at": "apps/web/app/(app)/organizations/page.tsx:408",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "if an organization administrator shared one with you.",
+   "at": "apps/web/app/(app)/organizations/page.tsx:408",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "For workspace-level operations (evidence, cases, reviewers), open",
+   "at": "apps/web/app/(app)/organizations/page.tsx:412",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace administration",
+   "at": "apps/web/app/(app)/organizations/page.tsx:413",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "About Enterprise organizations",
+   "at": "apps/web/app/(app)/organizations/page.tsx:423",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Accept invite token",
+   "at": "apps/web/app/(app)/organizations/page.tsx:435",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "pending",
+   "at": "apps/web/app/(app)/organizations/page.tsx:489",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "you joined",
+   "at": "apps/web/app/(app)/organizations/page.tsx:511",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Open",
+   "at": "apps/web/app/(app)/organizations/page.tsx:523",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace admin",
+   "at": "apps/web/app/(app)/organizations/page.tsx:531",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Looking for evidence, cases, reviewer queues, or per-workspace billing? Those are workspace-scoped. Open the relevant workspace from",
+   "at": "apps/web/app/(app)/organizations/page.tsx:549",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Workspace administration",
+   "at": "apps/web/app/(app)/organizations/page.tsx:553",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "STATE_ERROR",
+   "label": "This page is not available",
+   "at": "apps/web/components/navigation/PageRouteGate.tsx:98",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "BUTTON",
+   "label": "Copy support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:80",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  },
+  {
+   "role": "TEXT",
+   "label": "Support reference",
+   "at": "apps/web/components/feedback/ProovraSupportReference.tsx:65",
+   "natHasRole": true,
+   "bestScore": 0,
+   "bestNat": null
+  }
+ ],
+ "extraList": [
+  {
+   "role": "BUTTON",
+   "label": "Back",
+   "at": "apps/mobile/app/(stack)/organizations/index.tsx:74"
+  },
+  {
+   "role": "COMPONENT",
+   "label": "You are not a member of any organization",
+   "at": "apps/mobile/app/(stack)/organizations/index.tsx:84"
+  },
+  {
+   "role": "BUTTON",
+   "label": "Try again",
+   "at": "apps/mobile/src/ui/index.tsx:531"
+  },
+  {
+   "role": "TEXT",
+   "label": "Something went wrong",
+   "at": "apps/mobile/src/ui/index.tsx:523"
+  }
+ ],
+ "webUnbound": [
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateKind"
+  },
+  {
+   "file": "D:\\digital-witness\\apps\\web\\components\\feedback\\ProovraSystemState.tsx",
+   "name": "SystemStateAction"
+  }
+ ],
+ "natUnbound": [
+  {
+   "file": "packages/ui/src/index.ts",
+   "name": "ProovraStatusTone"
+  }
+ ]
+}

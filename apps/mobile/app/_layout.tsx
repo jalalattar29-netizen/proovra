@@ -15,6 +15,7 @@ import { LocaleProvider } from "../src/locale-context";
 import { NetworkProvider } from "../src/network/network-context";
 import { ToastProvider } from "../src/toast-context";
 import { theme } from "../src/theme/theme";
+import { useAppFonts } from "../src/theme/fonts";
 
 /**
  * F4 — THE root layout and the ONE place the app's React providers mount.
@@ -37,9 +38,21 @@ import { theme } from "../src/theme/theme";
  * context (it uses `useRouter`) and returns null.
  */
 export default function RootLayout() {
+  // T-04 / RC-04 — hold first paint until the application faces are registered.
+  //
+  // Rendering before they load produces a frame in the platform system face
+  // that then reflows, which is the "flash of unstyled text" that made the app
+  // read as unfinished. `null` here is correct rather than a spinner: the
+  // native splash is still up at this point, so the user sees the brand, not a
+  // blank screen. A load FAILURE falls through to render anyway — a product in
+  // the system face beats a product that will not start — and the error is
+  // carried into LocaleProvider so it can be surfaced rather than swallowed.
+  const [fontsLoaded, fontError] = useAppFonts();
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <ErrorBoundary>
-      <LocaleProvider>
+      <LocaleProvider fontError={fontError}>
         <NetworkProvider>
         <AuthProvider>
           <ToastProvider>

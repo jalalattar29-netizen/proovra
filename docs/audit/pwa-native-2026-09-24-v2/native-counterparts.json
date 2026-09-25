@@ -1,0 +1,647 @@
+{
+ "frozenSha": "71e148f34410c7c231f8930d1387d8924b10b4e5",
+ "counterparts": {
+  "/abuse-reporting": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/auth": {
+   "entry": "apps/mobile/app/(stack)/auth.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/auth/callback/ui": {
+   "entry": "apps/mobile/app/(stack)/auth.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/auth/mfa-challenge": {
+   "entry": "apps/mobile/app/(stack)/mfa.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/mfa.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/auth/mfa-recovery/verify": {
+   "entry": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/mfa-recovery-verify.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/auth/verify-email": {
+   "entry": "apps/mobile/app/(stack)/verify-email.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/verify-email.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/billing": {
+   "entry": "apps/mobile/app/(stack)/billing.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/billing.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/capture": {
+   "entry": "apps/mobile/app/(stack)/capture.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/capture.tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/screen-capture.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/continuous-capture.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/cases": {
+   "entry": "apps/mobile/app/(tabs)/cases.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/cases.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/cases/[id]": {
+   "entry": "apps/mobile/app/(stack)/case/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/case/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/collaboration-teams": {
+   "entry": "apps/mobile/app/(tabs)/teams.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/teams.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/collaboration-teams/[teamId]": {
+   "entry": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/collaboration-teams/[teamId]/collaboration": {
+   "entry": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/collaboration-teams/invites/[token]/accept": {
+   "entry": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/invite/[token].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/data-retention": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/evidence": {
+   "entry": "apps/mobile/app/(tabs)/evidence.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/evidence.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/evidence-requests/[id]": {
+   "entry": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence-request/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/evidence/[id]": {
+   "entry": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/forgot-password": {
+   "entry": "apps/mobile/app/(stack)/forgot-password.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/forgot-password.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/home": {
+   "entry": "apps/mobile/app/(tabs)/index.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/index.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/inbox": {
+   "entry": "apps/mobile/app/(tabs)/notifications.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/notifications.tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/intake-links": {
+   "entry": "apps/mobile/app/(stack)/intake-links.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/intake-links.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/intake/[token]": {
+   "entry": "apps/mobile/app/(stack)/intake/[token].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/intake/[token].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/intake/[token]/capture": {
+   "entry": "apps/mobile/app/(stack)/intake/capture.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/intake/capture.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/invite/[token]": {
+   "entry": "apps/mobile/app/(stack)/invite/[token].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/invite/[token].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/legal/[slug]": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/login": {
+   "entry": "apps/mobile/app/(stack)/auth.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/auth.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/notifications": {
+   "entry": "apps/mobile/app/(tabs)/notifications.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/notifications.tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/operations": {
+   "entry": null,
+   "set": []
+  },
+  "/operations/batch-analysis": {
+   "entry": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/operations/health": {
+   "entry": null,
+   "set": []
+  },
+  "/operations/quotas": {
+   "entry": "apps/mobile/app/(stack)/operations/quotas.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/operations/quotas.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/org-invites/[token]/accept": {
+   "entry": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/organizations": {
+   "entry": "apps/mobile/app/(stack)/organizations/index.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/organizations/index.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/organizations/[id]": {
+   "entry": "apps/mobile/app/(stack)/organizations/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/people": {
+   "entry": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/workspace-people.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/portal": {
+   "entry": "apps/mobile/app/(stack)/portal/index.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/index.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/portal/[token]": {
+   "entry": "apps/mobile/app/(stack)/portal/[token].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/[token].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/portal/[token]/work/[workflowId]": {
+   "entry": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/work/[workflowId].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/portal/accept/[grantId]": {
+   "entry": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/portal/accept/[grantId].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/pricing": {
+   "entry": "apps/mobile/app/(stack)/billing.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/billing.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/privacy": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/register": {
+   "entry": "apps/mobile/app/(stack)/register.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/register.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/reports": {
+   "entry": "apps/mobile/app/(stack)/reports.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/reports.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/reset-password": {
+   "entry": "apps/mobile/app/(stack)/reset-password.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/reset-password.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/search": {
+   "entry": "apps/mobile/app/(stack)/search.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/search.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/settings": {
+   "entry": "apps/mobile/app/(tabs)/settings.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(tabs)/settings.tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/ai.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/notifications.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal-acceptance.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/settings/security.tsx",
+     "hop": 1
+    },
+    {
+     "file": "apps/mobile/app/(stack)/evidence-requests.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/settings/legal/[slug]": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/settings/reviewer-criteria": {
+   "entry": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/share/[id]": {
+   "entry": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/evidence/[id].tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/subprocessors": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/support": {
+   "entry": "apps/mobile/app/(stack)/support.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/support.tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/teams/[id]": {
+   "entry": "apps/mobile/app/(stack)/workspace-people.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/workspace-people.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/terms": {
+   "entry": "apps/mobile/app/(stack)/legal/[slug].tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/legal/[slug].tsx",
+     "hop": 0
+    },
+    {
+     "file": "apps/mobile/app/(stack)/legal/index.tsx",
+     "hop": 1
+    }
+   ]
+  },
+  "/trust": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center/ai-disclosure": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center/methodology": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center/security": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center/status": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/trust-center/subprocessors": {
+   "entry": "apps/mobile/app/(stack)/trust-center.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/trust-center.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/verify": {
+   "entry": "apps/mobile/app/verify.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/verify.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/verify/[token]": {
+   "entry": "apps/mobile/app/verify.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/verify.tsx",
+     "hop": 0
+    }
+   ]
+  },
+  "/workspaces": {
+   "entry": "apps/mobile/app/(stack)/spaces.tsx",
+   "set": [
+    {
+     "file": "apps/mobile/app/(stack)/spaces.tsx",
+     "hop": 0
+    }
+   ]
+  }
+ }
+}

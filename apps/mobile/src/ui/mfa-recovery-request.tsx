@@ -42,9 +42,23 @@ import {
   parseRecoveryRequest,
   parseSessionProbe,
   recoveryReasonHint,
+  parseRecoveryWorkspaces,
+  RECOVERY_WORKSPACES_PATH,
+  buildRecoveryDetailPath,
+  parseRecoveryDetail,
+  recoveryStatusLine,
+  recoveryResendBlocked,
+  recoveryCancelBlocked,
+  recoveryResendFailure,
+  recoveryCancelFailure,
+  type RecoveryDetail,
+  NO_RECOVERY_WORKSPACE,
+  type RecoveryWorkspace,
 } from "../product/mfa-recovery";
+import { ProovraConfirmSheet, ProovraFilterChips } from "./patterns";
+import { formatUserDateTime } from "../lib/date";
 
-type Eligibility = "checking" | "eligible" | "no_session";
+type Eligibility = "checking" | "eligible" | "no_session" | "no_workspace";
 
 export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
   const [eligibility, setEligibility] = useState<Eligibility>(
@@ -55,6 +69,11 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [tone, setTone] = useState<"info" | "error">("info");
+  // Without an active workspace (the MFA challenge), the caller chooses one —
+  // the workspace whose administrator reviews the request.
+  const [workspaces, setWorkspaces] = useState<RecoveryWorkspace[]>([]);
+  const [chosenTeamId, setChosenTeamId] = useState<string | null>(null);
+  const effectiveTeamId = teamId ?? chosenTeamId;
 
   useEffect(() => {
     if (teamId) {
@@ -62,19 +81,39 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
       return;
     }
     let alive = true;
-    void apiFetch(SESSION_LIGHT_PATH)
-      .then((d) => {
-        if (alive) setEligibility(parseSessionProbe(d) ? "eligible" : "no_session");
-      })
-      .catch(() => {
-        if (alive) setEligibility("no_session");
-      });
+    void (async () => {
+      let authenticated = false;
+      try {
+        authenticated = parseSessionProbe(await apiFetch(SESSION_LIGHT_PATH));
+      } catch {
+        authenticated = false;
+      }
+      if (!alive) return;
+      if (!authenticated) {
+        setEligibility("no_session");
+        return;
+      }
+      try {
+        const rows = parseRecoveryWorkspaces(await apiFetch(RECOVERY_WORKSPACES_PATH));
+        if (!alive) return;
+        setWorkspaces(rows);
+        if (rows.length === 0) {
+          setEligibility("no_workspace");
+          return;
+        }
+        setChosenTeamId((prev) => prev ?? rows[0]!.id);
+        setEligibility("eligible");
+      } catch {
+        if (alive) setEligibility("no_workspace");
+      }
+    })();
     return () => {
       alive = false;
     };
   }, [teamId]);
 
   const file = useCallback(async () => {
+    const teamId = effectiveTeamId;
     if (!teamId || !isValidRecoveryReason(reason)) return;
     setBusy(true);
     setMessage(null);
@@ -106,39 +145,113 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
     } finally {
       setBusy(false);
     }
-  }, [teamId, reason]);
+  }, [effectiveTeamId, reason]);
 
-  const act = useCallback(
-    async (kind: "resend" | "cancel") => {
-      if (!requestId) return;
-      setBusy(true);
+  /**
+   * The filed request, read back (T-15). Every change is confirmed by a
+   * reread before it is announced — the server, not the tap, decides whether
+   * the email went out or the request is cancelled.
+   */
+  const [detail, setDetail] = useState<
+    { kind: "loading" } | { kind: "ready"; d: RecoveryDetail } | { kind: "gone" } | { kind: "failed" }
+  >({ kind: "loading" });
+  const [nextResendAfter, setNextResendAfter] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  const readDetail = useCallback(async (id: string): Promise<RecoveryDetail | null | undefined> => {
+    try {
+      const d = parseRecoveryDetail(await apiFetch(buildRecoveryDetailPath(id)));
+      setDetail(d ? { kind: "ready", d } : { kind: "gone" });
+      return d;
+    } catch (err) {
+      if ((err as { statusCode?: number } | null)?.statusCode === 404) {
+        setDetail({ kind: "gone" });
+        return null;
+      }
+      setDetail({ kind: "failed" });
+      return undefined;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!requestId) return;
+    setDetail({ kind: "loading" });
+    void readDetail(requestId);
+  }, [requestId, readDetail]);
+
+  const resend = useCallback(async () => {
+    if (!requestId || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      let after: string | null = null;
       try {
-        await apiFetch(
-          kind === "resend"
-            ? buildRecoveryResendPath(requestId)
-            : buildRecoveryCancelPath(requestId),
-          { method: "POST", body: JSON.stringify({}) },
-        );
+        const res = await apiFetch(buildRecoveryResendPath(requestId), { method: "POST", body: JSON.stringify({}) });
+        const n = (res as { nextResendAfter?: unknown } | null)?.nextResendAfter;
+        after = typeof n === "string" ? n : null;
+      } catch (err) {
+        const f = recoveryResendFailure(err, formatUserDateTime);
+        if (f.until) setNextResendAfter(f.until);
+        setTone("error");
+        setMessage(f.message);
+        await readDetail(requestId);
+        return;
+      }
+      const reread = await readDetail(requestId);
+      setNextResendAfter(after);
+      if (reread && reread.status === "EMAIL_VERIFICATION_PENDING") {
         setTone("info");
         setMessage(
-          kind === "resend"
-            ? "Verification email sent again."
-            : "Recovery request cancelled. You can file a new one.",
+          after
+            ? `A new verification link was sent to your email. You can request another after ${formatUserDateTime(after)}.`
+            : "A new verification link was sent to your email.",
         );
-        if (kind === "cancel") setRequestId(null);
-      } catch {
+      } else {
         setTone("error");
         setMessage(
-          kind === "resend"
-            ? "The email could not be sent again yet. Wait a little and try once more."
-            : "The request could not be cancelled — an administrator may already have acted on it.",
+          reread === undefined
+            ? "The email was requested, but your request could not be reloaded to confirm it. Refresh before trying again."
+            : "The email was requested, but your request is no longer waiting for email confirmation.",
         );
-      } finally {
-        setBusy(false);
       }
-    },
-    [requestId],
-  );
+    } finally {
+      setBusy(false);
+    }
+  }, [requestId, busy, readDetail]);
+
+  const cancel = useCallback(async () => {
+    if (!requestId || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      try {
+        await apiFetch(buildRecoveryCancelPath(requestId), { method: "POST", body: JSON.stringify({}) });
+      } catch (err) {
+        setTone("error");
+        setMessage(recoveryCancelFailure(err));
+        await readDetail(requestId);
+        return;
+      }
+      const reread = await readDetail(requestId);
+      if (reread && reread.status === "CANCELLED") {
+        // Back to idle: a new request can be filed.
+        setRequestId(null);
+        setNextResendAfter(null);
+        setTone("info");
+        setMessage("Your recovery request was cancelled. You can file a new one below.");
+      } else {
+        setTone("error");
+        setMessage(
+          reread === undefined
+            ? "The cancellation was sent, but your request could not be reloaded to confirm it. Refresh before filing a new one."
+            : "The cancellation was sent, but your request does not show as cancelled yet. Refresh before filing a new one.",
+        );
+      }
+    } finally {
+      setBusy(false);
+      setConfirmCancel(false);
+    }
+  }, [requestId, busy, readDetail]);
 
   const hint = recoveryReasonHint(reason);
 
@@ -159,8 +272,23 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
         </ProovraText>
       ) : null}
 
+      {eligibility === "no_workspace" ? (
+        <ProovraText variant="label" color={theme.color.status.pending.fg}>
+          {NO_RECOVERY_WORKSPACE}
+        </ProovraText>
+      ) : null}
+
       {eligibility === "eligible" && !requestId ? (
         <>
+          {!teamId && workspaces.length > 0 ? (
+            <ProovraFilterChips<string>
+              label="Workspace"
+              options={workspaces.map((w) => ({ value: w.id, label: w.name }))}
+              value={chosenTeamId ?? ""}
+              onChange={setChosenTeamId}
+              disabled={busy}
+            />
+          ) : null}
           <ProovraFormField label="What happened">
             <ProovraInput
               value={reason}
@@ -179,30 +307,73 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
           <ProovraButton
             label="File recovery request"
             loading={busy}
-            disabled={!teamId || !isValidRecoveryReason(reason)}
+            disabled={!effectiveTeamId || !isValidRecoveryReason(reason)}
             onPress={() => void file()}
           />
         </>
       ) : null}
 
       {requestId ? (
-        <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
-          <ProovraButton
-            label="Resend email"
-            variant="secondary"
-            fullWidth={false}
-            loading={busy}
-            onPress={() => void act("resend")}
-          />
-          <ProovraButton
-            label="Cancel request"
-            variant="ghost"
-            fullWidth={false}
-            loading={busy}
-            onPress={() => void act("cancel")}
-          />
+        <View style={{ gap: theme.space.s2 }} testID="mfa-recovery-status">
+          <ProovraText variant="bodySm" weight="semibold">Your recovery request</ProovraText>
+          {detail.kind === "loading" ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>Loading your recovery request…</ProovraText>
+          ) : detail.kind === "gone" ? (
+            <ProovraText variant="label" color={theme.color.ink.secondary}>This recovery request is no longer available.</ProovraText>
+          ) : detail.kind === "failed" ? (
+            <>
+              <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                Your recovery request could not be loaded. Refresh to try again.
+              </ProovraText>
+              <ProovraButton label="Retry" variant="secondary" fullWidth={false} onPress={() => void readDetail(requestId)} />
+            </>
+          ) : (
+            (() => {
+              const d = detail.d;
+              const resendBlocked = recoveryResendBlocked(d, nextResendAfter, Date.now(), formatUserDateTime);
+              const cancelBlocked = recoveryCancelBlocked(d);
+              return (
+                <>
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {`${recoveryStatusLine(d)}${d.expiresAt ? ` Expires ${formatUserDateTime(d.expiresAt)}.` : ""}`}
+                  </ProovraText>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+                    <ProovraButton
+                      label={busy ? "Sending…" : "Resend verification email"}
+                      accessibilityLabel="Resend verification email"
+                      variant="secondary"
+                      fullWidth={false}
+                      disabled={busy || resendBlocked !== null}
+                      onPress={() => void resend()}
+                    />
+                    <ProovraButton
+                      label="Cancel request"
+                      variant="ghost"
+                      fullWidth={false}
+                      disabled={busy || cancelBlocked !== null}
+                      onPress={() => setConfirmCancel(true)}
+                    />
+                  </View>
+                  {resendBlocked ? <ProovraText variant="label" color={theme.color.ink.muted}>{resendBlocked}</ProovraText> : null}
+                  {cancelBlocked ? <ProovraText variant="label" color={theme.color.ink.muted}>{cancelBlocked}</ProovraText> : null}
+                </>
+              );
+            })()
+          )}
         </View>
       ) : null}
+
+      <ProovraConfirmSheet
+        visible={confirmCancel}
+        title="Cancel this recovery request?"
+        consequence="The request is withdrawn and any verification link stops working. You can file a new request afterwards."
+        confirmLabel="Cancel request"
+        cancelLabel="Keep request"
+        tone="danger"
+        busy={busy}
+        onCancel={() => setConfirmCancel(false)}
+        onConfirm={() => void cancel()}
+      />
 
       {message ? (
         <ProovraText
