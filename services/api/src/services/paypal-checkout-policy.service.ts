@@ -57,6 +57,78 @@ export function buildPayPalCustomId(params: {
   return `${params.userId}:${teamId}:${plan}`;
 }
 
+/**
+ * PayPal's hard limit on `custom_id` (Orders v2 purchase_unit and Billing
+ * Subscriptions alike). A longer value is rejected with 400 INVALID_REQUEST
+ * before any approval URL exists.
+ */
+export const PAYPAL_CUSTOM_ID_MAX_LENGTH = 127;
+
+/** Version tag of the compact storage add-on custom_id. */
+const STORAGE_ADDON_CUSTOM_ID_PREFIX = "sa1";
+
+const STORAGE_ADDON_KEYS: readonly prismaPkg.StorageAddonKey[] = [
+  prismaPkg.StorageAddonKey.PERSONAL_10_GB,
+  prismaPkg.StorageAddonKey.PERSONAL_50_GB,
+  prismaPkg.StorageAddonKey.PERSONAL_200_GB,
+  prismaPkg.StorageAddonKey.TEAM_100_GB,
+  prismaPkg.StorageAddonKey.TEAM_500_GB,
+  prismaPkg.StorageAddonKey.TEAM_1_TB,
+];
+
+/**
+ * The storage add-on subscription custom_id: `sa1|<userId>|<teamId or ->|<addonKey>`.
+ *
+ * It replaces a JSON object (`{"userId":…,"teamId":…,"storageAddonKey":…,
+ * "billingCycle":…,"workspacePlan":…}`) that was 147+ characters for a UUID
+ * user — over PayPal's 127-character limit, so every PayPal storage add-on
+ * checkout was refused with 400 INVALID_REQUEST. The billing cycle is always
+ * MONTHLY (the only cycle sold) and the workspace plan is re-read from the
+ * database when the add-on is applied, so neither needs to travel.
+ */
+export function buildPayPalStorageAddonCustomId(params: {
+  userId: string;
+  teamId?: string | null;
+  addonKey: prismaPkg.StorageAddonKey;
+}): string {
+  const teamId = params.teamId?.trim() || "-";
+  const value = [
+    STORAGE_ADDON_CUSTOM_ID_PREFIX,
+    params.userId.trim(),
+    teamId,
+    params.addonKey,
+  ].join("|");
+  if (value.length > PAYPAL_CUSTOM_ID_MAX_LENGTH) {
+    throw new Error(
+      `PayPal custom_id exceeds ${PAYPAL_CUSTOM_ID_MAX_LENGTH} characters`,
+    );
+  }
+  return value;
+}
+
+export function parsePayPalStorageAddonCustomId(
+  value: string | null | undefined,
+): {
+  userId: string;
+  teamId: string | null;
+  storageAddonKey: prismaPkg.StorageAddonKey;
+} | null {
+  const raw = (value ?? "").trim();
+  if (!raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) return null;
+  const parts = raw.split("|");
+  if (parts.length !== 4) return null;
+  const [, userIdRaw, teamIdRaw, keyRaw] = parts;
+  const userId = userIdRaw?.trim() ?? "";
+  const teamId = teamIdRaw?.trim() ?? "";
+  const key = (keyRaw?.trim() ?? "") as prismaPkg.StorageAddonKey;
+  if (!userId || !teamId || !STORAGE_ADDON_KEYS.includes(key)) return null;
+  return {
+    userId,
+    teamId: teamId === "-" ? null : teamId,
+    storageAddonKey: key,
+  };
+}
+
 export function parsePayPalCustomId(value: string | null | undefined): {
   userId: string | null;
   plan: prismaPkg.PlanType | null;
@@ -64,7 +136,8 @@ export function parsePayPalCustomId(value: string | null | undefined): {
 } {
   const raw = (value ?? "").trim();
 
-  if (!raw) {
+  // A storage add-on custom_id names no plan and must never be read as one.
+  if (!raw || raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) {
     return {
       userId: null,
       plan: null,

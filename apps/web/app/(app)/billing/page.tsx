@@ -75,6 +75,7 @@ import {
 } from "./_sections/StorageAndHistory";
 import { CheckoutDrawer, type CheckoutIntent } from "./_sections/CheckoutDrawer";
 import { ManagePlanDrawer } from "./_sections/ManagePlanDrawer";
+import { usePayPalReturn } from "./_sections/usePayPalReturn";
 import { formatDate } from "./_sections/format";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
@@ -285,6 +286,19 @@ function BillingPageInner() {
     void loadProjection(selected);
     void loadHistory(selected);
   }, [selected, loadProjection, loadHistory]);
+
+  // ---- Return from PayPal -------------------------------------------------
+  //
+  // PayPal sends the buyer back here with its own `token` / `subscription_id`.
+  // The SERVER captures the order or reads the subscription and applies it;
+  // this only asks, reports the outcome and refreshes. A browser-side
+  // `success=1` grants nothing.
+  const { confirming: paypalConfirming } = usePayPalReturn({
+    searchParams,
+    notify: addToast,
+    onSettled: refresh,
+    replaceUrl: (search) => router.replace(`/billing${search}`, { scroll: false }),
+  });
 
   // ---- Outstanding storage add-on cancellations ---------------------------
   //
@@ -962,6 +976,13 @@ function BillingPageInner() {
 
   return (
     <PageShell data-billing-page header={header}>
+      {paypalConfirming ? (
+        <PageSection>
+          <p role="status" aria-live="polite" data-billing-paypal-confirming>
+            Confirming your PayPal payment with PayPal…
+          </p>
+        </PageSection>
+      ) : null}
       {accounts.length > 1 ? (
         <PageSection>
           <AccountSelector

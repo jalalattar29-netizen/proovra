@@ -117,7 +117,12 @@ export function CheckoutDrawer({
           ?.subscription?.links ??
         (data as { order?: { links?: Array<{ rel: string; href: string }> } })?.order
           ?.links;
-      const approve = links?.find((l) => l.rel === "approve");
+      // "approve" for orders and subscriptions created with
+      // application_context; "payer-action" when PayPal answers an order with
+      // PAYER_ACTION_REQUIRED. Both are the PayPal-hosted approval page.
+      const approve =
+        links?.find((l) => l.rel === "approve") ??
+        links?.find((l) => l.rel === "payer-action");
       if (approve?.href) {
         window.location.href = approve.href;
         return;

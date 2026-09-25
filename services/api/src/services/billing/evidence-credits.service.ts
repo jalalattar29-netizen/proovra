@@ -298,8 +298,10 @@ export async function grantEvidenceCreditsByPlatformAdmin(params: {
  * a double credit. Webhook delivery is already deduplicated by the unique
  * provider event id; this is the second line, at the database.
  *
- * Called ONLY from a verified provider webhook. Nothing here accepts a
- * client-declared credit count.
+ * Called ONLY with a provider payment the server itself established: a
+ * verified provider webhook, or (PayPal) `paypal-settlement.service`, which
+ * reads the order and its COMPLETED capture from PayPal server-side. Nothing
+ * here accepts a client-declared credit count or a browser success flag.
  */
 export async function grantEvidenceCredits(params: {
   userId: string;

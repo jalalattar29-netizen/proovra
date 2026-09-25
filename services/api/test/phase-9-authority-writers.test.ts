@@ -266,6 +266,13 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
     "CANONICAL SELECTION: personal base-subscription discovery; no active/grace capability decision",
   "services/billing/pending-checkout-attempt.service.ts":
     "MUTATION GATE: pending provider checkout discovery; catalog/live entitlement stay elsewhere",
+  // PAYPAL END-TO-END (2026-09-25) — PROVIDER PROJECTION moved out of
+  // webhooks.routes.ts so the verified webhook and the authenticated return
+  // route normalize PayPal's status ONE way. It hands the status to
+  // `syncPlanForSubscription` / `storageAddonStatusFromSubscription`; the
+  // active/grace decision stays in commercial-context.
+  "services/billing/paypal-settlement.service.ts":
+    "PROVIDER PROJECTION: normalizes PayPal subscription status → SubscriptionStatus and applies it through the shared handler (no capability decision)",
   "services/billing/plan-transition.service.ts":
     "SELECTION: finds the one live subscription; applies status through the shared handler — no active/grace decision",
 };

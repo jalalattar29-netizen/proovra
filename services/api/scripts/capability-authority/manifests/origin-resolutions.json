@@ -93,80 +93,87 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:182",
+      "site": "services/api/src/services/paypal.service.ts:321",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "evidence": "services/api/src/services/paypal.service.ts:39",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:201",
+      "site": "services/api/src/services/paypal.service.ts:340",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "evidence": "services/api/src/services/paypal.service.ts:39",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:217",
+      "site": "services/api/src/services/paypal.service.ts:356",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/plans/:id.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v1/billing/plans/:id.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:240",
+      "site": "services/api/src/services/paypal.service.ts:381",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v1/billing/subscriptions/:id.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:259",
+      "site": "services/api/src/services/paypal.service.ts:388",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v2/checkout/orders.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v2/checkout/orders/:id (server-side order read for evidence-credit capture and webhook settlement). The path is PayPal's, not PROOVRA's.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:408",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v2/checkout/orders.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:300",
+      "site": "services/api/src/services/paypal.service.ts:451",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions (plan checkout).",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v1/billing/subscriptions (plan checkout).",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:353",
+      "site": "services/api/src/services/paypal.service.ts:514",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:385",
+      "site": "services/api/src/services/paypal.service.ts:545",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal subscription cancel.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:416",
+      "site": "services/api/src/services/paypal.service.ts:576",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal webhook-signature verification API.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:447",
+      "site": "services/api/src/services/paypal.service.ts:616",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal order capture.",
-      "reviewedAtUtc": "2026-08-27"
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal order capture. Now sends PayPal-Request-Id for idempotent capture (PayPal end-to-end, 2026-09-25).",
+      "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:86",
+      "site": "services/api/src/services/paypal.service.ts:71",
       "verdict": "EXTERNAL",
       "originBinding": "function apiBase() { return process.env.PAYPAL_API_BASE || \"https://api-m.paypal.com\" }",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
+      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
       "reviewedAtUtc": "2026-08-27"
     },
     {

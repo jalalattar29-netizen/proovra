@@ -34,11 +34,17 @@ import {
   parseStripeEvent,
   verifyStripeSignature,
 } from "../services/stripe.service.js";
+import { verifyPayPalWebhook } from "../services/paypal.service.js";
+// PAYPAL END-TO-END (2026-09-25) — orders, captures and subscriptions are
+// settled by ONE service shared with the authenticated return routes, from
+// PayPal's live server-side state.
 import {
-  verifyPayPalWebhook,
-  getPayPalSubscription,
-} from "../services/paypal.service.js";
-import { parsePayPalCustomId } from "../services/paypal-checkout-policy.service.js";
+  applyPayPalSubscriptionState,
+  assertWebhookStorageAddonAllowed,
+  handlePayPalCaptureWebhook,
+  isPayPalResourceId,
+  settlePayPalEvidenceCreditOrder,
+} from "../services/billing/paypal-settlement.service.js";
 import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
 // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
 // PHASE 9 §9.4 — the ONE subscription-active rule, consumed directly from
@@ -107,27 +113,6 @@ function parseStripeSubscriptionStatus(
   return prismaPkg.SubscriptionStatus.CANCELED;
 }
 
-function parsePayPalSubscriptionStatus(
-  status?: string
-): prismaPkg.SubscriptionStatus {
-  const normalized = (status ?? "").trim().toUpperCase();
-
-  if (normalized === "ACTIVE") return prismaPkg.SubscriptionStatus.ACTIVE;
-  if (normalized === "APPROVAL_PENDING") {
-    return prismaPkg.SubscriptionStatus.TRIALING;
-  }
-  if (normalized === "APPROVED") return prismaPkg.SubscriptionStatus.TRIALING;
-  if (normalized === "CREATED") return prismaPkg.SubscriptionStatus.TRIALING;
-  if (normalized === "SUSPENDED") return prismaPkg.SubscriptionStatus.PAST_DUE;
-  if (normalized === "EXPIRED") return prismaPkg.SubscriptionStatus.CANCELED;
-  if (normalized === "CANCELLED") return prismaPkg.SubscriptionStatus.CANCELED;
-  if (normalized === "CANCELLED_BY_SYSTEM") {
-    return prismaPkg.SubscriptionStatus.CANCELED;
-  }
-
-  return prismaPkg.SubscriptionStatus.CANCELED;
-}
-
 function dateFromIso(value: unknown): Date | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   const date = new Date(value);
@@ -137,20 +122,6 @@ function dateFromIso(value: unknown): Date | null {
 function dateFromUnixSeconds(value: unknown): Date | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return new Date(value * 1000);
-}
-
-function paypalSubscriptionObservedAt(event: unknown): Date | null {
-  const record =
-    event && typeof event === "object" ? (event as Record<string, unknown>) : {};
-  const resource =
-    record.resource && typeof record.resource === "object"
-      ? (record.resource as Record<string, unknown>)
-      : {};
-  return (
-    dateFromIso(resource.update_time) ??
-    dateFromIso(resource.create_time) ??
-    dateFromIso(record.create_time)
-  );
 }
 
 function tryParseAddonContextFromCustomId(raw: unknown): {
@@ -212,93 +183,6 @@ function parseAmountCents(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-async function assertWebhookStorageAddonAllowed(params: {
-  userId: string;
-  addonKey: prismaPkg.StorageAddonKey;
-  teamId?: string | null;
-}) {
-  if (params.teamId) {
-    const team = await prisma.team.findUnique({
-      where: { id: params.teamId },
-      select: {
-        id: true,
-        ownerUserId: true,
-        billingPlan: true,
-        billingStatus: true,
-      },
-    });
-
-    if (!team) {
-      const err: Error & { statusCode?: number } = new Error("Team not found");
-      err.statusCode = 404;
-      throw err;
-    }
-
-    if (team.ownerUserId !== params.userId) {
-      const err: Error & { statusCode?: number } = new Error(
-        "Storage add-on team ownership mismatch"
-      );
-      err.statusCode = 403;
-      throw err;
-    }
-
-    const isTeamAddon =
-      params.addonKey === prismaPkg.StorageAddonKey.TEAM_100_GB ||
-      params.addonKey === prismaPkg.StorageAddonKey.TEAM_500_GB ||
-      params.addonKey === prismaPkg.StorageAddonKey.TEAM_1_TB;
-
-    if (!isTeamAddon) {
-      const err: Error & { statusCode?: number } = new Error(
-        "Personal storage add-on cannot be attached to a team workspace"
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-
-    // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
-    const effectiveTeamActive = isPaidTeamSubscriptionActive({
-      billingPlan: team.billingPlan,
-      billingStatus: team.billingStatus,
-    });
-
-    if (!effectiveTeamActive) {
-      const err: Error & { statusCode?: number } = new Error(
-        "Team storage add-ons require an active TEAM workspace"
-      );
-      err.statusCode = 409;
-      throw err;
-    }
-
-    return;
-  }
-
-  const entitlement = await ensureEntitlement(params.userId);
-
-  const isPersonalAddon =
-    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
-    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_50_GB ||
-    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_200_GB;
-
-  if (!isPersonalAddon) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Team storage add-on cannot be attached to a personal workspace"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (
-    entitlement.plan === prismaPkg.PlanType.PAYG &&
-    params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_10_GB &&
-    params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_50_GB
-  ) {
-    const err: Error & { statusCode?: number } = new Error(
-      "PAYG supports only PERSONAL_10_GB and PERSONAL_50_GB"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-}
 
 /**
  * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on's status
@@ -948,36 +832,68 @@ export async function webhooksRoutes(app: FastifyInstance) {
     };
 
     try {
-      if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+      /**
+       * PAYPAL END-TO-END (2026-09-25) — a buyer approved an evidence-credit
+       * order. Capture it server-side here too, so credits arrive even when
+       * the buyer closes the tab before returning to PROOVRA. The capture is
+       * idempotent (PayPal-Request-Id + the wallet's capture-id key), so the
+       * return route and this webhook racing grant once.
+       */
+      if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
+        const orderId = event.resource.id ?? null;
+        if (isPayPalResourceId(orderId)) {
+          const result = await settlePayPalEvidenceCreditOrder({
+            orderId,
+            capture: true,
+          });
+          req.log.info(
+            { provider: "PAYPAL", eventId: paypalEventId, orderId, outcome: result.outcome },
+            "paypal.order_approved_settled"
+          );
+        }
+        await markProcessed();
+        return reply.code(200).send({ received: true });
+      }
+
+      if (
+        event.event_type === "PAYMENT.CAPTURE.COMPLETED" ||
+        event.event_type === "PAYMENT.CAPTURE.PENDING" ||
+        event.event_type === "PAYMENT.CAPTURE.DENIED" ||
+        event.event_type === "PAYMENT.CAPTURE.DECLINED"
+      ) {
+        // A capture resource has NO purchase_units and often no custom_id.
+        // The purchase is recovered from the related order, read live.
+        const settlement = await handlePayPalCaptureWebhook(event.resource);
+        if (settlement) {
+          req.log.info(
+            {
+              provider: "PAYPAL",
+              eventId: paypalEventId,
+              eventType: event.event_type,
+              outcome: settlement.outcome,
+              reason: "reason" in settlement ? settlement.reason : null,
+            },
+            "paypal.capture_settled"
+          );
+          await markProcessed();
+          return reply.code(200).send({ received: true });
+        }
+
+        // LEGACY one-time storage add-on orders (JSON custom_id). No new such
+        // order can be created; this keeps a late capture of an old one
+        // attributable.
         const unit = event.resource.purchase_units?.[0];
-        const parsed = parsePayPalCustomId(
-          unit?.custom_id ?? event.resource.custom_id
-        );
+        const captureAmount = (event.resource as { amount?: { value?: string; currency_code?: string } }).amount;
+        const amount = unit?.amount ?? captureAmount;
         const addonContext = tryParseAddonContextFromCustomId(
           unit?.custom_id ?? event.resource.custom_id
         );
 
-        if (parsed.userId && parsed.plan === prismaPkg.PlanType.PAYG) {
-          await ensureEntitlement(parsed.userId);
-          await grantEvidenceCredits({
-            userId: parsed.userId,
-            credits: PAYG_CREDITS_PER_PURCHASE,
-            provider: prismaPkg.PaymentProvider.PAYPAL,
-            providerRef: event.resource.id ?? "",
-          });
-
-          await recordPayment({
-            userId: parsed.userId,
-            provider: prismaPkg.PaymentProvider.PAYPAL,
-            providerPaymentId: event.resource.id ?? "",
-            amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-            currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-            status: prismaPkg.PaymentStatus.SUCCEEDED,
-            teamId: null,
-          });
-        }
-
-        if (addonContext.userId && addonContext.storageAddonKey) {
+        if (
+          event.event_type === "PAYMENT.CAPTURE.COMPLETED" &&
+          addonContext.userId &&
+          addonContext.storageAddonKey
+        ) {
           try {
             await assertWebhookStorageAddonAllowed({
               userId: addonContext.userId,
@@ -989,8 +905,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
               userId: addonContext.userId,
               provider: prismaPkg.PaymentProvider.PAYPAL,
               providerPaymentId: event.resource.id ?? "",
-              amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-              currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+              amountCents: Math.round(Number(amount?.value ?? 0) * 100),
+              currency: (amount?.currency_code ?? "USD").toUpperCase(),
               status: prismaPkg.PaymentStatus.SUCCEEDED,
               teamId: addonContext.teamId ?? null,
             });
@@ -1003,8 +919,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
               status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
               paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
               externalPaymentId: event.resource.id ?? "",
-              amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-              currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+              amountCents: Math.round(Number(amount?.value ?? 0) * 100),
+              currency: (amount?.currency_code ?? "USD").toUpperCase(),
               metadata: {
                 source: event.event_type,
               },
@@ -1022,6 +938,11 @@ export async function webhooksRoutes(app: FastifyInstance) {
               "paypal.storage_addon_checkout_ignored"
             );
           }
+        } else {
+          req.log.warn(
+            { provider: "PAYPAL", eventId: paypalEventId, eventType: event.event_type },
+            "paypal.capture_unattributable"
+          );
         }
 
         await markProcessed();
@@ -1071,6 +992,19 @@ export async function webhooksRoutes(app: FastifyInstance) {
                 : prismaPkg.PaymentStatus.FAILED,
             teamId: saleSubject.teamId,
           });
+          // A renewal is when a scheduled (period-end) plan change lands and
+          // when a lapsed subscription recovers, so re-read the subscription.
+          if (
+            event.event_type === "PAYMENT.SALE.COMPLETED" &&
+            providerSubId &&
+            isPayPalResourceId(providerSubId)
+          ) {
+            await applyPayPalSubscriptionState({
+              subscriptionId: providerSubId,
+              source: event.event_type,
+              log: req.log,
+            });
+          }
         } else {
           req.log.warn(
             { provider: "PAYPAL", saleId: sale.id ?? null, providerSubId },
@@ -1102,75 +1036,24 @@ export async function webhooksRoutes(app: FastifyInstance) {
           return reply.code(200).send({ received: true });
         }
 
-        let parsed = parsePayPalCustomId(event.resource.custom_id);
-        let addonContext = tryParseAddonContextFromCustomId(
-          event.resource.custom_id
-        );
-
-        const needsPlanRefresh = !parsed.userId || !parsed.plan;
-        const needsAddonRefresh =
-          !addonContext.userId || !addonContext.storageAddonKey;
-
-        if (needsPlanRefresh || needsAddonRefresh) {
-          try {
-            const liveSubscription =
-              await getPayPalSubscription(subscriptionId);
-            parsed = parsePayPalCustomId(
-              typeof liveSubscription.custom_id === "string"
-                ? liveSubscription.custom_id
-                : undefined
-            );
-            addonContext = tryParseAddonContextFromCustomId(
-              liveSubscription.custom_id
-            );
-          } catch {
-            // keep parsed as-is
-          }
-        }
-
-        const paypalStatus = parsePayPalSubscriptionStatus(
-          event.resource.status
-        );
-        const observedAtUtc = paypalSubscriptionObservedAt(event);
-
-        if (parsed.userId && parsed.plan) {
-          await syncPlanForSubscription({
-            userId: parsed.userId,
-            plan: parsed.plan,
-            teamId: parsed.teamId,
-            provider: prismaPkg.PaymentProvider.PAYPAL,
-            providerSubId: subscriptionId,
-            status: paypalStatus,
-            currentPeriodEnd: event.resource.billing_info?.next_billing_time
-              ? new Date(event.resource.billing_info.next_billing_time)
-              : null,
-            observedAtUtc,
-          });
-        }
-
-        // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — PayPal storage add-on
-        // subscriptions follow the same lifecycle as Stripe's. These events
-        // were previously logged as "unsupported" and discarded, so a
-        // cancelled or lapsed PayPal add-on kept granting capacity.
-        if (addonContext.userId && addonContext.storageAddonKey) {
-          await upsertWorkspaceStorageAddon({
-            ownerUserId: addonContext.userId,
-            teamId: addonContext.teamId ?? null,
-            addonKey: addonContext.storageAddonKey,
-            billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-            status: storageAddonStatusFromSubscription(paypalStatus),
-            paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-            externalSubscriptionId: subscriptionId,
-            currentPeriodEnd: event.resource.billing_info?.next_billing_time
-              ? new Date(event.resource.billing_info.next_billing_time)
-              : null,
-            metadata: { source: event.event_type },
-          }).catch((err: unknown) => {
-            req.log.warn(
-              { err, provider: "PAYPAL", subscriptionId },
-              "paypal.storage_addon_subscription_sync_failed"
-            );
-          });
+        // PAYPAL END-TO-END (2026-09-25) — the LIVE subscription decides
+        // (the event body is only the fallback), so a duplicate or
+        // out-of-order event converges on PayPal's current state. The plan is
+        // read from the billed plan_id, which a `revise` upgrade changes and
+        // custom_id does not. CREATED / APPROVAL_PENDING / APPROVED grant
+        // nothing; storage add-ons activate only on ACTIVE with their own
+        // configured plan id and a workspace the payer may extend.
+        const settlement = await applyPayPalSubscriptionState({
+          subscriptionId,
+          fallbackResource: event.resource,
+          source: event.event_type,
+          log: req.log,
+        });
+        if (settlement.outcome === "REJECTED") {
+          req.log.warn(
+            { provider: "PAYPAL", subscriptionId, reason: settlement.reason },
+            "paypal.subscription_event_not_applied"
+          );
         }
 
         await markProcessed();

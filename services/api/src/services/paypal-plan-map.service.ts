@@ -79,3 +79,50 @@ export function isPayPalRecurringPlan(
 ): plan is PayPalRecurringPlan {
   return plan === prismaPkg.PlanType.PRO || plan === prismaPkg.PlanType.TEAM;
 }
+const PAYPAL_BASE_PLAN_ENV: ReadonlyArray<{
+  env: string;
+  plan: PayPalRecurringPlan;
+}> = [
+  { env: "PAYPAL_PRO_PLAN_ID_USD", plan: prismaPkg.PlanType.PRO },
+  { env: "PAYPAL_PRO_PLAN_ID_EUR", plan: prismaPkg.PlanType.PRO },
+  { env: "PAYPAL_TEAM_PLAN_ID_USD", plan: prismaPkg.PlanType.TEAM },
+  { env: "PAYPAL_TEAM_PLAN_ID_EUR", plan: prismaPkg.PlanType.TEAM },
+];
+
+/**
+ * The PROOVRA base plan a configured PayPal billing-plan id sells, or null.
+ *
+ * WHY THE PLAN ID, NOT THE custom_id: a PayPal plan change is a `revise`
+ * that swaps the subscription's `plan_id` and leaves `custom_id` exactly as
+ * checkout wrote it. After Pro → Team the custom_id still says PRO, so reading
+ * the plan from it re-applied Pro on every subsequent webhook and the upgrade
+ * never landed. The plan id is the provider's statement of what is billed.
+ */
+export function resolvePlanFromPayPalPlanId(
+  planId: string | null | undefined,
+): PayPalRecurringPlan | null {
+  const id = (planId ?? "").trim();
+  if (!id) return null;
+  for (const entry of PAYPAL_BASE_PLAN_ENV) {
+    if (process.env[entry.env]?.trim() === id) return entry.plan;
+  }
+  return null;
+}
+
+/**
+ * True when `planId` is the configured PayPal plan for this storage add-on in
+ * either supported currency — the server-authoritative check that the
+ * subscription being activated bills the price of the add-on it grants.
+ */
+export function isPayPalStorageAddonPlanId(params: {
+  planId: string | null | undefined;
+  addonKey: string;
+}): boolean {
+  const id = (params.planId ?? "").trim();
+  if (!id) return false;
+  return (["USD", "EUR"] as const).some(
+    (currency) =>
+      process.env[`PAYPAL_PLAN_STORAGE_${params.addonKey}_${currency}`]?.trim() ===
+      id,
+  );
+}

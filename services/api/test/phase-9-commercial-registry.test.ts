@@ -162,10 +162,20 @@ describe("Phase 9 §12 — commercial-reader classification registry", () => {
     // only in shared-billing and webhooks imports it directly.
     const wb = readFileSync(join(SRC, "services", "workspace-billing.service.ts"), "utf8");
     expect(wb).not.toContain("export function isPaidTeamSubscriptionActive");
+    // PAYPAL END-TO-END (2026-09-25) — the provider storage add-on guard
+    // (`assertWebhookStorageAddonAllowed`) MOVED from webhooks.routes.ts to the
+    // settlement service, so the Stripe webhook, the PayPal webhook and the
+    // authenticated PayPal return route apply one guard. The webhook still
+    // consumes it; the guard still consumes the shared rule directly.
     const routes = readFileSync(join(SRC, "routes", "webhooks.routes.ts"), "utf8");
-    expect(routes).toMatch(/isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive.*@proovra\/shared-billing|from "@proovra\/shared-billing"/);
-    expect(routes).toContain("isPaidTeamSubscriptionActive({");
+    expect(routes).toContain("assertWebhookStorageAddonAllowed");
+    expect(routes).toMatch(/assertWebhookStorageAddonAllowed,[\s\S]{0,200}from "\.\.\/services\/billing\/paypal-settlement\.service\.js"/);
+    const guard = readFileSync(join(SRC, "services", "billing", "paypal-settlement.service.ts"), "utf8");
+    expect(guard).toMatch(/isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive[\s\S]{0,40}from "@proovra\/shared-billing"/);
+    expect(guard).toContain("isPaidTeamSubscriptionActive({");
     // The migrated capability decision no longer compares raw plan literals.
-    expect(routes).not.toMatch(/billingPlan === prismaPkg\.PlanType\.TEAM/);
+    for (const src of [routes, guard]) {
+      expect(src).not.toMatch(/billingPlan === prismaPkg\.PlanType\.TEAM/);
+    }
   });
 });

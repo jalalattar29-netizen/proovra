@@ -115,9 +115,11 @@ const ALLOWED_BILLING_PLAN_READERS: ReadonlyArray<{
     reason: "Customer lifecycle over provisioned ORGANIZATION workspaces.",
   },
   {
-    file: "routes/webhooks.routes.ts",
+    // PAYPAL END-TO-END (2026-09-25) — moved with `assertWebhookStorageAddonAllowed`
+    // from routes/webhooks.routes.ts, which no longer reads the column itself.
+    file: "services/billing/paypal-settlement.service.ts",
     base: "api",
-    reason: "Provider lifecycle handling against the persisted workspace columns.",
+    reason: "Provider lifecycle handling against the persisted workspace columns (storage add-on guard shared by the Stripe/PayPal webhooks and the PayPal return route).",
   },
 
   // --- Platform-admin consoles: the raw row IS the subject -----------------

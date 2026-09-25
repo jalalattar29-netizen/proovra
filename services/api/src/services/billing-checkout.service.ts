@@ -346,8 +346,23 @@ export async function createPayPalCheckout(params: {
   const amount = (amountCents / 100).toFixed(2);
   const appBase = normalizedBaseUrl();
 
-  const successUrl = billingReturnUrl(appBase, "success=1&provider=paypal");
-  const cancelUrl = billingReturnUrl(appBase, "canceled=1&provider=paypal");
+  // `kind` tells the Billing page which server-side confirmation to run when
+  // the buyer comes back. PayPal appends its own `token` (the order id) or
+  // `subscription_id`; neither the browser nor these flags grant anything —
+  // the page asks the server, which reads the order/subscription from PayPal.
+  const kind =
+    params.productKey === "EVIDENCE_CREDIT" ||
+    params.plan === prismaPkg.PlanType.PAYG
+      ? "credits"
+      : "plan";
+  const successUrl = billingReturnUrl(
+    appBase,
+    `success=1&provider=paypal&kind=${kind}`,
+  );
+  const cancelUrl = billingReturnUrl(
+    appBase,
+    `canceled=1&provider=paypal&kind=${kind}`,
+  );
 
   if (params.plan === prismaPkg.PlanType.PAYG) {
     const order = await createPayPalOrder({

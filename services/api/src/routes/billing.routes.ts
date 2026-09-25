@@ -40,6 +40,13 @@ import {
   createPayPalStorageAddonCheckout,
 } from "../services/billing-checkout.service.js";
 import { prisma } from "../db.js";
+// PAYPAL END-TO-END (2026-09-25) — the return routes settle through the SAME
+// service the verified webhook uses; neither trusts the browser's success flag.
+import {
+  applyPayPalSubscriptionState,
+  isPayPalResourceId,
+  settlePayPalEvidenceCreditOrder,
+} from "../services/billing/paypal-settlement.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
@@ -138,6 +145,11 @@ const CheckoutBody = z.object({
 const EvidenceCreditCheckoutBody = z.object({
   currency: CurrencySchema.optional(),
 });
+
+/** PayPal ids are short opaque tokens; anything else is refused before any provider call. */
+const PayPalResourceIdParam = z
+  .string()
+  .refine(isPayPalResourceId, { message: "Invalid PayPal reference" });
 
 const StorageAddonCheckoutBody = z.object({
   addonKey: StorageAddonKeySchema,
@@ -1758,6 +1770,128 @@ export async function billingRoutes(app: FastifyInstance) {
         provider: "PAYPAL",
         mode: result.mode,
         order: "order" in result ? result.order : undefined,
+      });
+    },
+  );
+
+  /**
+   * PAYPAL END-TO-END (2026-09-25) — the buyer is back from PayPal with an
+   * approved evidence-credit order (`?token=<orderId>`).
+   *
+   * This is the step that was missing: the order was created with
+   * `intent: CAPTURE` and nothing ever captured it, so no money moved and no
+   * credit was granted. The server reads the order from PayPal, checks it is
+   * THIS caller's evidence-credit order at the server price, captures it and
+   * grants the credit from the COMPLETED capture. Browser query flags grant
+   * nothing; a repeated call (refresh, second tab, the webhook) is idempotent.
+   */
+  app.post(
+    "/v1/billing/credits/checkout/paypal/:orderId/capture",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const { orderId } = z
+        .object({ orderId: PayPalResourceIdParam })
+        .parse(req.params);
+      const userId = getAuthUserId(req);
+
+      const result = await settlePayPalEvidenceCreditOrder({
+        orderId,
+        expectedUserId: userId,
+        capture: true,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.evidence_credit_paypal_capture",
+        outcome:
+          result.outcome === "GRANTED" || result.outcome === "ALREADY_GRANTED"
+            ? "success"
+            : "failure",
+        resourceId: orderId,
+        providerEventId: "captureId" in result ? result.captureId : null,
+        metadata: {
+          settlement: result.outcome,
+          reason: "reason" in result ? result.reason : null,
+        },
+      });
+
+      if (result.outcome === "REJECTED") {
+        // One answer for "not yours" and "not a credit order", so the route
+        // cannot be used to probe other customers' orders.
+        return reply.code(result.reason === "AMOUNT_MISMATCH" ? 409 : 404).send({
+          outcome: "REJECTED",
+          code:
+            result.reason === "AMOUNT_MISMATCH"
+              ? "PAYPAL_ORDER_AMOUNT_MISMATCH"
+              : "PAYPAL_ORDER_NOT_FOUND",
+        });
+      }
+
+      return reply.code(200).send({
+        outcome: result.outcome,
+        reason: "reason" in result ? result.reason : null,
+        credits:
+          result.outcome === "GRANTED" || result.outcome === "ALREADY_GRANTED"
+            ? result.credits
+            : 0,
+      });
+    },
+  );
+
+  /**
+   * PAYPAL END-TO-END (2026-09-25) — the buyer is back from approving a PayPal
+   * SUBSCRIPTION (a plan or a storage add-on; `?subscription_id=I-…`).
+   *
+   * Reads the subscription from PayPal and applies it through the same
+   * handler as the webhook, bound to the caller. APPROVAL_PENDING / APPROVED
+   * report PENDING and grant nothing; only ACTIVE grants. The webhook remains
+   * the primary path — this closes the gap while it is in flight.
+   */
+  app.post(
+    "/v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const { subscriptionId } = z
+        .object({ subscriptionId: PayPalResourceIdParam })
+        .parse(req.params);
+      const userId = getAuthUserId(req);
+
+      const result = await applyPayPalSubscriptionState({
+        subscriptionId,
+        expectedUserId: userId,
+        source: "checkout_return",
+        log: req.log,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.paypal_subscription_confirm",
+        outcome: result.outcome === "APPLIED" ? "success" : "failure",
+        resourceId: subscriptionId,
+        providerEventId: subscriptionId,
+        metadata: {
+          settlement: result.outcome,
+          reason: result.outcome === "REJECTED" ? result.reason : null,
+          returnOutcome:
+            result.outcome === "APPLIED" ? result.returnOutcome : null,
+        },
+      });
+
+      if (result.outcome === "REJECTED") {
+        return reply.code(result.reason === "NOT_OWNED" || result.reason === "UNATTRIBUTABLE" ? 404 : 409).send({
+          outcome: "REJECTED",
+          code:
+            result.reason === "NOT_OWNED" || result.reason === "UNATTRIBUTABLE"
+              ? "PAYPAL_SUBSCRIPTION_NOT_FOUND"
+              : "PAYPAL_SUBSCRIPTION_NOT_APPLIED",
+        });
+      }
+
+      return reply.code(200).send({
+        outcome: result.returnOutcome,
+        kind: result.kind,
+        plan: result.plan,
+        storageAddonKey: result.storageAddonKey,
       });
     },
   );
