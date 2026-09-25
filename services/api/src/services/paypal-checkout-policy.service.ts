@@ -121,6 +121,16 @@ export function buildPayPalStorageAddonCustomId(params: {
   return value;
 }
 
+/**
+ * THE storage add-on custom_id parser. Accepts every format in circulation:
+ *
+ *   sa1|<userId>|<teamId or ->|<p10 … t1t>        compact, what checkout writes
+ *   sa1|<userId>|<teamId or ->|<PERSONAL_10_GB …> compact, full-key spelling
+ *   {"userId":…,"teamId":…,"storageAddonKey":…}   LEGACY JSON (pre-sa1 rows)
+ *
+ * The same validation applies to all three: UUID user (and team, when one is
+ * named) and a known add-on key. Anything else is null — never a guess.
+ */
 export function parsePayPalStorageAddonCustomId(
   value: string | null | undefined,
 ): {
@@ -129,6 +139,7 @@ export function parsePayPalStorageAddonCustomId(
   storageAddonKey: prismaPkg.StorageAddonKey;
 } | null {
   const raw = (value ?? "").trim();
+  if (raw.startsWith("{")) return parseLegacyJsonStorageAddonCustomId(raw);
   if (!raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) return null;
   const parts = raw.split("|");
   if (parts.length !== 4) return null;
@@ -143,6 +154,33 @@ export function parsePayPalStorageAddonCustomId(
     teamId: teamId === "-" ? null : teamId,
     storageAddonKey: key,
   };
+}
+
+function parseLegacyJsonStorageAddonCustomId(raw: string): {
+  userId: string;
+  teamId: string | null;
+  storageAddonKey: prismaPkg.StorageAddonKey;
+} | null {
+  let parsed: Record<string, unknown>;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+    parsed = v as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const userId = typeof parsed.userId === "string" ? parsed.userId.trim() : "";
+  const teamRaw = parsed.teamId;
+  const teamId = typeof teamRaw === "string" && teamRaw.trim() ? teamRaw.trim() : null;
+  const key =
+    typeof parsed.storageAddonKey === "string"
+      ? storageAddonKeyFromWire(parsed.storageAddonKey.trim())
+      : null;
+  if (!UUID_RE.test(userId) || !key) return null;
+  if (teamRaw != null && teamRaw !== "" && !(typeof teamRaw === "string" && UUID_RE.test(teamRaw.trim()))) {
+    return null;
+  }
+  return { userId, teamId, storageAddonKey: key };
 }
 
 export function parsePayPalCustomId(value: string | null | undefined): {

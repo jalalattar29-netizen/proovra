@@ -31,7 +31,16 @@ const DATA_EXPORT = read("../src/routes/account-data-export.routes.ts");
 const ACCOUNT_CLOSURE_ROUTES = read("../src/routes/account-closure.routes.ts");
 const ORG_ROUTES = read("../src/routes/organizations.routes.ts");
 const TEAM_ROUTES = read("../src/routes/teams.routes.ts");
+// The curated labels MOVED to @proovra/shared (security-event-labels.ts) so
+// native renders a security event in the same words; the web module is now a
+// re-export of it. The keys are asserted where they live, and the web module
+// is asserted to still take them from there — so neither surface can drift to
+// a private copy.
 const LABELS = readFileSync(
+  resolve(HERE, "../../../packages/shared/src/security-event-labels.ts"),
+  "utf8",
+);
+const WEB_LABELS = readFileSync(
   resolve(HERE, "../../../apps/web/lib/security/securityEventLabels.ts"),
   "utf8",
 );
@@ -146,5 +155,8 @@ describe("audit coverage: every lifecycle event has a curated human label", () =
     ]) {
       expect(LABELS).toMatch(new RegExp(`"${key.replace(/\./g, "\\.")}"`));
     }
+    // …and the web surface renders THOSE labels, not a copy of its own.
+    expect(WEB_LABELS).toMatch(/presentSecurityEvent[\s\S]*from "@proovra\/shared"/);
+    expect(WEB_LABELS).not.toMatch(/"identity\./);
   });
 });

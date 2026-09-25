@@ -17,7 +17,8 @@ import {
   parsePayPalReturn,
   payPalCanceledMessage,
   payPalReturnMessage,
-  payPalReturnRequestPath,
+  payPalOrderCapturePath,
+  payPalSubscriptionConfirmPath,
   stripPayPalReturnParams,
   type PayPalReturnMessage,
 } from "../../../../lib/billing/paypal-return";
@@ -49,12 +50,9 @@ export function usePayPalReturn(input: {
     const search = input.searchParams.toString();
     latest.current.replaceUrl(stripPayPalReturnParams(search));
 
-    const path = payPalReturnRequestPath(ret);
-    if (!path) {
-      if (ret.kind === "BUYER_CANCELED") {
-        const msg = payPalCanceledMessage(ret.product);
-        latest.current.notify(msg.message, msg.tone);
-      }
+    if (ret.kind === "BUYER_CANCELED") {
+      const msg = payPalCanceledMessage(ret.product);
+      latest.current.notify(msg.message, msg.tone);
       return;
     }
 
@@ -65,7 +63,12 @@ export function usePayPalReturn(input: {
       let last: PayPalReturnMessage | null = null;
       for (let attempt = 1; attempt <= PAYPAL_RETURN_MAX_ATTEMPTS; attempt++) {
         try {
-          const response = await apiFetch(path, { method: "POST", body: "{}" });
+          // One explicit request per return kind, so each route is named at
+          // its call site.
+          const response =
+            ret.kind === "ORDER_CAPTURE"
+              ? await apiFetch(payPalOrderCapturePath(ret.orderId), { method: "POST", body: "{}" })
+              : await apiFetch(payPalSubscriptionConfirmPath(ret.subscriptionId), { method: "POST", body: "{}" });
           last = payPalReturnMessage(ret, response);
         } catch (err) {
           captureException(err, { feature: "billing_paypal_return", kind: ret.kind });

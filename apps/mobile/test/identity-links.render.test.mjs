@@ -110,7 +110,19 @@ assert.ok(confirm, "Disconnect confirmation button is missing");
 test("the only way in is never offered for removal", async () => {
   links = { passwordConfigured: false, usableMethods: 1, links: [{ id: "lk-g", provider: "GOOGLE", linkedAtUtc: null }] };
   const r = await render();
-  assert.equal(r.byLabel("Disconnect Google").length, 0);
+  // Web parity (PersonalSecuritySections.tsx): the last usable method shows a
+  // DISABLED Disconnect with its reason — never an enabled one. Whatever is
+  // rendered, it must not be able to remove the only way in.
+  const controls = r.byLabel("Disconnect Google").filter((n) => n.props.onPress);
+  for (const c of controls) {
+    assert.equal(c.props.disabled ?? c.props.accessibilityState?.disabled, true, "the only way in was offered for removal");
+  }
+  assert.ok(r.hasText("Add another login method before disconnecting Google."), "the reason it cannot be removed is not stated");
+  if (controls.length > 0) {
+    try { await r.press("Disconnect Google"); } catch { /* a disabled control may refuse the press */ }
+    await settle();
+  }
+  assert.equal(writes().filter((w) => w.method === "DELETE").length, 0, "a disconnect request was sent for the only way in");
   assert.ok(r.byLabel("Connect Apple").length === 1, "a second method was not offered to a single-method account");
 });
 

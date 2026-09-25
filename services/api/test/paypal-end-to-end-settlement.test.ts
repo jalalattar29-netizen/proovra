@@ -596,6 +596,46 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
     );
   });
 
+  it("the ONE parser accepts every format in circulation: sa1 short code, sa1 full key and legacy JSON", () => {
+    const expected = { userId: USER, teamId: TEAM, storageAddonKey: "TEAM_100_GB" };
+    expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|${TEAM}|t100`)).toEqual(expected);
+    expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|${TEAM}|TEAM_100_GB`)).toEqual(expected);
+    expect(
+      parsePayPalStorageAddonCustomId(
+        JSON.stringify({ userId: USER, teamId: TEAM, storageAddonKey: "TEAM_100_GB", billingCycle: "MONTHLY", workspacePlan: "TEAM" }),
+      ),
+    ).toEqual(expected);
+    // Legacy JSON with no team, and with an explicit null team.
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: USER, storageAddonKey: "PERSONAL_10_GB" }))).toEqual({
+      userId: USER,
+      teamId: null,
+      storageAddonKey: "PERSONAL_10_GB",
+    });
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: USER, teamId: null, storageAddonKey: "PERSONAL_50_GB" }))?.teamId).toBeNull();
+  });
+
+  it("legacy JSON is validated exactly like sa1", () => {
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: "not-a-uuid", storageAddonKey: "PERSONAL_10_GB" }))).toBeNull();
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: USER, teamId: "not-a-uuid", storageAddonKey: "PERSONAL_10_GB" }))).toBeNull();
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: USER, storageAddonKey: "PERSONAL_9000_GB" }))).toBeNull();
+    expect(parsePayPalStorageAddonCustomId(JSON.stringify({ userId: USER, plan: "PRO" }))).toBeNull();
+    expect(parsePayPalStorageAddonCustomId("{not json")).toBeNull();
+    expect(parsePayPalStorageAddonCustomId("[1,2]")).toBeNull();
+  });
+
+  it("the webhook applies a legacy-JSON storage subscription as a storage add-on, never as a plan", async () => {
+    setSubscription("I-SA-LEGACY", {
+      status: "ACTIVE",
+      plan_id: "P-S10-USD",
+      custom_id: JSON.stringify({ userId: USER, teamId: null, storageAddonKey: "PERSONAL_10_GB", billingCycle: "MONTHLY", workspacePlan: "FREE" }),
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-LEGACY" });
+    expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ownerUserId: USER, addonKey: "PERSONAL_10_GB", status: "ACTIVE" }),
+    );
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed or unknown sa1 values, and is never read as a plan", () => {
     expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|-|NOT_A_KEY`)).toBeNull();
     expect(parsePayPalStorageAddonCustomId(`sa1|${USER}|PERSONAL_10_GB`)).toBeNull();

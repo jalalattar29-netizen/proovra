@@ -59,6 +59,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];
   let pricing: typeof import("../src/services/billing-pricing.service.js");
+  let paypalPolicy: typeof import("../src/services/paypal-checkout-policy.service.js");
   let deps: FixtureDeps;
   const tag = `k7b-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
 
@@ -175,6 +176,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     pricing = await import("../src/services/billing-pricing.service.js");
+    paypalPolicy = await import("../src/services/paypal-checkout-policy.service.js");
     const { signJwt } = await import("../src/services/jwt.js");
     deps = {
       prisma: prisma as never,
@@ -409,11 +411,25 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       const create = calls.find((c) => c.url.endsWith("/v1/billing/subscriptions") && c.method === "POST");
       const sent = JSON.parse(create!.body!) as { plan_id: string; custom_id: string };
       expect(sent.plan_id).toBe("P-K7FAKESTORAGE10USD");
-      expect(JSON.parse(sent.custom_id)).toMatchObject({
+      // The custom_id is the COMPACT sa1 form: the JSON object it replaced was
+      // 147+ characters for a UUID payer, over PayPal's 127-character limit,
+      // so PayPal refused every storage checkout with 400 INVALID_REQUEST.
+      // Cycle (always MONTHLY) and workspace plan are not carried: the webhook
+      // re-reads the plan from the database when it applies the add-on.
+      expect(sent.custom_id).toBe(`sa1|${t.owner.userId}|-|p10`);
+      expect(sent.custom_id.length).toBeLessThanOrEqual(paypalPolicy.PAYPAL_CUSTOM_ID_MAX_LENGTH);
+      // Decoded by THE parser the webhook and the return route use — the
+      // identity PayPal hands back is exactly the payer, no team, 10 GB.
+      expect(paypalPolicy.parsePayPalStorageAddonCustomId(sent.custom_id)).toEqual({
         userId: t.owner.userId,
+        teamId: null,
         storageAddonKey: "PERSONAL_10_GB",
-        billingCycle: "MONTHLY",
-        workspacePlan: "PRO",
+      });
+      // A storage custom_id must never be readable as a PLAN checkout.
+      expect(paypalPolicy.parsePayPalCustomId(sent.custom_id)).toEqual({
+        userId: null,
+        plan: null,
+        teamId: null,
       });
 
       const audit = await waitForAudit({ action: "billing.storage_addon_checkout_paypal_created", userId: t.owner.userId });

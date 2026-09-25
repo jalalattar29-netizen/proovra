@@ -242,46 +242,6 @@
       "reviewedAtUtc": "2026-09-07"
     },
     {
-      "site": "apps/mobile/app/(tabs)/notifications.tsx:103",
-      "helper": "inboxItemActionPath(itemKey, action) — the action segment is an InboxItemAction; this site passes the literal \"remind\"",
-      "callSitesRead": [
-        "apps/mobile/app/(tabs)/notifications.tsx:103"
-      ],
-      "routes": [
-        "POST /v1/me/inbox/items/:itemKey/remind"
-      ],
-      "evidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/remind\", ..., remindHandler) under the comment \"// CANONICAL names.\". apps/mobile/src/product/inbox.ts inboxItemActionPath returns `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`; the call site passes the literal \"remind\" with a buildSnoozeBody(hours) body. Migrated off the tombstoned `snooze` alias on 2026-09-22. | Re-anchored 101 -> 103 on 2026-09-22: two lines, from the comment recording the migration off the tombstoned alias. The call itself is the same.",
-      "reviewedAtUtc": "2026-09-22"
-    },
-    {
-      "site": "apps/mobile/app/(tabs)/notifications.tsx:127",
-      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union, filled by the row controls",
-      "callSitesRead": [
-        "apps/mobile/app/(tabs)/notifications.tsx:127"
-      ],
-      "routes": [
-        "POST /v1/me/inbox/items/:itemKey/read",
-        "POST /v1/me/inbox/items/:itemKey/unread",
-        "POST /v1/me/inbox/items/:itemKey/archive"
-      ],
-      "evidence": "apps/mobile/src/product/inbox.ts `export type InboxItemAction = \"read\" | \"unread\" | \"archive\" | \"remind\"` — the CANONICAL names. The remind branch is the separate site at :101 (it needs a body); this site carries the other three, and each is registered under the \"// CANONICAL names.\" comment in me-inbox.routes.ts. Migrated off the tombstoned `dismiss` alias on 2026-09-22. | Re-anchored 125 -> 127 on 2026-09-22: two lines, from the comment recording the migration off the tombstoned alias. The call itself is the same.",
-      "reviewedAtUtc": "2026-09-22"
-    },
-    {
-      "site": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175",
-      "helper": "buildCriteriaActionPath(setId, action) — action is the CriteriaAction union",
-      "callSitesRead": [
-        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:175"
-      ],
-      "routes": [
-        "POST /v1/reviewer-criteria/:setId/publish",
-        "POST /v1/reviewer-criteria/:setId/duplicate",
-        "POST /v1/reviewer-criteria/:setId/retire"
-      ],
-      "evidence": "apps/mobile/src/product/reviewer-criteria.ts:143 `export type CriteriaAction = \"publish\" | \"duplicate\" | \"retire\"`, and availableActions() in the same file is the ONE producer of the value this site passes. All three are registered in services/api/src/routes/reviewer-criteria.routes.ts.",
-      "reviewedAtUtc": "2026-09-22"
-    },
-    {
       "site": "apps/mobile/src/ui/criteria-draft-editor.tsx:272",
       "helper": "buildCriteriaActionPath(setId, \"duplicate\") — a literal action",
       "callSitesRead": [
@@ -294,19 +254,195 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:119",
-      "helper": "buildRequestTransitionPath(id, transition) — transition is the RequestTransition union",
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:156",
+      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:119"
+        "apps/mobile/app/(tabs)/notifications.tsx:156",
+        "apps/mobile/app/(tabs)/notifications.tsx:170",
+        "apps/mobile/app/(tabs)/notifications.tsx:431",
+        "apps/mobile/app/(tabs)/notifications.tsx:442",
+        "apps/mobile/app/(tabs)/notifications.tsx:451"
+      ],
+      "routes": [
+        "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/unread",
+        "POST /v1/me/inbox/items/:itemKey/archive",
+        "POST /v1/me/inbox/items/:itemKey/unarchive"
+      ],
+      "evidence": "act(item, action) is called with \"read\" (:170, :431), \"unread\" (:431), \"unarchive\" (:442) and \"archive\" (:451). \"remind\" is no longer called anywhere in apps/mobile, so POST …/remind is NOT credited to mobile any more.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:152",
+      "helper": "buildCriteriaActionPath(set.id, action) — action is CriteriaAction (\"publish\" | \"duplicate\" | \"retire\"); re-anchored from :175",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:152",
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:260",
+        "apps/mobile/src/product/reviewer-criteria.ts:145"
+      ],
+      "routes": [
+        "POST /v1/reviewer-criteria/:setId/publish",
+        "POST /v1/reviewer-criteria/:setId/duplicate",
+        "POST /v1/reviewer-criteria/:setId/retire"
+      ],
+      "evidence": "pending.action comes from availableActions(set) (:260), typed CriteriaAction = \"publish\" | \"duplicate\" | \"retire\" (reviewer-criteria.ts:145).",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/settings/security.tsx:257",
+      "helper": "buildIdentityLinkPath(mode) — mode is \"google\" | \"apple\"",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/settings/security.tsx:254",
+        "apps/mobile/app/(stack)/settings/security.tsx:257",
+        "apps/mobile/src/product/account-security.ts"
+      ],
+      "routes": [
+        "POST /v1/identity/links/google",
+        "POST /v1/identity/links/apple"
+      ],
+      "evidence": "The enclosing handler is typed (mode: \"google\" | \"apple\", idToken) and buildIdentityLinkPath returns `/v1/identity/links/${provider}`.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/operations/index.tsx:388",
+      "helper": "buildOpsLifecyclePath(id, action) — action is LifecycleAction (\"ack\" | \"resolve\" | \"suppress\")",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/operations/index.tsx:388",
+        "apps/mobile/app/(stack)/operations/index.tsx:451",
+        "apps/mobile/app/(stack)/operations/index.tsx:452",
+        "apps/mobile/app/(stack)/operations/index.tsx:453"
+      ],
+      "routes": [
+        "POST /v1/ops/incidents/:id/ack",
+        "POST /v1/ops/incidents/:id/resolve",
+        "POST /v1/ops/incidents/:id/suppress"
+      ],
+      "evidence": "lifecycle(id, \"ack\" | \"resolve\" | \"suppress\") at :451-453; LifecycleAction is declared in apps/mobile/src/product/ops-console.ts:372.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:243",
+      "helper": "buildRequestTransitionPath(id, \"send\") — a literal transition",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:243"
+      ],
+      "routes": [
+        "POST /v1/evidence-requests/:id/send"
+      ],
+      "evidence": "Literal \"send\" at the call site.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:263",
+      "helper": "buildRequestTransitionPath(id, transition) — transition is the pending action button; re-anchored from :119",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:263",
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:449",
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:722",
+        "apps/mobile/src/product/evidence-requests.ts:247"
       ],
       "routes": [
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence-requests/:id/cancel",
-        "POST /v1/evidence-requests/:id/close",
+        "POST /v1/evidence-requests/:id/close"
+      ],
+      "evidence": "pending is set from actionTransitions (:722), which is availableRequestTransitions(status) with \"needs-more-info\" filtered out (:449); that one has its own call site at :289.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:289",
+      "helper": "buildRequestTransitionPath(id, \"needs-more-info\") — a literal transition",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:289"
+      ],
+      "routes": [
         "POST /v1/evidence-requests/:id/needs-more-info"
       ],
-      "evidence": "RE-ANCHORED 104 -> 119 (2026-09-22): the per-response review handler was added above this call site; the call itself is unchanged. apps/mobile/src/product/evidence-requests.ts:132 `export type RequestTransition = \"send\" | \"cancel\" | \"close\" | \"needs-more-info\"`, and availableRequestTransitions(status) is the ONE producer of the value. All four are registered in services/api/src/routes/evidence-requests.routes.ts (:392 send, :426 cancel, :463 close, :497 needs-more-info).",
-      "reviewedAtUtc": "2026-09-22"
+      "evidence": "Literal \"needs-more-info\" at the call site.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/src/ui/evidence-declarations.tsx:131",
+      "helper": "buildDeclarationActionPath(evidenceId, p.action) — action is \"request\" | \"attest\" | \"revoke\"",
+      "callSitesRead": [
+        "apps/mobile/src/ui/evidence-declarations.tsx:131",
+        "apps/mobile/src/ui/evidence-declarations.tsx:162",
+        "apps/mobile/src/ui/evidence-declarations.tsx:168",
+        "apps/mobile/src/ui/evidence-declarations.tsx:170"
+      ],
+      "routes": [
+        "POST /v1/evidence/:id/certifications/request",
+        "POST /v1/evidence/:id/certifications/attest",
+        "POST /v1/evidence/:id/certifications/revoke"
+      ],
+      "evidence": "setPending({ action: \"request\" | \"attest\" | \"revoke\", … }) at :162/:168/:170; the Pending type is declared at :52.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/src/ui/evidence-discussion.tsx:412",
+      "helper": "buildThreadActionPath(threadId, action) — action is ThreadAction (\"resolve\" | \"reopen\" | \"assign\" | \"escalate\")",
+      "callSitesRead": [
+        "apps/mobile/src/ui/evidence-discussion.tsx:412",
+        "apps/mobile/src/ui/evidence-discussion.tsx:396",
+        "apps/mobile/src/product/evidence-discussion.ts:16"
+      ],
+      "routes": [
+        "POST /v1/collaboration/threads/:id/resolve",
+        "POST /v1/collaboration/threads/:id/reopen",
+        "POST /v1/collaboration/threads/:id/assign",
+        "POST /v1/collaboration/threads/:id/escalate"
+      ],
+      "evidence": "openForm(a: ThreadAction) (:396) sets the action run at :412; ThreadAction is declared at evidence-discussion.ts:16.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/src/ui/org-workspace-lifecycle.tsx:49",
+      "helper": "buildOrgWorkspaceLifecyclePath(orgId, workspaceId, action) — action is OrgWorkspaceAction (\"suspend\" | \"resume\")",
+      "callSitesRead": [
+        "apps/mobile/src/ui/org-workspace-lifecycle.tsx:49",
+        "apps/mobile/src/ui/org-workspace-lifecycle.tsx:88",
+        "apps/mobile/src/ui/org-workspace-lifecycle.tsx:109"
+      ],
+      "routes": [
+        "POST /v1/orgs/:id/workspaces/:teamId/suspend",
+        "POST /v1/orgs/:id/workspaces/:teamId/resume"
+      ],
+      "evidence": "run(\"resume\") at :88 and run(\"suspend\") at :109; OrgWorkspaceAction is declared at apps/mobile/src/product/organizations.ts:523.",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/billing.tsx:332",
+      "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/billing.tsx:329",
+        "apps/mobile/app/(stack)/billing.tsx:332",
+        "apps/mobile/src/product/billing-purchase.ts"
+      ],
+      "routes": [
+        "POST /v1/billing/subscription/plan",
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/checkout/paypal",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/credits/checkout/paypal",
+        "POST /v1/billing/storage-addons/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/paypal"
+      ],
+      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\".",
+      "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/billing.tsx:339",
+      "helper": "checkoutRequest({ ...purchase, transition: false }, provider, currency).path — the CHECKOUT_REQUIRED fallback of a plan transition",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/billing.tsx:338",
+        "apps/mobile/app/(stack)/billing.tsx:339"
+      ],
+      "routes": [
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/checkout/paypal"
+      ],
+      "evidence": "Reached only when purchase.kind === \"PLAN\" && purchase.transition, re-issued with transition: false, so the table yields `/v1/billing/checkout/${provider}` only.",
+      "reviewedAtUtc": "2026-09-25"
     }
   ]
 }

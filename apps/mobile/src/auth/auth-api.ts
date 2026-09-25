@@ -41,9 +41,9 @@ function isMfaEnrollmentRequired(err: unknown): boolean {
 }
 
 /** A sign-in exchange: the enrolment refusal is an ANSWER, every other failure still throws. */
-async function signInExchange(path: string, body: Record<string, unknown>): Promise<LoginResult> {
+async function signInExchange(path: string, init: RequestInit): Promise<LoginResult> {
   try {
-    return toLoginResult(await apiFetch(path, { method: "POST", body: JSON.stringify(body) }));
+    return toLoginResult(await apiFetch(path, init));
   } catch (err) {
     if (isMfaEnrollmentRequired(err)) return { kind: "mfaEnrollmentRequired" };
     throw err;
@@ -64,7 +64,10 @@ function toLoginResult(data: Record<string, unknown>): LoginResult {
 /* ------------------------------------------------------------- email/pw */
 
 export async function emailLogin(email: string, password: string): Promise<LoginResult> {
-  return signInExchange("/v1/auth/email/login", { email, password });
+  return signInExchange("/v1/auth/email/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
 }
 
 export interface RegisterResult {
@@ -129,11 +132,11 @@ export async function verifyMfa(
 /* ------------------------------------------------------------------ OAuth */
 
 export async function oauthGoogle(idToken: string): Promise<LoginResult> {
-  return signInExchange("/v1/auth/google", { idToken });
+  return signInExchange("/v1/auth/google", { method: "POST", body: JSON.stringify({ idToken }) });
 }
 
 export async function oauthApple(idToken: string): Promise<LoginResult> {
-  return signInExchange("/v1/auth/apple", { idToken });
+  return signInExchange("/v1/auth/apple", { method: "POST", body: JSON.stringify({ idToken }) });
 }
 
 /* -------------------------------------------------------------- session */

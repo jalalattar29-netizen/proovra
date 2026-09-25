@@ -799,10 +799,13 @@ export default function EvidenceDetailScreen() {
    * only on success; a refusal leaves it open with the server's reason.
    */
   const runLifecycleAction = useCallback(
-    async (buildPath: (evidenceId: string) => string, body: Record<string, unknown> = {}) => {
+    // Each call site builds its own path, so the route it reaches is readable
+    // there (lock / archive / unarchive / unlock) rather than hidden behind a
+    // builder passed in by reference.
+    async (path: string, init: { method: "POST"; body?: Record<string, unknown> }) => {
       setActionBusy(true);
       try {
-        await apiFetch(buildPath(String(id)), { method: "POST", body: JSON.stringify(body) });
+        await apiFetch(path, { method: init.method, body: JSON.stringify(init.body ?? {}) });
         await load();
         setDialog(null);
         setUnlockReason("");
@@ -1104,7 +1107,7 @@ export default function EvidenceDetailScreen() {
         confirmLabel={LIFECYCLE_DIALOG_COPY.lock.confirm}
         tone="warning"
         busy={actionBusy}
-        onConfirm={() => void runLifecycleAction(buildEvidenceLockPath)}
+        onConfirm={() => void runLifecycleAction(buildEvidenceLockPath(String(id)), { method: "POST" })}
         onCancel={() => setDialog(null)}
       />
       <ProovraConfirmSheet
@@ -1113,7 +1116,7 @@ export default function EvidenceDetailScreen() {
         consequence={LIFECYCLE_DIALOG_COPY.archive.body}
         confirmLabel={LIFECYCLE_DIALOG_COPY.archive.confirm}
         busy={actionBusy}
-        onConfirm={() => void runLifecycleAction(buildEvidenceArchivePath)}
+        onConfirm={() => void runLifecycleAction(buildEvidenceArchivePath(String(id)), { method: "POST" })}
         onCancel={() => setDialog(null)}
       />
       <ProovraConfirmSheet
@@ -1122,7 +1125,7 @@ export default function EvidenceDetailScreen() {
         consequence={LIFECYCLE_DIALOG_COPY.restore.body}
         confirmLabel={LIFECYCLE_DIALOG_COPY.restore.confirm}
         busy={actionBusy}
-        onConfirm={() => void runLifecycleAction(buildEvidenceUnarchivePath)}
+        onConfirm={() => void runLifecycleAction(buildEvidenceUnarchivePath(String(id)), { method: "POST" })}
         onCancel={() => setDialog(null)}
       />
       <ProovraSheet visible={dialog === "unlock"} title={LIFECYCLE_DIALOG_COPY.unlock.title} onClose={() => setDialog(null)}>
@@ -1142,7 +1145,7 @@ export default function EvidenceDetailScreen() {
             label={LIFECYCLE_DIALOG_COPY.unlock.confirm}
             fullWidth={false}
             loading={actionBusy}
-            onPress={() => void runLifecycleAction(buildEvidenceUnlockPath, buildUnlockBody(unlockReason))}
+            onPress={() => void runLifecycleAction(buildEvidenceUnlockPath(String(id)), { method: "POST", body: buildUnlockBody(unlockReason) })}
           />
         </View>
       </ProovraSheet>
@@ -1697,7 +1700,7 @@ export default function EvidenceDetailScreen() {
           lifecycle={lifecycle}
           facts={lifecycleFacts(lifecycle, record, (iso) => formatUserDateTime(iso) ?? iso)}
           busy={actionBusy}
-          onRestoreArchive={() => void runLifecycleAction(buildEvidenceUnarchivePath)}
+          onRestoreArchive={() => void runLifecycleAction(buildEvidenceUnarchivePath(String(id)), { method: "POST" })}
           onArchive={() => setDialog("archive")}
           onRestoreTrash={() => void restoreFromTrash()}
           onTrash={() => setTrashing(true)}

@@ -83,13 +83,23 @@ export function parsePayPalReturn(params: ParamReader): PayPalReturn | null {
   return null;
 }
 
+/** Server-side capture of an approved evidence-credit order. */
+export function payPalOrderCapturePath(orderId: string): string {
+  return `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture`;
+}
+
+/** Server-side confirmation of an approved plan / storage add-on subscription. */
+export function payPalSubscriptionConfirmPath(subscriptionId: string): string {
+  return `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`;
+}
+
 /** The server confirmation for a return, or null when there is nothing to ask. */
 export function payPalReturnRequestPath(ret: PayPalReturn): string | null {
   switch (ret.kind) {
     case "ORDER_CAPTURE":
-      return `/v1/billing/credits/checkout/paypal/${encodeURIComponent(ret.orderId)}/capture`;
+      return payPalOrderCapturePath(ret.orderId);
     case "SUBSCRIPTION_CONFIRM":
-      return `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(ret.subscriptionId)}/confirm`;
+      return payPalSubscriptionConfirmPath(ret.subscriptionId);
     case "BUYER_CANCELED":
       return null;
   }

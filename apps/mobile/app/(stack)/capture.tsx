@@ -17,7 +17,6 @@ import {
 import {
   ProovraScreen,
   ProovraCard,
-  ProovraSection,
   ProovraText,
   ProovraButton,
   ProovraBadge,
@@ -25,7 +24,6 @@ import {
   ProovraSheet,
   ProovraConfirmSheet,
 } from "../../src/ui";
-import { useLocale } from "../../src/locale-context";
 import { useToast } from "../../src/toast-context";
 import {
   CaptureIntakeRail,
@@ -171,7 +169,6 @@ type CapturedItem = {
 };
 
 export default function CaptureScreen() {
-  const { t } = useLocale();
   const { addToast } = useToast();
   const router = useRouter();
 
@@ -1570,14 +1567,21 @@ setSessionState(
   );
 
   const INTAKE_ACTIONS: ReadonlyArray<{ kind: CaptureKind; label: string; helper: string }> = [
-    { kind: "DOCUMENT", label: "Upload Files", helper: "Choose files from your device" },
+    // Web parity: CaptureDropzone labels this intake "Files" (apps/web/components/capture-v2/CaptureDropzone.tsx).
+    { kind: "DOCUMENT", label: "Files", helper: "Photos, video, audio, PDFs" },
     { kind: "PHOTO", label: "Photo", helper: "Camera capture" },
     { kind: "VIDEO", label: "Video", helper: "Record clip" },
     { kind: "AUDIO", label: "Audio", helper: "Record note" },
   ];
 
   return (
-    <ProovraScreen shell>
+    // Capture is a full-screen flow and renders OUTSIDE the app shell, as the
+    // web does: shell navigation must not be one tap away mid-recording
+    // (RC-10, test/shell-gates.test.mjs). Back is disabled while recording.
+    <ProovraScreen>
+      <View style={styles.headerRow}>
+        <ProovraButton label="Back" variant="ghost" fullWidth={false} disabled={isRecording} onPress={() => router.back()} />
+      </View>
 
       {/* Web order: the intake rail, the drafts, then the page's own title. */}
       <CaptureIntakeRail items={plannedItems} templateSelected={template !== null} readiness={captureReadiness} />
@@ -1874,7 +1878,8 @@ setSessionState(
             </ProovraCard>
           ) : null}
 
-          <CaptureSessionStatus
+          {hasItems ? (
+            <CaptureSessionStatus
               readiness={sessionReadiness}
               busy={sessionCompletingEvidence}
               itemCount={sessionItems.length}
@@ -1885,9 +1890,11 @@ setSessionState(
               planMode={planMode}
               locationPermissionDenied={locationDenied}
             />
+          ) : null}
 
           {/* T-15 — metadata-only AI QA of the staged session (CaptureSessionPanel.tsx:283). */}
-          <CaptureAiReview
+          {hasItems ? (
+            <CaptureAiReview
               plan={template}
               useLocation={useLocation}
               planMode={planMode}
@@ -1904,6 +1911,7 @@ setSessionState(
                 locationIncluded: useLocation,
               }))}
             />
+          ) : null}
 
           {/*
             TWO ORIGINS MET IN ONE DRAFT.
@@ -1959,6 +1967,7 @@ setSessionState(
 }
 
 const styles = StyleSheet.create({
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s2 },
   resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   staleNote: { marginBottom: theme.space.s3 },

@@ -447,7 +447,9 @@ export default function SecuritySettingsScreen() {
                           onPress={row.key === "google" ? oauth.promptGoogle : oauth.signInApple}
                         />
                       ) : null
-                    ) : row.action === "disconnect" && !row.disconnectBlocked ? (
+                    ) : row.action === "disconnect" ? (
+                      // Rendered DISABLED when blocked — the web's control, with
+                      // the reason beside it (above) — never silently removed.
                       <ProovraButton
                         label="Disconnect"
                         variant="secondary"

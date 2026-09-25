@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "10802b74014fdf7c1eff7d2b4ee7487ef7a4fbfccfaa1446906c441f5dd0a5c2",
+  "capabilityRouteInventoryHash": "27f5cf6532bc67adfd4216763902bdd6ae966fbc54c8b50e33a41b8278fcd2d4",
   "totals": {
-    "routes": 1161,
-    "routesWithAnyTestCaller": 39,
+    "routes": 1163,
+    "routesWithAnyTestCaller": 40,
     "testOnlyRoutes": 3,
-    "testCallSites": 67,
+    "testCallSites": 70,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -28,9 +28,11 @@
     },
     {
       "routeId": "DELETE /v1/cases/:id",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/mobile/test/api-empty-body.test.mjs"
+      ]
     },
     {
       "routeId": "DELETE /v1/cases/:id/access/:accessId",
@@ -4049,6 +4051,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/checkout/stripe",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4056,6 +4064,12 @@
     },
     {
       "routeId": "POST /v1/billing/credits/checkout/paypal",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7063,5 +7077,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0d1db386d38271d5d224ae5c0d17d98ca7cc38a6d958cdff45c8a7f314dc0475"
+  "contentHash": "5e0095b0db72a5905c2f14f4e2f380799c513b497ce9d11a87d61c3a4d60cfc4"
 }

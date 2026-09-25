@@ -35,7 +35,9 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const open = async (key: string, path: string, unavailable: string, failure: (err: unknown) => string) => {
+  // The API path is the FIRST argument, as in every other request helper, so
+  // each call site names the route it reaches.
+  const open = async (path: string, key: string, unavailable: string, failure: (err: unknown) => string) => {
     if (busy) return;
     setBusy(key);
     setMessage(null);
@@ -74,12 +76,19 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
               fullWidth={false}
               loading={busy === `${kind}-${v.version}`}
               onPress={() =>
-                void open(
-                  `${kind}-${v.version}`,
-                  kind === "report" ? buildReportVersionPath(evidenceId, v.version) : buildPackageVersionPath(evidenceId, v.version),
-                  kind === "report" ? `Report v${v.version} is not available.` : `Verification package v${v.version} is not available.`,
-                  () => (kind === "report" ? `Could not download report v${v.version}.` : `Could not download verification package v${v.version}.`),
-                )
+                void (kind === "report"
+                  ? open(
+                      buildReportVersionPath(evidenceId, v.version),
+                      `${kind}-${v.version}`,
+                      `Report v${v.version} is not available.`,
+                      () => `Could not download report v${v.version}.`,
+                    )
+                  : open(
+                      buildPackageVersionPath(evidenceId, v.version),
+                      `${kind}-${v.version}`,
+                      `Verification package v${v.version} is not available.`,
+                      () => `Could not download verification package v${v.version}.`,
+                    ))
               }
             />
           </View>
@@ -100,7 +109,7 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
           variant="secondary"
           loading={busy === "package-latest"}
           onPress={() =>
-            void open("package-latest", buildPackageDownloadPath(evidenceId), "Verification package is temporarily unavailable.", (err) => {
+            void open(buildPackageDownloadPath(evidenceId), "package-latest", "Verification package is temporarily unavailable.", (err) => {
               const { code, status } = errCode(err);
               return packageDownloadMessage(code, status);
             })

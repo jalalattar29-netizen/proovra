@@ -787,21 +787,50 @@ describe("P2-3 — mobile consumes the canonical output state", () => {
      * THE DEFECT: an always-enabled "Download Report" whose handler was
      * `if (reportUrl) …`. On every record without a report — every record on
      * Free — pressing it did nothing and said nothing.
+     *
+     * Since the native PWA-parity pass the READY decision is made ONCE, in
+     * `downloadBlockedReason` (src/product/evidence-record.ts), and the screen
+     * disables the control on its verdict — the same shape as the web header.
      */
     const screen = strip(mobile("app/(stack)/evidence/[id].tsx"));
-    expect(screen).toMatch(/reportState === "READY" && reportUrl \?/);
+    // Available means the server said READY (or projected the report available).
+    expect(screen).toMatch(/const reportAvailable = outputs\.reportAvailable \|\| reportState === "READY";/);
+    expect(screen).toMatch(/const reportBlocked = downloadBlockedReason\(\{[\s\S]{0,200}available: reportAvailable,/);
+    // The Download Report control is disabled on that verdict.
+    const button = screen.slice(screen.indexOf('label="Download Report PDF"'));
+    expect(button.slice(0, 600)).toMatch(/disabled=\{reportBlocked !== null \|\|/);
+    expect(button.slice(0, 600)).toMatch(/onPress=\{\(\) => void downloadReport\(\)\}/);
+    // …and the verdict is "blocked" for anything that is not available.
+    const record = mobile("src/product/evidence-record.ts");
+    const verdict = record.slice(
+      record.indexOf("export function downloadBlockedReason"),
+      record.indexOf("export function", record.indexOf("export function downloadBlockedReason") + 10),
+    );
+    expect(verdict).toMatch(/if \(!input\.available\) return input\.blockedReason \?\? outputStateReason\(input\.state, input\.noun\);/);
     // The old silent no-op is gone.
     expect(screen).not.toMatch(/onPress=\{\(\) => \{\s*if \(reportUrl\)/);
   });
 
-  it("WIRING: mobile reads the SIDE-EFFECT-FREE status endpoint first", () => {
+  it("WIRING: mobile reads the SIDE-EFFECT-FREE status endpoint on load, and /report/latest only on tap", () => {
     // `/report/latest` emits custody and audit events for a real download.
     // Calling it on every screen open recorded a download nobody performed.
+    //
+    // This was a textual ORDER check (status before latest in the file). The
+    // screen now defines its tap handler above the loader, so order says
+    // nothing; what is asserted instead is WHERE each call lives.
     const screen = strip(mobile("app/(stack)/evidence/[id].tsx"));
-    const statusAt = screen.indexOf("/artifacts/status");
-    const latestAt = screen.indexOf("/report/latest");
-    expect(statusAt).toBeGreaterThan(-1);
-    expect(statusAt).toBeLessThan(latestAt);
+    const tapStart = screen.indexOf("const downloadReport = useCallback(");
+    expect(tapStart).toBeGreaterThan(-1);
+    const tap = screen.slice(tapStart, screen.indexOf("}, [checkExport, id]);", tapStart));
+    // /report/latest: exactly one call in the whole screen, inside the tap handler.
+    expect(screen.split("/report/latest").length - 1).toBe(1);
+    expect(tap).toContain("/report/latest");
+    // The status read is NOT in the tap handler — it is the load path.
+    expect(screen).toContain("/artifacts/status");
+    expect(tap).not.toContain("/artifacts/status");
+    // Nothing calls the tap handler except a press.
+    expect(screen.match(/downloadReport\(\)/g)?.length).toBe(1);
+    expect(screen).toMatch(/onPress=\{\(\) => void downloadReport\(\)\}/);
   });
 
   it("WIRING: mobile imports the shared state type and duplicates no enum", () => {
@@ -814,11 +843,13 @@ describe("P2-3 — mobile consumes the canonical output state", () => {
   it("WIRING: mobile handles every canonical state", () => {
     // Total over the union, so a new state is a compile error rather than a
     // blank card on a phone.
-    const screen = mobile("app/(stack)/evidence/[id].tsx");
-    const fn = screen.slice(
-      screen.indexOf("function reportStateMessage"),
-      screen.indexOf("export default function EvidenceDetailScreen"),
-    );
+    // The per-state copy moved from the screen into the shared product module
+    // the screen (and the package control) both use.
+    const record = mobile("src/product/evidence-record.ts");
+    const start = record.indexOf("export function outputStateReason");
+    expect(start).toBeGreaterThan(-1);
+    const fn = record.slice(start, record.indexOf("export function outputStateLabel"));
+    expect(strip(mobile("app/(stack)/evidence/[id].tsx"))).toMatch(/downloadBlockedReason\(/);
     for (const state of EVIDENCE_OUTPUT_STATES) {
       expect(fn, `mobile must handle ${state}`).toContain(`"${state}"`);
     }

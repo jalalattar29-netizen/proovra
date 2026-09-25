@@ -218,22 +218,23 @@ export function CheckoutDrawer({
             body: planBody,
           }),
         )
-      : send(async () => {
-          try {
-            return await apiFetch("/v1/billing/checkout/paypal", {
-              method: "POST", body: planBody,
-            });
-          } catch (err) {
-            // A stale projection may have opened BUY for an existing subscriber.
-            // Only retry the explicit server-owned duplicate-subscription response.
-            const failure = err as { code?: string; error?: { code?: string } };
-            if (failure.code !== "SUBSCRIPTION_ALREADY_ACTIVE" &&
-                failure.error?.code !== "SUBSCRIPTION_ALREADY_ACTIVE") throw err;
-            return apiFetch("/v1/billing/subscription/plan", {
-              method: "POST", body: planBody,
-            });
-          }
-        });
+      : send(() =>
+          // A stale projection can open BUY for someone who already subscribes.
+          // The server then refuses with SUBSCRIPTION_ALREADY_ACTIVE ("Change
+          // your plan instead of buying a second one" — a customer-disposition
+          // code, so `send` shows exactly that sentence), and `send`'s finally
+          // refreshes the account, which reopens Billing in MANAGE mode.
+          //
+          // This drawer deliberately does NOT retry as a plan change: a change
+          // to an existing subscription belongs to ManagePlanDrawer, which
+          // states its period-end / proration consequences before anything is
+          // committed. Silently converting a purchase into a change skipped
+          // that, and is what `the FREE chooser is a purchase` forbids.
+          apiFetch("/v1/billing/checkout/paypal", {
+            method: "POST",
+            body: planBody,
+          }),
+        );
   }
 
   const title =

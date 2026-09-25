@@ -47,13 +47,11 @@ import {
   settlePayPalEvidenceCreditOrder,
 } from "../services/billing/paypal-settlement.service.js";
 import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
-// PHASE 9 §12 — canonical commercial decision (no raw plan literals).
-// PHASE 9 §9.4 — the ONE subscription-active rule, consumed directly from
-// the canonical pure policy (api delegate deleted).
-import {
-  EVIDENCE_CREDIT_PRODUCT,
-  isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive,
-} from "@proovra/shared-billing";
+// PHASE 9 §12 / §9.4 — the ONE subscription-active rule is consumed by the
+// storage add-on guard, which now lives in paypal-settlement.service.ts
+// (assertWebhookStorageAddonAllowed, imported above) and imports it from
+// @proovra/shared-billing directly.
+import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit grant per purchase
 // is a property of the PRODUCT, read from the canonical catalog, not a literal
@@ -112,12 +110,6 @@ function parseStripeSubscriptionStatus(
   }
 
   return prismaPkg.SubscriptionStatus.CANCELED;
-}
-
-function dateFromIso(value: unknown): Date | null {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function dateFromUnixSeconds(value: unknown): Date | null {

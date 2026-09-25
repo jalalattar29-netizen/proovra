@@ -71,7 +71,18 @@ test("Home has no hardcoded placeholder evidence row / dead link", () => {
   assert.doesNotMatch(home, /router\.push\(["']\/evidence\/1["']\)/, "no dead /evidence/1 link");
   assert.doesNotMatch(home, /3 minutes ago/, "no hardcoded placeholder subtitle");
   // The empty branch must render a real empty state, not a fabricated record.
-  assert.match(home, /No evidence yet/, "Home must show a truthful empty state");
+  // Since the PWA-parity Home it lives in HomeRecentEvidenceCard
+  // (src/ui/home-overview.tsx), in the web's own words
+  // (apps/web/components/home-experience/HomeDashboardSections.tsx).
+  assert.match(home, /<HomeRecentEvidenceCard[\s\S]{0,40}rows=\{recentRows\}/, "Home renders the recent-evidence card");
+  const overview = readFileSync(join(APP_DIR, "..", "src", "ui", "home-overview.tsx"), "utf8");
+  const card = overview.slice(overview.indexOf("export function HomeRecentEvidenceCard"));
+  assert.match(
+    card.slice(0, 1200),
+    /rows\.length === 0 \?[\s\S]{0,200}Your newest records appear here after the first capture\./,
+    "Home must show a truthful empty state",
+  );
+  assert.doesNotMatch(overview, /\/evidence\/1["']/, "no dead /evidence/1 link in the card either");
 });
 
 test("the web-only Direct Web Capture surface never appears in the native app", () => {

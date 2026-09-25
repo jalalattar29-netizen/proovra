@@ -351,18 +351,25 @@ jobs:
       # E2E on :9000, and is a different bucket with different credentials.
       # This one lives for the unit steps and dies with the runner.
       #
-      # The image and the invocation are the ones `playwright-e2e.yml` already
-      # uses successfully on this runner: a PINNED quay.io release (Docker Hub
-      # rate-limits anonymous pulls, which is what exit 125 was), host
-      # networking, and `mc` addressed through MC_HOST rather than a shell —
-      # that image's entrypoint IS `mc`, so `/bin/sh -c …` is read as a
-      # subcommand and refused.
+      # The image and the invocation are the ones `playwright-e2e.yml` uses:
+      # a release PINNED by tag AND digest, host networking, and `mc`
+      # addressed through MC_HOST rather than a shell — that image's
+      # entrypoint IS `mc`, so `/bin/sh -c …` is read as a subcommand and
+      # refused.
+      #
+      # WHY pgsty/*: MinIO Inc. withdrew its public images — quay.io/minio/*
+      # answers `unauthorized` (docker exit 125) and docker.io/minio/* no
+      # longer exists. pgsty/minio and pgsty/mc are rebuilt from upstream
+      # MinIO source with the original Dockerfile (same entrypoints, same
+      # `server /data` invocation, curl and sh present), so storage behaviour
+      # and every invocation here are unchanged. The digest makes the pin
+      # immutable even if the tag were moved.
       - name: Disposable object store for the worker storage proof
         run: |
           docker run -d --name uc6-worker-minio --network host \
             -e MINIO_ROOT_USER=point7-local-minio \
             -e MINIO_ROOT_PASSWORD=point7-local-minio-secret \
-            quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 \
             server /data --address ':59000'
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:59000/minio/health/live >/dev/null 2>&1; then
@@ -378,7 +385,7 @@ jobs:
           done
           docker run --rm --network host \
             -e MC_HOST_local=http://point7-local-minio:point7-local-minio-secret@127.0.0.1:59000 \
-            quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z \
+            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
             mb --ignore-existing local/point7-local-bucket
 
       - name: Test — worker

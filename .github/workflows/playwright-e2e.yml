@@ -175,7 +175,7 @@ jobs:
           docker run -d --name minio --network host \
             -e MINIO_ROOT_USER=minio \
             -e MINIO_ROOT_PASSWORD=minio_password \
-            quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 \
             server /data --address ':9000'
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
@@ -192,7 +192,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -e MC_HOST_local=http://minio:minio_password@localhost:9000 \
-            quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z \
+            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
             mb --ignore-existing local/proovra-e2e
 
       - name: Build shared + API + worker

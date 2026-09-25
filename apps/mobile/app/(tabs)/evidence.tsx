@@ -9,7 +9,6 @@ import { shareFile } from "../../src/lib/share-file";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
-import { useResponsive } from "../../src/theme/responsive";
 import { useToast } from "../../src/toast-context";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { webOrigin } from "../../src/product/intake-create";
@@ -157,7 +156,6 @@ function Check({ checked, label, onPress, disabled }: { checked: boolean; label:
 export default function EvidenceLibraryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const responsive = useResponsive();
   const { addToast } = useToast();
   const platform = usePlatformContext();
 
