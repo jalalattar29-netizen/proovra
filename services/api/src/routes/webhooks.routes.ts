@@ -165,6 +165,27 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
 
   const text = raw.trim();
 
+  // Compact v1 context; legacy JSON and key=value formats remain supported.
+  if (text.startsWith("sa1|")) {
+    const parts = text.split("|");
+    const keys: Record<string, prismaPkg.StorageAddonKey> = {
+      p10: prismaPkg.StorageAddonKey.PERSONAL_10_GB,
+      p50: prismaPkg.StorageAddonKey.PERSONAL_50_GB,
+      p200: prismaPkg.StorageAddonKey.PERSONAL_200_GB,
+      t100: prismaPkg.StorageAddonKey.TEAM_100_GB,
+      t500: prismaPkg.StorageAddonKey.TEAM_500_GB,
+      t1t: prismaPkg.StorageAddonKey.TEAM_1_TB,
+    };
+    if (parts.length !== 4 || !/^[0-9a-f-]{36}$/i.test(parts[1] ?? "") ||
+        !keys[parts[3] ?? ""] ||
+        (parts[2] !== "-" && !/^[0-9a-f-]{36}$/i.test(parts[2] ?? ""))) return {};
+    return {
+      userId: parts[1], teamId: parts[2] === "-" ? null : parts[2],
+      storageAddonKey: keys[parts[3]!],
+      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+    };
+  }
+
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>;
     return {

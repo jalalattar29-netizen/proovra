@@ -1,0 +1,849 @@
+PROOVRA PAYPAL AUDIT
+
+===== services/api/src/services/paypal.service.ts =====
+
+  services\api\src\services\paypal.service.ts:64:
+  services\api\src\services\paypal.service.ts:65:function buildStorageAddonCustomId(params: {
+  services\api\src\services\paypal.service.ts:66:  userId: string;
+  services\api\src\services\paypal.service.ts:67:  addonKey: prismaPkg.StorageAddonKey;
+  services\api\src\services\paypal.service.ts:68:  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  services\api\src\services\paypal.service.ts:69:  teamId?: string | null;
+  services\api\src\services\paypal.service.ts:70:  workspacePlan: prismaPkg.PlanType;
+  services\api\src\services\paypal.service.ts:71:}) {
+> services\api\src\services\paypal.service.ts:72:  // PayPal subscription custom_id has a 127-byte limit. Compact v1 wire format:
+  services\api\src\services\paypal.service.ts:73:  // sa1|user UUID|team UUID or -|addon code. Cycle is MONTHLY by contract;
+  services\api\src\services\paypal.service.ts:74:  // workspace plan is resolved from the authoritative billing account on receipt.
+  services\api\src\services\paypal.service.ts:75:  const codes: Record<prismaPkg.StorageAddonKey, string> = {
+  services\api\src\services\paypal.service.ts:76:    PERSONAL_10_GB: "p10", PERSONAL_50_GB: "p50", PERSONAL_200_GB: "p200",
+  services\api\src\services\paypal.service.ts:77:    TEAM_100_GB: "t100", TEAM_500_GB: "t500", TEAM_1_TB: "t1t",
+  services\api\src\services\paypal.service.ts:78:  };
+  services\api\src\services\paypal.service.ts:79:  const value = `sa1|${params.userId}|${params.teamId ?? "-"}|${codes[params.addonKey]}`;
+  services\api\src\services\paypal.service.ts:80:  if (Buffer.byteLength(value, "utf8") > 127) {
+  services\api\src\services\paypal.service.ts:129: * later in two cases where waiting cannot help.
+  services\api\src\services\paypal.service.ts:130: *
+  services\api\src\services\paypal.service.ts:131: * It still extends `Error` and still carries the same message, so every
+  services\api\src\services\paypal.service.ts:132: * existing catch site behaves exactly as before.
+  services\api\src\services\paypal.service.ts:133: *
+  services\api\src\services\paypal.service.ts:134: * WHAT IT DELIBERATELY DOES NOT CARRY: the response body. A PayPal error
+  services\api\src\services\paypal.service.ts:135: * payload can echo request fields, and this object is logged.
+  services\api\src\services\paypal.service.ts:136: */
+> services\api\src\services\paypal.service.ts:137:export class PayPalHttpError extends Error {
+  services\api\src\services\paypal.service.ts:138:  readonly status: number;
+  services\api\src\services\paypal.service.ts:139:  /** PayPal's own error name, e.g. RESOURCE_NOT_FOUND. Never a payload. */
+  services\api\src\services\paypal.service.ts:140:  readonly providerErrorName: string | null;
+  services\api\src\services\paypal.service.ts:141:  /** PayPal's correlation id, for support to trace one call. */
+  services\api\src\services\paypal.service.ts:142:  readonly debugId: string | null;
+  services\api\src\services\paypal.service.ts:143:
+  services\api\src\services\paypal.service.ts:144:  constructor(init: {
+  services\api\src\services\paypal.service.ts:145:    message: string;
+  services\api\src\services\paypal.service.ts:146:    status: number;
+  services\api\src\services\paypal.service.ts:147:    providerErrorName: string | null;
+  services\api\src\services\paypal.service.ts:148:    debugId: string | null;
+  services\api\src\services\paypal.service.ts:149:  }) {
+  services\api\src\services\paypal.service.ts:150:    super(init.message);
+> services\api\src\services\paypal.service.ts:151:    this.name = "PayPalHttpError";
+  services\api\src\services\paypal.service.ts:152:    this.status = init.status;
+  services\api\src\services\paypal.service.ts:153:    this.providerErrorName = init.providerErrorName;
+  services\api\src\services\paypal.service.ts:154:    this.debugId = init.debugId;
+  services\api\src\services\paypal.service.ts:155:  }
+  services\api\src\services\paypal.service.ts:156:}
+  services\api\src\services\paypal.service.ts:157:
+  services\api\src\services\paypal.service.ts:158:async function readPayPalError(
+  services\api\src\services\paypal.service.ts:159:  res: Response,
+  services\api\src\services\paypal.service.ts:203:
+  services\api\src\services\paypal.service.ts:204:    if (details) {
+  services\api\src\services\paypal.service.ts:205:      message += ` [${details}]`;
+  services\api\src\services\paypal.service.ts:206:    }
+  services\api\src\services\paypal.service.ts:207:  } catch {
+  services\api\src\services\paypal.service.ts:208:    // Do not log or expose an unparsed provider response.
+  services\api\src\services\paypal.service.ts:209:  }
+  services\api\src\services\paypal.service.ts:210:
+> services\api\src\services\paypal.service.ts:211:  throw new PayPalHttpError({
+  services\api\src\services\paypal.service.ts:212:    message:
+  services\api\src\services\paypal.service.ts:213:      `${prefix}: ${message}` +
+  services\api\src\services\paypal.service.ts:214:      (debugId ? ` (paypal-debug-id: ${debugId})` : ""),
+  services\api\src\services\paypal.service.ts:215:    status: res.status,
+  services\api\src\services\paypal.service.ts:216:    providerErrorName,
+  services\api\src\services\paypal.service.ts:217:    debugId,
+  services\api\src\services\paypal.service.ts:218:  });
+  services\api\src\services\paypal.service.ts:219:}
+  services\api\src\services\paypal.service.ts:281:
+  services\api\src\services\paypal.service.ts:282:  return plan;
+  services\api\src\services\paypal.service.ts:283:}
+  services\api\src\services\paypal.service.ts:284:
+  services\api\src\services\paypal.service.ts:285:export async function getPayPalSubscription(subscriptionId: string) {
+  services\api\src\services\paypal.service.ts:286:  return paypalGet(`/v1/billing/subscriptions/${subscriptionId}`);
+  services\api\src\services\paypal.service.ts:287:}
+  services\api\src\services\paypal.service.ts:288:
+> services\api\src\services\paypal.service.ts:289:export async function createPayPalOrder(params: {
+  services\api\src\services\paypal.service.ts:290:  userId: string;
+  services\api\src\services\paypal.service.ts:291:  plan: prismaPkg.PlanType | "PAYG";
+  services\api\src\services\paypal.service.ts:292:  currency: string;
+  services\api\src\services\paypal.service.ts:293:  amount: string;
+  services\api\src\services\paypal.service.ts:294:  teamId?: string | null;
+  services\api\src\services\paypal.service.ts:295:  returnUrl: string;
+  services\api\src\services\paypal.service.ts:296:  cancelUrl: string;
+  services\api\src\services\paypal.service.ts:297:}) {
+  services\api\src\services\paypal.service.ts:301:    plan === prismaPkg.PlanType.TEAM && params.teamId
+  services\api\src\services\paypal.service.ts:302:      ? `PROOVRA ${plan} ${params.teamId}`
+  services\api\src\services\paypal.service.ts:303:      : `PROOVRA ${plan}`;
+  services\api\src\services\paypal.service.ts:304:
+  services\api\src\services\paypal.service.ts:305:  return paypalRequest("/v2/checkout/orders", {
+  services\api\src\services\paypal.service.ts:306:    intent: "CAPTURE",
+  services\api\src\services\paypal.service.ts:307:    purchase_units: [
+  services\api\src\services\paypal.service.ts:308:      {
+> services\api\src\services\paypal.service.ts:309:        custom_id: buildPayPalCustomId({
+  services\api\src\services\paypal.service.ts:310:          userId: params.userId,
+  services\api\src\services\paypal.service.ts:311:          plan: params.plan as prismaPkg.PlanType,
+  services\api\src\services\paypal.service.ts:312:          teamId: params.teamId ?? null,
+  services\api\src\services\paypal.service.ts:313:        }),
+  services\api\src\services\paypal.service.ts:314:        description,
+  services\api\src\services\paypal.service.ts:315:        amount: {
+  services\api\src\services\paypal.service.ts:316:          currency_code: normalizedCurrency,
+  services\api\src\services\paypal.service.ts:317:          value: params.amount,
+  services\api\src\services\paypal.service.ts:318:        },
+  services\api\src\services\paypal.service.ts:319:      },
+  services\api\src\services\paypal.service.ts:320:    ],
+  services\api\src\services\paypal.service.ts:321:    application_context: {
+  services\api\src\services\paypal.service.ts:322:      brand_name: "PROOVRA",
+  services\api\src\services\paypal.service.ts:323:      shipping_preference: "NO_SHIPPING",
+  services\api\src\services\paypal.service.ts:324:      user_action: "PAY_NOW",
+> services\api\src\services\paypal.service.ts:325:      return_url: params.returnUrl,
+> services\api\src\services\paypal.service.ts:326:      cancel_url: params.cancelUrl,
+  services\api\src\services\paypal.service.ts:327:    },
+  services\api\src\services\paypal.service.ts:328:  });
+  services\api\src\services\paypal.service.ts:329:}
+  services\api\src\services\paypal.service.ts:330:
+  services\api\src\services\paypal.service.ts:331:export async function createPayPalSubscription(params: {
+  services\api\src\services\paypal.service.ts:332:  userId: string;
+  services\api\src\services\paypal.service.ts:333:  plan: PayPalRecurringPlan;
+  services\api\src\services\paypal.service.ts:334:  currency: string;
+  services\api\src\services\paypal.service.ts:340:    plan: params.plan,
+  services\api\src\services\paypal.service.ts:341:    currency: params.currency,
+  services\api\src\services\paypal.service.ts:342:  });
+  services\api\src\services\paypal.service.ts:343:
+  services\api\src\services\paypal.service.ts:344:  await assertPayPalPlanIsActive(planId);
+  services\api\src\services\paypal.service.ts:345:
+  services\api\src\services\paypal.service.ts:346:  return paypalRequest("/v1/billing/subscriptions", {
+  services\api\src\services\paypal.service.ts:347:    plan_id: planId,
+> services\api\src\services\paypal.service.ts:348:    custom_id: buildPayPalCustomId({
+  services\api\src\services\paypal.service.ts:349:      userId: params.userId,
+  services\api\src\services\paypal.service.ts:350:      teamId: params.teamId ?? null,
+  services\api\src\services\paypal.service.ts:351:      plan: params.plan,
+  services\api\src\services\paypal.service.ts:352:    }),
+  services\api\src\services\paypal.service.ts:353:    application_context: {
+  services\api\src\services\paypal.service.ts:354:      brand_name: "PROOVRA",
+  services\api\src\services\paypal.service.ts:355:      user_action: "SUBSCRIBE_NOW",
+> services\api\src\services\paypal.service.ts:356:      return_url: params.returnUrl,
+> services\api\src\services\paypal.service.ts:357:      cancel_url: params.cancelUrl,
+  services\api\src\services\paypal.service.ts:358:    },
+  services\api\src\services\paypal.service.ts:359:  });
+  services\api\src\services\paypal.service.ts:360:}
+  services\api\src\services\paypal.service.ts:361:
+  services\api\src\services\paypal.service.ts:362:export async function createPayPalStorageAddonCheckout(params: {
+  services\api\src\services\paypal.service.ts:363:  userId: string;
+  services\api\src\services\paypal.service.ts:364:  addonKey: prismaPkg.StorageAddonKey;
+  services\api\src\services\paypal.service.ts:365:  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  services\api\src\services\paypal.service.ts:393:    addonKey: String(params.addonKey),
+  services\api\src\services\paypal.service.ts:394:    currency: normalizedCurrency,
+  services\api\src\services\paypal.service.ts:395:  });
+  services\api\src\services\paypal.service.ts:396:
+  services\api\src\services\paypal.service.ts:397:  await assertPayPalPlanIsActive(planId);
+  services\api\src\services\paypal.service.ts:398:
+  services\api\src\services\paypal.service.ts:399:  const subscription = await paypalRequest("/v1/billing/subscriptions", {
+  services\api\src\services\paypal.service.ts:400:    plan_id: planId,
+> services\api\src\services\paypal.service.ts:401:    custom_id: buildStorageAddonCustomId({
+  services\api\src\services\paypal.service.ts:402:      userId: params.userId,
+  services\api\src\services\paypal.service.ts:403:      addonKey: params.addonKey,
+  services\api\src\services\paypal.service.ts:404:      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+  services\api\src\services\paypal.service.ts:405:      teamId: params.teamId ?? null,
+  services\api\src\services\paypal.service.ts:406:      workspacePlan: params.workspacePlan,
+  services\api\src\services\paypal.service.ts:407:    }),
+  services\api\src\services\paypal.service.ts:408:    application_context: {
+  services\api\src\services\paypal.service.ts:409:      brand_name: "PROOVRA",
+  services\api\src\services\paypal.service.ts:410:      user_action: "SUBSCRIBE_NOW",
+> services\api\src\services\paypal.service.ts:411:      return_url: returnUrl,
+> services\api\src\services\paypal.service.ts:412:      cancel_url: cancelUrl,
+  services\api\src\services\paypal.service.ts:413:    },
+  services\api\src\services\paypal.service.ts:414:  });
+  services\api\src\services\paypal.service.ts:415:
+  services\api\src\services\paypal.service.ts:416:  return {
+  services\api\src\services\paypal.service.ts:417:    provider: "PAYPAL" as const,
+  services\api\src\services\paypal.service.ts:418:    mode: "subscription" as const,
+  services\api\src\services\paypal.service.ts:419:    subscription,
+  services\api\src\services\paypal.service.ts:420:    currency: normalizedCurrency,
+  services\api\src\services\paypal.service.ts:482:  if (!res.ok) {
+  services\api\src\services\paypal.service.ts:483:    const text = await res.text();
+  services\api\src\services\paypal.service.ts:484:    throw new Error(`PayPal verify error: ${text}`);
+  services\api\src\services\paypal.service.ts:485:  }
+  services\api\src\services\paypal.service.ts:486:
+  services\api\src\services\paypal.service.ts:487:  return (await res.json()) as { verification_status: string };
+  services\api\src\services\paypal.service.ts:488:}
+  services\api\src\services\paypal.service.ts:489:
+> services\api\src\services\paypal.service.ts:490:export async function capturePayPalOrder(orderId: string) {
+  services\api\src\services\paypal.service.ts:491:  const token = await getPayPalAccessToken();
+  services\api\src\services\paypal.service.ts:492:
+  services\api\src\services\paypal.service.ts:493:  const res = await fetch(`${apiBase()}/v2/checkout/orders/${orderId}/capture`, {
+  services\api\src\services\paypal.service.ts:494:    method: "POST",
+  services\api\src\services\paypal.service.ts:495:    headers: {
+  services\api\src\services\paypal.service.ts:496:      Authorization: `Bearer ${token}`,
+  services\api\src\services\paypal.service.ts:497:      "Content-Type": "application/json",
+  services\api\src\services\paypal.service.ts:498:    },
+
+
+
+===== services/api/src/services/billing-checkout.service.ts =====
+
+  services\api\src\services\billing-checkout.service.ts:1:import * as prismaPkg from "@prisma/client";
+  services\api\src\services\billing-checkout.service.ts:2:import { stripeRequest } from "./stripe.service.js";
+  services\api\src\services\billing-checkout.service.ts:3:import {
+> services\api\src\services\billing-checkout.service.ts:4:  createPayPalOrder,
+  services\api\src\services\billing-checkout.service.ts:5:  createPayPalSubscription,
+  services\api\src\services\billing-checkout.service.ts:6:  createPayPalStorageAddonCheckout as createPayPalStorageAddonCheckoutApi,
+  services\api\src\services\billing-checkout.service.ts:7:} from "./paypal.service.js";
+  services\api\src\services\billing-checkout.service.ts:8:import { isPayPalRecurringPlan } from "./paypal-plan-map.service.js";
+  services\api\src\services\billing-checkout.service.ts:9:import { getStorageAddonDefinition } from "./billing.service.js";
+> services\api\src\services\billing-checkout.service.ts:10:import { syncPlanForSubscription } from "./billing/subscription-lifecycle.handlers.js";
+  services\api\src\services\billing-checkout.service.ts:11:import {
+  services\api\src\services\billing-checkout.service.ts:12:  getPlanPriceCents,
+  services\api\src\services\billing-checkout.service.ts:13:  getStorageAddonCurrency,
+  services\api\src\services\billing-checkout.service.ts:14:  getStorageAddonPriceCents,
+  services\api\src\services\billing-checkout.service.ts:15:  getStripePlanPriceId,
+  services\api\src\services\billing-checkout.service.ts:16:  getStripeStorageAddonPriceId,
+  services\api\src\services\billing-checkout.service.ts:17:  resolveCheckoutCurrency,
+  services\api\src\services\billing-checkout.service.ts:18:} from "./billing-pricing.service.js";
+  services\api\src\services\billing-checkout.service.ts:146:  const amountCents = getPlanPriceCents(params.plan, currency);
+  services\api\src\services\billing-checkout.service.ts:147:  const mode =
+  services\api\src\services\billing-checkout.service.ts:148:    params.plan === prismaPkg.PlanType.PAYG ? "payment" : "subscription";
+  services\api\src\services\billing-checkout.service.ts:149:  const appBase = normalizedBaseUrl();
+  services\api\src\services\billing-checkout.service.ts:150:
+  services\api\src\services\billing-checkout.service.ts:151:  const searchParams = new URLSearchParams();
+  services\api\src\services\billing-checkout.service.ts:152:  searchParams.append("mode", mode);
+  services\api\src\services\billing-checkout.service.ts:153:  searchParams.append("success_url", billingReturnUrl(appBase, "success=1"));
+> services\api\src\services\billing-checkout.service.ts:154:  searchParams.append("cancel_url", billingReturnUrl(appBase, "canceled=1"));
+  services\api\src\services\billing-checkout.service.ts:155:  searchParams.append("metadata[userId]", params.userId);
+  services\api\src\services\billing-checkout.service.ts:156:  searchParams.append("metadata[plan]", params.plan);
+  services\api\src\services\billing-checkout.service.ts:157:  searchParams.append(
+  services\api\src\services\billing-checkout.service.ts:158:    "metadata[productKey]",
+  services\api\src\services\billing-checkout.service.ts:159:    params.productKey ?? "PLAN",
+  services\api\src\services\billing-checkout.service.ts:160:  );
+  services\api\src\services\billing-checkout.service.ts:161:  searchParams.append("metadata[currency]", currency);
+  services\api\src\services\billing-checkout.service.ts:162:  searchParams.append("metadata[amountCents]", String(amountCents));
+  services\api\src\services\billing-checkout.service.ts:254:
+  services\api\src\services\billing-checkout.service.ts:255:  const searchParams = new URLSearchParams();
+  services\api\src\services\billing-checkout.service.ts:256:  searchParams.append("mode", mode);
+  services\api\src\services\billing-checkout.service.ts:257:  searchParams.append(
+  services\api\src\services\billing-checkout.service.ts:258:    "success_url",
+  services\api\src\services\billing-checkout.service.ts:259:    billingReturnUrl(appBase, "success=1&kind=storage-addon")
+  services\api\src\services\billing-checkout.service.ts:260:  );
+  services\api\src\services\billing-checkout.service.ts:261:  searchParams.append(
+> services\api\src\services\billing-checkout.service.ts:262:    "cancel_url",
+  services\api\src\services\billing-checkout.service.ts:263:    billingReturnUrl(appBase, "canceled=1&kind=storage-addon")
+  services\api\src\services\billing-checkout.service.ts:264:  );
+  services\api\src\services\billing-checkout.service.ts:265:  searchParams.append("payment_method_types[]", "card");
+  services\api\src\services\billing-checkout.service.ts:266:  searchParams.append("metadata[userId]", params.userId);
+  services\api\src\services\billing-checkout.service.ts:267:  searchParams.append("metadata[storageAddonKey]", params.addonKey);
+  services\api\src\services\billing-checkout.service.ts:268:  searchParams.append(
+  services\api\src\services\billing-checkout.service.ts:269:    "metadata[billingCycle]",
+  services\api\src\services\billing-checkout.service.ts:270:    prismaPkg.StorageAddonBillingCycle.MONTHLY
+  services\api\src\services\billing-checkout.service.ts:345:  const amountCents = getPlanPriceCents(params.plan, currency);
+  services\api\src\services\billing-checkout.service.ts:346:  const amount = (amountCents / 100).toFixed(2);
+  services\api\src\services\billing-checkout.service.ts:347:  const appBase = normalizedBaseUrl();
+  services\api\src\services\billing-checkout.service.ts:348:
+  services\api\src\services\billing-checkout.service.ts:349:  const successUrl = billingReturnUrl(appBase, "success=1&provider=paypal");
+  services\api\src\services\billing-checkout.service.ts:350:  const cancelUrl = billingReturnUrl(appBase, "canceled=1&provider=paypal");
+  services\api\src\services\billing-checkout.service.ts:351:
+  services\api\src\services\billing-checkout.service.ts:352:  if (params.plan === prismaPkg.PlanType.PAYG) {
+> services\api\src\services\billing-checkout.service.ts:353:    const order = await createPayPalOrder({
+  services\api\src\services\billing-checkout.service.ts:354:      userId: params.userId,
+  services\api\src\services\billing-checkout.service.ts:355:      plan: params.plan,
+  services\api\src\services\billing-checkout.service.ts:356:      currency,
+  services\api\src\services\billing-checkout.service.ts:357:      amount,
+  services\api\src\services\billing-checkout.service.ts:358:      teamId: null,
+  services\api\src\services\billing-checkout.service.ts:359:      returnUrl: successUrl,
+  services\api\src\services\billing-checkout.service.ts:360:      cancelUrl,
+  services\api\src\services\billing-checkout.service.ts:361:    });
+  services\api\src\services\billing-checkout.service.ts:381:    returnUrl: successUrl,
+  services\api\src\services\billing-checkout.service.ts:382:    cancelUrl,
+  services\api\src\services\billing-checkout.service.ts:383:  });
+  services\api\src\services\billing-checkout.service.ts:384:
+  services\api\src\services\billing-checkout.service.ts:385:  const subscriptionId = String(
+  services\api\src\services\billing-checkout.service.ts:386:    (subscription as { id?: string } | undefined)?.id ?? "",
+  services\api\src\services\billing-checkout.service.ts:387:  ).trim();
+  services\api\src\services\billing-checkout.service.ts:388:  if (subscriptionId) {
+> services\api\src\services\billing-checkout.service.ts:389:    await syncPlanForSubscription({
+  services\api\src\services\billing-checkout.service.ts:390:      userId: params.userId,
+  services\api\src\services\billing-checkout.service.ts:391:      plan: params.plan,
+  services\api\src\services\billing-checkout.service.ts:392:      provider: prismaPkg.PaymentProvider.PAYPAL,
+  services\api\src\services\billing-checkout.service.ts:393:      providerSubId: subscriptionId,
+> services\api\src\services\billing-checkout.service.ts:394:      status: prismaPkg.SubscriptionStatus.TRIALING,
+  services\api\src\services\billing-checkout.service.ts:395:      currentPeriodEnd: null,
+  services\api\src\services\billing-checkout.service.ts:396:      teamId: params.teamId ?? null,
+  services\api\src\services\billing-checkout.service.ts:397:    });
+  services\api\src\services\billing-checkout.service.ts:398:  }
+  services\api\src\services\billing-checkout.service.ts:399:
+  services\api\src\services\billing-checkout.service.ts:400:  return {
+  services\api\src\services\billing-checkout.service.ts:401:    mode: "subscription" as const,
+  services\api\src\services\billing-checkout.service.ts:402:    currency,
+
+
+
+===== services/api/src/routes/billing.routes.ts =====
+
+  services\api\src\routes\billing.routes.ts:798:
+  services\api\src\routes\billing.routes.ts:799:      if (transition.kind === "PROVIDER_TRANSITION_IN_PROGRESS") {
+  services\api\src\routes\billing.routes.ts:800:        return reply.code(200).send({
+  services\api\src\routes\billing.routes.ts:801:          outcome: "PROVIDER_TRANSITION_IN_PROGRESS",
+  services\api\src\routes\billing.routes.ts:802:          plan: transition.targetPlan,
+  services\api\src\routes\billing.routes.ts:803:          currentPlan: transition.currentPlan,
+  services\api\src\routes\billing.routes.ts:804:          effectiveAtUtc:
+  services\api\src\routes\billing.routes.ts:805:            transition.subscription.currentPeriodEnd?.toISOString() ?? null,
+> services\api\src\routes\billing.routes.ts:806:          approvalUrl: null,
+  services\api\src\routes\billing.routes.ts:807:          providerConfirmed: false,
+  services\api\src\routes\billing.routes.ts:808:        });
+  services\api\src\routes\billing.routes.ts:809:      }
+  services\api\src\routes\billing.routes.ts:810:
+  services\api\src\routes\billing.routes.ts:811:      if (transition.kind === "NEW_SUBSCRIPTION") {
+  services\api\src\routes\billing.routes.ts:812:        // Nothing live to change. This is a purchase, and a purchase needs a
+  services\api\src\routes\billing.routes.ts:813:        // payment method, which needs a checkout — so the answer names the
+  services\api\src\routes\billing.routes.ts:814:        // route that can do it rather than pretending to have done anything.
+  services\api\src\routes\billing.routes.ts:839:      // The provider decides. A failure throws and NOTHING local changes.
+  services\api\src\routes\billing.routes.ts:840:      const outcome = await applyPersonalPlanChange({
+  services\api\src\routes\billing.routes.ts:841:        transition,
+  services\api\src\routes\billing.routes.ts:842:        currency: body.currency ?? null,
+  services\api\src\routes\billing.routes.ts:843:      });
+  services\api\src\routes\billing.routes.ts:844:
+  services\api\src\routes\billing.routes.ts:845:      auditBillingAction(req, {
+  services\api\src\routes\billing.routes.ts:846:        userId,
+> services\api\src\routes\billing.routes.ts:847:        action: "billing.subscription_plan_changed",
+  services\api\src\routes\billing.routes.ts:848:        outcome: "success",
+  services\api\src\routes\billing.routes.ts:849:        resourceId: transition.subscription.id,
+  services\api\src\routes\billing.routes.ts:850:        providerEventId: transition.subscription.providerSubId,
+  services\api\src\routes\billing.routes.ts:851:        metadata: {
+  services\api\src\routes\billing.routes.ts:852:          kind: outcome.kind,
+  services\api\src\routes\billing.routes.ts:853:          fromPlan: transition.subscription.plan,
+  services\api\src\routes\billing.routes.ts:854:          toPlan: outcome.targetPlan,
+  services\api\src\routes\billing.routes.ts:855:          effectiveAtUtc: outcome.effectiveAtUtc,
+  services\api\src\routes\billing.routes.ts:856:          providerConfirmed: outcome.providerConfirmed,
+> services\api\src\routes\billing.routes.ts:857:          approvalRequired: outcome.approvalUrl !== null,
+  services\api\src\routes\billing.routes.ts:858:        },
+  services\api\src\routes\billing.routes.ts:859:      });
+  services\api\src\routes\billing.routes.ts:860:
+  services\api\src\routes\billing.routes.ts:861:      fireBillingAnalyticsEvent({
+  services\api\src\routes\billing.routes.ts:862:        eventType: "subscription_plan_changed",
+  services\api\src\routes\billing.routes.ts:863:        userId,
+  services\api\src\routes\billing.routes.ts:864:        req,
+  services\api\src\routes\billing.routes.ts:865:        entityId: transition.subscription.id,
+  services\api\src\routes\billing.routes.ts:866:        metadata: { kind: outcome.kind, toPlan: outcome.targetPlan },
+  services\api\src\routes\billing.routes.ts:867:      });
+  services\api\src\routes\billing.routes.ts:868:
+  services\api\src\routes\billing.routes.ts:869:      return reply.code(200).send({
+  services\api\src\routes\billing.routes.ts:870:        outcome: outcome.kind,
+  services\api\src\routes\billing.routes.ts:871:        plan: outcome.targetPlan,
+  services\api\src\routes\billing.routes.ts:872:        effectiveAtUtc: outcome.effectiveAtUtc,
+> services\api\src\routes\billing.routes.ts:873:        approvalUrl: outcome.approvalUrl,
+  services\api\src\routes\billing.routes.ts:874:        providerConfirmed: outcome.providerConfirmed,
+  services\api\src\routes\billing.routes.ts:875:      });
+  services\api\src\routes\billing.routes.ts:876:    },
+  services\api\src\routes\billing.routes.ts:877:  );
+  services\api\src\routes\billing.routes.ts:878:
+  services\api\src\routes\billing.routes.ts:879:  app.post(
+  services\api\src\routes\billing.routes.ts:880:    "/v1/billing/subscription/cancel",
+  services\api\src\routes\billing.routes.ts:881:    { preHandler: requireAuthAndLegal },
+  services\api\src\routes\billing.routes.ts:907:      // legacy row still carrying a teamId is found by this too — it is that
+  services\api\src\routes\billing.routes.ts:908:      // person's subscription, and cancelling it is exactly what they asked
+  services\api\src\routes\billing.routes.ts:909:      // for.
+  services\api\src\routes\billing.routes.ts:910:      const subscription = await findLivePersonalSubscription(userId);
+  services\api\src\routes\billing.routes.ts:911:
+  services\api\src\routes\billing.routes.ts:912:      if (!subscription) {
+  services\api\src\routes\billing.routes.ts:913:        auditBillingAction(req, {
+  services\api\src\routes\billing.routes.ts:914:          userId,
+> services\api\src\routes\billing.routes.ts:915:          action: "billing.subscription_cancel",
+  services\api\src\routes\billing.routes.ts:916:          outcome: "failure",
+  services\api\src\routes\billing.routes.ts:917:          severity: "warning",
+  services\api\src\routes\billing.routes.ts:918:          metadata: { reason: "no_active_subscription" },
+  services\api\src\routes\billing.routes.ts:919:        });
+  services\api\src\routes\billing.routes.ts:920:        return reply.code(404).send({
+  services\api\src\routes\billing.routes.ts:921:          error: {
+  services\api\src\routes\billing.routes.ts:922:            code: "SUBSCRIPTION_NOT_FOUND",
+  services\api\src\routes\billing.routes.ts:923:            message: "There is no active subscription to cancel.",
+  services\api\src\routes\billing.routes.ts:927:
+  services\api\src\routes\billing.routes.ts:928:      // The provider decides. A failure throws and NOTHING local changes.
+  services\api\src\routes\billing.routes.ts:929:      const outcome = await requestSubscriptionCancellation({
+  services\api\src\routes\billing.routes.ts:930:        subscriptionId: subscription.id,
+  services\api\src\routes\billing.routes.ts:931:      });
+  services\api\src\routes\billing.routes.ts:932:
+  services\api\src\routes\billing.routes.ts:933:      auditBillingAction(req, {
+  services\api\src\routes\billing.routes.ts:934:        userId,
+> services\api\src\routes\billing.routes.ts:935:        action: "billing.subscription_cancel",
+  services\api\src\routes\billing.routes.ts:936:        outcome: "success",
+  services\api\src\routes\billing.routes.ts:937:        resourceId: subscription.id,
+  services\api\src\routes\billing.routes.ts:938:        providerEventId: subscription.providerSubId,
+  services\api\src\routes\billing.routes.ts:939:        metadata: {
+  services\api\src\routes\billing.routes.ts:940:          mode: outcome.mode,
+  services\api\src\routes\billing.routes.ts:941:          alreadyScheduled: outcome.alreadyScheduled,
+  services\api\src\routes\billing.routes.ts:942:          accessEndsAtUtc: outcome.accessEndsAtUtc,
+  services\api\src\routes\billing.routes.ts:943:          dependentAddonsFound: outcome.dependentAddonsFound,
+  services\api\src\routes\billing.routes.ts:1718:        mode: result.mode,
+  services\api\src\routes\billing.routes.ts:1719:        session: result.session,
+  services\api\src\routes\billing.routes.ts:1720:      });
+  services\api\src\routes\billing.routes.ts:1721:    },
+  services\api\src\routes\billing.routes.ts:1722:  );
+  services\api\src\routes\billing.routes.ts:1723:
+  services\api\src\routes\billing.routes.ts:1724:  /** PayPal counterpart. Same server-owned product identity. */
+  services\api\src\routes\billing.routes.ts:1725:  app.post(
+> services\api\src\routes\billing.routes.ts:1726:    "/v1/billing/credits/checkout/paypal",
+  services\api\src\routes\billing.routes.ts:1727:    { preHandler: requireAuthAndLegal },
+  services\api\src\routes\billing.routes.ts:1728:    async (req, reply) => {
+  services\api\src\routes\billing.routes.ts:1729:      const body = EvidenceCreditCheckoutBody.parse(req.body ?? {});
+  services\api\src\routes\billing.routes.ts:1730:      const userId = getAuthUserId(req);
+  services\api\src\routes\billing.routes.ts:1731:
+  services\api\src\routes\billing.routes.ts:1732:      await assertPersonalCheckoutAllowed(userId, undefined);
+  services\api\src\routes\billing.routes.ts:1733:      await assertBillingCapability({
+  services\api\src\routes\billing.routes.ts:1734:        viewerUserId: userId,
+
+
+
+===== services/api/src/routes/webhooks.routes.ts =====
+
+  services\api\src\routes\webhooks.routes.ts:1:import type { FastifyInstance, FastifyRequest } from "fastify";
+  services\api\src\routes\webhooks.routes.ts:2:import { createHash } from "node:crypto";
+  services\api\src\routes\webhooks.routes.ts:3:import * as prismaPkg from "@prisma/client";
+  services\api\src\routes\webhooks.routes.ts:4:import { prisma } from "../db.js";
+  services\api\src\routes\webhooks.routes.ts:5:// BILLING RECONCILIATION (2026-08-27) — `setPersonalPlan`, `activateTeamPlan`,
+  services\api\src\routes\webhooks.routes.ts:6:// `cancelTeamPlan` and `upsertSubscription` are no longer imported here. Every
+> services\api\src\routes\webhooks.routes.ts:7:// one of them was called only by `syncPlanForSubscription`, which moved to
+  services\api\src\routes\webhooks.routes.ts:8:// `services/billing/subscription-lifecycle.handlers.ts` so the verified webhook
+  services\api\src\routes\webhooks.routes.ts:9:// and the polled reconciliation share one implementation of what a provider
+  services\api\src\routes\webhooks.routes.ts:10:// subscription state MEANS. This route now applies that meaning rather than
+  services\api\src\routes\webhooks.routes.ts:11:// deciding it.
+  services\api\src\routes\webhooks.routes.ts:12:import {
+  services\api\src\routes\webhooks.routes.ts:13:  ensureEntitlement,
+  services\api\src\routes\webhooks.routes.ts:14:  recordPayment,
+  services\api\src\routes\webhooks.routes.ts:15:  upsertWorkspaceStorageAddon,
+  services\api\src\routes\webhooks.routes.ts:16:} from "../services/billing.service.js";
+  services\api\src\routes\webhooks.routes.ts:17:// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — evidence credits are granted
+  services\api\src\routes\webhooks.routes.ts:18:// through the canonical wallet, which writes the auditable ledger entry in the
+  services\api\src\routes\webhooks.routes.ts:19:// same transaction as the balance and is idempotent on the provider payment id.
+  services\api\src\routes\webhooks.routes.ts:20:import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
+  services\api\src\routes\webhooks.routes.ts:21:import {
+  services\api\src\routes\webhooks.routes.ts:22:  storageAddonStatusFromSubscription,
+> services\api\src\routes\webhooks.routes.ts:23:  syncPlanForSubscription,
+  services\api\src\routes\webhooks.routes.ts:24:} from "../services/billing/subscription-lifecycle.handlers.js";
+  services\api\src\routes\webhooks.routes.ts:25:// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
+  services\api\src\routes\webhooks.routes.ts:26:// the AUTHORITATIVE STORED subscription row, not from provider metadata that
+  services\api\src\routes\webhooks.routes.ts:27:// providers do not in fact put on renewal events.
+  services\api\src\routes\webhooks.routes.ts:28:import {
+  services\api\src\routes\webhooks.routes.ts:29:  paypalSubscriptionIdFromSale,
+  services\api\src\routes\webhooks.routes.ts:30:  resolveSubjectFromProviderSubscription,
+  services\api\src\routes\webhooks.routes.ts:31:  stripeSubscriptionIdFromInvoice,
+  services\api\src\routes\webhooks.routes.ts:92:}
+  services\api\src\routes\webhooks.routes.ts:93:
+  services\api\src\routes\webhooks.routes.ts:94:function parseStripeSubscriptionStatus(
+  services\api\src\routes\webhooks.routes.ts:95:  status?: string
+  services\api\src\routes\webhooks.routes.ts:96:): prismaPkg.SubscriptionStatus {
+  services\api\src\routes\webhooks.routes.ts:97:  const normalized = (status ?? "").trim().toLowerCase();
+  services\api\src\routes\webhooks.routes.ts:98:
+  services\api\src\routes\webhooks.routes.ts:99:  if (normalized === "active") return prismaPkg.SubscriptionStatus.ACTIVE;
+> services\api\src\routes\webhooks.routes.ts:100:  if (normalized === "trialing") return prismaPkg.SubscriptionStatus.TRIALING;
+  services\api\src\routes\webhooks.routes.ts:101:  if (normalized === "past_due") return prismaPkg.SubscriptionStatus.PAST_DUE;
+  services\api\src\routes\webhooks.routes.ts:102:  if (normalized === "unpaid") return prismaPkg.SubscriptionStatus.PAST_DUE;
+  services\api\src\routes\webhooks.routes.ts:103:  if (normalized === "canceled" || normalized === "incomplete_expired") {
+  services\api\src\routes\webhooks.routes.ts:104:    return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:105:  }
+  services\api\src\routes\webhooks.routes.ts:106:
+  services\api\src\routes\webhooks.routes.ts:107:  return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:108:}
+  services\api\src\routes\webhooks.routes.ts:109:
+  services\api\src\routes\webhooks.routes.ts:110:function parsePayPalSubscriptionStatus(
+  services\api\src\routes\webhooks.routes.ts:111:  status?: string
+  services\api\src\routes\webhooks.routes.ts:112:): prismaPkg.SubscriptionStatus {
+  services\api\src\routes\webhooks.routes.ts:113:  const normalized = (status ?? "").trim().toUpperCase();
+  services\api\src\routes\webhooks.routes.ts:114:
+  services\api\src\routes\webhooks.routes.ts:115:  if (normalized === "ACTIVE") return prismaPkg.SubscriptionStatus.ACTIVE;
+  services\api\src\routes\webhooks.routes.ts:116:  if (normalized === "APPROVAL_PENDING") {
+> services\api\src\routes\webhooks.routes.ts:117:    return prismaPkg.SubscriptionStatus.TRIALING;
+  services\api\src\routes\webhooks.routes.ts:118:  }
+> services\api\src\routes\webhooks.routes.ts:119:  if (normalized === "APPROVED") return prismaPkg.SubscriptionStatus.TRIALING;
+> services\api\src\routes\webhooks.routes.ts:120:  if (normalized === "CREATED") return prismaPkg.SubscriptionStatus.TRIALING;
+  services\api\src\routes\webhooks.routes.ts:121:  if (normalized === "SUSPENDED") return prismaPkg.SubscriptionStatus.PAST_DUE;
+  services\api\src\routes\webhooks.routes.ts:122:  if (normalized === "EXPIRED") return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:123:  if (normalized === "CANCELLED") return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:124:  if (normalized === "CANCELLED_BY_SYSTEM") {
+  services\api\src\routes\webhooks.routes.ts:125:    return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:126:  }
+  services\api\src\routes\webhooks.routes.ts:127:
+  services\api\src\routes\webhooks.routes.ts:128:  return prismaPkg.SubscriptionStatus.CANCELED;
+  services\api\src\routes\webhooks.routes.ts:327: *
+  services\api\src\routes\webhooks.routes.ts:328: * ONE mapping, so a lapsed add-on cannot keep granting capacity on one provider
+  services\api\src\routes\webhooks.routes.ts:329: * while it stops on the other. PAST_DUE deliberately still grants: the canonical
+  services\api\src\routes\webhooks.routes.ts:330: * usage aggregate counts ACTIVE and PAST_DUE add-ons, which is the same bounded
+  services\api\src\routes\webhooks.routes.ts:331: * grace the base subscription gets rather than an instant cliff on a failed card.
+  services\api\src\routes\webhooks.routes.ts:332: */
+  services\api\src\routes\webhooks.routes.ts:333:/**
+  services\api\src\routes\webhooks.routes.ts:334: * BILLING RECONCILIATION (2026-08-27) — `storageAddonStatusFromSubscription`
+> services\api\src\routes\webhooks.routes.ts:335: * and `syncPlanForSubscription` MOVED to
+  services\api\src\routes\webhooks.routes.ts:336: * `services/billing/subscription-lifecycle.handlers.ts`.
+  services\api\src\routes\webhooks.routes.ts:337: *
+  services\api\src\routes\webhooks.routes.ts:338: * They were fine here while a verified webhook was the only way a provider
+  services\api\src\routes\webhooks.routes.ts:339: * fact could reach the domain. Reconciliation now learns the same facts by
+  services\api\src\routes\webhooks.routes.ts:340: * polling, and a second copy of "what an ACTIVE TEAM subscription means" is
+  services\api\src\routes\webhooks.routes.ts:341: * exactly how the two paths would come to disagree about a customer's plan.
+  services\api\src\routes\webhooks.routes.ts:342: * The behaviour is unchanged; this file imports it and calls it as before.
+  services\api\src\routes\webhooks.routes.ts:343: */
+  services\api\src\routes\webhooks.routes.ts:374:          sigCheck.reason === "missing_signature"
+  services\api\src\routes\webhooks.routes.ts:375:            ? "Missing signature"
+  services\api\src\routes\webhooks.routes.ts:376:            : "Invalid webhook signature",
+  services\api\src\routes\webhooks.routes.ts:377:      });
+  services\api\src\routes\webhooks.routes.ts:378:    }
+  services\api\src\routes\webhooks.routes.ts:379:
+  services\api\src\routes\webhooks.routes.ts:380:    const event = parseStripeEvent(rawBody);
+  services\api\src\routes\webhooks.routes.ts:381:
+> services\api\src\routes\webhooks.routes.ts:382:    // Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.
+  services\api\src\routes\webhooks.routes.ts:383:    // The unique index on `stripe_event_id` makes the "seen?" check
+  services\api\src\routes\webhooks.routes.ts:384:    // atomic — a duplicate insert raises Prisma P2002 which we
+  services\api\src\routes\webhooks.routes.ts:385:    // translate into a safe no-op 200. The row stays in the table as
+  services\api\src\routes\webhooks.routes.ts:386:    // the durable audit of what was acted on.
+  services\api\src\routes\webhooks.routes.ts:387:    try {
+  services\api\src\routes\webhooks.routes.ts:388:      await prisma.stripeWebhookEvent.create({
+  services\api\src\routes\webhooks.routes.ts:389:        data: {
+  services\api\src\routes\webhooks.routes.ts:390:          stripeEventId: event.id,
+  services\api\src\routes\webhooks.routes.ts:591:        subscription.metadata?.storageAddonKey
+  services\api\src\routes\webhooks.routes.ts:592:      );
+  services\api\src\routes\webhooks.routes.ts:593:      const stripeStatus = parseStripeSubscriptionStatus(subscription.status);
+  services\api\src\routes\webhooks.routes.ts:594:      const stripeObservedAt = dateFromUnixSeconds(
+  services\api\src\routes\webhooks.routes.ts:595:        (event as { created?: unknown }).created,
+  services\api\src\routes\webhooks.routes.ts:596:      );
+  services\api\src\routes\webhooks.routes.ts:597:
+  services\api\src\routes\webhooks.routes.ts:598:      if (userId && plan) {
+> services\api\src\routes\webhooks.routes.ts:599:        await syncPlanForSubscription({
+  services\api\src\routes\webhooks.routes.ts:600:          userId,
+  services\api\src\routes\webhooks.routes.ts:601:          plan,
+  services\api\src\routes\webhooks.routes.ts:602:          teamId,
+  services\api\src\routes\webhooks.routes.ts:603:          provider: prismaPkg.PaymentProvider.STRIPE,
+  services\api\src\routes\webhooks.routes.ts:604:          providerSubId: subscription.id,
+  services\api\src\routes\webhooks.routes.ts:605:          status: stripeStatus,
+  services\api\src\routes\webhooks.routes.ts:606:          currentPeriodEnd: subscription.current_period_end
+  services\api\src\routes\webhooks.routes.ts:607:            ? new Date(subscription.current_period_end * 1000)
+  services\api\src\routes\webhooks.routes.ts:798:    }
+  services\api\src\routes\webhooks.routes.ts:799:
+  services\api\src\routes\webhooks.routes.ts:800:    const event = JSON.parse(rawBody) as {
+  services\api\src\routes\webhooks.routes.ts:801:      id?: string;
+  services\api\src\routes\webhooks.routes.ts:802:      event_type: string;
+  services\api\src\routes\webhooks.routes.ts:803:      resource: {
+  services\api\src\routes\webhooks.routes.ts:804:        id?: string;
+  services\api\src\routes\webhooks.routes.ts:805:        status?: string;
+> services\api\src\routes\webhooks.routes.ts:806:        custom_id?: string;
+  services\api\src\routes\webhooks.routes.ts:807:        billing_info?: {
+  services\api\src\routes\webhooks.routes.ts:808:          next_billing_time?: string;
+  services\api\src\routes\webhooks.routes.ts:809:        };
+  services\api\src\routes\webhooks.routes.ts:810:        purchase_units?: Array<{
+> services\api\src\routes\webhooks.routes.ts:811:          custom_id?: string;
+  services\api\src\routes\webhooks.routes.ts:812:          amount?: { value?: string; currency_code?: string };
+  services\api\src\routes\webhooks.routes.ts:813:        }>;
+  services\api\src\routes\webhooks.routes.ts:814:      };
+  services\api\src\routes\webhooks.routes.ts:815:    };
+  services\api\src\routes\webhooks.routes.ts:816:
+> services\api\src\routes\webhooks.routes.ts:817:    // Phase 10 — PayPal webhook idempotency. Direct mirror of
+  services\api\src\routes\webhooks.routes.ts:818:    // Phase E10.1 / DEF-038 (Stripe). The unique index on
+  services\api\src\routes\webhooks.routes.ts:819:    // `paypal_event_id` makes the "seen?" check atomic — a duplicate
+  services\api\src\routes\webhooks.routes.ts:820:    // insert raises Prisma P2002 which we translate into a safe
+  services\api\src\routes\webhooks.routes.ts:821:    // no-op 200. The row stays in the table as the durable audit of
+  services\api\src\routes\webhooks.routes.ts:822:    // what was acted on. NOTE: we deliberately log the event id +
+  services\api\src\routes\webhooks.routes.ts:823:    // event_type only — never the raw payload, never any provider
+  services\api\src\routes\webhooks.routes.ts:824:    // secret.
+  services\api\src\routes\webhooks.routes.ts:825:    const paypalEventId = typeof event.id === "string" ? event.id : null;
+  services\api\src\routes\webhooks.routes.ts:964:            errorReason: trimmed,
+  services\api\src\routes\webhooks.routes.ts:965:            payloadHash,
+  services\api\src\routes\webhooks.routes.ts:966:          },
+  services\api\src\routes\webhooks.routes.ts:967:        })
+  services\api\src\routes\webhooks.routes.ts:968:        .catch(() => null);
+  services\api\src\routes\webhooks.routes.ts:969:    };
+  services\api\src\routes\webhooks.routes.ts:970:
+  services\api\src\routes\webhooks.routes.ts:971:    try {
+> services\api\src\routes\webhooks.routes.ts:972:      if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+  services\api\src\routes\webhooks.routes.ts:973:        const unit = event.resource.purchase_units?.[0];
+  services\api\src\routes\webhooks.routes.ts:974:        const parsed = parsePayPalCustomId(
+> services\api\src\routes\webhooks.routes.ts:975:          unit?.custom_id ?? event.resource.custom_id
+  services\api\src\routes\webhooks.routes.ts:976:        );
+  services\api\src\routes\webhooks.routes.ts:977:        const addonContext = tryParseAddonContextFromCustomId(
+> services\api\src\routes\webhooks.routes.ts:978:          unit?.custom_id ?? event.resource.custom_id
+  services\api\src\routes\webhooks.routes.ts:979:        );
+  services\api\src\routes\webhooks.routes.ts:980:
+  services\api\src\routes\webhooks.routes.ts:981:        if (parsed.userId && parsed.plan === prismaPkg.PlanType.PAYG) {
+  services\api\src\routes\webhooks.routes.ts:982:          await ensureEntitlement(parsed.userId);
+  services\api\src\routes\webhooks.routes.ts:983:          await grantEvidenceCredits({
+  services\api\src\routes\webhooks.routes.ts:984:            userId: parsed.userId,
+  services\api\src\routes\webhooks.routes.ts:985:            credits: PAYG_CREDITS_PER_PURCHASE,
+  services\api\src\routes\webhooks.routes.ts:986:            provider: prismaPkg.PaymentProvider.PAYPAL,
+  services\api\src\routes\webhooks.routes.ts:1049:        return reply.code(200).send({ received: true });
+  services\api\src\routes\webhooks.routes.ts:1050:      }
+  services\api\src\routes\webhooks.routes.ts:1051:
+  services\api\src\routes\webhooks.routes.ts:1052:      /**
+  services\api\src\routes\webhooks.routes.ts:1053:       * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — PayPal RENEWALS.
+  services\api\src\routes\webhooks.routes.ts:1054:       *
+  services\api\src\routes\webhooks.routes.ts:1055:       * A PayPal subscription renewal arrives as `PAYMENT.SALE.COMPLETED`,
+  services\api\src\routes\webhooks.routes.ts:1056:       * which this handler did not implement at all: only
+> services\api\src\routes\webhooks.routes.ts:1057:       * `PAYMENT.CAPTURE.COMPLETED` (the one-time order path) was handled, and
+> services\api\src\routes\webhooks.routes.ts:1058:       * only when its `custom_id` said PAYG. Every PayPal renewal was
+  services\api\src\routes\webhooks.routes.ts:1059:       * therefore invisible in payment history.
+  services\api\src\routes\webhooks.routes.ts:1060:       *
+  services\api\src\routes\webhooks.routes.ts:1061:       * `billing_agreement_id` on a recurring sale IS the subscription id this
+  services\api\src\routes\webhooks.routes.ts:1062:       * platform stored at checkout, so ownership is resolved from the stored
+  services\api\src\routes\webhooks.routes.ts:1063:       * row rather than from a payload field PayPal does not populate.
+  services\api\src\routes\webhooks.routes.ts:1064:       */
+  services\api\src\routes\webhooks.routes.ts:1065:      if (
+  services\api\src\routes\webhooks.routes.ts:1066:        event.event_type === "PAYMENT.SALE.COMPLETED" ||
+  services\api\src\routes\webhooks.routes.ts:1099:          );
+  services\api\src\routes\webhooks.routes.ts:1100:        }
+  services\api\src\routes\webhooks.routes.ts:1101:
+  services\api\src\routes\webhooks.routes.ts:1102:        await markProcessed();
+  services\api\src\routes\webhooks.routes.ts:1103:        return reply.code(200).send({ received: true });
+  services\api\src\routes\webhooks.routes.ts:1104:      }
+  services\api\src\routes\webhooks.routes.ts:1105:
+  services\api\src\routes\webhooks.routes.ts:1106:      if (
+> services\api\src\routes\webhooks.routes.ts:1107:        event.event_type === "BILLING.SUBSCRIPTION.CREATED" ||
+> services\api\src\routes\webhooks.routes.ts:1108:        event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED" ||
+> services\api\src\routes\webhooks.routes.ts:1109:        event.event_type === "BILLING.SUBSCRIPTION.UPDATED" ||
+> services\api\src\routes\webhooks.routes.ts:1110:        event.event_type === "BILLING.SUBSCRIPTION.CANCELLED" ||
+> services\api\src\routes\webhooks.routes.ts:1111:        event.event_type === "BILLING.SUBSCRIPTION.SUSPENDED" ||
+> services\api\src\routes\webhooks.routes.ts:1112:        event.event_type === "BILLING.SUBSCRIPTION.EXPIRED"
+  services\api\src\routes\webhooks.routes.ts:1113:      ) {
+  services\api\src\routes\webhooks.routes.ts:1114:        // Phase 10 — TEAM + PRO entitlement transitions are wrapped
+> services\api\src\routes\webhooks.routes.ts:1115:        // by the outer paypal_webhook_events idempotency record. The
+> services\api\src\routes\webhooks.routes.ts:1116:        // dedup keystone above ensures BILLING.SUBSCRIPTION.UPDATED
+> services\api\src\routes\webhooks.routes.ts:1117:        // and BILLING.SUBSCRIPTION.CANCELLED for TEAM and PRO tiers
+  services\api\src\routes\webhooks.routes.ts:1118:        // cannot double-fire (the unique index on `paypal_event_id`
+  services\api\src\routes\webhooks.routes.ts:1119:        // makes the second delivery a P2002 → 200 no-op).
+  services\api\src\routes\webhooks.routes.ts:1120:        const subscriptionId = event.resource.id ?? null;
+  services\api\src\routes\webhooks.routes.ts:1121:        if (!subscriptionId) {
+  services\api\src\routes\webhooks.routes.ts:1122:          await markProcessed();
+  services\api\src\routes\webhooks.routes.ts:1123:          return reply.code(200).send({ received: true });
+  services\api\src\routes\webhooks.routes.ts:1124:        }
+  services\api\src\routes\webhooks.routes.ts:1125:
+> services\api\src\routes\webhooks.routes.ts:1126:        let parsed = parsePayPalCustomId(event.resource.custom_id);
+  services\api\src\routes\webhooks.routes.ts:1127:        let addonContext = tryParseAddonContextFromCustomId(
+> services\api\src\routes\webhooks.routes.ts:1128:          event.resource.custom_id
+  services\api\src\routes\webhooks.routes.ts:1129:        );
+  services\api\src\routes\webhooks.routes.ts:1130:
+  services\api\src\routes\webhooks.routes.ts:1131:        const needsPlanRefresh = !parsed.userId || !parsed.plan;
+  services\api\src\routes\webhooks.routes.ts:1132:        const needsAddonRefresh =
+  services\api\src\routes\webhooks.routes.ts:1133:          !addonContext.userId || !addonContext.storageAddonKey;
+  services\api\src\routes\webhooks.routes.ts:1134:
+  services\api\src\routes\webhooks.routes.ts:1135:        if (needsPlanRefresh || needsAddonRefresh) {
+  services\api\src\routes\webhooks.routes.ts:1136:          try {
+  services\api\src\routes\webhooks.routes.ts:1137:            const liveSubscription =
+  services\api\src\routes\webhooks.routes.ts:1138:              await getPayPalSubscription(subscriptionId);
+  services\api\src\routes\webhooks.routes.ts:1139:            parsed = parsePayPalCustomId(
+> services\api\src\routes\webhooks.routes.ts:1140:              typeof liveSubscription.custom_id === "string"
+> services\api\src\routes\webhooks.routes.ts:1141:                ? liveSubscription.custom_id
+  services\api\src\routes\webhooks.routes.ts:1142:                : undefined
+  services\api\src\routes\webhooks.routes.ts:1143:            );
+  services\api\src\routes\webhooks.routes.ts:1144:            addonContext = tryParseAddonContextFromCustomId(
+> services\api\src\routes\webhooks.routes.ts:1145:              liveSubscription.custom_id
+  services\api\src\routes\webhooks.routes.ts:1146:            );
+  services\api\src\routes\webhooks.routes.ts:1147:          } catch {
+  services\api\src\routes\webhooks.routes.ts:1148:            // keep parsed as-is
+  services\api\src\routes\webhooks.routes.ts:1149:          }
+  services\api\src\routes\webhooks.routes.ts:1150:        }
+  services\api\src\routes\webhooks.routes.ts:1151:
+  services\api\src\routes\webhooks.routes.ts:1152:        const paypalStatus = parsePayPalSubscriptionStatus(
+  services\api\src\routes\webhooks.routes.ts:1153:          event.resource.status
+  services\api\src\routes\webhooks.routes.ts:1154:        );
+  services\api\src\routes\webhooks.routes.ts:1155:        const observedAtUtc = paypalSubscriptionObservedAt(event);
+  services\api\src\routes\webhooks.routes.ts:1156:
+  services\api\src\routes\webhooks.routes.ts:1157:        if (parsed.userId && parsed.plan) {
+> services\api\src\routes\webhooks.routes.ts:1158:          await syncPlanForSubscription({
+  services\api\src\routes\webhooks.routes.ts:1159:            userId: parsed.userId,
+  services\api\src\routes\webhooks.routes.ts:1160:            plan: parsed.plan,
+  services\api\src\routes\webhooks.routes.ts:1161:            teamId: parsed.teamId,
+  services\api\src\routes\webhooks.routes.ts:1162:            provider: prismaPkg.PaymentProvider.PAYPAL,
+  services\api\src\routes\webhooks.routes.ts:1163:            providerSubId: subscriptionId,
+  services\api\src\routes\webhooks.routes.ts:1164:            status: paypalStatus,
+  services\api\src\routes\webhooks.routes.ts:1165:            currentPeriodEnd: event.resource.billing_info?.next_billing_time
+  services\api\src\routes\webhooks.routes.ts:1166:              ? new Date(event.resource.billing_info.next_billing_time)
+
+
+
+===== apps/mobile/src/product/billing-purchase.ts =====
+
+  apps\mobile\src\product\billing-purchase.ts:18:    return { path: intent.transition ? "/v1/billing/subscription/plan" : `/v1/billing/checkout/${provider}`, body };
+  apps\mobile\src\product\billing-purchase.ts:19:  }
+  apps\mobile\src\product\billing-purchase.ts:20:  if (intent.kind === "CREDITS") return { path: `/v1/billing/credits/checkout/${provider}`, body };
+  apps\mobile\src\product\billing-purchase.ts:21:  body.addonKey = intent.addonKey;
+  apps\mobile\src\product\billing-purchase.ts:22:  body.billingCycle = "MONTHLY";
+  apps\mobile\src\product\billing-purchase.ts:23:  return { path: `/v1/billing/storage-addons/checkout/${provider}`, body };
+  apps\mobile\src\product\billing-purchase.ts:24:}
+  apps\mobile\src\product\billing-purchase.ts:25:
+> apps\mobile\src\product\billing-purchase.ts:26:/** Provider-approved HTTPS URLs only. A plan transition may return approvalUrl
+  apps\mobile\src\product\billing-purchase.ts:27: * without a provider discriminator; validate against BOTH provider allowlists. */
+  apps\mobile\src\product\billing-purchase.ts:28:export function verifiedCheckoutUrl(candidate: unknown): string | null {
+  apps\mobile\src\product\billing-purchase.ts:29:  if (typeof candidate !== "string") return null;
+  apps\mobile\src\product\billing-purchase.ts:30:  try {
+  apps\mobile\src\product\billing-purchase.ts:31:    const parsed = new URL(candidate);
+  apps\mobile\src\product\billing-purchase.ts:32:    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port) return null;
+  apps\mobile\src\product\billing-purchase.ts:33:    const host = parsed.hostname.toLowerCase();
+  apps\mobile\src\product\billing-purchase.ts:34:    const stripe = host === "checkout.stripe.com" || host.endsWith(".checkout.stripe.com");
+  apps\mobile\src\product\billing-purchase.ts:35:    const paypal = ["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(host);
+  apps\mobile\src\product\billing-purchase.ts:36:    return stripe || paypal ? parsed.toString() : null;
+  apps\mobile\src\product\billing-purchase.ts:37:  } catch { return null; }
+  apps\mobile\src\product\billing-purchase.ts:38:}
+  apps\mobile\src\product\billing-purchase.ts:39:
+  apps\mobile\src\product\billing-purchase.ts:40:/** Only URLs from the documented Stripe/PayPal checkout response shapes. */
+> apps\mobile\src\product\billing-purchase.ts:41:export function checkoutApprovalUrl(payload: unknown, provider: PurchaseProvider): string | null {
+  apps\mobile\src\product\billing-purchase.ts:42:  const o = (v: unknown): Record<string, unknown> => v && typeof v === "object" ? v as Record<string, unknown> : {};
+  apps\mobile\src\product\billing-purchase.ts:43:  const response = o(payload);
+  apps\mobile\src\product\billing-purchase.ts:44:  const providerObject = o(provider === "stripe" ? response.session : response.subscription ?? response.order);
+  apps\mobile\src\product\billing-purchase.ts:45:  const links = Array.isArray(providerObject.links) ? providerObject.links : [];
+  apps\mobile\src\product\billing-purchase.ts:46:  const candidate = provider === "stripe" ? providerObject.url :
+  apps\mobile\src\product\billing-purchase.ts:47:    links.map(o).find(link => link.rel === "approve" || link.rel === "payer-action")?.href;
+  apps\mobile\src\product\billing-purchase.ts:48:  if (typeof candidate !== "string") return null;
+  apps\mobile\src\product\billing-purchase.ts:49:  try {
+
+
+
+===== apps/mobile/app/(stack)/billing.tsx =====
+
+  apps\mobile\app\(stack)\billing.tsx:14: * provider re-check, a payment's re-check / stop / abandon, cancelling the
+  apps\mobile\app\(stack)\billing.tsx:15: * subscription or a storage add-on, and retrying an outstanding add-on
+  apps\mobile\app\(stack)\billing.tsx:16: * cancellation. PURCHASE is not: starting or changing a plan, buying storage
+  apps\mobile\app\(stack)\billing.tsx:17: * or credits and resuming a provider checkout wait on the distribution-policy
+  apps\mobile\app\(stack)\billing.tsx:18: * decision (src/product/billing.ts). Prices and plans are shown read-only in
+  apps\mobile\app\(stack)\billing.tsx:19: * the pricing sheet.
+  apps\mobile\app\(stack)\billing.tsx:20: */
+  apps\mobile\app\(stack)\billing.tsx:21:import { useCallback, useEffect, useRef, useState } from "react";
+> apps\mobile\app\(stack)\billing.tsx:22:import { Linking, View } from "react-native";
+> apps\mobile\app\(stack)\billing.tsx:23:import * as WebBrowser from "expo-web-browser";
+  apps\mobile\app\(stack)\billing.tsx:24:import { useRouter } from "expo-router";
+  apps\mobile\app\(stack)\billing.tsx:25:
+  apps\mobile\app\(stack)\billing.tsx:26:import { apiFetch } from "../../src/api";
+> apps\mobile\app\(stack)\billing.tsx:27:import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
+  apps\mobile\app\(stack)\billing.tsx:28:import { ProovraSheet } from "../../src/ui/patterns";
+  apps\mobile\app\(stack)\billing.tsx:29:import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
+  apps\mobile\app\(stack)\billing.tsx:30:import { theme } from "../../src/theme/theme";
+  apps\mobile\app\(stack)\billing.tsx:31:import {
+  apps\mobile\app\(stack)\billing.tsx:32:  BILLING_ACCOUNTS_PATH,
+  apps\mobile\app\(stack)\billing.tsx:33:  BILLING_ACCOUNT_KIND_LABEL,
+  apps\mobile\app\(stack)\billing.tsx:34:  BILLING_MANAGED_COPY,
+  apps\mobile\app\(stack)\billing.tsx:35:  STORAGE_ADDON_CANCEL_PATH,
+  apps\mobile\app\(stack)\billing.tsx:204:    void loadProjection(selected);
+  apps\mobile\app\(stack)\billing.tsx:205:    void loadHistory(selected);
+  apps\mobile\app\(stack)\billing.tsx:206:  }, [selected, loadProjection, loadHistory]);
+  apps\mobile\app\(stack)\billing.tsx:207:
+  apps\mobile\app\(stack)\billing.tsx:208:  const openSupport = useCallback(() => {
+  apps\mobile\app\(stack)\billing.tsx:209:    if (projection?.actions.contactAccountManager) {
+  apps\mobile\app\(stack)\billing.tsx:210:      const origin = webOrigin();
+  apps\mobile\app\(stack)\billing.tsx:211:      if (origin) {
+> apps\mobile\app\(stack)\billing.tsx:212:        void Linking.openURL(`${origin}${CONTACT_SALES_PATH}`);
+  apps\mobile\app\(stack)\billing.tsx:213:        return;
+  apps\mobile\app\(stack)\billing.tsx:214:      }
+  apps\mobile\app\(stack)\billing.tsx:215:    }
+  apps\mobile\app\(stack)\billing.tsx:216:    router.push("/support");
+  apps\mobile\app\(stack)\billing.tsx:217:  }, [projection, router]);
+  apps\mobile\app\(stack)\billing.tsx:218:
+  apps\mobile\app\(stack)\billing.tsx:219:  const openSales = (() => {
+  apps\mobile\app\(stack)\billing.tsx:220:    const origin = webOrigin();
+> apps\mobile\app\(stack)\billing.tsx:221:    return origin ? () => void Linking.openURL(`${origin}${CONTACT_SALES_PATH}`) : null;
+  apps\mobile\app\(stack)\billing.tsx:222:  })();
+  apps\mobile\app\(stack)\billing.tsx:223:
+  apps\mobile\app\(stack)\billing.tsx:224:  const openPricingWebsite = useCallback(() => {
+  apps\mobile\app\(stack)\billing.tsx:225:    const origin = webOrigin();
+  apps\mobile\app\(stack)\billing.tsx:226:    if (!origin) { setNotice("Pricing website is not configured."); return; }
+> apps\mobile\app\(stack)\billing.tsx:227:    void WebBrowser.openBrowserAsync(`${origin}/pricing`).catch(() => {
+  apps\mobile\app\(stack)\billing.tsx:228:      setNotice("Could not open the pricing website. Please try again.");
+  apps\mobile\app\(stack)\billing.tsx:229:    });
+  apps\mobile\app\(stack)\billing.tsx:230:  }, []);
+  apps\mobile\app\(stack)\billing.tsx:231:
+  apps\mobile\app\(stack)\billing.tsx:232:  /** Plan selection is distinct from the public pricing website. */
+  apps\mobile\app\(stack)\billing.tsx:233:  const openPlanManagement = useCallback(() => {
+  apps\mobile\app\(stack)\billing.tsx:234:    if (!projection) return;
+  apps\mobile\app\(stack)\billing.tsx:235:    if (projection.actions.planManagement.mode === "CHOOSE") setPricingOpen(true);
+  apps\mobile\app\(stack)\billing.tsx:279:  }, []);
+  apps\mobile\app\(stack)\billing.tsx:280:
+  apps\mobile\app\(stack)\billing.tsx:281:  const finishCheckoutDismiss = useCallback(() => {
+  apps\mobile\app\(stack)\billing.tsx:282:    const url = pendingBrowserUrl.current;
+  apps\mobile\app\(stack)\billing.tsx:283:    if (!url) return;
+  apps\mobile\app\(stack)\billing.tsx:284:
+  apps\mobile\app\(stack)\billing.tsx:285:    pendingBrowserUrl.current = null;
+  apps\mobile\app\(stack)\billing.tsx:286:
+> apps\mobile\app\(stack)\billing.tsx:287:    void WebBrowser.openBrowserAsync(url)
+  apps\mobile\app\(stack)\billing.tsx:288:      .then(() => {
+  apps\mobile\app\(stack)\billing.tsx:289:        setNotice(
+  apps\mobile\app\(stack)\billing.tsx:290:          "Payment may still be pending. Refresh billing to check its confirmed status."
+  apps\mobile\app\(stack)\billing.tsx:291:        );
+  apps\mobile\app\(stack)\billing.tsx:292:        refresh();
+  apps\mobile\app\(stack)\billing.tsx:293:      })
+  apps\mobile\app\(stack)\billing.tsx:294:      .catch((err) => {
+  apps\mobile\app\(stack)\billing.tsx:295:        console.error("[billing] Browser presentation failed", err);
+  apps\mobile\app\(stack)\billing.tsx:334:        const code = (err as { code?: string }).code;
+  apps\mobile\app\(stack)\billing.tsx:335:        if (purchase.kind === "PLAN" && !purchase.transition && code === "SUBSCRIPTION_ALREADY_ACTIVE") {
+  apps\mobile\app\(stack)\billing.tsx:336:          response = await apiFetch("/v1/billing/subscription/plan", { method: "POST", body: JSON.stringify({ plan: purchase.plan, ...(request.body.currency ? { currency: request.body.currency } : 
+{}) }) });
+  apps\mobile\app\(stack)\billing.tsx:337:        } else if (purchase.kind === "PLAN" && purchase.transition && code === "CHECKOUT_REQUIRED") {
+  apps\mobile\app\(stack)\billing.tsx:338:          const fresh = checkoutRequest({ ...purchase, transition: false }, provider, catalogue?.currency);
+  apps\mobile\app\(stack)\billing.tsx:339:          response = await apiFetch(fresh.path, { method: "POST", body: JSON.stringify(fresh.body) });
+  apps\mobile\app\(stack)\billing.tsx:340:        } else { throw err; }
+  apps\mobile\app\(stack)\billing.tsx:341:      }
+> apps\mobile\app\(stack)\billing.tsx:342:      const result = response as { outcome?: string; approvalUrl?: string | null } | null;
+  apps\mobile\app\(stack)\billing.tsx:343:      if (result?.outcome === "NO_CHANGE") { setNotice("Your plan is already active."); setPurchase(null); refresh(); return; }
+  apps\mobile\app\(stack)\billing.tsx:344:      if (result?.outcome === "PROVIDER_TRANSITION_IN_PROGRESS") { setNotice("Your plan change is pending provider confirmation."); setPurchase(null); refresh(); return; }
+> apps\mobile\app\(stack)\billing.tsx:345:      const url = result?.approvalUrl
+> apps\mobile\app\(stack)\billing.tsx:346:        ? verifiedCheckoutUrl(result.approvalUrl)
+> apps\mobile\app\(stack)\billing.tsx:347:        : checkoutApprovalUrl(response, provider);
+  apps\mobile\app\(stack)\billing.tsx:348:      if (url) {
+  apps\mobile\app\(stack)\billing.tsx:349:        pendingBrowserUrl.current = url;
+  apps\mobile\app\(stack)\billing.tsx:350:        setPurchase(null);
+  apps\mobile\app\(stack)\billing.tsx:351:      } else {
+  apps\mobile\app\(stack)\billing.tsx:352:        // A provider may have created a pending attempt; never silently retry it.
+  apps\mobile\app\(stack)\billing.tsx:353:        setPurchaseError(result?.outcome
+  apps\mobile\app\(stack)\billing.tsx:354:          ? `Plan change: ${result.outcome}. Refresh billing to check its confirmed status.`
+  apps\mobile\app\(stack)\billing.tsx:355:          : "No verified payment link was returned. Check payment history before trying again.");
+
+
+
+===== apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx =====
+
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:102:
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:103:  async function send(request: () => Promise<unknown>) {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:104:    setBusy(true);
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:105:    try {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:106:      const data = await request();
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:107:
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:108:      // Stripe returns a hosted session; PayPal returns approval links. Both
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:109:      // are provider-hosted — nothing here ever touches card details.
+> apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:110:      const transition = data as { outcome?: string; approvalUrl?: string | null };
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:111:      if (transition?.outcome === "NO_CHANGE" ||
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:112:          transition?.outcome === "PROVIDER_TRANSITION_IN_PROGRESS" ||
+> apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:113:          (transition?.outcome && !transition.approvalUrl)) {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:114:        // Reconciliation and webhooks, not browser redirects, confirm entitlement.
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:115:        return;
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:116:      }
+> apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:117:      if (transition?.approvalUrl) {
+> apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:118:        const url = new URL(transition.approvalUrl);
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:119:        if (url.protocol !== "https:" ||
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:120:            !["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)) {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:121:          throw new Error("Unexpected PayPal plan-transition approval URL");
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:122:        }
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:123:        window.location.href = url.toString();
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:124:        return;
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:125:      }
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:126:      const stripeUrl = (data as { session?: { url?: string } })?.session?.url;
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:161:      return provider === "STRIPE"
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:162:        ? send(() =>
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:163:            apiFetch("/v1/billing/credits/checkout/stripe", {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:164:              method: "POST",
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:165:              body: creditBody,
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:166:            }),
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:167:          )
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:168:        : send(() =>
+> apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:169:            apiFetch("/v1/billing/credits/checkout/paypal", {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:170:              method: "POST",
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:171:              body: creditBody,
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:172:            }),
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:173:          );
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:174:    }
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:175:
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:176:    if (intent.kind === "STORAGE") {
+  apps\web\app\(app)\billing\_sections\CheckoutDrawer.tsx:177:      if (!selectedAddon) {
+
+

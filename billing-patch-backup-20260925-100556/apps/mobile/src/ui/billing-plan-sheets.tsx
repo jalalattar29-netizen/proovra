@@ -1,6 +1,6 @@
 /**
  * BILLING PLAN SHEETS — the web's ManagePlanDrawer (read + cancel) and the
- * Pricing page (`app/pricing/page.tsx`) with optional private-build checkout actions.
+ * Pricing page (`app/pricing/page.tsx`) as a read-only reference sheet.
  *
  * What is deliberately absent: the plan MOVES of ManagePlanDrawer, the
  * CheckoutDrawer, PaymentMethodChoice and every pricing CTA that starts a
@@ -41,14 +41,12 @@ export function ManagePlanSheet({
   onClose,
   onCancelSubscription,
   cancelBusy,
-  onViewPlans,
 }: {
   visible: boolean;
   projection: BillingProjection;
   onClose: () => void;
   onCancelSubscription: () => void;
   cancelBusy: boolean;
-  onViewPlans?: () => void;
 }) {
   const { plan, actions } = projection;
   const periodEnd = billingDate(plan.currentPeriodEndUtc);
@@ -132,16 +130,9 @@ export function ManagePlanSheet({
           </View>
         ) : null}
 
-        {/* Plan moves are offered only in private distribution by the parent screen. */}
+        {/* Plan moves are purchases/changes of a paid entitlement: pending decision. */}
         {projection.hasPlanOffers && plan.accessKind === "SUBSCRIPTION" ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>{PURCHASE_PENDING_NOTE}</ProovraText>
-        ) : null}
-        {onViewPlans ? (
-          <ProovraButton
-            label="Change plan"
-            variant="secondary"
-            onPress={onViewPlans}
-          />
         ) : null}
         <ProovraButton label="Close" variant="ghost" onPress={onClose} />
       </View>
@@ -165,27 +156,23 @@ export const PRICING_COPY = {
 export function PricingSheet({
   visible,
   onClose,
-  onDismiss,
   catalogue,
   addons,
   credit,
   currentPlan,
   onTalkToSales,
-  onChoosePlan,
 }: {
   visible: boolean;
   onClose: () => void;
-  onDismiss?: () => void;
   catalogue: PricingCatalogue | null;
   addons: StorageAddonOffer[];
   credit: EvidenceCreditOffer | null;
   currentPlan: string | null;
   /** Null when no web origin is configured: the button is hidden rather than dead. */
   onTalkToSales: (() => void) | null;
-  onChoosePlan?: (plan: "PRO" | "TEAM") => void;
 }) {
   return (
-    <ProovraSheet visible={visible} title="Choose a plan" onClose={onClose} onDismiss={onDismiss}>
+    <ProovraSheet visible={visible} title={PRICING_COPY.kicker} onClose={onClose}>
       <View style={{ gap: theme.space.s3 }} testID="billing-pricing">
         <ProovraText variant="h3" weight="bold">{PRICING_COPY.title}</ProovraText>
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{PRICING_COPY.intro}</ProovraText>
@@ -202,9 +189,6 @@ export function PricingSheet({
               <ProovraText variant="body">{formatMonthlyPrice(offer.monthlyPriceCents, catalogue.currency)}</ProovraText>
               {planSummaryLine(offer) ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>{planSummaryLine(offer)}</ProovraText>
-              ) : null}
-              {onChoosePlan && (offer.plan === "PRO" || offer.plan === "TEAM") && !isCurrentPlan(offer, currentPlan) ? (
-                <ProovraButton label={`Choose ${offer.displayName}`} variant="secondary" fullWidth={false} onPress={() => onChoosePlan(offer.plan as "PRO" | "TEAM")} />
               ) : null}
               {offer.capabilities.map((c) => (
                 <ProovraText key={c} variant="label" color={theme.color.ink.secondary}>{`• ${c}`}</ProovraText>
@@ -262,8 +246,8 @@ export function PricingSheet({
           ) : null}
         </ProovraCard>
 
-        {!onChoosePlan ? <ProovraText variant="label" color={theme.color.ink.muted}>{PURCHASE_PENDING_NOTE}</ProovraText> : null}
-
+        {/* Named on its own: display, never a purchase. */}
+        <ProovraText variant="label" color={theme.color.ink.muted}>{PURCHASE_PENDING_NOTE}</ProovraText>
         <ProovraButton label="Close" variant="ghost" onPress={onClose} />
       </View>
     </ProovraSheet>

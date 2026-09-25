@@ -107,6 +107,22 @@ export function CheckoutDrawer({
 
       // Stripe returns a hosted session; PayPal returns approval links. Both
       // are provider-hosted — nothing here ever touches card details.
+      const transition = data as { outcome?: string; approvalUrl?: string | null };
+      if (transition?.outcome === "NO_CHANGE" ||
+          transition?.outcome === "PROVIDER_TRANSITION_IN_PROGRESS" ||
+          (transition?.outcome && !transition.approvalUrl)) {
+        // Reconciliation and webhooks, not browser redirects, confirm entitlement.
+        return;
+      }
+      if (transition?.approvalUrl) {
+        const url = new URL(transition.approvalUrl);
+        if (url.protocol !== "https:" ||
+            !["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)) {
+          throw new Error("Unexpected PayPal plan-transition approval URL");
+        }
+        window.location.href = url.toString();
+        return;
+      }
       const stripeUrl = (data as { session?: { url?: string } })?.session?.url;
       if (stripeUrl) {
         window.location.href = stripeUrl;
@@ -197,12 +213,22 @@ export function CheckoutDrawer({
             body: planBody,
           }),
         )
-      : send(() =>
-          apiFetch("/v1/billing/checkout/paypal", {
-            method: "POST",
-            body: planBody,
-          }),
-        );
+      : send(async () => {
+          try {
+            return await apiFetch("/v1/billing/checkout/paypal", {
+              method: "POST", body: planBody,
+            });
+          } catch (err) {
+            // A stale projection may have opened BUY for an existing subscriber.
+            // Only retry the explicit server-owned duplicate-subscription response.
+            const failure = err as { code?: string; error?: { code?: string } };
+            if (failure.code !== "SUBSCRIPTION_ALREADY_ACTIVE" &&
+                failure.error?.code !== "SUBSCRIPTION_ALREADY_ACTIVE") throw err;
+            return apiFetch("/v1/billing/subscription/plan", {
+              method: "POST", body: planBody,
+            });
+          }
+        });
   }
 
   const title =

@@ -208,3 +208,12 @@ export const shareAsync = async (uri, options) => {
 export const writeAsStringAsync = async (uri, contents) => {
   (globalThis.__WRITTEN__ ??= {})[uri] = contents;
 };
+
+// expo-web-browser: deterministic native browser stub for render tests.
+export const openBrowserAsync = async (url) => {
+  calls.openURL.push(url);
+  return { type: "dismiss" };
+};
+
+export const dismissBrowser = async () => {};
+export const dismissAuthSession = () => {};

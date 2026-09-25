@@ -610,7 +610,12 @@ export default function EvidenceLibraryScreen() {
       verifyUrl={verifyUrl}
       onClose={closeInspector}
       onRetry={() => inspectorId && void loadInspector(inspectorId)}
-      onOpenRecord={() => inspectorId && router.push(`/evidence/${inspectorId}`)}
+      onOpenRecord={() => {
+        if (!inspectorId) return;
+        const evidenceId = inspectorId;
+        closeInspector();
+        router.push(`/evidence/${evidenceId}`);
+      }}
       onOpenPreview={(url) => void Linking.openURL(url)}
       onDownloadReport={() => void downloadReport()}
       onDownloadPackage={() => void downloadPackage()}
@@ -853,7 +858,7 @@ export default function EvidenceLibraryScreen() {
         )}
       </ProovraCard>
 
-      {responsive.isTablet ? inspector("rail") : inspectorId ? inspector("modal") : null}
+      {inspectorId ? inspector("modal") : null}
     </ProovraShell>
   );
 }

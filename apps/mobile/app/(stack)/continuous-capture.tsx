@@ -227,8 +227,29 @@ export default function ContinuousCaptureScreen() {
     try {
       resetStreamRefs();
       // Open the canonical session FIRST so segments can stream while recording.
-      sessionRef.current = await beginContinuousSession();
-      await startContinuousCapture();
+      let step = "beginContinuousSession";
+      try {
+        sessionRef.current = await beginContinuousSession();
+        step = "startContinuousCapture";
+        await startContinuousCapture();
+      } catch (err) {
+        if (__DEV__) {
+          const e = err as {
+            statusCode?: number;
+            code?: string;
+            requestId?: string;
+            message?: string;
+          } | null;
+          console.warn("[PROOVRA CONTINUOUS CAPTURE FAILURE]", {
+            step,
+            status: e?.statusCode ?? null,
+            code: e?.code ?? null,
+            requestId: e?.requestId ?? null,
+            message: e?.message ?? null,
+          });
+        }
+        throw err;
+      }
       dispatch({ type: "STARTED" });
     } catch (err) {
       sessionRef.current = null;

@@ -115,11 +115,9 @@ export function BillingActionRequired({
 export function BillingOverviewCard({
   projection,
   onManagePlan,
-  onUpgradeToTeam,
 }: {
   projection: BillingProjection;
   onManagePlan: () => void;
-  onUpgradeToTeam?: () => void;
 }) {
   const { plan } = projection;
   const periodEnd = billingDate(plan.currentPeriodEndUtc);
@@ -164,10 +162,7 @@ export function BillingOverviewCard({
           {lifecycle.label}
         </ProovraText>
       </View>
-      {onUpgradeToTeam ? (
-        <ProovraButton label="Upgrade to Team" fullWidth={false} onPress={onUpgradeToTeam} />
-      ) : null}
-      {/* The server-projected management action remains available. */}
+      {/* ONE plan action, named by the server. */}
       <ProovraButton
         label={projection.actions.planManagement.label}
         fullWidth={false}
@@ -431,4 +426,3 @@ export function BillingSupportStrip({ projection, onPress }: { projection: Billi
     </ProovraCard>
   );
 }
-

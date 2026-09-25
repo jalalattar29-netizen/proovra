@@ -69,13 +69,18 @@ function buildStorageAddonCustomId(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
-  return JSON.stringify({
-    userId: params.userId,
-    teamId: params.teamId ?? null,
-    storageAddonKey: params.addonKey,
-    billingCycle: params.billingCycle,
-    workspacePlan: params.workspacePlan,
-  });
+  // PayPal subscription custom_id has a 127-byte limit. Compact v1 wire format:
+  // sa1|user UUID|team UUID or -|addon code. Cycle is MONTHLY by contract;
+  // workspace plan is resolved from the authoritative billing account on receipt.
+  const codes: Record<prismaPkg.StorageAddonKey, string> = {
+    PERSONAL_10_GB: "p10", PERSONAL_50_GB: "p50", PERSONAL_200_GB: "p200",
+    TEAM_100_GB: "t100", TEAM_500_GB: "t500", TEAM_1_TB: "t1t",
+  };
+  const value = `sa1|${params.userId}|${params.teamId ?? "-"}|${codes[params.addonKey]}`;
+  if (Buffer.byteLength(value, "utf8") > 127) {
+    throw new Error("PayPal storage checkout context exceeds 127 bytes");
+  }
+  return value;
 }
 
 export async function getPayPalAccessToken(): Promise<string> {
@@ -150,22 +155,63 @@ export class PayPalHttpError extends Error {
   }
 }
 
-async function readPayPalError(res: Response, prefix: string): Promise<never> {
-  const text = await res.text();
+async function readPayPalError(
+  res: Response,
+  prefix: string,
+): Promise<never> {
+  const responseText = await res.text();
   const debugId = extractPayPalDebugId(res);
 
-  let message = text;
+  let message = "PayPal request failed";
   let providerErrorName: string | null = null;
+
   try {
-    const parsed = JSON.parse(text) as { message?: string; name?: string };
-    message = parsed.message || parsed.name || text;
+    const parsed = JSON.parse(responseText) as {
+      name?: string;
+      message?: string;
+      details?: Array<{
+        issue?: string;
+        field?: string;
+        location?: string;
+      }>;
+    };
+
+    message = parsed.message || parsed.name || message;
     providerErrorName = parsed.name ?? null;
+
+    const safeCode = (value: unknown): string | null =>
+      typeof value === "string" &&
+      /^[A-Za-z0-9_./-]{1,150}$/.test(value)
+        ? value
+        : null;
+
+    const details = Array.isArray(parsed.details)
+      ? parsed.details
+          .slice(0, 5)
+          .map((detail) =>
+            [
+              safeCode(detail.issue),
+              safeCode(detail.location),
+              safeCode(detail.field),
+            ]
+              .filter(Boolean)
+              .join(":"),
+          )
+          .filter(Boolean)
+          .join(", ")
+      : "";
+
+    if (details) {
+      message += ` [${details}]`;
+    }
   } catch {
-    // keep raw text
+    // Do not log or expose an unparsed provider response.
   }
 
   throw new PayPalHttpError({
-    message: `${prefix}: ${message}${debugId ? ` (paypal-debug-id: ${debugId})` : ""}`,
+    message:
+      `${prefix}: ${message}` +
+      (debugId ? ` (paypal-debug-id: ${debugId})` : ""),
     status: res.status,
     providerErrorName,
     debugId,
