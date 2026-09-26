@@ -817,6 +817,12 @@ const GENERATION_FALLBACK: Readonly<Record<string, string>> = {
   WORKSPACE_UNRESOLVED:
     "This older evidence record needs a workspace association before new output generation can be requested. Its existing materials are unaffected.",
   REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
+  NOTHING_TO_RECOVER:
+    "Nothing is missing or failed for this record. Its report and verification package are available.",
+  NOT_RECOVERABLE: "This output cannot be recovered in the record's current state.",
+  REPLAYED: "This request was already received. No additional version was created.",
+  UNRECOGNIZED:
+    "The request was answered, but this screen could not read the result. The record's current state is shown.",
 };
 
 const GENERATION_TONE: Readonly<Record<string, GenerationTone>> = {
@@ -831,6 +837,10 @@ const GENERATION_TONE: Readonly<Record<string, GenerationTone>> = {
   EVIDENCE_NOT_FOUND: "error",
   WORKSPACE_UNRESOLVED: "info",
   REQUESTER_REQUIRED: "error",
+  NOTHING_TO_RECOVER: "info",
+  NOT_RECOVERABLE: "info",
+  REPLAYED: "info",
+  UNRECOGNIZED: "info",
 };
 
 /** ENQUEUED and SUPERSEDED are the only two that scheduled new work. */
@@ -843,8 +853,16 @@ export function readGenerationOutcome(payload: unknown): GenerationOutcome {
   const raw = str(d.outcome);
   const known = raw !== null && (GENERATION_REQUEST_OUTCOMES as readonly string[]).includes(raw);
   // The legacy boolean only when no typed outcome arrived, and `false` reads
-  // as ALREADY_ACTIVE exactly as the shared reader does — not as a failure.
-  const outcome = known ? (raw as string) : d.enqueued === true ? "ENQUEUED" : "ALREADY_ACTIVE";
+  // as ALREADY_ACTIVE exactly as the web reader does — not as a failure. A
+  // NAMED outcome this build does not know is UNRECOGNIZED: reading it as
+  // ALREADY_ACTIVE told a person work was under way when nothing said so.
+  const outcome = known
+    ? (raw as string)
+    : raw !== null && raw.trim() !== ""
+      ? "UNRECOGNIZED"
+      : d.enqueued === true
+        ? "ENQUEUED"
+        : "ALREADY_ACTIVE";
 
   const serverMessage = str(d.message)?.trim() ?? null;
   return {
@@ -859,34 +877,47 @@ export function readGenerationOutcome(payload: unknown): GenerationOutcome {
 }
 
 /**
- * Regenerating creates a NEW immutable version beside one that exists.
- *
- * A first generation and a retry produce the artifact the customer is already
- * owed, so only a REGENERATION is confirmed — a dialog in front of the other
- * two would be friction with nothing to decide.
+ * THE PER-OUTPUT VERBS AND THE NEW-VERSION WORDS are the shared table
+ * (`@proovra/shared` output-action-copy), the same one the web renders: a
+ * missing package is "Recover verification package", never a regeneration of
+ * both, and a new version is its own confirmed action.
  */
-export const REGENERATE_CONSEQUENCE =
-  "This creates a new immutable version. Previous versions are retained and remain " +
-  "downloadable, and the new one uses additional workspace storage. No evidence " +
-  "credit is charged.";
+export {
+  NEW_VERSION_LABEL,
+  formatEstimatedBytes,
+  makeClientRequestKey,
+  newVersionConsequence,
+  outputActionLabel,
+  outputUnavailableReasonCopy,
+  outputUnavailableReasonShort,
+} from "@proovra/shared";
 
-/** The web GENERATION_ACTION_LABEL (lib/evidence/generation-labels.ts:37), verbatim. */
-export function generationActionLabel(action: string): string {
-  switch (action.toUpperCase()) {
-    case "REGENERATE":
-      return "Regenerate report & verification package";
-    case "RETRY":
-      return "Retry report & verification package";
-    case "NONE":
-      return "";
-    default:
-      return "Generate report & verification package";
-  }
+/** The intents a per-output control sends; NEW_VERSION has its own body. */
+export type OutputRequestIntent = "GENERATE" | "RETRY" | "RECOVER";
+
+/** The per-output verbs a control may render; anything else renders nothing. */
+export function asOutputRequestIntent(action: string | null | undefined): OutputRequestIntent | null {
+  return action === "GENERATE" || action === "RETRY" || action === "RECOVER" ? action : null;
 }
 
-/** Only a regeneration asks first. */
-export function generationNeedsConfirmation(action: string): boolean {
-  return action.toUpperCase() === "REGENERATE";
+/** Body for one output's action. The server re-derives what runs. */
+export function buildOutputRequestBody(intent: OutputRequestIntent): string {
+  return JSON.stringify({ intent });
+}
+
+/**
+ * Body for the separate, confirmed new version. The key is minted once per
+ * confirmation and reused only while that request is unanswered, so a request
+ * that landed is answered with the first one (REPLAYED), never a second version.
+ */
+export function buildNewVersionBody(clientRequestKey: string): string {
+  return JSON.stringify({ intent: "NEW_VERSION", clientRequestKey });
+}
+
+/** A failed request the server did not answer may have landed: keep the key. */
+export function requestWasAnswered(err: unknown): boolean {
+  const status = (err as { statusCode?: unknown } | null)?.statusCode;
+  return typeof status === "number" && status >= 400 && status < 500;
 }
 
 // ---------------------------------------------------------------------------

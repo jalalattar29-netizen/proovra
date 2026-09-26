@@ -496,6 +496,8 @@ export type RemediationAction = {
   confirm: boolean;
   /** Asynchronous work reports ACCEPTED, never a completion. */
   async: boolean;
+  /** The operator must state a reason; it is audited with the action. */
+  requiresReason?: boolean;
 };
 
 export type ProjectedRemediation = {

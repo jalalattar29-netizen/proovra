@@ -155,9 +155,13 @@ export function IncidentInspector({
   remediationBusy: string | null;
   /** The answer to the last REQUEST — never a claim about the work. */
   remediationOutcome: RemediationOutcome | null;
-  onRemediate: (actionId: string) => void;
+  /** `reason` is sent only for an action whose projection `requiresReason`. */
+  onRemediate: (actionId: string, reason?: string) => void;
 }) {
   const { confirm: confirmAction } = useConfirmAction();
+  // The operator's stated reason, per action that requires one. It is
+  // recorded in the audit trail and on the condition's timeline.
+  const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const panelRef = React.useRef<HTMLElement | null>(null);
   const restoreRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
@@ -299,13 +303,40 @@ export function IncidentInspector({
                 <div className="opsw-remediation__actions">
                   {remediation.actions.map((action) => (
                     <div key={action.actionId} className="opsw-remediation__action">
+                      {action.requiresReason ? (
+                        <label className="opsw-remediation__reason">
+                          <span className="opsw-muted">
+                            Reason (required, recorded in the audit trail)
+                          </span>
+                          <textarea
+                            className="app-form-input"
+                            rows={2}
+                            maxLength={500}
+                            value={reasons[action.actionId] ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setReasons((prev) => ({
+                                ...prev,
+                                [action.actionId]: value,
+                              }));
+                            }}
+                            data-ops-remediate-reason={action.actionId}
+                          />
+                        </label>
+                      ) : null}
                       <button
                         type="button"
                         className="app-primary-action"
                         // Busy is per-ACTION, so a second action stays usable
                         // while one is in flight and the operator can see
-                        // exactly which request they started.
-                        disabled={remediationBusy !== null || pending}
+                        // exactly which request they started. An action that
+                        // requires a reason waits for one.
+                        disabled={
+                          remediationBusy !== null ||
+                          pending ||
+                          (action.requiresReason === true &&
+                            !(reasons[action.actionId] ?? "").trim())
+                        }
                         aria-busy={remediationBusy === action.actionId}
                         data-ops-remediate={action.actionId}
                         onClick={() => {
@@ -313,8 +344,11 @@ export function IncidentInspector({
                           // browser's. It is focus-managed, themed and
                           // announced; a native dialog is none of those and
                           // is banned app-wide for exactly that reason.
+                          const reason = action.requiresReason
+                            ? (reasons[action.actionId] ?? "").trim()
+                            : undefined;
                           if (!action.confirm) {
-                            onRemediate(action.actionId);
+                            onRemediate(action.actionId, reason);
                             return;
                           }
                           void confirmAction({
@@ -328,7 +362,7 @@ export function IncidentInspector({
                             tone: "neutral",
                             testId: "ops-remediate-confirm",
                           }).then((ok) => {
-                            if (ok) onRemediate(action.actionId);
+                            if (ok) onRemediate(action.actionId, reason);
                           });
                         }}
                       >

@@ -27,9 +27,18 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import {
   DOWNLOAD_PACKAGE_LABEL,
   DOWNLOAD_REPORT_LABEL,
-  GENERATION_ACTION_LABEL_COMPACT,
-  REGENERATE_CONSEQUENCE,
 } from "../../lib/evidence/generation-labels";
+import {
+  outputActionLabel,
+  outputUnavailableReasonCopy,
+  outputUnavailableReasonShort,
+  type OutputKind,
+} from "@proovra/shared";
+import {
+  NewVersionMenu,
+  type NewVersionOffer,
+  type NewVersionRequestResult,
+} from "../evidence-outputs/NewVersionMenu";
 import {
   readGenerationOutcome,
   type GenerationResponse,
@@ -67,7 +76,7 @@ import { AccessGate } from "../access/AccessGate";
 import { GovernedExportAction } from "../governance/GovernedExportAction";
 // COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state
 // vocabulary. This page maps it onto its own row states; it never invents one.
-import type { EvidenceOutputState, OutputAction } from "@proovra/shared";
+import type { EvidenceOutputState } from "@proovra/shared";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -573,6 +582,35 @@ export function ReportsIndex() {
     void reload(filter, search, cursor);
   }, [loadSummary, reload, filter, search, cursors]);
 
+  /*
+   * POLL WHILE A VISIBLE ROW HAS LIVE WORK — at the interval the server
+   * states, and only the list (the summary is re-read once when the work
+   * ends). Bounded: a row that stays live past ten minutes stops being polled
+   * and the page keeps its manual refresh.
+   */
+  const liveInterval =
+    state.status === "ready" && state.envelope.sections.artifacts.status === "ok"
+      ? state.envelope.sections.artifacts.items.reduce<number | null>((min, row) => {
+          const ms = row.outputs?.pollIntervalMs ?? null;
+          return ms == null ? min : min == null ? ms : Math.min(min, ms);
+        }, null)
+      : null;
+  const pollStartedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (liveInterval == null) {
+      if (pollStartedAt.current != null) {
+        pollStartedAt.current = null;
+        void loadSummary();
+      }
+      return;
+    }
+    pollStartedAt.current ??= Date.now();
+    if (Date.now() - pollStartedAt.current > 10 * 60_000) return;
+    const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
+    const t = setTimeout(() => void reload(filter, search, cursor), liveInterval);
+    return () => clearTimeout(t);
+  }, [liveInterval, state, reload, loadSummary, filter, search, cursors]);
+
   if (state.status === "loading") {
     return <ReportsLoading />;
   }
@@ -949,6 +987,20 @@ function ArtifactRowView({
 }
 
 /**
+ * The row's sentence for a refused generation request. A declined request
+ * (409) carries the server's own reason sentence; 403 is the domain
+ * permission `evidence.generate_report`, which OWNER, ADMIN and MEMBER hold.
+ */
+function requestErrorMessage(err: unknown): string {
+  const e = err as { statusCode?: number };
+  if (e?.statusCode === 403) {
+    return "You do not have permission to generate reports in this workspace.";
+  }
+  if (e?.statusCode === 404) return "Evidence not found.";
+  return toSafeUserError(err, { message: "Could not request generation." }).message;
+}
+
+/**
  * Phase 2.1 — per-row download actions. Only renders buttons for
  * states that have an actionable next step. Non-actionable states
  * (pending / not_requested / unavailable) get a quiet help label
@@ -963,20 +1015,12 @@ function ArtifactRowActions({
   teamId: string | null;
   onOutputsRequested?: () => void;
 }) {
-  // Phase A.1D — busy tag widened to include the "regen" retry path
-  // for the new `POST /v1/evidence/:id/reports/regenerate` endpoint.
+  // `regen` covers every request to the one generation endpoint: a per-output
+  // action, or the separate new version.
   const [busy, setBusy] = useState<null | "report" | "package" | "regen">(null);
   const [error, setError] = useState<string | null>(null);
-  // Phase A.1D — explicit notice when a regen has just been enqueued
-  // so the operator sees acknowledgement without leaving the row.
+  // The server's own sentence for the last request, shown in the row.
   const [regenNotice, setRegenNotice] = useState<string | null>(null);
-  /**
-   * REGENERATE IS CONFIRMED HERE TOO. Evidence Detail asked before creating a
-   * new immutable version; this row posted on the first click. A first
-   * generation and a retry produce what the record is already owed, so only
-   * REGENERATE asks.
-   */
-  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
 
   const triggerReport = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1048,101 +1092,106 @@ function ArtifactRowActions({
     }
   };
 
-  // Phase A.1D — operational retry/regenerate CTA. The endpoint
-  // re-queues report generation (which in-process re-builds the
-  // verification package). Surfaced ONLY for rows where regenerate
-  // makes operational sense: a failed report OR a failed package.
-  // For "pending" we don't surface retry — generation is still in
-  // flight. For "blocked" we don't surface retry — the block is a
-  // governance decision, not a generation failure.
-  const triggerRegenerate = async (e: React.MouseEvent) => {
+  /**
+   * ONE OUTPUT'S ACTION — the verb the server chose for that output, with its
+   * intent. A report whose package is missing offers "Recover package" and
+   * the server rebuilds only the package, from the stored report.
+   */
+  const requestOutput = async (
+    e: React.MouseEvent,
+    intent: "GENERATE" | "RETRY" | "RECOVER",
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     if (busy) return;
-    setConfirmingRegenerate(false);
     setBusy("regen");
     setError(null);
     setRegenNotice(null);
     try {
       const resp = (await apiFetch(
         `/v1/evidence/${row.evidenceId}/reports/regenerate`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ intent }) },
       )) as GenerationResponse;
-      /*
-       * RELIABILITY CLOSURE (2026-09-09) — the same typed reader Evidence
-       * Detail uses. This had two branches for six server answers, so a Redis
-       * outage and a permanently blocked record both rendered "Generation is
-       * already under way for this record."
-       */
       setRegenNotice(readGenerationOutcome(resp).message);
-      onOutputsRequested?.();
     } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
-      if (e.statusCode === 403) {
-        // The gate is the DOMAIN permission `evidence.generate_report`, which
-        // OWNER, ADMIN and MEMBER hold — not owner-only, whatever the older
-        // copy claimed.
-        setError(
-          "You do not have permission to generate reports in this workspace.",
-        );
-      } else if (e.statusCode === 404) {
-        setError("Evidence not found.");
-      } else {
-        setError(toSafeUserError(e, { message: "Could not enqueue regeneration." }).message);
-      }
+      setError(requestErrorMessage(err));
     } finally {
       setBusy(null);
+      // Re-read either way: a declined request means this row was stale.
+      onOutputsRequested?.();
     }
+  };
+
+  const requestNewVersion = async (
+    clientRequestKey: string,
+  ): Promise<NewVersionRequestResult> => {
+    if (busy) return "unanswered";
+    setBusy("regen");
+    setError(null);
+    setRegenNotice(null);
+    try {
+      const resp = (await apiFetch(
+        `/v1/evidence/${row.evidenceId}/reports/regenerate`,
+        {
+          method: "POST",
+          body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey }),
+        },
+      )) as GenerationResponse;
+      setRegenNotice(readGenerationOutcome(resp).message);
+      return "answered";
+    } catch (err) {
+      setError(requestErrorMessage(err));
+      const status = (err as { statusCode?: unknown })?.statusCode;
+      return typeof status === "number" && status >= 400 && status < 500
+        ? "answered"
+        : "unanswered";
+    } finally {
+      setBusy(null);
+      onOutputsRequested?.();
+    }
+  };
+
+  // The row carries the decision; the confirmation reads the current offer
+  // (versions, estimate, allowance) from the record's own status.
+  const loadNewVersionOffer = async (): Promise<NewVersionOffer | null> => {
+    const status = (await apiFetch(
+      `/v1/evidence/${row.evidenceId}/artifacts/status`,
+      { method: "GET" },
+    )) as { outputs?: { newVersion?: NewVersionOffer } } | null;
+    return status?.outputs?.newVersion ?? null;
   };
 
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
 
   /**
-   * RELIABILITY CLOSURE (2026-09-09) — THE ACTION IS THE SERVER'S.
+   * THE ACTIONS ARE THE SERVER'S, PER OUTPUT.
    *
-   * This derived the verb from the legacy five-value lifecycle, and that
-   * mapping is lossy in exactly the two places that decide whether a button
-   * should exist:
-   *
-   *   * BLOCKED collapses into `not_requested`, so the page offered
-   *     "Generate report & package" for a record whose canonical action is
-   *     NONE. The click posted, was refused as already-terminal, and reported
-   *     success.
-   *   * every TERMINAL_FAILURE collapses into `failed`, so the page offered
-   *     "Retry generation" for integrity and technical terminals that nothing
-   *     will reopen — and labelled a now-eligible COMMERCIAL terminal "Retry"
-   *     when the canonical verb is GENERATE.
-   *
-   * Evidence Detail already read `outputs.*.action`. The aggregator now
-   * projects it too, so both surfaces render the SAME answer for the same
-   * record at the same moment, and this file computes nothing.
-   *
-   * The two lifecycles above are still read — for the STATUS text, which is
-   * what they are good at.
+   * This row once derived a verb from the legacy five-value lifecycle, then
+   * rendered one verb for both outputs. Each output now shows the verb the
+   * server chose for IT (`outputs.*.action`), so a missing package reads
+   * "Recover package" rather than a regeneration of both. No outputs → no
+   * verb: nothing is invented for a row the server did not describe.
    */
-  const canonicalAction: OutputAction =
-    row.outputs?.report.action && row.outputs.report.action !== "NONE"
-      ? row.outputs.report.action
-      : (row.outputs?.verificationPackage.action ?? "NONE");
+  const outputVerbs: Array<{
+    kind: OutputKind;
+    action: "GENERATE" | "RETRY" | "RECOVER";
+  }> = [];
+  for (const kind of ["report", "verificationPackage"] as const) {
+    const a = row.outputs?.[kind].action;
+    if (a === "GENERATE" || a === "RETRY" || a === "RECOVER") {
+      outputVerbs.push({ kind, action: a });
+    }
+  }
 
   /*
-   * P2-1 (2026-09-10) — WHY THE VERB IS ABSENT, when the status text implies
-   * one should be there.
-   *
-   * The server withdraws the action for a legacy record with no workspace
-   * binding, so `canonicalAction` is already NONE and the button is already
-   * gone. Without this the row would read "Report not generated yet" beside no
-   * way to generate it — true, and unexplained.
-   *
-   * A short note rather than the full sentence: this row already carries two
-   * downloads, a status badge and a link, and Evidence Detail (one click away,
-   * via "Open evidence") states it in full.
+   * WHY NO VERB, when a person should know: escalated to operators, under
+   * integrity review, a legal hold. Short here; the full sentence is the
+   * tooltip, and Evidence Detail (one click away) states it in full.
    */
-  const actionWithheldReason =
-    row.outputs?.report.actionUnavailableReason ??
-    row.outputs?.verificationPackage.actionUnavailableReason ??
-    null;
+  const withheld = (["report", "verificationPackage"] as const)
+    .map((kind) => row.outputs?.[kind].actionUnavailableReason ?? null)
+    .find((reason) => outputUnavailableReasonShort(reason) !== null) ?? null;
 
   return (
     <div
@@ -1197,7 +1246,7 @@ function ArtifactRowActions({
           {row.report.state === "pending"
             ? "Report generating — refresh shortly"
             : row.report.state === "failed"
-              ? canonicalAction === "NONE"
+              ? outputVerbs.length === 0
                 ? "Report generation failed — needs operator review"
                 : "Report generation failed"
               : row.report.state === "not_requested"
@@ -1256,41 +1305,35 @@ function ArtifactRowActions({
                 : "Package not included for this record"}
         </span>
       )}
-      {/* The audited POST /v1/evidence/:id/reports/regenerate endpoint. One
-          request produces BOTH artifacts, so one control covers both. */}
-      {actionWithheldReason === "WORKSPACE_UNRESOLVED" ? (
+      {withheld ? (
         <span
           className="app-status-badge"
           data-tone="slate"
-          data-reports-action-withheld={actionWithheldReason}
+          data-reports-action-withheld={withheld}
+          title={outputUnavailableReasonCopy(withheld) ?? undefined}
           style={{ opacity: 0.7 }}
         >
-          Needs a workspace association
+          {outputUnavailableReasonShort(withheld)}
         </span>
       ) : null}
-      {canonicalAction !== "NONE" && canonicalAction !== "REGENERATE" ? (
+      {outputVerbs.map(({ kind, action }) => (
         <Button
+          key={kind}
           variant="secondary"
           size="sm"
           data-reports-regenerate={row.evidenceId}
-          data-reports-generate-verb={canonicalAction}
+          data-reports-output={kind}
+          data-reports-generate-verb={action}
           data-reports-regenerate-trigger-report-state={row.report.state}
           data-reports-regenerate-trigger-package-state={row.package.state}
-          onClick={triggerRegenerate}
+          onClick={(e) => void requestOutput(e, action)}
           disabled={busy !== null}
         >
-          {/*
-            The COMPACT label, and the only surface entitled to one. This row
-            already carries two downloads and a link, and three full-width
-            actions at 320px is where its horizontal overflow came from. The
-            words are a strict prefix of the canonical label — never a different
-            name for the same operation.
-          */}
-          {busy === "regen"
-            ? "Requesting…"
-            : GENERATION_ACTION_LABEL_COMPACT[canonicalAction]}
+          {/* The COMPACT label: always a shortening of the full one, never a
+              different name for the same operation. */}
+          {busy === "regen" ? "Requesting…" : outputActionLabel(kind, action, "compact")}
         </Button>
-      ) : null}
+      ))}
       <Link
         href={`/evidence/${row.evidenceId}`}
         className="app-secondary-action rpt-row__open"
@@ -1298,64 +1341,17 @@ function ArtifactRowActions({
       >
         Open evidence
       </Link>
-      {/* REGENERATE is SECONDARY: the record already has its artifacts, so a
-          new version comes after the downloads and the way into the record,
-          and only after a confirmation that states what it costs. */}
-      {canonicalAction === "REGENERATE" && !confirmingRegenerate ? (
-        <button
-          type="button"
-          className="app-secondary-action rpt-row__action"
-          data-reports-regenerate={row.evidenceId}
-          data-reports-generate-verb={canonicalAction}
-          data-reports-regenerate-trigger-report-state={row.report.state}
-          data-reports-regenerate-trigger-package-state={row.package.state}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setConfirmingRegenerate(true);
-          }}
-          disabled={busy !== null}
-        >
-          {busy === "regen"
-            ? "Requesting…"
-            : GENERATION_ACTION_LABEL_COMPACT[canonicalAction]}
-        </button>
-      ) : null}
-      {canonicalAction === "REGENERATE" && confirmingRegenerate ? (
-        <div
-          className="app-inner-surface rpt-row__confirm"
-          role="dialog"
-          aria-modal="false"
-          aria-label="Confirm regeneration"
-          data-reports-regenerate-confirm={row.evidenceId}
-          style={{ width: "100%", padding: 10, display: "grid", gap: 8 }}
-        >
-          <p style={{ margin: 0, fontSize: 13 }}>{REGENERATE_CONSEQUENCE}</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="app-secondary-action app-secondary-action--filled"
-              onClick={triggerRegenerate}
-              disabled={busy !== null}
-              data-reports-regenerate-confirm-action={row.evidenceId}
-            >
-              Create a new version
-            </button>
-            <button
-              type="button"
-              className="app-secondary-action"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setConfirmingRegenerate(false);
-              }}
-              data-reports-regenerate-cancel={row.evidenceId}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {/* A new version is SECONDARY and optional: after the downloads and the
+          way into the record, behind a menu and a confirmation. */}
+      <NewVersionMenu
+        offer={row.outputs?.newVersion ?? null}
+        loadOffer={loadNewVersionOffer}
+        busy={busy !== null}
+        request={requestNewVersion}
+        menuLabel={`More actions for ${row.title || row.displayFileName || "this record"}`}
+        dataPrefix="reports-row"
+        testId={`reports-new-version-${row.evidenceId}`}
+      />
       {error ? (
         <span
           role="alert"

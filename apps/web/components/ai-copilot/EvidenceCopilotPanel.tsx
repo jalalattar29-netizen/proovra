@@ -9,6 +9,7 @@ import { buildCopilotIdempotencyKey } from "@proovra/shared";
 import { useState } from "react";
 
 import { apiFetch, ApiError } from "../../lib/api";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 // RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
 // outcome, shared with Evidence Detail and the Reports page.
 import {
@@ -47,7 +48,34 @@ type ServerAction = {
   displayLabel: string;
   reason: string;
   riskLevel: string;
+  /** The exact change proposed; `intent` is sent with the request. */
+  proposedChange?: { intent?: string | null; reportVersion?: number | null } | null;
 };
+
+/** The intents a suggestion may carry. Anything else sends none. */
+function suggestionIntent(
+  action: ServerAction | undefined,
+): "GENERATE" | "RETRY" | "RECOVER" | null {
+  const intent = action?.proposedChange?.intent;
+  return intent === "GENERATE" || intent === "RETRY" || intent === "RECOVER"
+    ? intent
+    : null;
+}
+
+/**
+ * What confirming does, per intent — stated from what the server will run.
+ * A package recovery reuses the stored report and creates no report version.
+ */
+function suggestionConsequence(intent: "GENERATE" | "RETRY" | "RECOVER" | null): string {
+  switch (intent) {
+    case "RECOVER":
+      return "Rebuilds this record's verification package from its existing report. The report is not changed and no new version is created; evidence bytes, hashes, custody and timestamps are untouched.";
+    case "RETRY":
+      return "Retries the failed attempt through the standard endpoint. It does not alter evidence bytes, hashes, custody, or verification state.";
+    default:
+      return "Generates this record's report and verification package through the standard endpoint. It does not alter evidence bytes, hashes, custody, or verification state.";
+  }
+}
 
 type UiState =
   | { kind: "idle" }
@@ -73,7 +101,15 @@ const SECTIONS: Array<{ key: keyof EvidenceCopilotData; label: string }> = [
  * exact change and confirms; the EXISTING canonical endpoint executes with
  * normal authorization + audit. Never one-click, never automatic.
  */
-function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string; serverActions: ServerAction[] }) {
+function ConfirmedActionBar({
+  evidenceId,
+  serverActions,
+  onOutputsRequested,
+}: {
+  evidenceId: string;
+  serverActions: ServerAction[];
+  onOutputsRequested?: () => void;
+}) {
   const [confirming, setConfirming] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,6 +126,7 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
       a.actionType === "RETRY_ELIGIBLE_REPORT",
   );
   const canGenerateReport = Boolean(generationAction);
+  const intent = suggestionIntent(generationAction);
 
   async function executeRegenerateReport() {
     if (busy) return;
@@ -112,20 +149,27 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
       const read = readGenerationOutcome(
         (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
           method: "POST",
+          body: JSON.stringify(intent ? { intent } : {}),
         })) as GenerationResponse,
       );
       setOutcome(read.message);
     } catch (err) {
+      const status = (err as { statusCode?: unknown })?.statusCode;
       setOutcome(
-        err instanceof ApiError && err.statusCode === 403
-          ? "You are not permitted to regenerate this report."
-          : err instanceof ApiError && err.statusCode === 409
-            ? "This record is not currently eligible for report regeneration."
+        status === 403
+          ? "You are not permitted to generate or recover outputs for this record."
+          : status === 409
+            ? // The server's own reason sentence (escalated, integrity review, …).
+              toSafeUserError(err, {
+                message: "This action is not available for the record right now.",
+              }).message
             : "The action could not be completed. The standard evidence workflow is unaffected.",
       );
     } finally {
       setBusy(false);
       setConfirming(false);
+      // The record's panels re-read what the server now says.
+      onOutputsRequested?.();
     }
   }
 
@@ -158,13 +202,13 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
           className="app-inner-surface app-panel__body"
           role="dialog"
           aria-modal="true"
-          aria-label="Confirm report regeneration"
+          aria-label={`Confirm: ${generationAction?.displayLabel ?? "generate outputs"}`}
           onKeyDown={(e) => {
             if (e.key === "Escape" && !busy) setConfirming(false);
           }}
         >
           <p className="evd-paragraph evd-block--tight">
-            <strong>Confirm:</strong> queue report regeneration for this evidence record via the standard endpoint. This creates a new report version; it does not alter evidence bytes, hashes, custody, or verification state.
+            <strong>Confirm:</strong> {suggestionConsequence(intent)}
           </p>
           <div className="evd-actions">
             {/* autoFocus moves keyboard/screen-reader focus into the dialog. */}
@@ -184,7 +228,10 @@ export function EvidenceCopilotPanel({
   evidenceId,
   analysisRevision,
   aiEnabled = true,
+  onOutputsRequested,
 }: {
+  /** Called after a confirmed output request, so the record re-reads its state. */
+  onOutputsRequested?: () => void;
   evidenceId: string;
   /**
    * THE CONCURRENCY AUTHORITY — opaque, server-computed, carried verbatim.
@@ -266,7 +313,12 @@ export function EvidenceCopilotPanel({
         </div>
       ) : null}
       {state.kind === "result" ? (
-        <ResultView result={state.result} serverActions={state.serverActions} onRetry={run} />
+        <ResultView
+          result={state.result}
+          serverActions={state.serverActions}
+          onRetry={run}
+          onOutputsRequested={onOutputsRequested}
+        />
       ) : null}
     </section>
   );
@@ -276,10 +328,12 @@ function ResultView({
   result,
   serverActions,
   onRetry,
+  onOutputsRequested,
 }: {
   result: RunResult;
   serverActions: ServerAction[];
   onRetry?: () => void;
+  onOutputsRequested?: () => void;
 }) {
   if (result.status === "provider_unavailable") return <div className="app-alert evd-block">AI is currently unavailable. Evidence workflows are unaffected.</div>;
   if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace ({result.decision}).</div>;
@@ -328,7 +382,11 @@ function ResultView({
         <div className="app-copilot-sources"><CopilotCitationList citations={data.citations} /></div>
         {result.droppedCitations ? <p className="evd-muted evd-muted--small evd-block--tight">{result.droppedCitations} unverifiable citation(s) were removed.</p> : null}
       </div>
-      <ConfirmedActionBar evidenceId={evidenceIdOfResult(result)} serverActions={serverActions} />
+      <ConfirmedActionBar
+        evidenceId={evidenceIdOfResult(result)}
+        serverActions={serverActions}
+        onOutputsRequested={onOutputsRequested}
+      />
       <p className="evd-muted evd-muted--small evd-block--divided">{data.advisoryBoundary}</p>
     </div>
   );

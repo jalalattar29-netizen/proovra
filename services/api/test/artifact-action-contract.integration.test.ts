@@ -257,7 +257,11 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     const before = await requestCount(id2);
     const res = await post(A().ownerToken, id2);
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({ outcome: "NOT_RECOVERABLE", reason: "ESCALATED_TO_OPERATOR" });
+    expect(res.json()).toMatchObject({
+      code: "OUTPUT_ACTION_UNAVAILABLE",
+      outcome: "NOT_RECOVERABLE",
+      reason: "ESCALATED_TO_OPERATOR",
+    });
     expect(await requestCount(id2)).toBe(before);
   });
 

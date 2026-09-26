@@ -13,6 +13,14 @@ import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * The shared verb table, inlined — a data URL cannot resolve "@proovra/shared".
+ * The REAL built module, so the words asserted are the ones the product ships.
+ */
+const SHARED_COPY_URL =
+  "data:text/javascript," +
+  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/output-action-copy.js"), "utf8"));
+
 const compile = (file) =>
   ts.transpileModule(readFileSync(resolve(HERE, file), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -40,7 +48,8 @@ const ENVELOPE_URL =
 const src = readFileSync(resolve(HERE, "../src/product/evidence-detail.ts"), "utf8")
   .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
   .replace(/from ["']\.\/domain-display["']/g, `from "${DISPLAY_URL}"`)
-  .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`);
+  .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`)
+  .replace('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
@@ -325,17 +334,59 @@ test("the legacy boolean still reads correctly when no outcome arrived", () => {
 });
 
 test("an outcome the client does not know is not invented", () => {
-  // It falls to the legacy reading rather than being echoed as if understood.
+  // A NAMED outcome this build does not know is reported as exactly that — it
+  // is neither echoed as understood nor mapped onto a known one (reading it as
+  // ALREADY_ACTIVE or ENQUEUED would claim work nothing said was accepted).
   const r = mod.readGenerationOutcome({ outcome: "SOMETHING_NEW", enqueued: true });
-  assert.equal(r.outcome, "ENQUEUED");
+  assert.equal(r.outcome, "UNRECOGNIZED");
+  assert.equal(r.acceptedWork, false);
+  assert.equal(r.tone, "info");
+  assert.equal(
+    mod.readGenerationOutcome({ outcome: "SOMETHING_NEW", message: "Server sentence." }).message,
+    "Server sentence.",
+  );
 });
 
-test("only a regeneration asks first, and says what it costs", () => {
-  assert.equal(mod.generationNeedsConfirmation("REGENERATE"), true);
-  assert.equal(mod.generationNeedsConfirmation("RETRY"), false);
-  assert.equal(mod.generationNeedsConfirmation("GENERATE"), false);
-  assert.match(mod.REGENERATE_CONSEQUENCE, /new immutable version/i);
-  assert.match(mod.REGENERATE_CONSEQUENCE, /No evidence credit is charged/i);
+test("the recovery outcomes read in their own words", () => {
+  assert.match(mod.readGenerationOutcome({ outcome: "NOTHING_TO_RECOVER" }).message, /Nothing is missing/);
+  assert.match(mod.readGenerationOutcome({ outcome: "REPLAYED" }).message, /No additional version/);
+  assert.equal(mod.readGenerationOutcome({ outcome: "REPLAYED" }).acceptedWork, false);
+});
+
+test("each output's verb is the shared table; a new version is its own confirmed action", () => {
+  assert.equal(mod.outputActionLabel("verificationPackage", "RECOVER"), "Recover verification package");
+  assert.equal(mod.outputActionLabel("verificationPackage", "RETRY"), "Retry package recovery");
+  assert.equal(mod.outputActionLabel("report", "GENERATE"), "Generate report & verification package");
+  assert.equal(mod.outputActionLabel("report", "RETRY"), "Retry report generation");
+  assert.equal(mod.NEW_VERSION_LABEL, "Create new version");
+  // Only GENERATE / RETRY / RECOVER are per-output verbs; nothing else posts.
+  for (const a of ["GENERATE", "RETRY", "RECOVER"]) assert.equal(mod.asOutputRequestIntent(a), a);
+  for (const a of ["REGENERATE", "NONE", "CREATE_NEW_VERSION", null, undefined]) {
+    assert.equal(mod.asOutputRequestIntent(a), null, String(a));
+  }
+  assert.deepEqual(JSON.parse(mod.buildOutputRequestBody("RECOVER")), { intent: "RECOVER" });
+  assert.deepEqual(JSON.parse(mod.buildNewVersionBody("nv-abc12345")), {
+    intent: "NEW_VERSION",
+    clientRequestKey: "nv-abc12345",
+  });
+  const lines = mod.newVersionConsequence({
+    currentVersion: 3,
+    nextVersion: 4,
+    estimate: { estimatedBytes: String(2 * 1024 * 1024), basis: "PREVIOUS_PAIR" },
+  });
+  assert.equal(lines[0], "Creates report version 4 and its verification package, alongside version 3.");
+  assert.match(lines.join(" "), /Earlier versions are kept unchanged/);
+  assert.match(lines.join(" "), /Estimated additional storage: about 2\.0 MB/);
+  assert.match(lines.join(" "), /No evidence credit is charged/);
+});
+
+test("an unanswered request keeps its key; an answered one does not", () => {
+  assert.equal(mod.requestWasAnswered({ statusCode: 409 }), true);
+  assert.equal(mod.requestWasAnswered({ statusCode: 429 }), true);
+  assert.equal(mod.requestWasAnswered({ statusCode: 0 }), false);
+  assert.equal(mod.requestWasAnswered({ statusCode: 503 }), false);
+  assert.equal(mod.requestWasAnswered(new TypeError("Network request failed")), false);
+  assert.match(mod.makeClientRequestKey(), /^nv-[A-Za-z0-9._:-]{8,77}$/);
 });
 
 /* --------------------------------------------- legal notes and annotations */

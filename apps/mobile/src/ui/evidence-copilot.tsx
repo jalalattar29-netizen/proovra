@@ -15,13 +15,15 @@ import {
   buildEvidenceCopilotPath,
   copilotFailure,
   generationOffer,
+  outputRequestFailure,
   parseCopilotRun,
-  regenerateFailure,
+  suggestionConsequence,
   type CopilotCitation,
   type CopilotOutcome,
   type ServerAction,
 } from "../product/ai-copilot";
-import { buildRegeneratePath, readGenerationOutcome } from "../product/evidence-detail";
+import { buildOutputRequestBody, buildRegeneratePath, readGenerationOutcome } from "../product/evidence-detail";
+import { toSafeUserError } from "../errors/safe-error";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraSection, ProovraText } from "./index";
 
 type UiState = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string; code: string } | { kind: "result"; outcome: CopilotOutcome; actions: ServerAction[] };
@@ -53,22 +55,41 @@ export function CitationList({ citations }: { citations: CopilotCitation[] }) {
  * to this same record, and OPEN_REVIEWER_ASSIGNMENT to the web /review queue,
  * which native does not have — a button to a missing screen is worse than none.
  */
-function ConfirmedActions({ evidenceId, actions }: { evidenceId: string; actions: ServerAction[] }) {
+function ConfirmedActions({
+  evidenceId,
+  actions,
+  onOutputsRequested,
+}: {
+  evidenceId: string;
+  actions: ServerAction[];
+  onOutputsRequested?: () => void;
+}) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const offer = generationOffer(actions);
   const run = async () => {
-    if (busy) return;
+    if (busy || !offer) return;
     setBusy(true);
     try {
       // 202 answers every outcome; the typed outcome is what happened.
-      setOutcome(readGenerationOutcome(await apiFetch(buildRegeneratePath(evidenceId), { method: "POST" })).message);
+      setOutcome(
+        readGenerationOutcome(
+          await apiFetch(buildRegeneratePath(evidenceId), {
+            method: "POST",
+            ...(offer.intent ? { body: buildOutputRequestBody(offer.intent) } : {}),
+          }),
+        ).message,
+      );
     } catch (err) {
-      setOutcome(regenerateFailure((err as { statusCode?: number } | null)?.statusCode ?? null));
+      const status = (err as { statusCode?: number } | null)?.statusCode ?? null;
+      // A declined request carries the server's own reason (escalated, integrity review, …).
+      setOutcome(status === 409 ? toSafeUserError(err, { message: outputRequestFailure(409) }).message : outputRequestFailure(status));
     } finally {
       setBusy(false);
       setConfirming(false);
+      // The record's panels re-read what the server now says.
+      onOutputsRequested?.();
     }
   };
   if (!offer) return null;
@@ -81,7 +102,7 @@ function ConfirmedActions({ evidenceId, actions }: { evidenceId: string; actions
       ) : (
         <ProovraCard>
           <View style={{ gap: theme.space.s2 }}>
-            <ProovraText variant="bodySm">{COPY.confirmBody}</ProovraText>
+            <ProovraText variant="bodySm">{`Confirm: ${suggestionConsequence(offer.intent)}`}</ProovraText>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
               <ProovraButton label={busy ? COPY.queuing : COPY.confirm} accessibilityLabel={COPY.confirm} fullWidth={false} disabled={busy} onPress={() => void run()} />
               <ProovraButton label={COPY.cancel} variant="ghost" fullWidth={false} disabled={busy} onPress={() => setConfirming(false)} />
@@ -94,7 +115,16 @@ function ConfirmedActions({ evidenceId, actions }: { evidenceId: string; actions
   );
 }
 
-export function EvidenceCopilot({ evidenceId, analysisRevision }: { evidenceId: string; analysisRevision: string | null }) {
+export function EvidenceCopilot({
+  evidenceId,
+  analysisRevision,
+  onOutputsRequested,
+}: {
+  evidenceId: string;
+  analysisRevision: string | null;
+  /** Called after a confirmed output request, so the record re-reads its state. */
+  onOutputsRequested?: () => void;
+}) {
   const [state, setState] = useState<UiState>({ kind: "idle" });
 
   const run = async () => {
@@ -180,7 +210,7 @@ export function EvidenceCopilot({ evidenceId, analysisRevision }: { evidenceId: 
                   <ProovraText variant="label" color={theme.color.ink.muted}>{`${outcome.droppedCitations} unverifiable citation(s) were removed.`}</ProovraText>
                 ) : null}
               </View>
-              {state.kind === "result" ? <ConfirmedActions evidenceId={evidenceId} actions={state.actions} /> : null}
+              {state.kind === "result" ? <ConfirmedActions evidenceId={evidenceId} actions={state.actions} onOutputsRequested={onOutputsRequested} /> : null}
               {outcome.advisoryBoundary ? <ProovraText variant="label" color={theme.color.ink.muted}>{outcome.advisoryBoundary}</ProovraText> : null}
             </View>
           ) : null}

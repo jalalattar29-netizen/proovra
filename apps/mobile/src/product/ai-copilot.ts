@@ -28,6 +28,8 @@ export interface ServerAction {
   actionType: string;
   displayLabel: string;
   reason: string;
+  /** The intent the proposed change carries (GENERATE / RETRY / RECOVER), when it carries one. */
+  intent: "GENERATE" | "RETRY" | "RECOVER" | null;
 }
 export type CopilotOutcome =
   | { kind: "result"; summary: string; sections: Array<{ label: string; items: string[] }>; citations: CopilotCitation[]; droppedCitations: number; advisoryBoundary: string }
@@ -114,7 +116,14 @@ export function parseCopilotRun(
     const suggestionId = s(a["suggestionId"]);
     const actionType = s(a["actionType"]);
     if (!suggestionId || !actionType) continue;
-    serverActions.push({ suggestionId, actionType, displayLabel: s(a["displayLabel"]) ?? actionType, reason: s(a["reason"]) ?? "" });
+    const intent = s(o(a["proposedChange"])["intent"]);
+    serverActions.push({
+      suggestionId,
+      actionType,
+      displayLabel: s(a["displayLabel"]) ?? actionType,
+      reason: s(a["reason"]) ?? "",
+      intent: intent === "GENERATE" || intent === "RETRY" || intent === "RECOVER" ? intent : null,
+    });
   }
   if (status === "provider_unavailable") return { outcome: { kind: "provider_unavailable" }, serverActions };
   if (status === "policy_denied") return { outcome: { kind: "policy_denied", decision: s(run["decision"]) ?? "" }, serverActions };
@@ -163,10 +172,26 @@ export function generationOffer(actions: ServerAction[]): ServerAction | null {
   return actions.find((a) => a.actionType === "GENERATE_REPORT" || a.actionType === "RETRY_ELIGIBLE_REPORT") ?? null;
 }
 
-export function regenerateFailure(status: number | null): string {
-  if (status === 403) return "You are not permitted to regenerate this report.";
-  if (status === 409) return "This record is not currently eligible for report regeneration.";
+/** Why a confirmed output request did not run — the web panel's words. */
+export function outputRequestFailure(status: number | null): string {
+  if (status === 403) return "You are not permitted to generate or recover outputs for this record.";
+  if (status === 409) return "This action is not available for the record right now.";
   return "The action could not be completed. The standard evidence workflow is unaffected.";
+}
+
+/**
+ * What confirming does, per intent — stated from what the server will run. A
+ * package recovery reuses the stored report and creates no report version.
+ */
+export function suggestionConsequence(intent: ServerAction["intent"]): string {
+  switch (intent) {
+    case "RECOVER":
+      return "Rebuilds this record's verification package from its existing report. The report is not changed and no new version is created; evidence bytes, hashes, custody and timestamps are untouched.";
+    case "RETRY":
+      return "Retries the failed attempt through the standard endpoint. It does not alter evidence bytes, hashes, custody, or verification state.";
+    default:
+      return "Generates this record's report and verification package through the standard endpoint. It does not alter evidence bytes, hashes, custody, or verification state.";
+  }
 }
 
 export const EVIDENCE_COPILOT_COPY = {
@@ -187,8 +212,6 @@ export const EVIDENCE_COPILOT_COPY = {
   noSources: "No validated sources.",
   actionsTitle: "Suggested actions",
   actionsIntro: "Actions run through the standard PROOVRA workflow with your normal permissions and audit logging. Nothing runs without your confirmation.",
-  confirmBody:
-    "Confirm: queue report regeneration for this evidence record via the standard endpoint. This creates a new report version; it does not alter evidence bytes, hashes, custody, or verification state.",
   confirm: "Confirm and run",
   queuing: "Queuing…",
   cancel: "Cancel",

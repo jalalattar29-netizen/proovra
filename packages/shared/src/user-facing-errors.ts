@@ -806,6 +806,16 @@ export const SERVER_MESSAGE_ERROR_CODES: Record<
     title: "That change isn't possible yet",
     severity: "warning",
   },
+  /**
+   * A generation, recovery or new-version request the server declined. The
+   * message is chosen server-side from a closed table keyed by the bounded
+   * reason (legal hold, escalated to operators, integrity review, ...), so it
+   * is the most specific safe sentence available.
+   */
+  OUTPUT_ACTION_UNAVAILABLE: {
+    title: "This action isn't available",
+    severity: "warning",
+  },
 };
 
 /** The placeholder a client substitutes when a body carries no message. */

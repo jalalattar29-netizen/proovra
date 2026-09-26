@@ -39,8 +39,14 @@ beforeEach(async () => {
   globalThis.__EXPO_PARAMS__ = { id: "ev-1" };
   routes = {
     ...authenticatedRoutes(),
+    // A complete record: nothing to recover, and the optional new version offered.
     "/v1/evidence/ev-1/artifacts/status": () => ({
-      outputs: { report: { state: "READY", action: "REGENERATE" } },
+      outputs: {
+        report: { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED", version: 1 },
+        verificationPackage: { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED", version: 1 },
+        newVersion: { action: "CREATE_NEW_VERSION", reason: null, currentVersion: 1, nextVersion: 2, estimate: null },
+        pollIntervalMs: null,
+      },
     }),
     "/v1/evidence/ev-1/review-workspace": () => ({ relationships: { items: [] } }),
     "/v1/evidence/ev-1": () => ({ evidence: { id: "ev-1", status: "REPORTED", type: "PHOTO" } }),
@@ -85,11 +91,13 @@ for (const [name, body] of Object.entries(VARIANTS)) {
   });
 }
 
-test("a generation incident is said beside Regenerate, and the existing report download stays enabled", async () => {
+test("a generation incident is said beside Create new version, and the existing report download stays enabled", async () => {
   routes["/v1/runtime/status"] = VARIANTS["generation DEGRADED"];
   const r = await render();
   assert.ok(r.hasText(GEN));
   assert.equal(r.byTestId("service-notice-artifactGeneration").length, 1);
+  // Beside the control it affects: the record's optional new-version menu.
+  assert.equal(r.byTestId("new-version-action-ev-1").length, 1);
   assert.ok(r.byLabel("Download report").length > 0);
   assert.ok(!r.byLabel("Download report")[0].props.accessibilityState?.disabled);
   r.unmount();

@@ -10990,6 +10990,8 @@ if (
         return reply.code(status).send({
           evidenceId: id,
           enqueued: false,
+          // A client reads a declined request by this code and shows `message`.
+          ...(status === 409 ? { code: "OUTPUT_ACTION_UNAVAILABLE" } : {}),
           outcome: result.outcome,
           reason: result.reason,
           message:

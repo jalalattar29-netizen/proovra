@@ -860,6 +860,13 @@
   gap: 6px;
 }
 
+/* An action that must be justified: the reason field spans the panel. */
+.opsw-remediation__reason {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
 .opsw-remediation__hint {
   max-inline-size: 46ch;
 }

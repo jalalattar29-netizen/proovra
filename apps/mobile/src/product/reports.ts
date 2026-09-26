@@ -22,6 +22,8 @@
  * Pure: no React, no react-native, no fetch.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import { outputUnavailableReasonShort } from "@proovra/shared";
+import type { NewVersionOfferView } from "./evidence-record";
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -96,10 +98,17 @@ export interface ArtifactRow {
   packageState: string | null;
   /** Org-supplied business metadata (web "Customer:"); asserts nothing about integrity. */
   intakeCustomerId: string | null;
-  /** The SERVER's verb (outputs.report.action, else the package's); the list derives none. */
-  action: ReportOutputAction;
-  /** Why the verb was withdrawn (e.g. WORKSPACE_UNRESOLVED), when it was. */
+  /**
+   * The SERVER's verbs, per output (outputs.*.action); the list derives none.
+   * A missing package is the package's RECOVER, never a verb on both.
+   */
+  outputActions: Array<{ output: "report" | "verificationPackage"; action: ReportOutputAction }>;
+  /** Why no verb is offered, when a person should know (the first output's reason). */
   actionWithheldReason: string | null;
+  /** The separate new-version decision ({action, reason}); null when absent. */
+  newVersion: NewVersionOfferView | null;
+  /** Re-read the list at this interval while this row has live work; null = none. */
+  pollIntervalMs: number | null;
   /** `report.version` / `package.version` — the web's "· vN". */
   reportVersion?: number | null;
   packageVersion?: number | null;
@@ -109,14 +118,42 @@ export interface ArtifactRow {
   createdAt?: string | null;
 }
 
-export type ReportOutputAction = "GENERATE" | "RETRY" | "REGENERATE" | "NONE";
+/** The per-output verbs a row may render (REGENERATE is retired). */
+export type ReportOutputAction = "GENERATE" | "RETRY" | "RECOVER";
 
-/** The web's compact row labels (generation-labels.ts GENERATION_ACTION_LABEL_COMPACT). */
-export const REPORT_ACTION_COMPACT_LABEL: Record<Exclude<ReportOutputAction, "NONE">, string> = {
-  GENERATE: "Generate report & package",
-  RETRY: "Retry report & package",
-  REGENERATE: "Regenerate report & package",
-};
+/**
+ * The row's per-output verbs and the reason none is offered — one reader for
+ * both the workspace aggregator and the user-scoped fallback.
+ */
+export function readRowOutputs(outputsRaw: unknown): Pick<
+  ArtifactRow,
+  "outputActions" | "actionWithheldReason" | "newVersion" | "pollIntervalMs"
+> {
+  const out = obj(outputsRaw);
+  const outputActions: ArtifactRow["outputActions"] = [];
+  for (const output of ["report", "verificationPackage"] as const) {
+    const action = asAction(obj(out[output]).action);
+    if (action) outputActions.push({ output, action });
+  }
+  const reasons = [str(obj(out.report).actionUnavailableReason), str(obj(out.verificationPackage).actionUnavailableReason)];
+  const pollRaw = out.pollIntervalMs;
+  return {
+    outputActions,
+    actionWithheldReason: reasons.find((r) => outputUnavailableReasonShort(r as never) !== null) ?? null,
+    // A row carries the decision only; the versions and the estimate are read
+    // from the record's own status when the confirmation opens.
+    newVersion: str(obj(out.newVersion).action)
+      ? {
+          action: str(obj(out.newVersion).action) as string,
+          reason: str(obj(out.newVersion).reason),
+          currentVersion: null,
+          nextVersion: null,
+          estimate: null,
+        }
+      : null,
+    pollIntervalMs: typeof pollRaw === "number" && Number.isFinite(pollRaw) ? pollRaw : null,
+  };
+}
 
 /** The web ReportsIndex integrityLabel: the enum said once, without a repeated "Integrity". */
 export function reportIntegrityLabel(status: string): string {
@@ -126,7 +163,7 @@ export function reportIntegrityLabel(status: string): string {
 }
 
 function asAction(v: unknown): ReportOutputAction | null {
-  return v === "GENERATE" || v === "RETRY" || v === "REGENERATE" || v === "NONE" ? v : null;
+  return v === "GENERATE" || v === "RETRY" || v === "RECOVER" ? v : null;
 }
 
 /**
@@ -190,16 +227,7 @@ export function parseArtifacts(payload: unknown): ArtifactPage {
         packageBlockedReason: str(obj(r.package).blockedReason),
         createdAt: str(r.createdAt),
         intakeCustomerId: str(r.intakeCustomerId),
-        ...(() => {
-          const out = obj(r.outputs);
-          const reportAction = asAction(obj(out.report).action);
-          const action: ReportOutputAction =
-            reportAction && reportAction !== "NONE" ? reportAction : asAction(obj(out.verificationPackage).action) ?? "NONE";
-          return {
-            action,
-            actionWithheldReason: str(obj(out.report).actionUnavailableReason) ?? str(obj(out.verificationPackage).actionUnavailableReason),
-          };
-        })(),
+        ...readRowOutputs(r.outputs),
       };
     }),
   };
@@ -510,10 +538,6 @@ export function parseUserScopedReports(payload: unknown): ArtifactPage {
     total: null,
     items: rows(d.items).map((raw) => {
       const r = obj(raw);
-      const out = obj(r.outputs);
-      const reportAction = asAction(obj(out.report).action);
-      const action: ReportOutputAction =
-        reportAction && reportAction !== "NONE" ? reportAction : asAction(obj(out.verificationPackage).action) ?? "NONE";
       return {
         evidenceId: str(r.evidenceId) ?? "",
         displayTitle: resolveDisplayTitle({
@@ -533,9 +557,7 @@ export function parseUserScopedReports(payload: unknown): ArtifactPage {
         packageBlockedReason: null,
         createdAt: str(r.createdAt),
         intakeCustomerId: str(r.intakeCustomerId),
-        action,
-        actionWithheldReason:
-          str(obj(out.report).actionUnavailableReason) ?? str(obj(out.verificationPackage).actionUnavailableReason),
+        ...readRowOutputs(r.outputs),
       };
     }),
   };

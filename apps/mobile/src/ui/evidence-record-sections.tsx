@@ -13,6 +13,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { formatUserDateTime } from "../lib/date";
 import type { RiskSignal } from "../product/evidence-detail";
+import { outputUnavailableReasonCopy } from "@proovra/shared";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
   CUSTODY_TIMELINE_COPY,
@@ -21,12 +22,13 @@ import {
   INTEGRITY_STATE_PRESENTATION,
   PREVIEW_COPY,
   REVIEWER_STATUS_DISCLAIMER,
-  WORKSPACE_UNRESOLVED_NOTE,
   describePublicVerificationState,
   formatReviewerStatusLabel,
   groupCustodyByDay,
   outputPanelCopy,
+  outputPanelNote,
   outputPanelShowsAction,
+  packagePanelCopy,
   priorityTone,
   publicVerificationCounter,
   publicVerificationTone,
@@ -456,27 +458,78 @@ export function CustodyTimelineCard({ kind, events }: { kind: "forensic" | "acce
 
 /**
  * EvidenceArtifactsTab.tsx ArtifactLifecyclePanel — TOTAL over the canonical
- * state. The verb comes from the server's `action`; when the server withdrew
- * it (`WORKSPACE_UNRESOLVED`) the reason is said instead of a silent gap.
+ * state. The verb comes from the server's `action`; when the server offers
+ * none, its reason is said (escalated to operators, a legal hold, a workspace
+ * association) instead of a silent gap. `readyExtra` is what a READY report
+ * carries beyond itself: a new version in flight, or the optional menu.
  */
-export function ArtifactLifecyclePanel({ output, actionNode }: { output: OutputView; actionNode: React.ReactNode }) {
-  const action =
-    output.actionUnavailableReason === "WORKSPACE_UNRESOLVED" ? (
-      <ProovraText variant="label" color={theme.color.ink.secondary} testID="artifact-action-unavailable">{WORKSPACE_UNRESOLVED_NOTE}</ProovraText>
-    ) : (
-      actionNode
-    );
+export function ArtifactLifecyclePanel({
+  output,
+  actionNode,
+  readyExtra,
+}: {
+  output: OutputView;
+  actionNode: React.ReactNode;
+  readyExtra?: React.ReactNode;
+}) {
+  const note = outputPanelNote(output);
+  const action = (
+    <>
+      {actionNode}
+      {note ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary} testID="artifact-action-unavailable">{note}</ProovraText>
+      ) : null}
+    </>
+  );
   const copy = outputPanelCopy(output);
   const showAction = outputPanelShowsAction(output.state);
   if (!copy) {
-    if (output.state === "READY" && (output.action !== "NONE" || output.actionUnavailableReason !== null)) {
-      return <View testID="artifact-lifecycle-ready">{action}</View>;
+    if (output.state === "READY" && (actionNode || note || readyExtra)) {
+      return (
+        <View testID="artifact-lifecycle-ready" style={{ gap: 8 }}>
+          {action}
+          {readyExtra}
+        </View>
+      );
     }
     return null;
   }
   return (
     <Alert testID={`artifact-lifecycle-${(output.state ?? "unknown").toLowerCase()}`} tone={copy.tone} title={copy.title} body={copy.body}>
       {showAction ? action : null}
+    </Alert>
+  );
+}
+
+/** The web's PackageRecoveryPanel: a package not paired with the current report. */
+export function PackageRecoveryPanel({
+  report,
+  pkg,
+  actionNode,
+}: {
+  report: OutputView;
+  pkg: OutputView;
+  actionNode: React.ReactNode;
+}) {
+  const copy = packagePanelCopy(report, pkg);
+  if (!copy) return null;
+  const note = outputUnavailableReasonCopy(pkg.actionUnavailableReason as never);
+  return (
+    <Alert
+      testID={copy.inFlight ? "package-recovery-in-flight" : "package-recovery"}
+      tone={copy.tone}
+      title={copy.title}
+      body={copy.body ?? note ?? ""}
+    >
+      {copy.olderVersion != null ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          {`The earlier package (version ${copy.olderVersion}) stays downloadable from the version history.`}
+        </ProovraText>
+      ) : null}
+      {copy.inFlight ? null : actionNode}
+      {copy.body && note ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary} testID="package-action-unavailable">{note}</ProovraText>
+      ) : null}
     </Alert>
   );
 }

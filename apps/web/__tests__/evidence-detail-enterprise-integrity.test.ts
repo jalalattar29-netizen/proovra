@@ -66,21 +66,22 @@ test("artifact rendering uses canonical report and package status helpers", () =
 
 test("artifact polling is scoped to report and package readiness only", () => {
   assert.match(SRC, /function shouldPollArtifactReadiness/);
-  assert.match(SRC, /status === "SIGNED" \|\| status === "REPORTED"/);
-  // Phase CAPTURE-CLOSURE Part A — polling stops once a plan-gated
-  // artifact is unreachable (workspaceCapabilitySnapshot.reportsIncluded /
-  // verificationPackageIncluded === false). The predicate is now:
-  //   reportNeedsRefresh = reportReachable && !workspace.artifactStatus.report.available
-  // (and the symmetric form for the verification package).
+  // 2026-09-26 — THE SERVER STATES WHEN TO POLL. The local predicate polled
+  // only while `report.available` was false, so a new version generated
+  // beside a READY report, or a package recovered beside it, was never polled.
+  // The server's `outputs.pollIntervalMs` is non-null exactly while a request
+  // is queued, running or awaiting a scheduled retry (plan-gated and blocked
+  // outputs have none), and null means stop.
   assert.match(
     SRC,
-    /reportNeedsRefresh\s*=\s*\n?\s*reportReachable\s*&&\s*!workspace\.artifactStatus\.report\.available/,
+    /return workspace\?\.artifactStatus\?\.outputs\?\.pollIntervalMs != null;/,
   );
-  assert.match(
-    SRC,
-    /!verificationPackage\.available &&\s*!verificationPackage\.blocked &&\s*!verificationPackage\.unavailable/
-  );
-  assert.equal((SRC.match(/setInterval\(/g) ?? []).length, 1);
+  // The readiness poller reads the side-effect-free status endpoint at the
+  // server's interval, with ONE timer chain and no interval of its own.
+  assert.match(SRC, /\/artifacts\/status/);
+  assert.match(SRC, /r\.outputs\?\.pollIntervalMs \?\? null/);
+  assert.equal((SRC.match(/setInterval\(/g) ?? []).length, 0);
+  assert.equal((SRC.match(/timer = setTimeout\(/g) ?? []).length, 1);
 });
 
 test("OTS pending stays passive and uses manual one-shot refresh", () => {

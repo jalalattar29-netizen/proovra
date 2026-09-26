@@ -117,7 +117,7 @@ export default function ReportsScreen() {
   }, []);
 
   const load = useCallback(
-    async (nextCursor: string | null, existing: ArtifactRow[]) => {
+    async (nextCursor: string | null, existing: ArtifactRow[], quiet = false) => {
       const path = buildReportsPath({ teamId, filter, cursor: nextCursor, search, summary: false });
       if (!path) {
         setLoading(false);
@@ -125,7 +125,7 @@ export default function ReportsScreen() {
       }
       const mine = (generation.current += 1);
       if (nextCursor) setLoadingMore(true);
-      else setLoading(true);
+      else if (!quiet) setLoading(true);
       setError(null);
       setPermissionDenied(false);
       // The user-scoped fallback is a BOOTSTRAP probe for the unfiltered
@@ -182,6 +182,30 @@ export default function ReportsScreen() {
   useEffect(() => {
     void load(null, []);
   }, [load]);
+
+  /*
+   * POLL WHILE A ROW HAS LIVE WORK — at the server's interval, quietly (the
+   * list stays on screen), for at most ten minutes; the counters are re-read
+   * once when the work ends.
+   */
+  const liveInterval = items.reduce<number | null>(
+    (min, r) => (r.pollIntervalMs == null ? min : min == null ? r.pollIntervalMs : Math.min(min, r.pollIntervalMs)),
+    null,
+  );
+  const pollStartedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (liveInterval == null) {
+      if (pollStartedAt.current !== null) {
+        pollStartedAt.current = null;
+        setSummaryNonce((n) => n + 1);
+      }
+      return;
+    }
+    pollStartedAt.current ??= Date.now();
+    if (Date.now() - pollStartedAt.current > 10 * 60_000) return;
+    const t = setTimeout(() => void load(null, [], true), liveInterval);
+    return () => clearTimeout(t);
+  }, [liveInterval, items, load]);
 
   const empty = reportsEmptyCopy(filter, search);
 
@@ -299,7 +323,9 @@ export default function ReportsScreen() {
                       teamId={teamId}
                       onOutputsRequested={() => {
                         setSummaryNonce((n) => n + 1);
-                        void load(null, []);
+                        // Quietly: the rows stay mounted, so the row's own
+                        // answer (the server's sentence) stays on screen.
+                        void load(null, [], true);
                       }}
                     />
                   ))}

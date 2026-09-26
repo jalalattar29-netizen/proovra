@@ -211,6 +211,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   IDEMPOTENCY_KEY_REQUIRED: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_INVALID: { disposition: "customer", where: "global" },
   CONCURRENCY_LIMITED: { disposition: "customer", where: "global" },
+  OUTPUT_ACTION_UNAVAILABLE: { disposition: "customer", where: "global" },
   AI_CHAT_RATE_LIMITED: { disposition: "customer", where: "global" },
   AI_CHAT_TIMEOUT: { disposition: "customer", where: "global" },
   AI_WORKSPACE_POLICY_DENIED: { disposition: "customer", where: "global" },

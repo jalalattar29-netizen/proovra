@@ -622,6 +622,7 @@ function EvidenceDetailPageInner() {
     downloadReportVersion,
     downloadVerificationPackageVersion,
     generateOutputs,
+    createNewVersion,
     generateOutputsBusy,
   } = useEvidenceArtifactActions({
     evidenceId: evidenceId ?? null,
@@ -984,6 +985,7 @@ function EvidenceDetailPageInner() {
     downloadReportVersion,
     downloadVerificationPackageVersion,
     generateOutputs,
+    createNewVersion,
     generateOutputsBusy,
     runRecordAction,
     restoreTrash,

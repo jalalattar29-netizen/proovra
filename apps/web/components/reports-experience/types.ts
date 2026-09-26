@@ -9,7 +9,10 @@
 // five-value lifecycle below.
 import type {
   EvidenceOutputState,
+  NewVersionAction,
   OutputAction,
+  OutputActionUnavailableReason,
+  OutputOperation,
   OutputTerminalReasonClass,
 } from "@proovra/shared";
 
@@ -87,7 +90,14 @@ export type ArtifactRow = {
    */
   outputs?: {
     report: ArtifactOutputProjection;
-    verificationPackage: ArtifactOutputProjection;
+    verificationPackage: ArtifactOutputProjection & {
+      /** The newest package of any version (may predate the latest report). */
+      latestAvailableVersion?: number | null;
+    };
+    /** The separate, optional "create a new version" decision. */
+    newVersion?: { action: NewVersionAction; reason: OutputActionUnavailableReason | null };
+    /** Re-read the list at this interval while this row has live work; null = none. */
+    pollIntervalMs?: number | null;
   };
 };
 
@@ -95,8 +105,10 @@ export type ArtifactRow = {
 export type ArtifactOutputProjection = {
   state: EvidenceOutputState;
   action: OutputAction;
-  /** P2-1 — why the verb was withdrawn on a state that would carry one. */
-  actionUnavailableReason?: "WORKSPACE_UNRESOLVED" | null;
+  /** Why no verb is offered (bounded). */
+  actionUnavailableReason?: OutputActionUnavailableReason | null;
+  /** The server operation the offered verb performs. */
+  operation?: OutputOperation | null;
   terminalReasonClass: OutputTerminalReasonClass | null;
   /** An artifact exists and may be opened, whatever the current request says. */
   downloadable: boolean;

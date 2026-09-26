@@ -8,6 +8,8 @@
  * already decided; the copy is the web's, cited per block.
  */
 
+
+import { outputUnavailableReasonCopy } from "@proovra/shared";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -374,12 +376,32 @@ const OUTPUT_STATES: readonly OutputState[] = [
 
 export interface OutputView {
   state: OutputState | null;
-  /** The server's verb: GENERATE | RETRY | REGENERATE | NONE. Absent reads as NONE. */
+  /** The server's verb: GENERATE | RETRY | RECOVER | NONE. Absent reads as NONE. */
   action: string;
   terminalReasonClass: string | null;
   notApplicableReason: string | null;
   actionUnavailableReason: string | null;
   attemptCount: number | null;
+  /** The server operation the offered verb performs. */
+  operation: string | null;
+  /** The version this output's state describes (the package: paired with the latest report). */
+  version: number | null;
+  /** The newest version of this output that exists at all. */
+  latestAvailableVersion: number | null;
+}
+
+/** The separate, optional "create a new version" offer. */
+export interface NewVersionOfferView {
+  action: string;
+  reason: string | null;
+  currentVersion: number | null;
+  nextVersion: number | null;
+  estimate: {
+    estimatedBytes: string;
+    basis: "PREVIOUS_PAIR" | "ORIGINAL_EVIDENCE";
+    storageBytesUsed: string | null;
+    storageBytesLimit: string | null;
+  } | null;
 }
 
 export interface ArtifactOutputs {
@@ -389,6 +411,9 @@ export interface ArtifactOutputs {
   packageAvailable: boolean;
   packageBlocked: boolean;
   packageBlockedReason: string | null;
+  newVersion: NewVersionOfferView | null;
+  /** Poll the status at this interval while work is live; null = stop. */
+  pollIntervalMs: number | null;
 }
 
 function outputView(raw: unknown): OutputView {
@@ -401,6 +426,34 @@ function outputView(raw: unknown): OutputView {
     notApplicableReason: s(x["notApplicableReason"]),
     actionUnavailableReason: s(x["actionUnavailableReason"]),
     attemptCount: n(x["attemptCount"]),
+    operation: s(x["operation"]),
+    version: n(x["version"]),
+    latestAvailableVersion: n(x["latestAvailableVersion"]),
+  };
+}
+
+/** The new-version offer, when the server sent one. */
+export function projectNewVersionOffer(raw: unknown): NewVersionOfferView | null {
+  const x = o(raw);
+  const action = s(x["action"]);
+  if (!action) return null;
+  const e = o(x["estimate"]);
+  const bytes = s(e["estimatedBytes"]);
+  const basis = s(e["basis"]);
+  return {
+    action,
+    reason: s(x["reason"]),
+    currentVersion: n(x["currentVersion"]),
+    nextVersion: n(x["nextVersion"]),
+    estimate:
+      bytes && (basis === "PREVIOUS_PAIR" || basis === "ORIGINAL_EVIDENCE")
+        ? {
+            estimatedBytes: bytes,
+            basis,
+            storageBytesUsed: s(e["storageBytesUsed"]),
+            storageBytesLimit: s(e["storageBytesLimit"]),
+          }
+        : null,
   };
 }
 
@@ -425,6 +478,8 @@ export function projectArtifactOutputs(payload: unknown): ArtifactOutputs {
     packageAvailable: legacyPkg["available"] === true || pkg.state === "READY",
     packageBlocked: legacyPkg["blocked"] === true,
     packageBlockedReason: s(legacyPkg["blockedReason"]),
+    newVersion: projectNewVersionOffer(outputs["newVersion"]),
+    pollIntervalMs: n(outputs["pollIntervalMs"]),
   };
 }
 
@@ -494,9 +549,6 @@ export function terminalFailureCopy(reasonClass: string | null): string {
   }
 }
 
-export const WORKSPACE_UNRESOLVED_NOTE =
-  "This older record needs a workspace association before a new report or verification package can be requested. Everything already generated for it stays available.";
-
 /**
  * EvidenceArtifactsTab.tsx:228-450 — the lifecycle panel's title and body for
  * each state, verbatim. `null` for READY (a downloadable artifact is not a
@@ -551,17 +603,82 @@ export function outputPanelCopy(out: OutputView): { title: string; body: string;
         tone: "warn",
       };
     case "TERMINAL_FAILURE":
-      return { title: "Report generation stopped", body: terminalFailureCopy(out.terminalReasonClass), tone: "warn" };
+      // The server's reason (escalated to operators, integrity review, …) is
+      // the more specific sentence; the class copy is the fallback.
+      return {
+        title: "Report generation stopped",
+        body: outputUnavailableReasonCopy(out.actionUnavailableReason as never) ?? terminalFailureCopy(out.terminalReasonClass),
+        tone: "warn",
+      };
     case "BLOCKED":
       return {
         title: "Report generation is blocked",
         body:
+          outputUnavailableReasonCopy(out.actionUnavailableReason as never) ??
           "A governance or lifecycle decision is currently preventing generation for this record. It becomes possible again when that decision changes; the evidence record and its integrity state are unaffected.",
         tone: "warn",
       };
     default:
       return null;
   }
+}
+
+/**
+ * Why no action is offered, as a note beside the panel — only where the
+ * panel's own body does not already say it (TERMINAL_FAILURE and BLOCKED
+ * carry it as their body).
+ */
+export function outputPanelNote(out: OutputView): string | null {
+  if (out.state === "TERMINAL_FAILURE" || out.state === "BLOCKED") return null;
+  return outputUnavailableReasonCopy(out.actionUnavailableReason as never);
+}
+
+/**
+ * THE VERIFICATION PACKAGE WHEN IT IS NOT PAIRED WITH THE CURRENT REPORT —
+ * the web's PackageRecoveryPanel, verbatim. Null when there is nothing to say:
+ * before the report exists the package follows the report's own action.
+ */
+export function packagePanelCopy(
+  report: OutputView,
+  pkg: OutputView,
+): { title: string; body: string | null; tone: "warn" | "info"; inFlight: boolean; olderVersion: number | null } | null {
+  if (report.state !== "READY") return null;
+  const note = outputUnavailableReasonCopy(pkg.actionUnavailableReason as never);
+  const inFlight = pkg.state === "QUEUED" || pkg.state === "GENERATING";
+  if (!inFlight && pkg.action === "NONE" && note === null) return null;
+  const forVersion = report.version != null ? ` for report version ${report.version}` : "";
+  const olderVersion =
+    pkg.latestAvailableVersion != null && (report.version == null || pkg.latestAvailableVersion < report.version)
+      ? pkg.latestAvailableVersion
+      : null;
+  if (inFlight) {
+    return {
+      title: `Recovering the verification package${forVersion}…`,
+      body: "The package is being built around the stored report exactly as it is. The report is not changed and no new version is created. This page checks on its own.",
+      tone: "info",
+      inFlight: true,
+      olderVersion,
+    };
+  }
+  if (pkg.action === "RECOVER") {
+    return {
+      title: `The verification package${forVersion} is missing`,
+      body: "The report is available. Recovery builds its verification package from the stored report bytes — it does not create a new report version or a new timestamp.",
+      tone: "warn",
+      inFlight: false,
+      olderVersion,
+    };
+  }
+  if (pkg.action === "RETRY") {
+    return {
+      title: "Recovering the verification package failed",
+      body: `The last attempt did not complete${pkg.attemptCount ? ` (attempt ${pkg.attemptCount})` : ""}. The report and the evidence record are unaffected.`,
+      tone: "warn",
+      inFlight: false,
+      olderVersion,
+    };
+  }
+  return { title: "The verification package could not be recovered", body: null, tone: "warn", inFlight: false, olderVersion };
 }
 
 /** Which states carry the action inside their panel (EvidenceArtifactsTab.tsx). */

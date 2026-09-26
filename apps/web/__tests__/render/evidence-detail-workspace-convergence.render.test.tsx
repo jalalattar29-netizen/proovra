@@ -47,8 +47,10 @@ let requestLog: string[] = [];
 
 /** The tenant service status the fixture answers (default: all healthy). */
 let runtimeBody: unknown = { status: "HEALTHY" };
-/** Overrides the report's canonical action (the fixture's own is DOWNLOAD). */
+/** Overrides the report's canonical action (the fixture's own is NONE: nothing needed). */
 let reportActionOverride: string | null = null;
+/** Overrides the separate new-version offer (the fixture's own offers none). */
+let newVersionActionOverride: string | null = null;
 /** Overrides the report's canonical state (the fixture's own is READY). */
 let reportStateOverride: string | null = null;
 
@@ -418,8 +420,11 @@ function makeWorkspace(): unknown {
           completedAtUtc: iso("2026-07-04T05:23:22Z"),
           availability: "AVAILABLE",
           state: "READY",
-          action: "DOWNLOAD",
-          actionUnavailableReason: null,
+          action: "NONE",
+          actionUnavailableReason: "NOT_REQUIRED",
+          operation: null,
+          version: 2,
+          latestAvailableVersion: 2,
         },
         verificationPackage: {
           eligibility: "ELIGIBLE",
@@ -433,9 +438,20 @@ function makeWorkspace(): unknown {
           completedAtUtc: iso("2026-07-04T05:23:22Z"),
           availability: "AVAILABLE",
           state: "READY",
-          action: "DOWNLOAD",
-          actionUnavailableReason: null,
+          action: "NONE",
+          actionUnavailableReason: "NOT_REQUIRED",
+          operation: null,
+          version: 2,
+          latestAvailableVersion: 2,
         },
+        newVersion: {
+          action: "NONE",
+          reason: "PERMISSION_DENIED",
+          currentVersion: 2,
+          nextVersion: 3,
+          estimate: null,
+        },
+        pollIntervalMs: null,
       },
       report: {
         state: "AVAILABLE",
@@ -598,6 +614,13 @@ function respond(path: string): unknown {
       artifactStatus: { outputs: { report: { action: string } } };
     };
     if (reportActionOverride) w.artifactStatus.outputs.report.action = reportActionOverride;
+    if (newVersionActionOverride) {
+      (w.artifactStatus.outputs as unknown as { newVersion: { action: string; reason: string | null } }).newVersion = {
+        ...(w.artifactStatus.outputs as unknown as { newVersion: object }).newVersion,
+        action: newVersionActionOverride,
+        reason: null,
+      } as { action: string; reason: string | null };
+    }
     if (reportStateOverride) {
       (w.artifactStatus.outputs.report as unknown as { state: string }).state = reportStateOverride;
     }
@@ -1181,6 +1204,7 @@ beforeEach(() => {
   requestLog = [];
   runtimeBody = { status: "HEALTHY" };
   reportActionOverride = null;
+  newVersionActionOverride = null;
   reportStateOverride = null;
   resetServiceStatusForTests();
 });
@@ -1501,8 +1525,8 @@ describe("service status — Evidence never renders the platform diagnostic pane
     15_000,
   );
 
-  it("a generation incident is said beside Regenerate, without calling the evidence stale — and the report download stays enabled", async () => {
-    reportActionOverride = "REGENERATE";
+  it("a generation incident is said beside Create new version, without calling the evidence stale — and the report download stays enabled", async () => {
+    newVersionActionOverride = "CREATE_NEW_VERSION";
     runtimeBody = VARIANTS["generation degraded"];
     await mountLoaded("personal");
     await openArtifacts();

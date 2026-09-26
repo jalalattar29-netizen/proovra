@@ -157,6 +157,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         // way, so nothing broke; it just meant the guard answered a question
         // about a package counter while the panel shows fourteen fields.
         analysisRevision={evidence.analysisRevision ?? undefined}
+        onOutputsRequested={() => void ctx.loadWorkspace()}
       />
 
       {/* (1) Review hero — the reviewer state, its boundary, and the two

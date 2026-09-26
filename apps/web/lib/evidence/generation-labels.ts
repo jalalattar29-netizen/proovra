@@ -25,53 +25,15 @@
  * server's `OutputAction`, never here.
  */
 
-import type { EvidenceOutputState, OutputAction } from "@proovra/shared";
+import type { EvidenceOutputState } from "@proovra/shared";
 
-/**
- * The verb, in full, for every action the server can hand a surface.
- *
- * `NONE` has an empty string rather than being absent so the record is total:
- * a caller that reaches for a label it should not be rendering gets nothing,
- * not a crash and not a stale word from another state.
+/*
+ * THE ACTION VERBS moved to `@proovra/shared` (`outputActionLabel`,
+ * `NEW_VERSION_LABEL`, `newVersionConsequence`) on 2026-09-26, when the verb
+ * became per output: a missing package is "Recover verification package",
+ * never a regeneration of both, and a new version is its own confirmed
+ * action. One table now serves web, PWA and native.
  */
-export const GENERATION_ACTION_LABEL: Record<OutputAction, string> = {
-  GENERATE: "Generate report & verification package",
-  RECOVER: "Recover verification package",
-  RETRY: "Retry report & verification package",
-  REGENERATE: "Regenerate report & verification package",
-  NONE: "",
-};
-
-/**
- * The compact form, for surfaces that render this control inside a dense row
- * beside two downloads and a link.
- *
- * DOCUMENTED, NOT IMPROVISED. The audit's rule is that a shorter label is
- * allowed only where a surface explicitly declares it needs one, and the
- * Reports index is that surface: three full-width actions at 320px is where its
- * horizontal overflow came from. The words are a strict prefix of the canonical
- * label — never a different name for the same thing.
- */
-export const GENERATION_ACTION_LABEL_COMPACT: Record<OutputAction, string> = {
-  GENERATE: "Generate report & package",
-  RECOVER: "Recover package",
-  RETRY: "Retry report & package",
-  REGENERATE: "Regenerate report & package",
-  NONE: "",
-};
-
-/**
- * What a REGENERATION costs, said before it happens — on every surface that
- * offers it. Verified against the pipeline, not assumed: each run writes a new
- * report + package version (older versions are kept and stay downloadable),
- * the bytes count toward workspace storage, and no evidence credit is charged
- * (funding is one ledger entry per record). Mobile carries the same sentence
- * (`REGENERATE_CONSEQUENCE` in apps/mobile/src/product/evidence-detail.ts).
- */
-export const REGENERATE_CONSEQUENCE =
-  "This creates a new immutable version. Previous versions are retained and remain " +
-  "downloadable, and the new one uses additional workspace storage. No evidence " +
-  "credit is charged.";
 
 /**
  * The two download controls, named the same way everywhere.

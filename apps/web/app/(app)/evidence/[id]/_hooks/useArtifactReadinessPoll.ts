@@ -11,11 +11,14 @@
  * Contract:
  *   - polls the SIDE-EFFECT-FREE `/artifacts/status` endpoint (the route's
  *     contract test proves it writes no custody / audit / view events);
- *   - reloads the workspace only when report/package availability actually
- *     CHANGES, so a poll cannot spam the detail read;
- *   - stops after a 60s stale window and surfaces an actionable state rather
+ *   - polls at the server's `outputs.pollIntervalMs` and stops when it is
+ *     null (2026-09-26: including while an older version stays downloadable);
+ *   - reloads the workspace only when an output's state, generation, version
+ *     or offered action actually CHANGES, so a poll cannot spam the detail
+ *     read;
+ *   - stops after a stale window and surfaces an actionable state rather
  *     than looping forever;
- *   - pauses while the tab is hidden, and disposes its interval on unmount.
+ *   - pauses while the tab is hidden, and disposes its timer on unmount.
  *
  * The artifact-status fields are the subscription key. The workspace snapshot
  * and the stale-window stopwatch are READ through refs on purpose: a reload
@@ -28,22 +31,49 @@ import { useEffect, useRef } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import type { ReviewWorkspaceResponse } from "../review-workspace-types";
 
+type OutputSnapshot = {
+  state?: string;
+  generation?: string;
+  version?: number | null;
+  action?: string;
+};
 type ArtifactStatusResponse = {
-  report: { available: boolean; pending: boolean };
-  verificationPackage: {
-    available: boolean;
-    pending: boolean;
-    unavailable?: boolean;
-    unavailableReason?: string | null;
+  outputs?: {
+    report?: OutputSnapshot;
+    verificationPackage?: OutputSnapshot;
+    newVersion?: { action?: string };
+    pollIntervalMs?: number | null;
   };
 };
 
+/** How long fast polling may run before the page says it is taking long. */
 const STALE_PENDING_AFTER_MS = 60_000;
-const POLL_INTERVAL_MS = 3000;
+/** A retry the pipeline scheduled itself is polled slowly, for longer. */
+const SLOW_POLL_BUDGET_MS = 10 * 60_000;
+const DEFAULT_INTERVAL_MS = 3000;
 
+/** What changes on screen when the outputs change. */
+function signatureOf(r: ArtifactStatusResponse | null | undefined): string {
+  const o = r?.outputs;
+  const one = (x?: OutputSnapshot) => `${x?.state}|${x?.generation}|${x?.version ?? ""}|${x?.action}`;
+  return `${one(o?.report)}#${one(o?.verificationPackage)}#${o?.newVersion?.action ?? ""}`;
+}
+
+/**
+ * POLL `/artifacts/status` AT THE INTERVAL THE SERVER STATES.
+ *
+ * The server sends `outputs.pollIntervalMs` while a request is queued or
+ * running (fast) or waiting on a scheduled retry (slow), and null otherwise.
+ * This polls at that interval, reloads the workspace whenever any output's
+ * state, generation, version or offered action changes, and stops when the
+ * server says there is nothing live — so a recovery that finishes, or an
+ * automatic retry that succeeds, clears its action without a page reload.
+ *
+ * One poller per page: it is keyed on the evidence id and restarts only when
+ * polling turns on or off.
+ */
 export function useArtifactReadinessPoll(input: {
   evidenceId: string;
-  /** Server-derived gate — true while an artifact is still expected. */
   shouldPoll: boolean;
   workspace: ReviewWorkspaceResponse | null;
   pollStartedAt: number | null;
@@ -66,12 +96,6 @@ export function useArtifactReadinessPoll(input: {
   const pollStartedAtRef = useRef(pollStartedAt);
   pollStartedAtRef.current = pollStartedAt;
 
-  const reportAvailable = workspace?.artifactStatus?.report?.available;
-  const packageAvailable = workspace?.artifactStatus?.verificationPackage?.available;
-  const packageBlocked = workspace?.artifactStatus?.verificationPackage?.blocked;
-  const packageUnavailable = workspace?.artifactStatus?.verificationPackage?.unavailable;
-  const evidenceStatus = workspace?.evidence?.status;
-
   useEffect(() => {
     if (!evidenceId) return;
     if (!shouldPoll) {
@@ -84,73 +108,62 @@ export function useArtifactReadinessPoll(input: {
     if (pollStartedAtRef.current === null) setPollStartedAt(Date.now());
 
     let cancelled = false;
-    let priorReportAvailable = activeWorkspace.artifactStatus.report.available;
-    let priorPackageAvailable =
-      activeWorkspace.artifactStatus.verificationPackage.available;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let prior = signatureOf(activeWorkspace.artifactStatus as ArtifactStatusResponse);
+    let interval =
+      activeWorkspace.artifactStatus.outputs?.pollIntervalMs ?? DEFAULT_INTERVAL_MS;
 
-    const pollOnce = async (): Promise<boolean> => {
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => void tick(), interval);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      // A hidden tab does not poll; it resumes on the next tick.
+      if (typeof document !== "undefined" && document.hidden) {
+        schedule();
+        return;
+      }
       try {
         const r = (await apiFetch(
           `/v1/evidence/${evidenceId}/artifacts/status`,
         )) as ArtifactStatusResponse;
-        if (cancelled) return false;
-        const reportNowAvailable = r.report?.available === true;
-        const packageNowAvailable = r.verificationPackage?.available === true;
-        const stateChanged =
-          reportNowAvailable !== priorReportAvailable ||
-          packageNowAvailable !== priorPackageAvailable;
-        priorReportAvailable = reportNowAvailable;
-        priorPackageAvailable = packageNowAvailable;
-        if (stateChanged) {
+        if (cancelled) return;
+        const next = signatureOf(r);
+        const changed = next !== prior;
+        if (changed) {
+          prior = next;
           await reloadWorkspace();
           setPollStartedAt(Date.now());
           setStalePending(false);
         }
-        const reportStillPending = r.report?.pending === true;
-        const packageStillPending = r.verificationPackage?.pending === true;
-        const stillWaiting = reportStillPending || packageStillPending;
-        const startedAt = pollStartedAtRef.current ?? Date.now();
-        if (stillWaiting && Date.now() - startedAt > STALE_PENDING_AFTER_MS) {
-          setStalePending(true);
-          return false;
+        const nextInterval = r.outputs?.pollIntervalMs ?? null;
+        if (nextInterval == null) {
+          // Nothing live any more. Reload once so the page leaves polling,
+          // unless the reload above already carried the final state.
+          if (!changed) await reloadWorkspace().catch(() => undefined);
+          return;
         }
-        return stillWaiting;
+        interval = nextInterval;
+        const startedAt = pollStartedAtRef.current ?? Date.now();
+        const budget = interval >= 30_000 ? SLOW_POLL_BUDGET_MS : STALE_PENDING_AFTER_MS;
+        if (Date.now() - startedAt > budget) {
+          setStalePending(true);
+          return;
+        }
       } catch {
-        return true;
+        /* a failed status read never invents a state; try again */
       }
+      schedule();
     };
 
-    let timer: ReturnType<typeof setInterval> | null = null;
-    let shouldContinue = true;
-    void pollOnce().then((cont) => {
-      if (cancelled) return;
-      shouldContinue = cont;
-      if (!shouldContinue) return;
-      timer = setInterval(() => {
-        if (typeof document !== "undefined" && document.hidden) return;
-        void pollOnce().then((cont2) => {
-          if (cancelled) return;
-          if (!cont2 && timer) {
-            clearInterval(timer);
-            timer = null;
-          }
-        });
-      }, POLL_INTERVAL_MS);
-    });
+    // The workspace just loaded carries the current state; the first read is
+    // one interval later.
+    schedule();
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [
-    evidenceId,
-    shouldPoll,
-    reloadWorkspace,
-    setPollStartedAt,
-    setStalePending,
-    evidenceStatus,
-    reportAvailable,
-    packageAvailable,
-    packageBlocked,
-    packageUnavailable,
-  ]);
+  }, [evidenceId, shouldPoll, reloadWorkspace, setPollStartedAt, setStalePending]);
 }

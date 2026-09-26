@@ -34,9 +34,9 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:141",
+      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:146",
       "class": "OBJECT_STORE",
-      "evidence": "tryDownloadFile(packageUrl, packageFileName) — packageUrl is the signed verification-package URL returned by GET /v1/evidence/:id/verification-package; the storage provider serves it. Hoisted to an identifier so the analyzer resolves the call shape. | Re-anchored on 2026-09-08 (COMMERCIAL + OUTPUT LIFECYCLE CLOSURE) from apps/web/app/(app)/evidence/[id]/page.tsx:663 to its new file. Verified BY READING the site: the handler moved WHOLE into _hooks/useEvidenceArtifactActions.ts because page.tsx is held under an 80 KB orchestrator byte guard whose failure message states the remedy is extraction. The call is byte-identical and still hoists both arguments. | Re-anchored :133 -> :141 on 2026-09-09 (RELIABILITY CLOSURE). Eight lines, from the import of the shared typed-outcome reader added above it. The call itself is untouched.",
+      "evidence": "tryDownloadFile(packageUrl, packageFileName) — packageUrl is the signed verification-package URL returned by GET /v1/evidence/:id/verification-package; the storage provider serves it. Hoisted to an identifier so the analyzer resolves the call shape. | Re-anchored on 2026-09-08 (COMMERCIAL + OUTPUT LIFECYCLE CLOSURE) from apps/web/app/(app)/evidence/[id]/page.tsx:663 to its new file. Verified BY READING the site: the handler moved WHOLE into _hooks/useEvidenceArtifactActions.ts because page.tsx is held under an 80 KB orchestrator byte guard whose failure message states the remedy is extraction. The call is byte-identical and still hoists both arguments. | Re-anchored :133 -> :141 on 2026-09-09 (RELIABILITY CLOSURE). Eight lines, from the import of the shared typed-outcome reader added above it. The call itself is untouched. | Re-anchored :141 -> :146 on 2026-09-26 (ARTIFACT RECOVERY). Five lines, from the per-output intent type added to the hook's return type above it. Verified BY READING the site: still `tryDownloadFile(packageUrl, packageFileName)`, unchanged.",
       "reviewedAtUtc": "2026-09-09"
     },
     {
@@ -154,9 +154,9 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:376",
+      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:437",
       "class": "OBJECT_STORE",
-      "evidence": "tryDownloadFile(data.url, `verification-package-${evidenceId}-v${version}.zip`) — data.url is the signed URL returned by GET /v1/evidence/:id/verification-packages/:version; the storage provider serves it, and it is a runtime presigned value that cannot be static. Added 2026-09-09 (RELIABILITY CLOSURE): the product retained every version, listed them, and told the operator they \"remain downloadable\" while no route served any but the newest. This is the handler for the versioned route, and its API call — the apiFetch immediately above — is resolved by the analyzer on its own.",
+      "evidence": "tryDownloadFile(data.url, `verification-package-${evidenceId}-v${version}.zip`) — data.url is the signed URL returned by GET /v1/evidence/:id/verification-packages/:version; the storage provider serves it, and it is a runtime presigned value that cannot be static. Added 2026-09-09 (RELIABILITY CLOSURE): the product retained every version, listed them, and told the operator they \"remain downloadable\" while no route served any but the newest. This is the handler for the versioned route, and its API call — the apiFetch immediately above — is resolved by the analyzer on its own. | Re-anchored :376 -> :437 on 2026-09-26 (ARTIFACT RECOVERY). The per-output generation request and the separate new-version request were added above it. Verified BY READING the site: the same tryDownloadFile(data.url, ...) call, unchanged.",
       "reviewedAtUtc": "2026-09-09"
     },
     {

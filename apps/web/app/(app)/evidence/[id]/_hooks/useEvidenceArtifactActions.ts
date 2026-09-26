@@ -65,9 +65,14 @@ export type EvidenceArtifactActions = {
   downloadVerificationPackage: () => Promise<void>;
   downloadReportVersion: (version: number) => Promise<void>;
   downloadVerificationPackageVersion: (version: number) => Promise<void>;
-  generateOutputs: () => Promise<void>;
+  generateOutputs: (intent?: OutputRequestIntent) => Promise<void>;
+  /** "answered": the server decided (keep no key); "unanswered": reuse the key on retry. */
+  createNewVersion: (clientRequestKey: string) => Promise<"answered" | "unanswered">;
   generateOutputsBusy: boolean;
 };
+
+/** The intents a per-output control sends; NEW_VERSION has its own call. */
+export type OutputRequestIntent = "GENERATE" | "RETRY" | "RECOVER";
 
 /**
  * `reloadWorkspace` is called after a successful generation request so the
@@ -290,7 +295,19 @@ const downloadVerificationPackage = async () => {
  * three.
  */
 const [generateOutputsBusy, setGenerateOutputsBusy] = useState(false);
-const generateOutputs = async () => {
+const refreshQuietly = async () => {
+  try {
+    await reloadWorkspace();
+  } catch {
+    // The poll or the next load shows the state; the toast already spoke.
+  }
+};
+/**
+ * 2026-09-26 — the INTENT travels with the request (GENERATE / RETRY /
+ * RECOVER), for the audit trail. The server re-derives what runs from the
+ * record's facts: a report without its package gets ONLY the package.
+ */
+const generateOutputs = async (intent?: OutputRequestIntent) => {
   if (!evidenceId || generateOutputsBusy) return;
   setGenerateOutputsBusy(true);
   try {
@@ -310,6 +327,7 @@ const generateOutputs = async () => {
     const read = readGenerationOutcome(
       (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
         method: "POST",
+        body: JSON.stringify(intent ? { intent } : {}),
       })) as GenerationResponse,
     );
     addToast(read.message, read.tone);
@@ -321,6 +339,49 @@ const generateOutputs = async () => {
       }).message,
       "error",
     );
+    // A declined request means the page's action was stale; show the current one.
+    await refreshQuietly();
+  } finally {
+    setGenerateOutputsBusy(false);
+  }
+};
+
+/**
+ * CREATE A NEW VERSION — the separate, explicitly confirmed action (D2/D6).
+ *
+ * `clientRequestKey` is minted once per confirmation and reused on a retry of
+ * the same confirmation, so a request whose response was lost is answered
+ * with the first request (REPLAYED) and never creates a second version.
+ */
+const createNewVersion = async (
+  clientRequestKey: string,
+): Promise<"answered" | "unanswered"> => {
+  if (!evidenceId || generateOutputsBusy) return "unanswered";
+  setGenerateOutputsBusy(true);
+  try {
+    const read = readGenerationOutcome(
+      (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey }),
+      })) as GenerationResponse,
+    );
+    addToast(read.message, read.tone);
+    await reloadWorkspace();
+    return "answered";
+  } catch (err) {
+    addToast(
+      toSafeUserError(err, {
+        message: "Could not request a new version.",
+      }).message,
+      "error",
+    );
+    await refreshQuietly();
+    // No answer (network) or a server fault: the request may have landed, so
+    // the caller keeps the key and a retry is answered with the first request.
+    const status = (err as { statusCode?: unknown })?.statusCode;
+    return typeof status === "number" && status >= 400 && status < 500
+      ? "answered"
+      : "unanswered";
   } finally {
     setGenerateOutputsBusy(false);
   }
@@ -394,6 +455,7 @@ const downloadVerificationPackageVersion = async (version: number) => {
     downloadReportVersion,
     downloadVerificationPackageVersion,
     generateOutputs,
+    createNewVersion,
     generateOutputsBusy,
   };
 }

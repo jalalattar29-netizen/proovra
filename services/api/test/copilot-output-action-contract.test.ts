@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   GENERATION_REQUEST_OUTCOMES,
+  outputActionLabel,
   resolveEvidenceOutputActions,
   type EvidenceOutputFacts,
 } from "@proovra/shared";
@@ -91,10 +92,15 @@ describe("AI Copilot — the offer comes from the canonical action", () => {
 
   it("C2/C3/C4 — every offered action maps to the operation it performs, and a new version is never suggested", () => {
     const block = ROUTE.slice(ROUTE.indexOf("const reportDecision =")).slice(0, 3000);
-    expect(block).toContain('"Generate report & verification package"');
-    expect(block).toContain('"Retry report generation"');
-    expect(block).toContain('"Recover verification package"');
-    expect(block).toContain('"Retry verification package"');
+    // The label is the shared per-output verb table, for the output the
+    // suggestion acts on — the same words Evidence Detail and Reports render.
+    expect(block).toMatch(
+      /outputActionLabel\(\s*suggested\.output === "package" \? "verificationPackage" : "report",\s*canonicalAction,\s*\)/,
+    );
+    expect(outputActionLabel("report", "GENERATE")).toBe("Generate report & verification package");
+    expect(outputActionLabel("report", "RETRY")).toBe("Retry report generation");
+    expect(outputActionLabel("verificationPackage", "RECOVER")).toBe("Recover verification package");
+    expect(outputActionLabel("verificationPackage", "RETRY")).toBe("Retry package recovery");
     // A new version is a deliberate, separately confirmed action on the
     // record — never an AI suggestion, and never labelled as recovery.
     expect(block).toMatch(/!== "REGENERATE"/);

@@ -45,7 +45,12 @@ export type GenerationResponse = {
 export type GenerationOutcomeTone = "success" | "info" | "error";
 
 export type ReadGenerationOutcome = {
-  outcome: GenerationRequestOutcome;
+  /**
+   * `UNRECOGNIZED` — the server named an outcome this build does not know.
+   * It is never mapped to a known one: calling it ALREADY_ACTIVE told a person
+   * work was under way when nothing said so.
+   */
+  outcome: GenerationRequestOutcome | "UNRECOGNIZED";
   /** Safe, human sentence. The SERVER's when it sent one. */
   message: string;
   tone: GenerationOutcomeTone;
@@ -140,16 +145,33 @@ function isOutcome(value: unknown): value is GenerationRequestOutcome {
 export function readGenerationOutcome(
   response: GenerationResponse | null | undefined,
 ): ReadGenerationOutcome {
+  const serverMessage =
+    typeof response?.message === "string" && response.message.trim().length > 0
+      ? response.message.trim()
+      : null;
+
+  // A named outcome this build does not know is reported as exactly that —
+  // with the server's own sentence when it sent one — never as a known one.
+  if (
+    typeof response?.outcome === "string" &&
+    response.outcome.trim() !== "" &&
+    !isOutcome(response.outcome)
+  ) {
+    return {
+      outcome: "UNRECOGNIZED",
+      message:
+        serverMessage ??
+        "The request was answered, but this page could not read the result. The record's current state is shown below.",
+      tone: "info",
+      acceptedWork: false,
+    };
+  }
+
   const outcome: GenerationRequestOutcome = isOutcome(response?.outcome)
     ? response.outcome
     : response?.enqueued === true
       ? "ENQUEUED"
       : "ALREADY_ACTIVE";
-
-  const serverMessage =
-    typeof response?.message === "string" && response.message.trim().length > 0
-      ? response.message.trim()
-      : null;
 
   return {
     outcome,

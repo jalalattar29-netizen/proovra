@@ -29,18 +29,16 @@
 
 "use client";
 
-import { useState } from "react";
 import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
-import type {
-  EvidenceOutputState,
-  OutputAction,
-  OutputNotApplicableReason,
-  OutputTerminalReasonClass,
+import {
+  NEW_VERSION_ACTION,
+  outputActionLabel,
+  outputUnavailableReasonCopy,
+  type OutputTerminalReasonClass,
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
-// RELIABILITY CLOSURE (2026-09-09) — one operation, one name, across four
-// surfaces that each used to spell it differently.
-import { GENERATION_ACTION_LABEL } from "../../../../../lib/evidence/generation-labels";
+import type { EvidenceOutputProjection } from "../review-workspace-types";
+import { NewVersionMenu } from "../../../../../components/evidence-outputs/NewVersionMenu";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
@@ -69,111 +67,65 @@ function terminalFailureCopy(
   }
 }
 
+type OutputKind = "report" | "verificationPackage";
+
 /**
- * The generate / retry control.
+ * ONE OUTPUT'S ACTION — the verb the server chose, named by the shared table.
  *
- * ONE button for both artifacts, because the report and the verification
- * package are produced by ONE job — offering two would be two controls for one
- * pipeline, and one of them would describe work it does not start.
+ * 2026-09-26 — the verb is per output now. A report whose package is missing
+ * offers "Recover verification package" on the PACKAGE, and that request
+ * rebuilds only the package, from the stored report bytes. The old single
+ * control called this "Regenerate report & verification package", which is
+ * a different operation with a different result.
  *
- * The VERB comes from the server's `action`, never from the presence of a
- * version: inferring it locally is how a first generation came to be called a
- * regeneration.
+ * Nothing here decides whether to render: `action` does. REGENERATE is
+ * retired (a new version is its own confirmed action below) and never renders.
  */
-function GenerateOutputsButton({
+function OutputActionButton({
   ctx,
-  action,
+  kind,
+  output,
 }: {
   ctx: EvidenceDetailCtx;
-  action: OutputAction;
+  kind: OutputKind;
+  output: EvidenceOutputProjection;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  if (action === "NONE") return null;
-
-  /*
-   * THE CANONICAL LABELS, and the only place they are written for this surface.
-   *
-   * RELIABILITY CLOSURE (2026-09-09) — "Retry generation" named a different
-   * thing from its two siblings, and the Reports page said "Generate report &
-   * package" for what this one called "Generate report & verification package".
-   * One operation must have one name: a person comparing the two surfaces was
-   * being asked to work out whether they did the same thing.
-   */
-  const label = GENERATION_ACTION_LABEL[action];
-
-  /*
-   * Only a REGENERATION needs confirming. It creates a new immutable version
-   * beside one that already exists and consumes storage that cannot be
-   * reclaimed; a first generation and a retry produce the artifact the customer
-   * is already owed, and putting a dialog in front of those is friction with
-   * nothing to decide.
-   */
-  if (action !== "REGENERATE") {
-    return (
-      <button
-        type="button"
-        className="app-secondary-action"
-        onClick={() => void ctx.generateOutputs()}
-        disabled={ctx.generateOutputsBusy}
-        data-evidence-action="generate-outputs"
-        data-evidence-generate-verb={action}
-      >
-        {ctx.generateOutputsBusy ? "Requesting…" : label}
-      </button>
-    );
-  }
-
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        className="app-secondary-action"
-        onClick={() => setConfirming(true)}
-        disabled={ctx.generateOutputsBusy}
-        data-evidence-action="generate-outputs"
-        data-evidence-generate-verb={action}
-      >
-        {label}
-      </button>
-    );
-  }
-
+  const action = output.action;
+  if (action === "NONE" || action === "REGENERATE") return null;
   return (
-    <div
-      className="app-inner-surface app-panel__body"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm regeneration"
-      data-evidence-section="regenerate-confirm"
+    <button
+      type="button"
+      className="app-secondary-action"
+      onClick={() => void ctx.generateOutputs(action)}
+      disabled={ctx.generateOutputsBusy}
+      data-evidence-action="generate-outputs"
+      data-evidence-output={kind}
+      data-evidence-generate-verb={action}
+      data-evidence-operation={output.operation ?? ""}
     >
-      <p>
-        This creates a <strong>new immutable version</strong>. Previous versions
-        are retained and remain downloadable, and the new one uses additional
-        workspace storage. No evidence credit is charged.
-      </p>
-      <div className="app-page-header__actions">
-        <button
-          type="button"
-          className="app-secondary-action app-secondary-action--filled"
-          onClick={() => {
-            setConfirming(false);
-            void ctx.generateOutputs();
-          }}
-          disabled={ctx.generateOutputsBusy}
-          data-evidence-action="generate-outputs-confirm"
-        >
-          {ctx.generateOutputsBusy ? "Requesting…" : "Create a new version"}
-        </button>
-        <button
-          type="button"
-          className="app-secondary-action"
-          onClick={() => setConfirming(false)}
-          data-evidence-action="generate-outputs-cancel"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+      {ctx.generateOutputsBusy ? "Requesting…" : outputActionLabel(kind, action)}
+    </button>
+  );
+}
+
+/** Why no action is offered, when a person should read it. */
+function OutputUnavailableNote({
+  kind,
+  output,
+}: {
+  kind: OutputKind;
+  output: EvidenceOutputProjection;
+}) {
+  const copy = outputUnavailableReasonCopy(output.actionUnavailableReason);
+  if (!copy) return null;
+  return (
+    <p
+      className="evidence-detail-artifact-note"
+      data-evidence-output={kind}
+      data-evidence-action-unavailable={output.actionUnavailableReason ?? ""}
+    >
+      {copy}
+    </p>
   );
 }
 
@@ -186,52 +138,31 @@ function GenerateOutputsButton({
  * mistake that made the Reports page a second authority.
  *
  * `READY` renders no alert (a downloadable artifact is not a status message)
- * but DOES render its action, which is how Regenerate became reachable.
+ * but DOES render a failed attempt beyond it, a new version in flight, and the
+ * optional new-version menu.
  */
 function ArtifactLifecyclePanel({
   ctx,
   output,
 }: {
   ctx: EvidenceDetailCtx;
-  output: {
-    state: EvidenceOutputState;
-    action: OutputAction;
-    terminalReasonClass: OutputTerminalReasonClass | null;
-    /** P1-3 — bounded, present only for NOT_APPLICABLE. */
-    notApplicableReason: OutputNotApplicableReason | null;
-    /** P2-1 — why the verb was withdrawn on a state that would carry one. */
-    actionUnavailableReason: "WORKSPACE_UNRESOLVED" | null;
-    attemptCount: number | null;
-  };
+  output: EvidenceOutputProjection;
 }) {
-  /*
-   * P2-1 (2026-09-10) — when the server withdrew the verb, say why.
-   *
-   * `action` is already NONE here, so `GenerateOutputsButton` renders nothing.
-   * Rendering nothing was the old behaviour and it left a legacy record with an
-   * invitation-shaped silence; the sentence replaces it. Placed alongside the
-   * action so every state's arm gets it without repeating the branch.
-   */
-  const action =
-    output.actionUnavailableReason === "WORKSPACE_UNRESOLVED" ? (
-      <p
-        className="evidence-detail-artifact-note"
-        data-evidence-action-unavailable={output.actionUnavailableReason}
-      >
-        This older record needs a workspace association before a new report or
-        verification package can be requested. Everything already generated for
-        it stays available.
-      </p>
-    ) : (
-      <>
-        {/* A confirmed generation incident is said HERE, beside the control
-            it affects — not as a banner over the record. */}
-        {output.action !== "NONE" ? (
-          <RuntimeStatusBanner requires={["artifactGeneration"]} />
-        ) : null}
-        <GenerateOutputsButton ctx={ctx} action={output.action} />
-      </>
-    );
+  const reasonCopy = outputUnavailableReasonCopy(output.actionUnavailableReason);
+  const action = (
+    <>
+      {/* A confirmed generation incident is said HERE, beside the control
+          it affects — not as a banner over the record. */}
+      {output.action !== "NONE" ? (
+        <RuntimeStatusBanner requires={["artifactGeneration"]} />
+      ) : null}
+      <OutputActionButton ctx={ctx} kind="report" output={output} />
+      <OutputUnavailableNote kind="report" output={output} />
+    </>
+  );
+  const newVersion = ctx.workspace.artifactStatus.outputs.newVersion;
+  const newVersionInFlight =
+    output.state === "READY" && newVersion?.reason === "IN_PROGRESS";
 
   switch (output.state) {
     case "NOT_APPLICABLE":
@@ -396,7 +327,10 @@ function ArtifactLifecyclePanel({
           data-evidence-terminal-class={output.terminalReasonClass ?? ""}
         >
           <strong>Report generation stopped</strong>
-          <p>{terminalFailureCopy(output.terminalReasonClass)}</p>
+          {/* The server's reason (escalated to operators, integrity review,
+              ...) is the more specific sentence; the class copy is the
+              fallback when there is none. */}
+          {reasonCopy ? null : <p>{terminalFailureCopy(output.terminalReasonClass)}</p>}
           {action}
         </div>
       );
@@ -419,12 +353,14 @@ function ArtifactLifecyclePanel({
           data-evidence-output-state={output.state}
         >
           <strong>Report generation is blocked</strong>
-          <p>
-            A governance or lifecycle decision is currently preventing
-            generation for this record. It becomes possible again when that
-            decision changes; the evidence record and its integrity state are
-            unaffected.
-          </p>
+          {reasonCopy ? null : (
+            <p>
+              A governance or lifecycle decision is currently preventing
+              generation for this record. It becomes possible again when that
+              decision changes; the evidence record and its integrity state
+              are unaffected.
+            </p>
+          )}
           {action}
         </div>
       );
@@ -432,32 +368,148 @@ function ArtifactLifecyclePanel({
     case "READY":
       /*
        * A downloadable artifact is not a status message, so there is no alert
-       * here — the version cards below say everything. But the ACTION still
-       * renders, and that is the fix: READY is the only state whose canonical
-       * action is REGENERATE, and rendering nothing for it made the entire
-       * regeneration path in `GenerateOutputsButton` — confirmation dialog and
-       * all — unreachable code.
-       *
-       * After a downgrade the server returns NONE here, so the control
-       * disappears while the downloads stay. Neither decision is made locally.
+       * for READY itself. What does render: a new version in flight (the
+       * downloads below stay the current version until it lands), a failed
+       * attempt beyond the current version and what can be done about it, and
+       * the optional new-version menu. After a downgrade the server offers
+       * nothing here and only the downloads remain. None of it is decided
+       * locally.
        */
-      /*
-       * P2-1 — the withdrawn-verb note renders here too. A legacy record with
-       * an existing artifact is READY, downloadable, and cannot be
-       * regenerated; the downloads above say the first two and this says the
-       * third.
-       */
+      if (newVersionInFlight) {
+        return (
+          <div
+            className="app-alert"
+            role="status"
+            aria-live="polite"
+            data-evidence-section="reports-new-version-in-flight"
+            data-evidence-output-state={output.state}
+          >
+            <strong>
+              {newVersion.nextVersion != null
+                ? `Creating version ${newVersion.nextVersion}…`
+                : "Creating a new version…"}
+            </strong>
+            <p>
+              The current version stays available below until the new report
+              and verification package are ready. This page checks on its own.
+            </p>
+          </div>
+        );
+      }
       return output.action === "NONE" &&
-        output.actionUnavailableReason === null ? null : (
+        reasonCopy === null &&
+        newVersion?.action !== NEW_VERSION_ACTION ? null : (
         <div
           className="evidence-detail-artifact-actions"
           data-evidence-section="reports-ready-actions"
           data-evidence-output-state={output.state}
         >
           {action}
+          {/* A generation incident affects a new version too; said beside it. */}
+          {output.action === "NONE" && newVersion?.action === NEW_VERSION_ACTION ? (
+            <RuntimeStatusBanner requires={["artifactGeneration"]} />
+          ) : null}
+          <NewVersionMenu
+            offer={newVersion}
+            busy={ctx.generateOutputsBusy}
+            request={ctx.createNewVersion}
+            menuLabel="More actions for this record's report"
+            dataPrefix="evidence-output"
+            testId="evidence-new-version"
+          />
         </div>
       );
   }
+}
+
+/**
+ * THE VERIFICATION PACKAGE, WHEN IT IS NOT PAIRED WITH THE CURRENT REPORT.
+ *
+ * Rendered only once the report exists: before that the package follows the
+ * report's own action. A missing package is recovered from the STORED report
+ * — same bytes, same version, no new timestamp — and this panel says so
+ * rather than describing a regeneration.
+ */
+function PackageRecoveryPanel({
+  ctx,
+  report,
+  pkg,
+}: {
+  ctx: EvidenceDetailCtx;
+  report: EvidenceOutputProjection;
+  pkg: EvidenceOutputProjection;
+}) {
+  if (report.state !== "READY") return null;
+  const reasonCopy = outputUnavailableReasonCopy(pkg.actionUnavailableReason);
+  const inFlight = pkg.state === "QUEUED" || pkg.state === "GENERATING";
+  if (!inFlight && pkg.action === "NONE" && reasonCopy === null) return null;
+
+  const forVersion =
+    report.version != null ? ` for report version ${report.version}` : "";
+  const older =
+    pkg.latestAvailableVersion != null &&
+    (report.version == null || pkg.latestAvailableVersion < report.version) ? (
+      <p>
+        The earlier package (version {pkg.latestAvailableVersion}) stays
+        downloadable from the version history.
+      </p>
+    ) : null;
+
+  if (inFlight) {
+    return (
+      <div
+        className="app-alert"
+        role="status"
+        aria-live="polite"
+        data-evidence-section="package-recovery-in-flight"
+        data-evidence-output-state={pkg.state}
+      >
+        <strong>Recovering the verification package{forVersion}…</strong>
+        <p>
+          The package is being built around the stored report exactly as it is.
+          The report is not changed and no new version is created. This page
+          checks on its own.
+        </p>
+      </div>
+    );
+  }
+
+  const title =
+    pkg.action === "RECOVER"
+      ? `The verification package${forVersion} is missing`
+      : pkg.action === "RETRY"
+        ? "Recovering the verification package failed"
+        : "The verification package could not be recovered";
+  return (
+    <div
+      className="app-alert app-alert--warn"
+      role="status"
+      data-evidence-section="package-recovery"
+      data-evidence-output-state={pkg.state}
+      data-evidence-output-action={pkg.action}
+    >
+      <strong>{title}</strong>
+      {pkg.action === "RECOVER" ? (
+        <p>
+          The report is available. Recovery builds its verification package
+          from the stored report bytes — it does not create a new report
+          version or a new timestamp.
+        </p>
+      ) : pkg.action === "RETRY" ? (
+        <p>
+          The last attempt did not complete
+          {pkg.attemptCount ? ` (attempt ${pkg.attemptCount})` : ""}. The
+          report and the evidence record are unaffected.
+        </p>
+      ) : null}
+      {older}
+      {pkg.action !== "NONE" ? (
+        <RuntimeStatusBanner requires={["artifactGeneration"]} />
+      ) : null}
+      <OutputActionButton ctx={ctx} kind="verificationPackage" output={pkg} />
+      <OutputUnavailableNote kind="verificationPackage" output={pkg} />
+    </div>
+  );
 }
 
 export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
@@ -563,6 +615,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           It is a switch over `EvidenceOutputState` now, so a new state is a
           compile error rather than a silent empty panel. */}
       <ArtifactLifecyclePanel ctx={ctx} output={reportOutput} />
+      <PackageRecoveryPanel ctx={ctx} report={reportOutput} pkg={packageOutput} />
 
       {/* Latest verification link. `shareUrl` is derived from the SAME
           publicVerificationSummary the rail reads, so the tab and the rail can

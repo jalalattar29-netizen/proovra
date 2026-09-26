@@ -12,7 +12,12 @@
 
 // From the package ROOT, not the subpath: Metro does not resolve package
 // `exports` by default, and a subpath import here fails to resolve at all.
-import { userFacingErrorFor } from "@proovra/shared";
+import {
+  SERVER_MESSAGE_ERROR_CODES,
+  SERVER_MESSAGE_MAX_LENGTH,
+  SYNTHETIC_ERROR_MESSAGE,
+  userFacingErrorFor,
+} from "@proovra/shared";
 
 export type SafeErrorKind =
   | "auth" // 401 — session expired / invalid
@@ -224,6 +229,26 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
       requestId: x.requestId,
       status: x.status,
       missingPolicies: kind === "legal" ? x.missingPolicies : undefined,
+      fields: x.fields,
+    };
+  }
+
+  /*
+   * A SERVER SENTENCE THE SHARED TABLE TRUSTS — the web's
+   * `trustedServerMessage`. Only codes on SERVER_MESSAGE_ERROR_CODES, whose
+   * messages the server chooses from a closed table (a declined output
+   * request says WHY: escalated to operators, integrity review, a legal hold).
+   */
+  const trusted = realCode ? SERVER_MESSAGE_ERROR_CODES[realCode.toUpperCase()] : undefined;
+  if (trusted && x.message && !SYNTHETIC_ERROR_MESSAGE.test(x.message)) {
+    return {
+      kind,
+      title: trusted.title,
+      message: x.message.slice(0, SERVER_MESSAGE_MAX_LENGTH),
+      explained: true,
+      code: x.code,
+      requestId: x.requestId,
+      status: x.status,
       fields: x.fields,
     };
   }

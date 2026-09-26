@@ -320,6 +320,17 @@ export {
   OUTPUT_OPERATIONS,
   resolveEvidenceOutputActions,
 } from "./evidence-output-lifecycle.js";
+// The words for those actions — one table for web, PWA and native.
+export {
+  outputActionLabel,
+  outputUnavailableReasonCopy,
+  outputUnavailableReasonShort,
+  newVersionConsequence,
+  formatEstimatedBytes,
+  makeClientRequestKey,
+  NEW_VERSION_LABEL,
+} from "./output-action-copy.js";
+export type { OutputKind } from "./output-action-copy.js";
 export type {
   OutputCommercialEligibility,
   OutputIneligibilityReason,

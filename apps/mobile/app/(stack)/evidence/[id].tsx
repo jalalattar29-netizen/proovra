@@ -14,7 +14,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { EvidenceOutputState } from "@proovra/shared";
+import { NEW_VERSION_ACTION, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -72,12 +72,13 @@ import {
   lifecycleBlockReasonLabel,
   parseEvidenceLifecycle,
   type EvidenceLifecycle,
-  REGENERATE_CONSEQUENCE,
   buildDuplicatesPath,
   buildRegeneratePath,
+  asOutputRequestIntent,
+  buildOutputRequestBody,
   duplicateMatchSummary,
-  generationActionLabel,
-  generationNeedsConfirmation,
+  outputActionLabel,
+  type OutputRequestIntent,
   parseDuplicateReport,
   readGenerationOutcome,
   type DuplicateReport,
@@ -160,6 +161,7 @@ import {
 } from "../../../src/product/evidence-technical-appendix";
 import {
   ArtifactLifecyclePanel,
+  PackageRecoveryPanel,
   CaptureNoteCard,
   CaptureTemplateCard,
   CustodyTimelineCard,
@@ -205,6 +207,7 @@ import { EvidenceDiscussion } from "../../../src/ui/evidence-discussion";
 import { ProvenanceChainSection } from "../../../src/ui/provenance-chain";
 import { ReviewActionsPanel } from "../../../src/ui/review-actions-panel";
 import { RuntimeStatusBanner } from "../../../src/ui/runtime-status-banner";
+import { NewVersionAction } from "../../../src/ui/new-version-action";
 import { PresenceIndicator } from "../../../src/ui/presence-indicator";
 import { MediaIntelligencePanel } from "../../../src/ui/media-intelligence-panel";
 import { EvidenceCopilot } from "../../../src/ui/evidence-copilot";
@@ -300,7 +303,6 @@ export default function EvidenceDetailScreen() {
   const [linkBusy, setLinkBusy] = useState(false);
   const [duplicatesPhase, setDuplicatesPhase] = useState<"idle" | "loading" | "failed">("idle");
   const [generating, setGenerating] = useState(false);
-  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   const [generationNote, setGenerationNote] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<SafeError | null>(null);
@@ -516,28 +518,61 @@ export default function EvidenceDetailScreen() {
     }
   }, [id]);
 
-  const requestGeneration = useCallback(async () => {
+  /**
+   * ONE OUTPUT'S ACTION, with its intent. The server re-derives what runs: a
+   * report whose package is missing gets only the package, from the stored
+   * report. Re-read either way — a declined request means this screen's
+   * action was stale.
+   */
+  const requestGeneration = useCallback(async (intent: OutputRequestIntent) => {
     if (!id) return;
-    setConfirmingRegenerate(false);
     setGenerating(true);
     setGenerationNote(null);
     try {
-      // READ THE OUTCOME, NOT THE BOOLEAN. Six server answers used to collapse
-      // into one sentence on the web, and two of them described work that was
-      // never going to happen.
+      // READ THE OUTCOME, NOT THE BOOLEAN.
       const read = readGenerationOutcome(
-        await apiFetch(buildRegeneratePath(String(id)), { method: "POST" }),
+        await apiFetch(buildRegeneratePath(String(id)), { method: "POST", body: buildOutputRequestBody(intent) }),
       );
       setGenerationNote(read.message);
-      // Only reload when work was actually accepted; a refusal has nothing new
-      // to show and a reload would imply something changed.
-      if (read.acceptedWork) await load();
     } catch (err) {
       setGenerationNote(toSafeUserError(err).message);
     } finally {
       setGenerating(false);
+      await load();
     }
   }, [id, load]);
+
+  /*
+   * POLL WHILE THE SERVER SAYS WORK IS LIVE — at its interval, and only then
+   * (including while an older version stays downloadable). The status read is
+   * side-effect free; the record is re-read once when the work ends. Bounded:
+   * ten minutes of polling, then the screen's own refresh.
+   */
+  const pollInterval = outputs.pollIntervalMs;
+  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (pollInterval == null) {
+      if (pollStartedAt !== null) {
+        setPollStartedAt(null);
+        void load();
+      }
+      return;
+    }
+    const started = pollStartedAt ?? Date.now();
+    if (pollStartedAt === null) setPollStartedAt(started);
+    if (Date.now() - started > 10 * 60_000) return;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          setOutputs(projectArtifactOutputs(await apiFetch(`/v1/evidence/${id}/artifacts/status`)));
+        } catch {
+          /* a failed status read never invents a state; the next tick retries */
+          setOutputs((prev) => ({ ...prev }));
+        }
+      })();
+    }, pollInterval);
+    return () => clearTimeout(t);
+  }, [pollInterval, outputs, pollStartedAt, id, load]);
 
   // Comments load when the tab is opened rather than with the record: a
   // reviewer who never opens the discussion should not pay for it.
@@ -884,27 +919,51 @@ export default function EvidenceDetailScreen() {
     noun: "verification package",
     blockedReason: outputs.packageBlocked ? (outputs.packageBlockedReason ?? "Verification package export is blocked by an export-governance gate.") : null,
   });
-  // The server's verb (`outputs.report.action`); an older reply that sent no
-  // projection falls back to the state the record reports.
-  const generationAction =
-    outputs.report.state !== null ? outputs.report.action : reportState === "READY" ? "REGENERATE" : "GENERATE";
-  const generationButton =
-    generationAction === "NONE" ? null : (
+  /*
+   * THE SERVER'S VERB, PER OUTPUT. When the status could not be read there is
+   * no verb at all — never a guessed GENERATE — and a withdrawn verb (trashed,
+   * legal hold, escalated) is the server's reason, not a local rule.
+   */
+  const outputButton = (kind: "report" | "verificationPackage") => {
+    const view = kind === "report" ? outputs.report : outputs.package;
+    const intent = view.state !== null ? asOutputRequestIntent(view.action) : null;
+    if (!intent) return null;
+    const label = outputActionLabel(kind, intent);
+    return (
       <View style={{ gap: 6 }}>
-      {/* A confirmed generation incident, beside the control it affects. */}
-      <RuntimeStatusBanner requires={["artifactGeneration"]} />
-      <ProovraButton
-        label={generationActionLabel(generationAction)}
-        variant="secondary"
-        loading={generating}
-        disabled={trashed}
-        onPress={() => {
-          if (generationNeedsConfirmation(generationAction)) setConfirmingRegenerate(true);
-          else void requestGeneration();
-        }}
-      />
+        {/* A confirmed generation incident, beside the control it affects. */}
+        <RuntimeStatusBanner requires={["artifactGeneration"]} />
+        <ProovraButton
+          label={label}
+          variant="secondary"
+          loading={generating}
+          disabled={generating}
+          onPress={() => void requestGeneration(intent)}
+        />
       </View>
     );
+  };
+  const newVersionInFlight = outputs.report.state === "READY" && outputs.newVersion?.reason === "IN_PROGRESS";
+  const reportReadyExtra = newVersionInFlight ? (
+    <ProovraCard testID="new-version-in-flight">
+      <ProovraText variant="bodySm" weight="semibold">
+        {outputs.newVersion?.nextVersion != null ? `Creating version ${outputs.newVersion.nextVersion}…` : "Creating a new version…"}
+      </ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.secondary}>
+        The current version stays available below until the new report and verification package are ready. This screen checks on its own.
+      </ProovraText>
+    </ProovraCard>
+  ) : outputs.newVersion?.action === NEW_VERSION_ACTION ? (
+    <View style={{ gap: 6 }}>
+      <RuntimeStatusBanner requires={["artifactGeneration"]} />
+      <NewVersionAction
+        evidenceId={String(id)}
+        displayTitle={c.displayTitle ?? "this record"}
+        offer={outputs.newVersion}
+        onRequested={() => void load()}
+      />
+    </View>
+  ) : null;
 
   const TABS: Array<{ key: Tab; label: string }> = [
     { key: "overview", label: "Overview" },
@@ -1635,13 +1694,16 @@ export default function EvidenceDetailScreen() {
         <>
           {/* THE OUTPUT LIFECYCLE PANEL — total over the canonical state (EvidenceArtifactsTab.tsx:555). */}
           {outputs.report.state !== null ? (
-            <ArtifactLifecyclePanel output={outputs.report} actionNode={generationButton} />
+            <>
+              <ArtifactLifecyclePanel output={outputs.report} actionNode={outputButton("report")} readyExtra={reportReadyExtra} />
+              <PackageRecoveryPanel report={outputs.report} pkg={outputs.package} actionNode={outputButton("verificationPackage")} />
+            </>
           ) : (
-            <ProovraCard>
+            // The status could not be read: say so, and offer nothing.
+            <ProovraCard testID="artifact-status-unavailable">
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 Report status is unavailable right now. Pull to refresh, or check again shortly.
               </ProovraText>
-              {generationButton}
             </ProovraCard>
           )}
           {outputs.report.state === "QUEUED" || outputs.report.state === "GENERATING" ? (
@@ -1658,7 +1720,7 @@ export default function EvidenceDetailScreen() {
         </>
       ) : null}
 
-      {tab === "review" ? <EvidenceCopilot evidenceId={String(id)} analysisRevision={analysisRevision} /> : null}
+      {tab === "review" ? <EvidenceCopilot evidenceId={String(id)} analysisRevision={analysisRevision} onOutputsRequested={() => void load()} /> : null}
       {tab === "review" && rw ? (
         <ReviewHero
           status={record.workflow.status}
@@ -1802,16 +1864,6 @@ export default function EvidenceDetailScreen() {
         busy={linkBusy}
         onConfirm={() => void confirmRemoveLink()}
         onCancel={() => setUnlinking(null)}
-      />
-      <ProovraConfirmSheet
-        visible={confirmingRegenerate}
-        title="Confirm regeneration"
-        consequence={REGENERATE_CONSEQUENCE}
-        confirmLabel="Create a new version"
-        tone="warning"
-        busy={generating}
-        onConfirm={() => void requestGeneration()}
-        onCancel={() => setConfirmingRegenerate(false)}
       />
       <ProovraConfirmSheet
         visible={deletingComment !== null}

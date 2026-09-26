@@ -17,6 +17,7 @@ import {
   buildCopilotIdempotencyKey,
   evaluateCopilotEvidenceEligibility,
   evidenceAnalysisRevisionsMatch,
+  outputActionLabel,
   resolveEvidenceAcquisition,
   sha256Base64Url,
   // P3-6 — the typed permission vocabulary, so a suggestion cannot name a
@@ -405,14 +406,11 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
            */
           actionType:
             canonicalAction === "GENERATE" ? "GENERATE_REPORT" : "RETRY_ELIGIBLE_REPORT",
-          displayLabel:
-            suggested.output === "package"
-              ? canonicalAction === "RETRY"
-                ? "Retry verification package"
-                : "Recover verification package"
-              : canonicalAction === "RETRY"
-                ? "Retry report generation"
-                : "Generate report & verification package",
+          // The shared verb table every surface renders — never a local word.
+          displayLabel: outputActionLabel(
+            suggested.output === "package" ? "verificationPackage" : "report",
+            canonicalAction,
+          ),
           reason:
             suggested.output === "package"
               ? "This record's report exists but its verification package is missing or failed. Only the package is rebuilt, from the existing report."

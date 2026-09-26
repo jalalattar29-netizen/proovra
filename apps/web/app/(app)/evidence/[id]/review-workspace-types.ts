@@ -1,12 +1,15 @@
 import type {
   EvidenceIntelligence,
   EvidenceOutputState,
+  NewVersionAction,
   OutputAction,
+  OutputActionUnavailableReason,
   OutputArtifactAvailability,
   OutputCommercialEligibility,
   OutputGenerationState,
   OutputIneligibilityReason,
   OutputNotApplicableReason,
+  OutputOperation,
   OutputTerminalReasonClass,
   TrustDecision,
 } from "@proovra/shared";
@@ -33,8 +36,31 @@ export type EvidenceOutputProjection = {
   availability: OutputArtifactAvailability;
   state: EvidenceOutputState;
   action: OutputAction;
-  /** P2-1 — why the verb was withdrawn on a state that would otherwise carry one. */
-  actionUnavailableReason: "WORKSPACE_UNRESOLVED" | null;
+  /** Why no action is offered (bounded; null when one is offered). */
+  actionUnavailableReason: OutputActionUnavailableReason | null;
+  /** The server operation the offered action performs. */
+  operation: OutputOperation | null;
+  /** The version this output's state describes (the package: paired with the latest report). */
+  version: number | null;
+  /** The newest version of this output that exists at all (may predate the latest report). */
+  latestAvailableVersion: number | null;
+};
+
+/** The separate, optional "create a new version" action and its estimate. */
+export type EvidenceNewVersionProjection = {
+  action: NewVersionAction;
+  reason: OutputActionUnavailableReason | null;
+  currentVersion: number | null;
+  nextVersion: number | null;
+  estimate: {
+    estimatedBytes: string;
+    basis: "PREVIOUS_PAIR" | "ORIGINAL_EVIDENCE";
+    reportBytes: string | null;
+    packageBytes: string | null;
+    storageBytesUsed: string | null;
+    storageBytesLimit: string | null;
+    fitsStorage: boolean | null;
+  } | null;
 };
 import type {
   EvidenceAnnotation,
@@ -422,6 +448,9 @@ export type ReviewWorkspaceResponse = {
     outputs: {
       report: EvidenceOutputProjection;
       verificationPackage: EvidenceOutputProjection;
+      newVersion: EvidenceNewVersionProjection;
+      /** Poll `/artifacts/status` at this interval while work is live; null = stop. */
+      pollIntervalMs: number | null;
     };
     report:
       | {

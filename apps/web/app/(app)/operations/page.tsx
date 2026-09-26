@@ -1218,7 +1218,7 @@ function OperationsWorkbench() {
    * and showing it as one is the false-clear this surface exists to prevent.
    */
   const remediate = React.useCallback(
-    async (actionId: string) => {
+    async (actionId: string, reason?: string) => {
       if (!teamId || !openId || remediationBusy) return;
       setRemediationBusy(actionId);
       setRemediationOutcome(null);
@@ -1229,7 +1229,9 @@ function OperationsWorkbench() {
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ teamId, actionId }),
+            body: JSON.stringify(
+              reason ? { teamId, actionId, reason } : { teamId, actionId },
+            ),
           },
         );
         const outcome = (res as { remediation?: RemediationOutcome })
@@ -1923,7 +1925,7 @@ function OperationsWorkbench() {
           remediation={remediation}
           remediationBusy={remediationBusy}
           remediationOutcome={remediationOutcome}
-          onRemediate={(actionId) => void remediate(actionId)}
+          onRemediate={(actionId, reason) => void remediate(actionId, reason)}
         />
       ) : null}
     </PageShell>

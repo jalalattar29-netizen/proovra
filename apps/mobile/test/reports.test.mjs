@@ -9,10 +9,16 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8").replace(
-  /^import type .*$/m,
-  "",
-);
+/**
+ * The shared verb table, inlined — a data URL cannot resolve "@proovra/shared".
+ * The REAL built module, so the words asserted are the ones the product ships.
+ */
+const SHARED_COPY_URL =
+  "data:text/javascript," +
+  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/output-action-copy.js"), "utf8"));
+const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8")
+  .replace(/^import type .*$/m, "")
+  .replace('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;

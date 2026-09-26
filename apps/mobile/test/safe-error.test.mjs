@@ -141,3 +141,19 @@ test("a bare 429 is the rate-limit answer (web fromStatus(429)), never the 4xx r
   const e = toSafeUserError({ status: 429 });
   assert.equal(e.message, "Please wait a moment and try again.");
 });
+
+test("a declined output request shows the server's own reason (a trusted server-message code)", () => {
+  const e = toSafeUserError({
+    status: 409,
+    code: "OUTPUT_ACTION_UNAVAILABLE",
+    message: "The stored report could not be verified, so it will not be reused.",
+  });
+  assert.equal(e.message, "The stored report could not be verified, so it will not be reused.");
+  assert.equal(e.title, "This action isn't available");
+  // A code NOT on the trusted list never leaks its message.
+  const other = toSafeUserError({ status: 409, code: "SOMETHING_ELSE", message: "internal detail at db.ts:42" });
+  assert.ok(!/db\.ts/.test(other.message));
+  // The transport placeholder is never shown as a reason.
+  const synthetic = toSafeUserError({ status: 409, code: "OUTPUT_ACTION_UNAVAILABLE", message: "HTTP 409: API error" });
+  assert.notEqual(synthetic.message, "HTTP 409: API error");
+});

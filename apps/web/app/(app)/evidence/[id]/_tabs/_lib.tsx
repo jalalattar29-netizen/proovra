@@ -128,15 +128,16 @@ export type EvidenceDetailCtx = {
   downloadReportVersion: (version: number) => Promise<void> | void;
   downloadVerificationPackageVersion: (version: number) => Promise<void> | void;
   /**
-   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — request generation of
-   * this record's report AND verification package.
-   *
-   * ONE callback for both, because they are produced by ONE job. The verb the
-   * button shows (Generate / Retry / Regenerate) comes from the server's
-   * `outputs.*.action`; this callback is the same audited request in every
-   * case.
+   * Request the action an output offers — GENERATE, RETRY or RECOVER, from the
+   * server's `outputs.*.action`. The server re-derives what runs: a report
+   * whose package is missing gets only the package, from the stored report.
    */
-  generateOutputs: () => Promise<void> | void;
+  generateOutputs: (intent?: "GENERATE" | "RETRY" | "RECOVER") => Promise<void> | void;
+  /**
+   * The separate, confirmed "create a new version". "unanswered" means the
+   * request may have landed, so the caller retries with the SAME key.
+   */
+  createNewVersion: (clientRequestKey: string) => Promise<"answered" | "unanswered">;
   generateOutputsBusy: boolean;
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;
@@ -606,33 +607,20 @@ export function isOtsTerminal(status: string | null | undefined): boolean {
   );
 }
 
+/**
+ * POLL WHILE THE SERVER SAYS WORK IS LIVE — and only then.
+ *
+ * This used to poll while `report.available` was false, so a NEW version being
+ * generated beside a READY report was never polled at all: the page kept
+ * offering the action it had just taken, and the new version appeared only on
+ * a manual reload. The server now states the interval (`pollIntervalMs`) from
+ * the live requests themselves — including while an older version stays
+ * downloadable — and null means stop.
+ */
 export function shouldPollArtifactReadiness(
   workspace: ReviewWorkspaceResponse | null | undefined
 ): boolean {
-  if (!workspace?.evidence?.status) return false;
-
-  const status = workspace.evidence.status;
-  const finalized = status === "SIGNED" || status === "REPORTED";
-  if (!finalized) return false;
-
-  const caps = workspace.workspaceCapabilitySnapshot;
-  const reportReachable =
-    caps?.reportsIncluded !== false ||
-    workspace.artifactStatus.report.available === true;
-  const packageReachable =
-    caps?.verificationPackageIncluded !== false ||
-    workspace.artifactStatus.verificationPackage.available === true;
-
-  const reportNeedsRefresh =
-    reportReachable && !workspace.artifactStatus.report.available;
-  const verificationPackage = workspace.artifactStatus.verificationPackage;
-  const packageNeedsRefresh =
-    packageReachable &&
-    !verificationPackage.available &&
-    !verificationPackage.blocked &&
-    !verificationPackage.unavailable;
-
-  return reportNeedsRefresh || packageNeedsRefresh;
+  return workspace?.artifactStatus?.outputs?.pollIntervalMs != null;
 }
 
 export function buildTechnicalReadinessSummary(workspace: ReviewWorkspaceResponse): string {
