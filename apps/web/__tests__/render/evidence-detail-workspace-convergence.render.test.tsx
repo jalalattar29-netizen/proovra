@@ -45,6 +45,11 @@ const EVIDENCE_ID = "ev-convergence-1";
 /** Every request the route (and its children) make, in order. */
 let requestLog: string[] = [];
 
+/** The tenant service status the fixture answers (default: all healthy). */
+let runtimeBody: unknown = { status: "HEALTHY" };
+/** Overrides the report's canonical action (the fixture's own is DOWNLOAD). */
+let reportActionOverride: string | null = null;
+
 vi.mock("../../lib/api", () => ({
   apiFetch: async (path: string) => {
     requestLog.push(path);
@@ -78,6 +83,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { PlatformContextProvider } from "../../lib/platform-context";
+import { resetServiceStatusForTests } from "../../lib/useServiceStatus";
 import {
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
@@ -585,12 +591,19 @@ function makeWorkspace(): unknown {
  * fixture assertion.
  */
 function respond(path: string): unknown {
-  if (path.includes("/review-workspace")) return makeWorkspace();
+  if (path.includes("/review-workspace")) {
+    const w = makeWorkspace() as {
+      artifactStatus: { outputs: { report: { action: string } } };
+    };
+    if (reportActionOverride) w.artifactStatus.outputs.report.action = reportActionOverride;
+    return w;
+  }
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
   // ADM-P1-003 / OWN-1 — the shell reads the tenant-safe status enum.
   if (path.includes("/v1/runtime/status")) {
-    return { status: "HEALTHY" };
+    if (runtimeBody instanceof Error) throw runtimeBody;
+    return runtimeBody;
   }
   if (path.includes("/governance-snapshot")) {
     return {
@@ -1161,6 +1174,9 @@ const LOADED_CONTEXTS: ContextKey[] = [...NON_ENTERPRISE_CONTEXTS, ...ENTERPRISE
 
 beforeEach(() => {
   requestLog = [];
+  runtimeBody = { status: "HEALTHY" };
+  reportActionOverride = null;
+  resetServiceStatusForTests();
 });
 
 // ---------------------------------------------------------------------------
@@ -1419,4 +1435,90 @@ describe("convergence — the route reads only the canonical projection", () => 
       utils.unmount();
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Service status — the record is not a platform status surface
+// ---------------------------------------------------------------------------
+
+describe("service status — Evidence never renders the platform diagnostic panel", () => {
+  const caps = (over: Record<string, string> = {}) => ({
+    uploads: "HEALTHY",
+    artifactGeneration: "HEALTHY",
+    downloads: "HEALTHY",
+    search: "HEALTHY",
+    reviewAutomation: "HEALTHY",
+    ...over,
+  });
+  const VARIANTS: Record<string, unknown> = {
+    healthy: { status: "HEALTHY", capabilities: caps(), checkedAt: "2026-09-26T00:00:00Z" },
+    "generation degraded": { status: "DEGRADED", capabilities: caps({ artifactGeneration: "DEGRADED" }) },
+    "downloads unavailable": { status: "DEGRADED", capabilities: caps({ downloads: "UNAVAILABLE" }) },
+    "search degraded only": { status: "DEGRADED", capabilities: caps({ search: "DEGRADED" }) },
+    unknown: { status: "UNAVAILABLE", capabilities: caps({ artifactGeneration: "UNKNOWN" }) },
+    "legacy server DEGRADED": { status: "DEGRADED" },
+    "status read fails": new Error("network"),
+  };
+  const PANEL = /degraded mode|partial or stale|subsystem\(s\)|Failing subsystems/i;
+
+  async function openArtifacts() {
+    const tab = [...document.querySelectorAll("[role='tab']")].find(
+      (el) => el.textContent?.trim() === "Artifacts",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      tab.click();
+    });
+    // Let the shared status store settle (first read is scheduled on idle).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 900));
+    });
+  }
+
+  it.each(Object.keys(VARIANTS))(
+    "%s: no platform panel, no empty subsystem list, no admin link — on the record or its Artifacts",
+    async (name) => {
+      runtimeBody = VARIANTS[name];
+      await mountLoaded("personal");
+      await openArtifacts();
+      const text = document.body.textContent ?? "";
+      expect(text).not.toMatch(PANEL);
+      expect(document.querySelector("[data-empty-state-code='runtime_degraded']")).toBeNull();
+      const adminLinks = [...document.querySelectorAll("a")]
+        .map((a) => a.getAttribute("href") ?? "")
+        .filter((h) => h.startsWith("/admin"));
+      expect(adminLinks).toEqual([]);
+      // A search-only or unmeasured status says nothing on the record at all.
+      if (name === "search degraded only" || name === "unknown" || name === "status read fails" || name === "healthy") {
+        expect(document.querySelector("[data-service-notice]")).toBeNull();
+      }
+    },
+    15_000,
+  );
+
+  it("a generation incident is said beside Regenerate, without calling the evidence stale — and the report download stays enabled", async () => {
+    reportActionOverride = "REGENERATE";
+    runtimeBody = VARIANTS["generation degraded"];
+    await mountLoaded("personal");
+    await openArtifacts();
+    const notice = document.querySelector("[data-service-notice='artifactGeneration']");
+    expect(notice?.textContent).toMatch(/generation is delayed/);
+    expect(notice?.textContent).not.toMatch(/stale|corrupt|incomplete|partial/i);
+    // Beside the control it affects.
+    expect(notice?.closest("[data-evidence-section='reports-ready-actions']")).not.toBeNull();
+    const report = document.querySelector(
+      "[data-evidence-artifact-download='report']",
+    ) as HTMLButtonElement | null;
+    expect(report).not.toBeNull();
+    expect(report!.disabled).toBe(false);
+    expect(document.querySelector("[data-service-notice='downloads']")).toBeNull();
+  }, 15_000);
+
+  it("a downloads incident is said at the downloads, not over the record", async () => {
+    runtimeBody = VARIANTS["downloads unavailable"];
+    await mountLoaded("personal");
+    await openArtifacts();
+    const notice = document.querySelector("[data-service-notice='downloads']");
+    expect(notice?.textContent).toMatch(/Downloads are temporarily unavailable/);
+    expect(document.querySelector(".evidence-detail-hero [data-service-notice]")).toBeNull();
+  }, 15_000);
 });

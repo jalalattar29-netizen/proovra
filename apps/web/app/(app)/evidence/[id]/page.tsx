@@ -58,10 +58,7 @@ import {
   fetchEvidenceIntelligence,
   type IntelligenceEvidenceResponse,
 } from "../../../../lib/api/intelligence";
-import {
-  ExportPackageEligibilityBadge,
-  RuntimeStatusBanner,
-} from "../../../../components/operational";
+import { ExportPackageEligibilityBadge } from "../../../../components/operational";
 import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import "./evidence-detail.css";
@@ -1004,8 +1001,8 @@ function EvidenceDetailPageInner() {
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
-        {/* Unguarded on purpose (ADM-P1-003) — see RuntimeStatusBanner.tsx. */}
-        <RuntimeStatusBanner />
+        {/* No platform status panel: service impact is said beside the
+            affected action (Artifacts) and in the header indicator. */}
         {workspace.reviewWorkflow?.teamId ? (
           <div className="evidence-detail-presence-row">
             <PresenceIndicator

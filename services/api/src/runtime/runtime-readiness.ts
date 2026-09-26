@@ -34,6 +34,8 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
 import { setGauge } from "../services/ops/metrics.service.js";
 import { runSchemaValidation, type SchemaValidationReport } from "./schema-validation.js";
+import { platformIncidentWhere } from "../services/observability/incident-scope.js";
+import { getWorkerFleetHealth } from "../services/operations/worker-liveness.service.js";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -49,6 +51,13 @@ export type SubsystemId =
   | "s3_object_lock"
   | "queues"
   | "workers"
+  /**
+   * The BullMQ job worker fleet — the process that generates reports and
+   * packages, runs OTS upgrades and every other background job. Distinct from
+   * `workers`, which (despite its name) measures the API-side reviewer
+   * reconcile sweep.
+   */
+  | "job_worker"
   | "metrics"
   | "sentry"
   | "cron_secrets"
@@ -118,6 +127,7 @@ const SUBSYSTEM_AFFECTED_DOMAIN: Record<SubsystemId, SubsystemAffectedDomain> = 
   s3_object_lock: "core_evidence",
   queues: "operational_incidents",
   workers: "reviewer_ops",
+  job_worker: "core_evidence",
   metrics: "platform_telemetry",
   sentry: "platform_telemetry",
   cron_secrets: "platform_telemetry",
@@ -171,48 +181,233 @@ function rollUpStatus(
   return "UNKNOWN";
 }
 
+// -----------------------------------------------------------------------------
+// The tenant projection: what a user can DO, not which subsystem is red.
+// -----------------------------------------------------------------------------
+
 /**
- * Subsystems whose state says how the PLATFORM is instrumented or operated,
- * not whether a tenant's work is being served.
+ * THE FOUR THINGS A TENANT CAN BE PREVENTED FROM DOING.
  *
- *   - `sentry`: a missing DSN makes exception capture a no-op. Requests,
- *     uploads, reports and downloads are unaffected.
- *   - `metrics`: always HEALTHY today; the scrape endpoint's gating only.
- *   - `cron_secrets`: the shared secret for the EXTERNAL reconcile trigger
- *     endpoints. The worker schedules those reconciliations itself.
+ * The readiness report describes the platform: fourteen-odd subsystems,
+ * including configuration posture (Object Lock), observability (Sentry,
+ * metrics), operator plumbing (cron secrets, migrations) and the reviewer
+ * reconcile sweep. Rolling all of that into one tenant "DEGRADED" is how an
+ * ordinary evidence page came to announce that its data "may be partial or
+ * stale" because a deployment ran without a Sentry DSN.
  *
- * They stay in the full platform report (`/v1/admin/runtime/*`), where an
- * operator should see them. They are excluded only from the tenant projection,
- * which told every customer the platform was "degraded" whenever a deployment
- * ran without Sentry.
+ * A tenant is told only about capabilities, each derived from the checks that
+ * genuinely decide whether it works. Everything else stays in the platform
+ * report, behind platform authorization.
+ */
+export const TENANT_CAPABILITIES = [
+  "uploads",
+  "artifactGeneration",
+  "downloads",
+  "search",
+  /**
+   * Reviewer SLA tracking and escalation — the reconcile sweep. Read ONLY by
+   * reviewer surfaces, and deliberately outside the legacy `status` rollup:
+   * a stale sweep delays SLA breach detection, it does not stop anybody
+   * uploading, generating or downloading.
+   */
+  "reviewAutomation",
+] as const;
+export type TenantCapability = (typeof TENANT_CAPABILITIES)[number];
+
+/** The capabilities every user depends on; the legacy `status` rolls up these. */
+export const CORE_TENANT_CAPABILITIES: ReadonlyArray<TenantCapability> = [
+  "uploads",
+  "artifactGeneration",
+  "downloads",
+  "search",
+];
+
+/** HEALTHY · DEGRADED (slow / delayed) · UNAVAILABLE (not working) · UNKNOWN (not measured). */
+export type TenantCapabilityStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+
+/**
+ * A dependency, and the reason codes of that check which describe POSTURE
+ * rather than function for this capability.
+ */
+type CapabilityDependency = {
+  id: SubsystemId;
+  /** Reason codes that do not affect this capability (posture, cleanup, …). */
+  ignoreReasons?: ReadonlyArray<string>;
+};
+
+/**
+ * Object storage. `s3_env_missing` (CRITICAL) means storage cannot work;
+ * `object_lock_disabled` is a retention / compliance POSTURE — reads and writes
+ * work — and stays visible on the platform-admin readiness and posture
+ * surfaces, where a security operator can act on it.
+ */
+const STORAGE: CapabilityDependency = {
+  id: "s3_object_lock",
+  ignoreReasons: ["object_lock_disabled"],
+};
+/** Upload-session storage. The abort backlog is housekeeping, not an outage. */
+const MULTIPART: CapabilityDependency = {
+  id: "multipart_storage",
+  ignoreReasons: ["abort_backlog_high"],
+};
+
+export const TENANT_CAPABILITY_DEPENDENCIES: Readonly<
+  Record<TenantCapability, ReadonlyArray<CapabilityDependency>>
+> = {
+  uploads: [{ id: "database" }, { id: "schema" }, STORAGE, MULTIPART],
+  downloads: [{ id: "database" }, { id: "schema" }, STORAGE, MULTIPART],
+  // Generation is a queued job: Redis carries it, the job worker runs it, and
+  // `queues` reports declared PLATFORM-scope worker incidents.
+  artifactGeneration: [
+    { id: "database" },
+    { id: "schema" },
+    STORAGE,
+    { id: "redis" },
+    { id: "job_worker" },
+    { id: "queues" },
+  ],
+  // Index lag makes search results late. It says nothing about the records
+  // themselves or their downloads.
+  search: [{ id: "database" }, { id: "search_indexing" }],
+  // The API-side reviewer reconcile sweep (readiness id `workers`).
+  reviewAutomation: [{ id: "database" }, { id: "workers" }],
+};
+
+/**
+ * Never tenant-facing on their own. Named so a test can pin that none of them
+ * appears in any capability's dependencies.
  */
 export const OPERATOR_ONLY_SUBSYSTEMS: ReadonlySet<SubsystemId> = new Set<SubsystemId>([
   "sentry",
   "metrics",
   "cron_secrets",
+  "migrations",
+  "media_intelligence",
+  "investigation_graph",
 ]);
 
-/** The three values `GET /v1/runtime/status` may answer. */
+function capabilityStatusOf(
+  capability: TenantCapability,
+  subsystems: ReadonlyArray<SubsystemReadiness>,
+): TenantCapabilityStatus {
+  let unavailable = false;
+  let degraded = false;
+  let unknown = false;
+  for (const dep of TENANT_CAPABILITY_DEPENDENCIES[capability]) {
+    const s = subsystems.find((x) => x.id === dep.id);
+    // A dependency the report did not carry was not measured.
+    if (!s) {
+      unknown = true;
+      continue;
+    }
+    if (s.status === "HEALTHY") continue;
+    if (dep.ignoreReasons?.includes(s.reasonCode)) continue;
+    if (s.status === "CRITICAL") unavailable = true;
+    else if (s.status === "DEGRADED") degraded = true;
+    else unknown = true;
+  }
+  // A confirmed failure outranks not knowing; not knowing is never HEALTHY.
+  if (unavailable) return "UNAVAILABLE";
+  if (degraded) return "DEGRADED";
+  if (unknown) return "UNKNOWN";
+  return "HEALTHY";
+}
+
+/** The legacy three-value field the tenant route has always answered. */
 export type TenantRuntimeStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
 
+export type TenantRuntimeProjection = {
+  /**
+   * Backward-compatible rollup OF THE CORE CAPABILITIES (not of the platform
+   * report): HEALTHY when every capability is; DEGRADED when any is degraded
+   * or unavailable; UNAVAILABLE when none failed but one could not be
+   * measured — "we could not measure", which clients already render as
+   * unknown.
+   */
+  status: TenantRuntimeStatus;
+  capabilities: Record<TenantCapability, TenantCapabilityStatus>;
+  /** When the underlying readiness was measured (ISO). */
+  checkedAt: string;
+};
+
+export function projectTenantCapabilities(
+  report: Pick<RuntimeReadinessReport, "subsystems" | "ranAtUtc">,
+): TenantRuntimeProjection {
+  const capabilities = Object.fromEntries(
+    TENANT_CAPABILITIES.map((c) => [c, capabilityStatusOf(c, report.subsystems)]),
+  ) as Record<TenantCapability, TenantCapabilityStatus>;
+  const values = CORE_TENANT_CAPABILITIES.map((c) => capabilities[c]);
+  const status: TenantRuntimeStatus = values.some(
+    (v) => v === "DEGRADED" || v === "UNAVAILABLE",
+  )
+    ? "DEGRADED"
+    : values.some((v) => v === "UNKNOWN")
+      ? "UNAVAILABLE"
+      : "HEALTHY";
+  return { status, capabilities, checkedAt: report.ranAtUtc };
+}
+
+/** Every capability unmeasured: the answer when readiness itself failed. */
+export function unmeasuredTenantProjection(nowIso: string): TenantRuntimeProjection {
+  return {
+    status: "UNAVAILABLE",
+    capabilities: Object.fromEntries(
+      TENANT_CAPABILITIES.map((c) => [c, "UNKNOWN"]),
+    ) as Record<TenantCapability, TenantCapabilityStatus>,
+    checkedAt: nowIso,
+  };
+}
+
 /**
- * THE TENANT-IMPACTING ROLLUP.
+ * THE CACHE.
  *
- * Same rollup as the platform status, over the subsystems that can affect a
- * tenant's evidence, storage, queues, workers, search, media or reports. A
- * real failure there is never hidden: CRITICAL and DEGRADED both read
- * DEGRADED. A subsystem that could not be measured (UNKNOWN) reads
- * UNAVAILABLE — distinct from HEALTHY, never collapsed into it.
+ * Every mounted client polls this route (60s), and each uncached call ran the
+ * full readiness aggregator — fourteen probes including a Redis connect and a
+ * schema validation — per user, per page.
+ *
+ * The projection is CALLER-INDEPENDENT by construction: every input is a
+ * platform fact (probes, the worker heartbeat, PLATFORM-scope incidents), and
+ * no workspace-scoped row is read. One process-wide entry is therefore correct
+ * and cannot carry one tenant's information to another. Authentication is not
+ * cached; the route still runs `requireAuth` on every request.
+ *
+ * Freshness: a successful projection is reused for 30s. A failed readiness
+ * run is cached as "unmeasured" for only 5s, so recovery is seen quickly and a
+ * failing aggregator is not hammered. Concurrent misses share one run.
  */
-export function projectTenantRuntimeStatus(
-  report: Pick<RuntimeReadinessReport, "subsystems">,
-): TenantRuntimeStatus {
-  const impacting = report.subsystems.filter((s) => !OPERATOR_ONLY_SUBSYSTEMS.has(s.id));
-  if (impacting.length === 0) return "UNAVAILABLE";
-  const rolled = rollUpStatus(impacting);
-  if (rolled === "HEALTHY") return "HEALTHY";
-  if (rolled === "UNKNOWN") return "UNAVAILABLE";
-  return "DEGRADED";
+export const TENANT_RUNTIME_CACHE_TTL_MS = 30_000;
+export const TENANT_RUNTIME_FAILURE_TTL_MS = 5_000;
+
+let tenantCache: { value: TenantRuntimeProjection; expiresAt: number } | null = null;
+let tenantInFlight: Promise<TenantRuntimeProjection> | null = null;
+
+export async function getTenantRuntimeProjection(
+  run: () => Promise<Pick<RuntimeReadinessReport, "subsystems" | "ranAtUtc">> = () =>
+    runReadinessCheck(defaultPrisma, null),
+  nowMs: () => number = Date.now,
+): Promise<TenantRuntimeProjection> {
+  if (tenantCache && tenantCache.expiresAt > nowMs()) return tenantCache.value;
+  if (tenantInFlight) return tenantInFlight;
+  tenantInFlight = (async () => {
+    try {
+      const value = projectTenantCapabilities(await run());
+      tenantCache = { value, expiresAt: nowMs() + TENANT_RUNTIME_CACHE_TTL_MS };
+      return value;
+    } catch {
+      const value = unmeasuredTenantProjection(new Date(nowMs()).toISOString());
+      tenantCache = { value, expiresAt: nowMs() + TENANT_RUNTIME_FAILURE_TTL_MS };
+      return value;
+    } finally {
+      tenantInFlight = null;
+    }
+  })();
+  return tenantInFlight;
+}
+
+/** Tests only. */
+export function resetTenantRuntimeCacheForTests(): void {
+  tenantCache = null;
+  tenantInFlight = null;
 }
 
 // -----------------------------------------------------------------------------
@@ -651,7 +846,16 @@ async function checkQueues(prisma: PrismaClient): Promise<SubsystemReadiness> {
   try {
     const open = await withTimeout(
       prisma.operationalIncident.count({
+        /*
+         * PLATFORM SCOPE ONLY. This counted every OPEN WORKER incident in
+         * every workspace — per-record OTS exhaustion, a workspace's stale
+         * review workflows — and read the total as "queues may be stuck". One
+         * tenant's record therefore degraded every tenant's status. Workspace
+         * incidents stay on that workspace's Operations surfaces; a condition
+         * that affects everyone is written with the explicit PLATFORM scope.
+         */
         where: {
+          ...platformIncidentWhere(),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
           category: "WORKER",
           severity: { in: ["HIGH", "CRITICAL"] },
@@ -664,7 +868,7 @@ async function checkQueues(prisma: PrismaClient): Promise<SubsystemReadiness> {
         id: "queues",
         status: "HEALTHY",
         reasonCode: "ok",
-        detail: "No open WORKER-category incidents at HIGH/CRITICAL severity.",
+        detail: "No open platform-scope WORKER incidents at HIGH/CRITICAL severity.",
         remediationHint: null,
         metadata: { openHighWorkerIncidents: 0 },
       };
@@ -673,7 +877,7 @@ async function checkQueues(prisma: PrismaClient): Promise<SubsystemReadiness> {
       id: "queues",
       status: "DEGRADED",
       reasonCode: "open_worker_incident",
-      detail: `${open} open WORKER incident(s) at HIGH/CRITICAL severity. Queue may be stuck.`,
+      detail: `${open} open platform-scope WORKER incident(s) at HIGH/CRITICAL severity. Queue may be stuck.`,
       remediationHint:
         "Inspect /v1/ops/incidents?category=WORKER. See runbooks/worker-wedged.md.",
       metadata: { openHighWorkerIncidents: open },
@@ -892,6 +1096,55 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
       metadata: {
         prismaCode: prismaCode ?? null,
       },
+    };
+  }
+}
+
+/**
+ * The job worker fleet, from the canonical liveness authority
+ * (`getWorkerFleetHealth`, the same projection Platform Health renders).
+ *
+ * STALE or STOPPED: jobs are accepted and wait — generation is DELAYED, so
+ * DEGRADED. Nothing measured, or the store unreadable: UNKNOWN, never HEALTHY.
+ */
+async function checkJobWorker(): Promise<SubsystemReadiness> {
+  try {
+    const fleet = await withTimeout(getWorkerFleetHealth(), null);
+    if (!fleet) {
+      return {
+        id: "job_worker",
+        status: "UNKNOWN",
+        reasonCode: "fleet_check_timeout",
+        detail: "Worker fleet liveness did not answer within the readiness budget.",
+        remediationHint: null,
+        metadata: {},
+      };
+    }
+    const status: ReadinessStatus =
+      fleet.state === "HEALTHY"
+        ? "HEALTHY"
+        : fleet.state === "STALE" || fleet.state === "STOPPED"
+          ? "DEGRADED"
+          : "UNKNOWN";
+    return {
+      id: "job_worker",
+      status,
+      reasonCode: `fleet_${fleet.state.toLowerCase()}`,
+      detail: fleet.reason.slice(0, 200),
+      remediationHint: fleet.operatorAction,
+      metadata: {
+        liveInstances: fleet.liveInstances,
+        lastHeartbeatAgeSeconds: fleet.lastHeartbeatAgeSeconds,
+      },
+    };
+  } catch {
+    return {
+      id: "job_worker",
+      status: "UNKNOWN",
+      reasonCode: "fleet_check_failed",
+      detail: "Worker fleet liveness could not be read.",
+      remediationHint: null,
+      metadata: {},
     };
   }
 }
@@ -1490,6 +1743,7 @@ export async function runReadinessCheck(
     Promise.resolve(checkS3ObjectLock()),
     checkQueues(prisma),
     checkWorkers(prisma),
+    checkJobWorker(),
     Promise.resolve(checkMetrics()),
     Promise.resolve(checkSentry()),
     Promise.resolve(checkCronSecrets()),

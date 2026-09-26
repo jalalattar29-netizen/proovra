@@ -17,8 +17,9 @@
  * Hard wiring contracts asserted:
  *
  *   1. Each page imports from the operational barrel.
- *   2. RuntimeStatusBanner is rendered (null-safe — only when teamId is
- *      known) so degraded / unknown runtime never goes silent.
+ *   2. RuntimeStatusBanner is rendered only where an action depends on a
+ *      service capability (`requires`), never as a platform panel over a
+ *      record or a governance page (2026-09-26).
  *   3. Pages that have a real "empty-state" slot wire the bounded
  *      preset rather than the old dead "No X." paragraph.
  *   4. Evidence detail uses the eligibility badge AND propagates its
@@ -71,21 +72,14 @@ describe("Reviewer console landing page (full adoption)", () => {
     );
   });
 
-  it("mounts RuntimeStatusBanner, unscoped", () => {
+  it("mounts the review-automation notice, and only that", () => {
     /*
-     * ADM-P1-003 / OWN-1 — THE SCOPING PROP IS GONE, SO THIS ASSERTS THE
-     * BOUNDARY INSTEAD OF THE SCOPE.
-     *
-     * `forDomains` decided which failing platform subsystems mattered to this
-     * page, and to decide that the banner had to READ them — from the full
-     * platform readiness aggregator, on a tenant page. It now reads
-     * `GET /v1/runtime/status`, a three-value enum, and the prop was removed
-     * rather than left inert.
-     *
-     * What must not regress is that the banner is still HERE, and that nobody
-     * passes it a prop it no longer honours.
+     * 2026-09-26 — the notice is SCOPED again, and this time by the only data
+     * the tenant projection carries: a capability. The console's SLA and
+     * escalation figures come from the reviewer reconcile sweep, so it says
+     * `reviewAutomation` — never a platform rollup.
      */
-    expect(src).toContain("<RuntimeStatusBanner");
+    expect(src).toContain('<RuntimeStatusBanner requires={["reviewAutomation"]} />');
     expect(src.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("forDomains");
   });
 
@@ -177,42 +171,16 @@ describe("Reviewer Ops policy page (full adoption)", () => {
     "../../../apps/web/app/(app)/governance/policy/page.tsx",
   );
 
-  it("imports RuntimeStatusBanner from the operational barrel", () => {
-    expect(src).toMatch(
-      /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[./]+components\/operational"/,
-    );
-  });
-
-  it("renders RuntimeStatusBanner WITHOUT waiting for a workspace", () => {
+  it("mounts no platform status panel above the policy form", () => {
     /*
-     * THIS ASSERTION IS INVERTED, AND THAT IS THE FIX.
-     *
-     * It required `{teamId ? <RuntimeStatusBanner teamId={teamId}/> : null}`,
-     * which was correct while the banner read
-     * `/admin/runtime/readiness?teamId=…`. ADM-P1-003 moved it to
-     * `GET /v1/runtime/status`, which takes no workspace — so the guard
-     * suppressed the banner in exactly the situation it exists for: a platform
-     * degraded badly enough that the workspace has not resolved yet.
+     * 2026-09-26 — REMOVED, not re-gated. Editing SLA policy depends on no
+     * tenant service capability, and the panel that sat here was a platform
+     * readiness rollup ("Runtime is in degraded mode") that said nothing about
+     * this page. Global service status is the header indicator's.
      */
-    expect(src).toContain("<RuntimeStatusBanner");
-    const code = src
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-      .replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(
-      /teamId\s*\?\s*\(?\s*<RuntimeStatusBanner/.test(code),
-      "the platform-wide banner is still gated on a workspace it does not use",
-    ).toBe(false);
-    expect(code).not.toMatch(/<RuntimeStatusBanner[^>]*teamId=/);
-  });
-
-  it("the banner sits inside the main render block (above the policy form)", () => {
-    // The banner no longer takes a teamId (see above), so the ordering is
-    // anchored on the element rather than on a prop it stopped having.
-    const bannerIdx = src.indexOf("<RuntimeStatusBanner");
-    const policyFormIdx = src.indexOf("SLA overrides (hours)");
-    expect(bannerIdx).toBeGreaterThan(0);
-    expect(policyFormIdx).toBeGreaterThan(0);
-    expect(bannerIdx).toBeLessThan(policyFormIdx);
+    const code = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/<RuntimeStatusBanner/);
+    expect(code).not.toMatch(/RuntimeDegradedNotice/);
   });
 
   it("no banned wording in this page's string literals", () => {
@@ -234,17 +202,12 @@ describe("Governance dashboard (full adoption — Phase 32.8E architecture)", ()
     "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
   );
 
-  it("imports the runtime banner from the operational barrel", () => {
-    expect(src).toMatch(
-      /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[./]+\/operational"/,
-    );
-  });
-
-  it("mounts RuntimeStatusBanner, unscoped", () => {
-    // See the sibling case on the reviewer console: the scoping prop was
-    // removed with the platform payload it needed, not left inert.
-    expect(src).toContain("<RuntimeStatusBanner");
-    expect(src.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("forDomains");
+  it("mounts no platform status panel (governance posture is not a service capability)", () => {
+    // 2026-09-26 — the unscoped runtime banner is gone from governance; the
+    // header indicator owns global service status.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/RuntimeStatusBanner/);
+    expect(code).not.toContain("forDomains");
   });
 
   it("renders an empty-state note when no evidence-level holds exist", () => {
@@ -376,10 +339,18 @@ describe("Evidence detail page (full adoption)", () => {
     expect(src).toMatch(operationalBarrel);
   });
 
-  it("renders RuntimeStatusBanner inside the evidence-detail-shell (operator sees runtime state above the hero)", () => {
-    // Same inversion: inside the shell, and no longer conditioned on the
-    // review workflow's workspace, which the tenant-safe read does not use.
-    expect(src).toMatch(/evidence-detail-shell[\s\S]*?<RuntimeStatusBanner\s*\/>/);
+  it("mounts NO platform status panel in the evidence-detail-shell (the record is not a runtime surface)", () => {
+    // 2026-09-26 — INVERTED AGAIN, and this is the defect it guards: the
+    // shell opened with "Runtime is in degraded mode … the data on this page
+    // may be partial or stale" above healthy evidence. A service incident that
+    // affects an action on this record is said beside that action in the
+    // Artifacts section; the record page itself carries no platform panel.
+    const page = readSource("../../../apps/web/app/(app)/evidence/[id]/page.tsx");
+    const code = page.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/RuntimeStatusBanner/);
+    const TAB = readSource("../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx");
+    expect(TAB).toContain('<RuntimeStatusBanner requires={["artifactGeneration"]} />');
+    expect(TAB).toContain('<RuntimeStatusBanner requires={["downloads"]} />');
   });
 
   it("renders ExportPackageEligibilityBadge for both export and package kinds", () => {
@@ -583,27 +554,29 @@ describe("Phase 28-H [cross-page wiring invariants]", () => {
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];
 
-  it("every adopting page imports from the operational barrel exactly once", () => {
+  it("every adopting page imports from the operational barrel at most once", () => {
     for (const rel of ADOPTING_PAGES) {
       const src = readSource(rel);
-      // Phase 32.8E — some adopting surfaces are now component files
-      // sitting next to /operational; their relative import path is
-      // `../operational` rather than `../../../components/operational`.
       const matches =
         src.match(/from\s*"(?:[./]+components\/operational|\.\.\/operational)"/g) ?? [];
-      expect(matches.length, `barrel import count wrong in ${rel}`).toBe(1);
+      expect(matches.length, `barrel import count wrong in ${rel}`).toBeLessThanOrEqual(1);
     }
   });
 
-  it("every adopting page either uses RuntimeStatusBanner or is the observability dashboard itself", () => {
+  it("a status notice appears only where an action depends on it", () => {
+    // 2026-09-26 — the old invariant was "every adopting page uses the
+    // banner", which is exactly how a platform rollup came to sit on top of
+    // an evidence record. Now: reviewer pages say review automation; the
+    // record page, governance and the observability console mount none.
+    const strip = (s: string) =>
+      s.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
     for (const rel of ADOPTING_PAGES) {
-      const src = readSource(rel);
-      // All adopting pages reference RuntimeStatusBanner. The
-      // observability dashboard reference is at top-of-page; others
-      // wrap it in a teamId null-check.
-      expect(src, `RuntimeStatusBanner missing in ${rel}`).toMatch(
-        /RuntimeStatusBanner/,
-      );
+      const code = strip(readSource(rel));
+      if (/reviewer/.test(rel)) {
+        expect(code, rel).toContain('<RuntimeStatusBanner requires={["reviewAutomation"]} />');
+      } else {
+        expect(code, rel).not.toMatch(/<RuntimeStatusBanner/);
+      }
     }
   });
 

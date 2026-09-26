@@ -35,6 +35,7 @@ import {
 } from "../product/inbox";
 import { usePlatformContext } from "../product/platform-context";
 import { theme } from "../theme/theme";
+import { ServiceStatusIndicator } from "./runtime-status-banner";
 
 // The canonical mark, as the web header's left zone carries the brand.
 import MARK from "../../assets/brand/proovra-mark.png";
@@ -183,6 +184,12 @@ export function ProovraHeader() {
         An UNKNOWN count renders no badge — never a confident "0". A failed
         read must not tell someone they are caught up.
       */}
+      {/*
+        Global service status (web AppAccountToolbar → ServiceStatusIndicator):
+        renders nothing while every core capability is healthy.
+      */}
+      <ServiceStatusIndicator />
+
       <Pressable
         onPress={() => router.push("/notifications")}
         accessibilityRole="button"

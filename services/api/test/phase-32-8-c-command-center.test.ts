@@ -288,7 +288,7 @@ describe("Phase 32.8C — frontend command center renders all 8 mandatory operat
     }
   });
 
-  it("Platform Impact Banner reuses the canonical RuntimeStatusBanner (not a duplicate runtime view)", () => {
+  it("service impact rides the operations bar from the canonical store (not a second runtime view, not a stacked banner)", () => {
     /*
      * ADM-P1-003 / OWN-1 — the `forDomains` scoping is gone, and the reason is
      * the point of this test rather than a weakening of it.
@@ -306,7 +306,17 @@ describe("Phase 32.8C — frontend command center renders all 8 mandatory operat
      * banner instead of building a second runtime view — is unchanged, and is
      * now stated more strictly.
      */
-    expect(CC).toMatch(/RuntimeStatusBanner/);
+    /*
+     * 2026-09-26 — no banner at all. A confirmed service impact is one line in
+     * `CriticalOperationsBar`, read from the same shared store and interpreter
+     * every other surface uses, so one incident is never stacked in two panels
+     * on this page. Still no second runtime view, and still no platform read.
+     */
+    const code = CC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    expect(code).not.toMatch(/<RuntimeStatusBanner/);
+    expect(code).toMatch(/useServiceStatus\(\)/);
+    expect(code).toMatch(/summarizeTenantServiceStatus\(/);
+    expect(code).toMatch(/data-cc-service-impact=/);
     expect(
       CC,
       "the domain filter cannot be reconstructed from a tenant-safe projection",

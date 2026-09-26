@@ -308,7 +308,10 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
     "components/reviewer-experience/ReviewerConsole.tsx",
     "components/command-center/CommandCenter.tsx",
     "components/governance-experience/GovernanceControlPlane.tsx",
-    "components/operational/RuntimeStatusBanner.tsx",
+    // 2026-09-26 — the contextual notice carries NO link at all now (one
+    // sentence beside an action); the header's ServiceStatusIndicator owns the
+    // health destination, resolved through useHealthDestination().
+    "components/operational/ServiceStatusIndicator.tsx",
     "components/operational/GlobalRuntimeIndicator.tsx",
   ] as const;
 

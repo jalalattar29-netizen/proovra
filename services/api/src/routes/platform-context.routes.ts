@@ -24,11 +24,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { isDomainError } from "../errors.js";
 import { buildPlatformContext } from "../services/platform-context/platform-context.service.js";
-import {
-  projectTenantRuntimeStatus,
-  runReadinessCheck,
-  type TenantRuntimeStatus,
-} from "../runtime/runtime-readiness.js";
+import { getTenantRuntimeProjection } from "../runtime/runtime-readiness.js";
 // P0 remediation (2026-07-21) — tenant-scoped context-switch audit events.
 // NOTE: the GET route remains strictly read-only/no-audit; only the
 // switch MUTATION below emits.
@@ -113,10 +109,22 @@ export async function platformContextRoutes(app: FastifyInstance) {
    * the migration inventory beside it, readable by a free personal-plan owner.
    *
    * OWN-1 makes the full payload platform-admin only. The pill still needs to
-   * know whether the platform is serving, so this answers that question and
-   * refuses to answer any other. The response is exactly one field:
+   * know whether the platform is serving, so this answers that question — in
+   * terms of what the caller can DO — and refuses to answer any other:
    *
-   *     { "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }
+   *     {
+   *       "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE",   // legacy rollup
+   *       "capabilities": {
+   *         "uploads" | "artifactGeneration" | "downloads" | "search"
+   *           | "reviewAutomation":
+   *           "HEALTHY" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN"
+   *       },
+   *       "checkedAt": ISO-8601
+   *     }
+   *
+   * `status` is now the rollup of the CAPABILITIES, not of the platform
+   * report, so observability, configuration posture and operator plumbing can
+   * no longer turn it DEGRADED (see `TENANT_CAPABILITY_DEPENDENCIES`).
    *
    * It deliberately does NOT carry — and no future edit should add — migration
    * names or counts, unapplied migrations, missing tables/columns/enums/
@@ -144,16 +152,13 @@ export async function platformContextRoutes(app: FastifyInstance) {
     "/v1/runtime/status",
     { preHandler: requireAuth },
     async (_req: FastifyRequest, reply) => {
-      let status: TenantRuntimeStatus = "UNAVAILABLE";
-      try {
-        // Tenant-IMPACTING subsystems only: a deployment without Sentry is an
-        // operator concern, not a degraded service (see
-        // `OPERATOR_ONLY_SUBSYSTEMS`).
-        status = projectTenantRuntimeStatus(await runReadinessCheck(prisma, null));
-      } catch {
-        status = "UNAVAILABLE";
-      }
-      return reply.code(200).send({ status });
+      // Capabilities, not subsystems: what the caller can DO (upload,
+      // generate, download, search), each derived from the checks that
+      // decide it. Caller-independent and cached (see
+      // `getTenantRuntimeProjection`); never throws — an unmeasured platform
+      // answers UNKNOWN capabilities, never HEALTHY.
+      const { status, capabilities, checkedAt } = await getTenantRuntimeProjection();
+      return reply.code(200).send({ status, capabilities, checkedAt });
     },
   );
 

@@ -134,7 +134,7 @@ top level of it.
 | OK | `parseDraftState` | `GET /v1/reviewer-criteria/:setId` | set | set, updatedAt, versions |
 | OK | `parseCriteriaVersionHistory` | `GET /v1/reviewer-criteria/:setId` | set | set |
 | OK | `parseCriteriaUsage` | `GET /v1/reviewer-criteria/:setId/usage` | usage, usageAvailable | usage |
-| OK | `parseRuntimeStatus` | `GET /v1/runtime/status` | status | status |
+| OK | `parseServiceStatus` | `GET /v1/runtime/status` | capabilities, checkedAt, status | capabilities, checkedAt, status |
 | OK | `parseSearchResponse` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | filteredByGovernance, filteredByVisibility, nextCursor, rows, totalReturned |
 | OK | `parseSearchModeUsed` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | modeUsed |
 | OK | `parseSearchAudit` | `GET /v1/search/audit` | nextBeforeUtc, rows | nextBeforeUtc, rows |

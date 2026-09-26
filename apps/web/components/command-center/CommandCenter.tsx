@@ -60,7 +60,8 @@ import {
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
 import { WorkflowOperationsSection } from "./_sections/WorkflowOperationsSection";
-import { RuntimeStatusBanner } from "../operational";
+import { summarizeTenantServiceStatus } from "@proovra/shared";
+import { useServiceStatus } from "../../lib/useServiceStatus";
 import { hasRunbook, resolveRunbookSlug } from "../../lib/runbooks/slugs.generated";
 import type {
   AuditReadinessCounter,
@@ -469,11 +470,9 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         />
       ) : null}
 
-      {/* Platform impact banner. No longer scoped to domains: the
-          subsystem→domain mapping lives in the platform-admin runtime payload,
-          and this is a tenant surface (ADM-P1-003 / OWN-1). */}
-      <RuntimeStatusBanner />
-
+      {/* No separate platform banner: a confirmed service impact is one line
+          inside the operations bar below, so the same incident is never
+          stacked in two panels on this page. */}
       {/* CRITICAL OPERATIONS BAR — top-of-page health distillation */}
       <CriticalOperationsBar envelope={envelope} />
 
@@ -2434,6 +2433,14 @@ function CriticalOperationsBar({
     (i) => i.riskLevel === "CRITICAL" || i.riskLevel === "HIGH",
   ).length;
 
+  // Confirmed service impact only; "could not measure" is the header's to say.
+  const service = useServiceStatus();
+  const serviceSummary = summarizeTenantServiceStatus(
+    service.error ? null : service.status,
+  );
+  const serviceImpact =
+    service.settled && serviceSummary.level === "ISSUE" ? serviceSummary.notices : [];
+
   return (
     <div
       className="ec-critical-bar"
@@ -2448,6 +2455,15 @@ function CriticalOperationsBar({
           Health · {workload.health} · {investigationCritical} cases at risk ·{" "}
           {pressure.items.length} pressure items
         </span>
+        {serviceImpact.length > 0 ? (
+          <span
+            className="ec-critical-bar-meta"
+            role="status"
+            data-cc-service-impact={serviceImpact.map((n) => n.capability).join(" ")}
+          >
+            Service impact · {serviceImpact.map((n) => n.message).join(" ")}
+          </span>
+        ) : null}
       </div>
       {topAction ? (
         <Link

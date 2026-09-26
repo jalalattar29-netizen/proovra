@@ -43,6 +43,7 @@ import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
 import { GENERATION_ACTION_LABEL } from "../../../../../lib/evidence/generation-labels";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
+import { RuntimeStatusBanner } from "../../../../../components/operational";
 import { formatBytes } from "./_lib";
 
 
@@ -222,7 +223,14 @@ function ArtifactLifecyclePanel({
         it stays available.
       </p>
     ) : (
-      <GenerateOutputsButton ctx={ctx} action={output.action} />
+      <>
+        {/* A confirmed generation incident is said HERE, beside the control
+            it affects — not as a banner over the record. */}
+        {output.action !== "NONE" ? (
+          <RuntimeStatusBanner requires={["artifactGeneration"]} />
+        ) : null}
+        <GenerateOutputsButton ctx={ctx} action={output.action} />
+      </>
     );
 
   switch (output.state) {
@@ -338,6 +346,7 @@ function ArtifactLifecyclePanel({
             Work has been accepted and is waiting for a worker. This page checks
             for completion on its own; nothing further is needed from you.
           </p>
+          <RuntimeStatusBanner requires={["artifactGeneration"]} />
         </div>
       );
 
@@ -355,6 +364,7 @@ function ArtifactLifecyclePanel({
             Both artifacts are produced by one job. They will appear below when
             it completes.
           </p>
+          <RuntimeStatusBanner requires={["artifactGeneration"]} />
         </div>
       );
 
@@ -597,6 +607,11 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         ) : null}
       </section>
 
+      {/* Only when something is downloadable: a downloads incident is about
+          the download controls below, not about the record. */}
+      {reportDownloadable || packageDownloadable ? (
+        <RuntimeStatusBanner requires={["downloads"]} />
+      ) : null}
       <ArtifactHistorySection
         history={workspace.artifactVersions.history}
         onDownloadReport={() => void downloadReport()}

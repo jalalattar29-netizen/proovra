@@ -47,22 +47,22 @@ describe("the global runtime badge asks its three questions together", () => {
     );
   })();
 
-  it("issues readiness, incidents and escalations concurrently", () => {
+  it("issues incidents and escalations concurrently; readiness is the shared store's poll", () => {
     expect(tick).toContain("await Promise.allSettled([");
-    // One await for all three, not one each.
+    // One await for both, not one each. Readiness is no longer a request of
+    // this hook: it reads the app-wide `useServiceStatus` store, which polls
+    // `/v1/runtime/status` once for every consumer on the page.
     const awaits = tick.match(/await apiFetch\(/g) ?? [];
-    expect(awaits).toHaveLength(3);
+    expect(awaits).toHaveLength(2);
     const gathered = tick.slice(
       tick.indexOf("await Promise.allSettled(["),
       tick.indexOf("if (cancelled || !mountedRef.current) return;"),
     );
-    for (const path of [
-      "/v1/runtime/status",
-      "/v1/ops/incidents",
-      "/v1/reviewer-ops/escalations",
-    ]) {
+    for (const path of ["/v1/ops/incidents", "/v1/reviewer-ops/escalations"]) {
       expect(gathered, `${path} must be inside the concurrent group`).toContain(path);
     }
+    expect(tick).not.toContain("/v1/runtime/status");
+    expect(stripComments(RUNTIME_STATE)).toMatch(/useServiceStatus\(\{ enabled: readsReadiness \}\)/);
   });
 
   it("uses allSettled, so one source failing keeps the other two", () => {
@@ -76,12 +76,15 @@ describe("the global runtime badge asks its three questions together", () => {
      * still latches that source off for the workspace instead of being retried
      * on every tick.
      */
-    for (const source of ["readiness", "incidents", "escalations"] as const) {
+    for (const source of ["incidents", "escalations"] as const) {
       expect(tick).toContain(`access.${source}`);
       expect(tick).toContain(`refusedRef.current.has("${source}")`);
       expect(tick).toContain(`refusedRef.current.add("${source}")`);
       expect(tick).toContain(`nextErrors.${source} = true;`);
     }
+    // Readiness keeps its own gate: the store is only subscribed to when this
+    // context may read readiness.
+    expect(stripComments(RUNTIME_STATE)).toMatch(/const readsReadiness = Boolean\(teamId\) && !silent && access\.readiness;/);
   });
 
   it("the staleness guards still run once, after all three have settled", () => {

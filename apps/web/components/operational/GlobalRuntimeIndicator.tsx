@@ -48,6 +48,8 @@ import {
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
 import { useCan } from "../../lib/platform-context";
+import { summarizeTenantServiceStatus } from "@proovra/shared";
+
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { formatUserTime } from "../../lib/date";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
@@ -368,9 +370,12 @@ function DropdownBody({
 }: {
   state: ReturnType<typeof useGlobalRuntimeState>;
 }) {
-  const degraded = state.readiness?.subsystems.filter(
-    (s) => s.status !== "HEALTHY",
-  ) ?? [];
+  // What users cannot currently do — the same shared reading the service
+  // indicator and the contextual notices use. The subsystem list this group
+  // used to render was always empty (the tenant projection carries none) and
+  // read "All subsystems healthy" even while the pill said Degraded.
+  const serviceSummary = summarizeTenantServiceStatus(state.service);
+  const impact = serviceSummary.level === "OK" ? [] : serviceSummary.notices;
 
   return (
     <div
@@ -384,44 +389,23 @@ function DropdownBody({
       }}
     >
       <RowGroup
-        title="Degraded subsystems"
-        count={state.counts.degradedSubsystems}
+        title="Service impact"
+        count={impact.length}
         empty={
-          state.errors.readiness
-            ? "Readiness unavailable — treat as unknown."
-            : "All subsystems healthy."
+          state.errors.readiness || !state.service
+            ? "Service status unavailable — treat as unknown."
+            : "No service impact."
         }
         errored={state.errors.readiness}
       >
-        {degraded.map((s) => (
+        {impact.map((n) => (
           <li
-            key={s.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 8,
-              padding: "4px 0",
-              fontSize: 12,
-              color: OPS_INK.default,
-            }}
+            key={n.capability}
+            data-service-impact={n.capability}
+            data-service-impact-status={n.status}
+            style={{ padding: "4px 0", fontSize: 12, color: OPS_INK.default }}
           >
-            <span style={{ fontWeight: 600 }}>{s.id}</span>
-            <span
-              data-subsystem-status={s.status}
-              style={{
-                fontSize: 10,
-                letterSpacing: 0.4,
-                fontWeight: 700,
-                color:
-                  s.status === "CRITICAL"
-                    ? OPS_TONES.critical.inkMuted
-                    : s.status === "DEGRADED"
-                      ? OPS_TONES.degraded.kicker
-                      : OPS_INK.subtle,
-              }}
-            >
-              {s.status}
-            </span>
+            {n.message}
           </li>
         ))}
       </RowGroup>

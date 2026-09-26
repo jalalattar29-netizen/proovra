@@ -846,20 +846,11 @@ export function ReviewerConsole({
           surface stays primary. */}
       <ContextualHelp surface="reviewer-ops" collapsedByDefault />
 
-      {/* Phase 32.7 — runtime banner scoped to reviewer_ops so
-          platform-internal degradations elsewhere don't poison the
-          operator view. The reviewer sub-routes (SLA, escalations)
-          already carry it; the canonical console must too. */}
-      {/*
-        ADM-P1-003 / OWN-1 — NO WORKSPACE GUARD ON A PLATFORM-WIDE READ.
-        This was `{teamId ? <RuntimeStatusBanner /> : null}`, left over from
-        when the banner read `/admin/runtime/readiness?teamId=…` and genuinely
-        needed a workspace. It now reads `GET /v1/runtime/status`, which takes
-        none — so the guard suppressed the banner in the one situation it is
-        most needed: a platform degraded badly enough that the workspace has
-        not resolved yet.
-      */}
-      <RuntimeStatusBanner />
+      {/* Review automation only: this page's SLA and escalation figures are
+          produced by the reviewer reconcile sweep, so a stale sweep is said
+          here, in one line. Unrelated platform checks are not. Global service
+          status lives in the header indicator. */}
+      <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
       {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
           pane. Reads the canonical reviewer-routing recommendation

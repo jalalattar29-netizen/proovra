@@ -890,6 +890,9 @@ export default function EvidenceDetailScreen() {
     outputs.report.state !== null ? outputs.report.action : reportState === "READY" ? "REGENERATE" : "GENERATE";
   const generationButton =
     generationAction === "NONE" ? null : (
+      <View style={{ gap: 6 }}>
+      {/* A confirmed generation incident, beside the control it affects. */}
+      <RuntimeStatusBanner requires={["artifactGeneration"]} />
       <ProovraButton
         label={generationActionLabel(generationAction)}
         variant="secondary"
@@ -900,6 +903,7 @@ export default function EvidenceDetailScreen() {
           else void requestGeneration();
         }}
       />
+      </View>
     );
 
   const TABS: Array<{ key: Tab; label: string }> = [
@@ -938,8 +942,10 @@ export default function EvidenceDetailScreen() {
         <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
         <ProovraText variant="label" color={theme.color.ink.muted}>Evidence Library / Evidence Record</ProovraText>
       </View>
-      {/* T-15 — tenant-safe runtime status (evidence/[id]/page.tsx:1008). */}
-      <RuntimeStatusBanner />
+      {/* No platform status panel above the record (web page.tsx parity): a
+          readiness rollup is not a statement about this evidence. Global
+          service status is the header chip; an incident affecting an action
+          here is said beside that action (Artifacts). */}
       {/* T-15 — "Also here" (evidence/[id]/page.tsx:1011), bound to the review workflow's workspace. */}
       {reviewWorkflow?.teamId ? <PresenceIndicator teamId={reviewWorkflow.teamId} resourceKind="evidence" resourceId={String(id)} /> : null}
 
@@ -1039,6 +1045,7 @@ export default function EvidenceDetailScreen() {
         ) : exportCheck.phase === "loading" ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>Checking eligibility for Download report…</ProovraText>
         ) : null}
+        {reportAvailable || packageAvailable ? <RuntimeStatusBanner requires={["downloads"]} /> : null}
         <View style={styles.heroActions}>
 <ProovraButton
   label="Download Report PDF"
@@ -1637,6 +1644,9 @@ export default function EvidenceDetailScreen() {
               {generationButton}
             </ProovraCard>
           )}
+          {outputs.report.state === "QUEUED" || outputs.report.state === "GENERATING" ? (
+            <RuntimeStatusBanner requires={["artifactGeneration"]} />
+          ) : null}
           {generationNote ? (
             // The SERVER's sentence for the outcome it actually returned.
             <ProovraText variant="label" color={theme.color.ink.secondary}>{generationNote}</ProovraText>

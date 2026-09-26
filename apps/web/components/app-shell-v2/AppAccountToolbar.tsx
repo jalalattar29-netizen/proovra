@@ -24,8 +24,12 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 
 import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
-import { GlobalRuntimeIndicator } from "../operational";
+import { GlobalRuntimeIndicator, ServiceStatusIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
+import {
+  readsNothing,
+  resolveRuntimeReadAccess,
+} from "../../lib/platform-context/runtimeReadAccess";
 // P3 domain remediation (2026-07-21) — tenant-boundary switch safety.
 import { getDirtyWorkLabels } from "../../lib/platform-context/dirtyWorkRegistry";
 import {
@@ -190,10 +194,27 @@ export function AppAccountToolbar({
 
   const isPlatformAdmin = envelope?.platform.isPlatformAdmin === true;
 
-  const runtimeTeamId =
+  const organizationTeamId =
     envelope?.activeSpace?.type === "ORGANIZATION"
       ? envelope.activeSpace.id
       : null;
+  /*
+   * THE OPERATOR PILL IS FOR ACTORS WHO CAN READ OPERATIONS.
+   *
+   * It was mounted for every member of an organization workspace. For a
+   * member without operational read access every source is gated off, so the
+   * pill sat at "Status pending" forever. Operators get the operator pill;
+   * everyone else — Personal included — gets `ServiceStatusIndicator`, which
+   * shows nothing unless a service capability is actually affected.
+   */
+  const runtimeTeamId = useMemo(
+    () =>
+      organizationTeamId &&
+      !readsNothing(resolveRuntimeReadAccess({ envelope, teamId: organizationTeamId }))
+        ? organizationTeamId
+        : null,
+    [envelope, organizationTeamId],
+  );
 
   const { name: workspaceName, scopeLine } = getWorkspaceLabels(
     envelope,
@@ -351,13 +372,10 @@ export function AppAccountToolbar({
 
           <span className="app-header-divider" aria-hidden="true" />
 
-          {/* System-status indicator is an operator surface that only has
-              meaning for a team/organization runtime. In a Personal
-              Workspace `runtimeTeamId` is null and GlobalRuntimeIndicator
-              renders nothing — so we skip the whole wrapper here to avoid
-              an empty, label-less, non-interactive element (and its gap)
-              in the header. It stays fully intact for Organization / Team /
-              Enterprise / Admin workspaces where it has a real status. */}
+          {/* ONE global status control. Operators: the operational pill
+              (service impact + their incidents + escalations). Everyone
+              else: the service indicator, which renders nothing — no
+              wrapper, no gap — while every service capability is healthy. */}
           {runtimeTeamId ? (
             <div
               className="app-topbar-v2-runtime"
@@ -366,7 +384,9 @@ export function AppAccountToolbar({
             >
               <GlobalRuntimeIndicator teamId={runtimeTeamId} />
             </div>
-          ) : null}
+          ) : (
+            <ServiceStatusIndicator />
+          )}
 
           <NotificationBell />
 

@@ -6,9 +6,11 @@
  *
  *   - GovernanceSnapshotPanel  → /v1/evidence/:id/governance-snapshot
  *   - OperationalTimelinePanel → /v1/evidence/:id/operational-timeline
- *   - RuntimeStatusBanner      → /v1/runtime/status (tenant-safe)
+ *   - RuntimeStatusBanner      → contextual service notice beside an action
+ *                                (capability-scoped, /v1/runtime/status)
+ *   - ServiceStatusIndicator   → the header's global service status
  *   - ExportPackageEligibilityBadge → fail-closed snapshot-driven badge
- *   - OperationalEmptyState    + 7 bounded presets + 2 fail-closed variants
+ *   - OperationalEmptyState    + bounded presets + a fail-closed variant
  *
  * All components are fail-closed: when the underlying endpoint fails
  * they render an UNKNOWN / DEGRADED state, never an implicit success.
@@ -34,6 +36,7 @@ export {
   GlobalRuntimeIndicator,
   type GlobalRuntimeIndicatorProps,
 } from "./GlobalRuntimeIndicator";
+export { ServiceStatusIndicator } from "./ServiceStatusIndicator";
 export {
   Sparkline,
   type SparklineProps,
@@ -59,7 +62,6 @@ export {
   NoGovernanceIncidentsEmptyState,
   NoSlaBreachesEmptyState,
   NoOperationalTimelineEmptyState,
-  RuntimeDegradedNotice,
   GovernanceSnapshotUnavailableNotice,
   type OperationalEmptyStateProps,
   type OperationalEmptyStateAction,

@@ -25,7 +25,6 @@ import {
 } from "../../lib/platform-context";
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
-import { RuntimeStatusBanner } from "../operational";
 // Phase 7D — shared enterprise design-system primitives. VISUAL-only
 // migration of the control-plane's bespoke panels/tiles/chips. Deep-imported
 // per the barrel contract (the ui/index barrel still serves the LEGACY
@@ -173,10 +172,6 @@ export function GovernanceControlPlane() {
       {/* Contextual help, collapsed by default so the governance
           posture surface stays primary. */}
       <ContextualHelp surface="governance" collapsedByDefault />
-
-      {/* Phase 32.7 — runtime banner scoped to governance_lifecycle so
-          platform-internal degradations don't poison the operator view. */}
-      <RuntimeStatusBanner />
 
       {/* Phase 32.8C FINAL-3 — capability degradation, not page hiding.
           Personal workspace renders an enterprise-lite governance surface.

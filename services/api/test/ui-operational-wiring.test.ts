@@ -143,55 +143,42 @@ describe("RuntimeStatusBanner", () => {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
 
-  it("consumes the TENANT-SAFE projection, not the platform aggregator", () => {
+  const STORE = readSource("../../../apps/web/lib/useServiceStatus.ts");
+  const HEADER = readSource(
+    "../../../apps/web/components/operational/ServiceStatusIndicator.tsx",
+  );
+
+  it("consumes the TENANT-SAFE projection (through the one shared store), not the platform aggregator", () => {
     /*
-     * ADM-P1-003 / OWN-1. This asserted `/admin/runtime/readiness?teamId=` —
-     * the full platform aggregator, on a component mounted on tenant pages
-     * (`/evidence/:id`, `/governance/policy`, `/reviewer-ops/*`, the command
-     * centre). It rendered failing subsystem ids, their reason codes, their
-     * operator detail and their remediation hints to customers.
+     * ADM-P1-003 / OWN-1 still holds: nothing here can reach
+     * `/admin/runtime/*`. Since 2026-09-26 the read is the app-wide
+     * `useServiceStatus` store, shared by every consumer on the page.
      */
-    expect(src).toContain("/v1/runtime/status");
-    // Comments stripped: the docblock EXPLAINS what this component used to
-    // read, and a guard that fails on its own explanation would push the next
-    // author to delete the explanation.
-    expect(
-      code,
-      "the platform aggregator must not be reachable from a tenant surface",
-    ).not.toMatch(/\/admin\/runtime\//);
+    expect(STORE).toContain("/v1/runtime/status");
+    expect(code).toContain("useServiceStatus()");
+    for (const c of [code, STORE.replace(/\/\*[\s\S]*?\*\//g, "")]) {
+      expect(c, "the platform aggregator must not be reachable from a tenant surface").not.toMatch(/\/admin\/runtime\//);
+    }
   });
 
-  it("HEALTHY renders nothing (operational pages stay clean)", () => {
-    expect(src).toMatch(/status === "HEALTHY"[\s\S]*?return null/);
+  it("HEALTHY — and anything not confirmed impaired — renders nothing beside an action", () => {
+    expect(code).toMatch(/if \(notices\.length === 0\) return null;/);
   });
 
-  it("API failure renders UNKNOWN, never silently HEALTHY", () => {
-    expect(src).toMatch(/data-runtime-status="UNKNOWN"/);
-    expect(src).toMatch(/error/);
+  it("API failure is never silently HEALTHY — the header says 'Status unavailable'", () => {
+    // Beside an action a failed read says nothing (an unverified warning next
+    // to a working button is a false alarm); the header indicator is where
+    // "could not measure" is said, once.
+    expect(HEADER).toContain("summarizeTenantServiceStatus(error ? null : status)");
   });
 
   it("renders no platform detail a tenant must not see", () => {
-    /*
-     * REPLACES "CRITICAL severity gets stronger styling than DEGRADED".
-     *
-     * CRITICAL is not a state this component can reach any more: the
-     * tenant-safe projection answers HEALTHY | DEGRADED | UNAVAILABLE, and a
-     * platform CRITICAL collapses into DEGRADED because a customer cannot act
-     * on the difference. Asserting the styling of an unreachable state would be
-     * testing a branch that cannot run.
-     *
-     * What matters on a tenant surface is the opposite property, so that is
-     * what is asserted: the component names no subsystem, no reason code, no
-     * remediation hint, and passes an EMPTY list to the degraded notice.
-     */
     expect(code).not.toMatch(/reasonCode/);
     expect(code).not.toMatch(/remediationHint/);
     expect(code).not.toMatch(/affectedDomain/);
-    expect(code).not.toMatch(/failingSubsystems\.map/);
-    // No list at all: the notice's tenant form (no count, no empty
-    // "Failing subsystems: ." line, no admin-only runbook link).
-    expect(code).not.toMatch(/failingSubsystems=/);
-    expect(code).toMatch(/<RuntimeDegradedNotice \/>/);
+    expect(code).not.toMatch(/failingSubsystems/);
+    expect(code).not.toMatch(/RuntimeDegradedNotice/);
+    expect(code).not.toMatch(/href=/);
   });
 
   it("never exposes env values or secret content", () => {
@@ -199,9 +186,9 @@ describe("RuntimeStatusBanner", () => {
     expect(src).not.toMatch(/SECRET|TOKEN|API_KEY/);
   });
 
-  it("polls on a bounded interval (default 60s, opt-out via pollMs=0)", () => {
-    expect(src).toMatch(/pollMs\s*=\s*60_000/);
-    expect(src).toMatch(/pollMs > 0/);
+  it("polls on a bounded interval (60s), once for every consumer", () => {
+    expect(STORE).toMatch(/SERVICE_STATUS_POLL_MS = 60_000/);
+    expect(STORE).toMatch(/if \(timer\) return;/);
   });
 });
 
@@ -291,8 +278,12 @@ describe("operational/index barrel", () => {
     expect(src).toContain("NoGovernanceIncidentsEmptyState");
     expect(src).toContain("NoSlaBreachesEmptyState");
     expect(src).toContain("NoOperationalTimelineEmptyState");
-    expect(src).toContain("RuntimeDegradedNotice");
     expect(src).toContain("GovernanceSnapshotUnavailableNotice");
+    // The header's service status and the contextual notice; the operator
+    // diagnostic panel is gone (2026-09-26).
+    expect(src).toContain("ServiceStatusIndicator");
+    expect(src).toContain("RuntimeStatusBanner");
+    expect(src).not.toContain("RuntimeDegradedNotice");
   });
 
   it("file-level comment documents the fail-closed contract", () => {
@@ -342,11 +333,12 @@ describe("Escalations page (proof-point wiring)", () => {
     expect(bannerIdx).toBeLessThan(tableIdx);
   });
 
-  it("only renders the banner when teamId is known (avoids null render)", () => {
-    // Phase 32.7 — banner usage may now wrap the JSX in `(...)` to
-    // accommodate the `forDomains` prop on a separate line. Both
-    // shapes are valid.
-    expect(src).toMatch(/teamId\s*\?\s*\(?\s*<RuntimeStatusBanner/);
+  it("says review automation — the one capability this page's figures depend on", () => {
+    // This asserted `teamId ? <RuntimeStatusBanner`, and after ADM-P1-003 it
+    // was satisfied only by a COMMENT quoting the old code. The notice is
+    // caller-independent (no workspace to wait for) and scoped by capability.
+    const code = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).toContain('<RuntimeStatusBanner requires={["reviewAutomation"]} />');
   });
 });
 

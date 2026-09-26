@@ -4,7 +4,7 @@
       "parser": "parseBillingProjection",
       "builder": "buildBillingAccountPath",
       "method": "GET",
-      "site": "billing.tsx:133",
+      "site": "billing.tsx:144",
       "path": "/v1/billing/accounts/:p/:p",
       "route": "GET /v1/billing/accounts/:type/:id",
       "serverKeys": [
@@ -39,7 +39,7 @@
       "parser": "parsePaymentHistory",
       "builder": "buildBillingHistoryPath",
       "method": "GET",
-      "site": "billing.tsx:142",
+      "site": "billing.tsx:153",
       "path": "/v1/billing/accounts/:p/:p/history",
       "route": "GET /v1/billing/accounts/:type/:id/history",
       "serverKeys": [
@@ -56,7 +56,7 @@
       "parser": "parseBillingAccounts",
       "builder": "(literal) /v1/billing/accounts",
       "method": "GET",
-      "site": "billing.tsx:156",
+      "site": "billing.tsx:167",
       "path": "/v1/billing/accounts",
       "route": "GET /v1/billing/accounts",
       "serverKeys": [
@@ -72,7 +72,7 @@
       "parser": "parsePricingCatalogue",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:184",
+      "site": "billing.tsx:195",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -95,7 +95,7 @@
       "parser": "parseStorageAddons",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:185",
+      "site": "billing.tsx:196",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -117,7 +117,7 @@
       "parser": "parseEvidenceCreditOffer",
       "builder": "buildPricingPath",
       "method": "GET",
-      "site": "billing.tsx:186",
+      "site": "billing.tsx:197",
       "path": "/v1/billing/pricing",
       "route": "GET /v1/billing/pricing",
       "serverKeys": [
@@ -623,26 +623,6 @@
       "why": "reads requests"
     },
     {
-      "parser": "parseIntakePartUpload",
-      "builder": "buildIntakePartsPath",
-      "method": "POST",
-      "site": "capture.tsx:209",
-      "path": "/v1/external-intake/:p/sessions/:p/parts",
-      "route": "POST /v1/external-intake/:token/sessions/:sid/parts",
-      "serverKeys": [
-        "part",
-        "upload"
-      ],
-      "parserKeys": [
-        "headers",
-        "part",
-        "partId",
-        "upload"
-      ],
-      "verdict": "OK",
-      "why": "reads part, upload"
-    },
-    {
       "parser": "parseValidatedIntake",
       "builder": "buildIntakeValidatePath",
       "method": "GET",
@@ -661,6 +641,26 @@
       ],
       "verdict": "OK",
       "why": "reads link, request, session"
+    },
+    {
+      "parser": "parseIntakePartUpload",
+      "builder": "buildIntakePartsPath",
+      "method": "POST",
+      "site": "capture.tsx:209",
+      "path": "/v1/external-intake/:p/sessions/:p/parts",
+      "route": "POST /v1/external-intake/:token/sessions/:sid/parts",
+      "serverKeys": [
+        "part",
+        "upload"
+      ],
+      "parserKeys": [
+        "headers",
+        "part",
+        "partId",
+        "upload"
+      ],
+      "verdict": "OK",
+      "why": "reads part, upload"
     },
     {
       "parser": "parseSenderIdentity",
@@ -772,23 +772,6 @@
       "why": "reads recipientContact"
     },
     {
-      "parser": "parseLegalIndex",
-      "builder": "buildLegalIndexPath",
-      "method": "GET",
-      "site": "index.tsx:47",
-      "path": "/v1/legal",
-      "route": "GET /v1/legal",
-      "serverKeys": [
-        "documents",
-        "locale"
-      ],
-      "parserKeys": [
-        "documents"
-      ],
-      "verdict": "OK",
-      "why": "reads documents"
-    },
-    {
       "parser": "parseLegalDocument",
       "builder": "buildLegalDocumentPath",
       "method": "GET",
@@ -809,6 +792,23 @@
       ],
       "verdict": "OK",
       "why": "reads acceptance"
+    },
+    {
+      "parser": "parseLegalIndex",
+      "builder": "buildLegalIndexPath",
+      "method": "GET",
+      "site": "index.tsx:47",
+      "path": "/v1/legal",
+      "route": "GET /v1/legal",
+      "serverKeys": [
+        "documents",
+        "locale"
+      ],
+      "parserKeys": [
+        "documents"
+      ],
+      "verdict": "OK",
+      "why": "reads documents"
     },
     {
       "parser": "parseSessionProbe",
@@ -1103,40 +1103,6 @@
       "why": "reads assignedWorkspaceIds, organizationId, role"
     },
     {
-      "parser": "parseMyOrgs",
-      "builder": "(literal) /v1/me/orgs",
-      "method": "GET",
-      "site": "index.tsx:63",
-      "path": "/v1/me/orgs",
-      "route": "GET /v1/me/orgs",
-      "serverKeys": [
-        "orgs",
-        "summary"
-      ],
-      "parserKeys": [
-        "orgs"
-      ],
-      "verdict": "OK",
-      "why": "reads orgs"
-    },
-    {
-      "parser": "parseMyOrgsTotal",
-      "builder": "(literal) /v1/me/orgs",
-      "method": "GET",
-      "site": "index.tsx:63",
-      "path": "/v1/me/orgs",
-      "route": "GET /v1/me/orgs",
-      "serverKeys": [
-        "orgs",
-        "summary"
-      ],
-      "parserKeys": [
-        "summary"
-      ],
-      "verdict": "OK",
-      "why": "reads summary"
-    },
-    {
       "parser": "parseOrgDetail",
       "builder": "buildOrgPath",
       "method": "GET",
@@ -1304,42 +1270,44 @@
       "why": "reads blockers, confirmationPhrase, coolingOffDays, request"
     },
     {
-      "parser": "parsePortalComments",
-      "builder": "buildPortalCommentsPath",
+      "parser": "parseMyOrgs",
+      "builder": "(literal) /v1/me/orgs",
       "method": "GET",
-      "site": "[workflowId].tsx:109",
-      "path": "/v1/portal/work/:p/comments",
-      "route": "GET /v1/portal/work/:workflowId/comments",
+      "site": "index.tsx:63",
+      "path": "/v1/me/orgs",
+      "route": "GET /v1/me/orgs",
       "serverKeys": [
-        "comments"
+        "orgs",
+        "summary"
       ],
       "parserKeys": [
-        "comments"
+        "orgs"
       ],
       "verdict": "OK",
-      "why": "reads comments"
+      "why": "reads orgs"
     },
     {
-      "parser": "parsePortalRecordedDecision",
-      "builder": "buildPortalDecisionsPath",
+      "parser": "parseMyOrgsTotal",
+      "builder": "(literal) /v1/me/orgs",
       "method": "GET",
-      "site": "[workflowId].tsx:123",
-      "path": "/v1/portal/work/:p/decisions",
-      "route": "GET /v1/portal/work/:workflowId/decisions",
+      "site": "index.tsx:63",
+      "path": "/v1/me/orgs",
+      "route": "GET /v1/me/orgs",
       "serverKeys": [
-        "decisions"
+        "orgs",
+        "summary"
       ],
       "parserKeys": [
-        "decisions"
+        "summary"
       ],
       "verdict": "OK",
-      "why": "reads decisions"
+      "why": "reads summary"
     },
     {
       "parser": "parsePortalDashboard",
       "builder": "(literal) /v1/portal/dashboard",
       "method": "GET",
-      "site": "[workflowId].tsx:153",
+      "site": "[token].tsx:127",
       "path": "/v1/portal/dashboard",
       "route": "GET /v1/portal/dashboard",
       "serverKeys": [
@@ -1381,10 +1349,42 @@
       "why": "reads expiresAtUtc, newLogin, reviewerEmail, role, sessionId"
     },
     {
+      "parser": "parsePortalComments",
+      "builder": "buildPortalCommentsPath",
+      "method": "GET",
+      "site": "[workflowId].tsx:109",
+      "path": "/v1/portal/work/:p/comments",
+      "route": "GET /v1/portal/work/:workflowId/comments",
+      "serverKeys": [
+        "comments"
+      ],
+      "parserKeys": [
+        "comments"
+      ],
+      "verdict": "OK",
+      "why": "reads comments"
+    },
+    {
+      "parser": "parsePortalRecordedDecision",
+      "builder": "buildPortalDecisionsPath",
+      "method": "GET",
+      "site": "[workflowId].tsx:123",
+      "path": "/v1/portal/work/:p/decisions",
+      "route": "GET /v1/portal/work/:workflowId/decisions",
+      "serverKeys": [
+        "decisions"
+      ],
+      "parserKeys": [
+        "decisions"
+      ],
+      "verdict": "OK",
+      "why": "reads decisions"
+    },
+    {
       "parser": "parseReportsSummary",
       "builder": "buildReportsSummaryPath",
       "method": "GET",
-      "site": "reports.tsx:96",
+      "site": "reports.tsx:98",
       "path": "/v1/reports/artifacts",
       "route": "GET /v1/reports/artifacts",
       "serverKeys": [
@@ -1404,7 +1404,7 @@
       "parser": "parseUserScopedReports",
       "builder": "(literal) /v1/reports",
       "method": "GET",
-      "site": "reports.tsx:136",
+      "site": "reports.tsx:138",
       "path": "/v1/reports",
       "route": "GET /v1/reports",
       "serverKeys": [
@@ -1422,7 +1422,7 @@
       "parser": "parseUserScopedReports",
       "builder": "(literal) /v1/reports?cursor=:p",
       "method": "GET",
-      "site": "reports.tsx:149",
+      "site": "reports.tsx:151",
       "path": "/v1/reports",
       "route": "GET /v1/reports",
       "serverKeys": [
@@ -1440,7 +1440,7 @@
       "parser": "parseArtifacts",
       "builder": "buildReportsPath",
       "method": "GET",
-      "site": "reports.tsx:159",
+      "site": "reports.tsx:161",
       "path": "/v1/reports/artifacts",
       "route": "GET /v1/reports/artifacts",
       "serverKeys": [
@@ -1462,7 +1462,7 @@
       "parser": "parseGeneratedAt",
       "builder": "buildReportsPath",
       "method": "GET",
-      "site": "reports.tsx:160",
+      "site": "reports.tsx:162",
       "path": "/v1/reports/artifacts",
       "route": "GET /v1/reports/artifacts",
       "serverKeys": [
@@ -1882,7 +1882,7 @@
       "parser": "parseEvidenceBulkResponse",
       "builder": "(literal) /v1/evidence/bulk",
       "method": "POST",
-      "site": "evidence.tsx:425",
+      "site": "evidence.tsx:423",
       "path": "/v1/evidence/bulk",
       "route": "POST /v1/evidence/bulk",
       "serverKeys": [
@@ -3044,7 +3044,7 @@
       "parser": "parseReportUrl",
       "builder": "buildReportLatestPath",
       "method": "GET",
-      "site": "report-artifact-row.tsx:77",
+      "site": "report-artifact-row.tsx:85",
       "path": "/v1/evidence/:p/report/latest",
       "route": "GET /v1/evidence/:id/report/latest",
       "serverKeys": [
@@ -3068,7 +3068,7 @@
       "parser": "parseReportUrl",
       "builder": "buildPackageDownloadPath",
       "method": "GET",
-      "site": "report-artifact-row.tsx:77",
+      "site": "report-artifact-row.tsx:85",
       "path": "/v1/evidence/:p/verification-package",
       "route": "GET /v1/evidence/:id/verification-package",
       "serverKeys": [
@@ -3147,20 +3147,24 @@
       "why": "reads categories, roles, version"
     },
     {
-      "parser": "parseRuntimeStatus",
+      "parser": "parseServiceStatus",
       "builder": "(literal) /v1/runtime/status",
       "method": "GET",
-      "site": "runtime-status-banner.tsx:77",
+      "site": "runtime-status-banner.tsx:62",
       "path": "/v1/runtime/status",
       "route": "GET /v1/runtime/status",
       "serverKeys": [
+        "capabilities",
+        "checkedAt",
         "status"
       ],
       "parserKeys": [
+        "capabilities",
+        "checkedAt",
         "status"
       ],
       "verdict": "OK",
-      "why": "reads status"
+      "why": "reads capabilities, checkedAt, status"
     },
     {
       "parser": "parseSearchAudit",

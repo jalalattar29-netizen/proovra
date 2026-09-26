@@ -25,7 +25,6 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { RuntimeStatusBanner } from "../../../../components/operational";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
@@ -215,16 +214,6 @@ function GovernancePolicyPageInner() {
         />
       }
     >
-      {/*
-        ADM-P1-003 / OWN-1 — NO WORKSPACE GUARD ON A PLATFORM-WIDE READ.
-        This was `{teamId ? <RuntimeStatusBanner /> : null}`, left over from
-        when the banner read `/admin/runtime/readiness?teamId=…` and genuinely
-        needed a workspace. It now reads `GET /v1/runtime/status`, which takes
-        none — so the guard suppressed the banner in the one situation it is
-        most needed: a platform degraded badly enough that the workspace has
-        not resolved yet.
-      */}
-      <RuntimeStatusBanner />
 
       {error ? (
         <Card variant="status" tone="risk">

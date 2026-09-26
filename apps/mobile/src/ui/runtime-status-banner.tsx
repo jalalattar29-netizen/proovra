@@ -1,131 +1,200 @@
 /**
- * RUNTIME STATUS BANNER (T-15) — the native port of
- * `apps/web/components/operational/RuntimeStatusBanner.tsx`, mounted where the
- * web mounts it (evidence detail).
+ * SERVICE STATUS (native) — the counterpart of the web's
+ * `components/operational/RuntimeStatusBanner.tsx` (contextual notice) and
+ * `ServiceStatusIndicator.tsx` (header), reading GET /v1/runtime/status through
+ * the SAME shared interpreter (`@proovra/shared` tenant-service-status), so one
+ * response cannot mean two things on two clients.
  *
- * GET /v1/runtime/status answers ONLY { status: HEALTHY | DEGRADED | UNAVAILABLE }
- * — tenant-safe, no subsystem ids. HEALTHY renders nothing; a failed read is
- * FAIL-CLOSED (an UNKNOWN banner), because rendering nothing would look
- * identical to healthy. Polls every 60s while mounted.
+ * WHAT THIS REPLACES. A full-width "Runtime is in degraded mode" panel at the
+ * top of Evidence detail, driven by a platform readiness rollup and telling the
+ * reader "the data on this page may be partial or stale". A platform
+ * diagnostic is not a statement about the record in front of the user.
  *
- * Deliberate differences from the web, both web defects recorded in the
- * ledger: the web's degraded notice prints "0 subsystem(s) reported…" and an
- * empty "Failing subsystems: ." line (the tenant projection carries no list),
- * and links tenants to the admin-only /admin/platform/runbooks. Native keeps
- * the sentences that are true for a tenant and drops those three.
+ *   RuntimeStatusBanner({ requires })  — one line beside an action, only when a
+ *     capability it depends on is CONFIRMED degraded or unavailable.
+ *   ServiceStatusIndicator             — the header chip; nothing while every
+ *     core capability is healthy; "Service issue" / "Status unavailable"
+ *     otherwise, with the actor's workspace-health link only when they hold
+ *     WORKSPACE_HEALTH_VIEW. Never an operator console, never runbooks.
  *
- * THE HEALTH DESTINATION (healthDestination.ts resolveHealthDestination): a
- * holder of WORKSPACE_HEALTH_VIEW is offered "View workspace health"
- * (/operations/health) on the DEGRADED notice and after the UNKNOWN sentence
- * ("… for detail."). The PLATFORM_TELEMETRY_VIEW branch points at
- * /admin/platform/observability, a platform-staff console native does not
- * have, so it is not offered. The capability is read only while a banner is
- * actually showing, so a healthy page makes no extra request.
+ * One poll (60s) serves every mounted consumer; it stops when none remain.
  */
-import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
+import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import {
+  contextualServiceNotices,
+  summarizeTenantServiceStatus,
+  type TenantServiceCapability,
+  type TenantServiceStatus,
+} from "@proovra/shared";
 
 import { apiFetch } from "../api";
 import { canViewWorkspaceHealth } from "../product/ops-console";
+import { RUNTIME_STATUS_PATH, parseServiceStatus } from "../product/service-status";
 import { usePlatformContext } from "../product/platform-context";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraText } from "./index";
 
 export const WORKSPACE_HEALTH_DESTINATION = { href: "/operations/health", label: "View workspace health" } as const;
+export { RUNTIME_STATUS_PATH };
+export const SERVICE_STATUS_POLL_MS = 60_000;
 
-/** The health link, or nothing when this actor may not open workspace health. */
-function HealthLink({ suffix }: { suffix?: string }) {
-  const router = useRouter();
-  const { envelope } = usePlatformContext();
-  if (!canViewWorkspaceHealth(envelope)) return null;
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: theme.space.s2 }}>
-      <ProovraButton
-        label={WORKSPACE_HEALTH_DESTINATION.label}
-        variant="ghost"
-        fullWidth={false}
-        onPress={() => router.push(WORKSPACE_HEALTH_DESTINATION.href)}
-        testID="runtime-status-health-link"
-      />
-      {suffix ? (
-        <ProovraText variant="label" color={theme.color.ink.secondary}>
-          {suffix}
-        </ProovraText>
-      ) : null}
-    </View>
+/* ------------------------------------------------------------------ store */
+
+type Snapshot = { status: TenantServiceStatus | null; error: boolean; settled: boolean };
+const INITIAL: Snapshot = { status: null, error: false, settled: false };
+let snapshot: Snapshot = INITIAL;
+const listeners = new Set<() => void>();
+let consumers = 0;
+let timer: ReturnType<typeof setInterval> | null = null;
+let inFlight = false;
+
+function emit(next: Snapshot) {
+  snapshot = next;
+  for (const l of listeners) l();
+}
+
+export async function refreshServiceStatus(): Promise<void> {
+  if (inFlight) return;
+  inFlight = true;
+  try {
+    const status = parseServiceStatus(await apiFetch(RUNTIME_STATUS_PATH));
+    emit({ status, error: false, settled: true });
+  } catch {
+    emit({ status: null, error: true, settled: true });
+  } finally {
+    inFlight = false;
+  }
+}
+
+export function useServiceStatus(): Snapshot {
+  useEffect(() => {
+    consumers += 1;
+    if (!timer) {
+      void refreshServiceStatus();
+      timer = setInterval(() => void refreshServiceStatus(), SERVICE_STATUS_POLL_MS);
+      // A poll must never keep a JS runtime alive on its own (Node test runs);
+      // React Native timers have no unref, so this is a no-op in the app.
+      (timer as unknown as { unref?: () => void }).unref?.();
+    }
+    return () => {
+      consumers -= 1;
+      if (consumers <= 0 && timer) {
+        consumers = 0;
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+  }, []);
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+    () => snapshot,
+    () => INITIAL,
   );
 }
 
-export const RUNTIME_STATUS_PATH = "/v1/runtime/status";
-type RuntimeStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
-
-export function parseRuntimeStatus(payload: unknown): RuntimeStatus {
-  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const st = d["status"];
-  return st === "HEALTHY" || st === "DEGRADED" || st === "UNAVAILABLE" ? st : "UNAVAILABLE";
+/** Tests only. */
+export function resetServiceStatusForTests(): void {
+  if (timer) clearInterval(timer);
+  timer = null;
+  consumers = 0;
+  inFlight = false;
+  snapshot = INITIAL;
 }
 
-export function RuntimeStatusBanner({ pollMs = 60_000 }: { pollMs?: number }) {
-  const [status, setStatus] = useState<RuntimeStatus | null>(null);
-  const [failed, setFailed] = useState(false);
+/* ------------------------------------------------------- contextual notice */
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const next = parseRuntimeStatus(await apiFetch(RUNTIME_STATUS_PATH));
-        if (!cancelled) {
-          setStatus(next);
-          setFailed(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setStatus(null);
-          setFailed(true);
-        }
-      }
-    };
-    void load();
-    if (pollMs <= 0) return () => void (cancelled = true);
-    const t = setInterval(() => void load(), pollMs);
-    // A poll must never keep a JS runtime alive on its own (Node test runs);
-    // React Native timers have no unref, so this is a no-op in the app.
-    (t as unknown as { unref?: () => void }).unref?.();
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, [pollMs]);
-
-  const box = (tone: "warn" | "unknown", title: string, body?: string, link?: React.ReactNode) => (
+export function RuntimeStatusBanner({ requires }: { requires: ReadonlyArray<TenantServiceCapability> }) {
+  const { status } = useServiceStatus();
+  const notices = contextualServiceNotices(status, requires);
+  if (notices.length === 0) return null;
+  const unavailable = notices.some((n) => n.status === "UNAVAILABLE");
+  return (
     <View
-      testID={`runtime-status-${tone}`}
+      testID={`service-notice-${notices.map((n) => n.capability).join("-")}`}
       accessibilityRole="summary"
+      accessibilityLiveRegion="polite"
       style={{
         borderWidth: 1,
-        borderColor: tone === "warn" ? theme.color.status.pending.fg : theme.color.border.strong,
+        borderColor: unavailable ? theme.color.status.risk.fg : theme.color.status.pending.fg,
         borderRadius: theme.radius.md,
-        padding: theme.space.s3,
-        marginBottom: theme.space.s3,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
         gap: 2,
       }}
     >
-      <ProovraText variant="bodySm" weight="semibold">{title}</ProovraText>
-      {body ? <ProovraText variant="label" color={theme.color.ink.secondary}>{body}</ProovraText> : null}
-      {link ?? null}
+      {notices.map((n) => (
+        <ProovraText key={n.capability} variant="label" color={theme.color.ink.secondary}>
+          {n.message}
+        </ProovraText>
+      ))}
     </View>
   );
+}
 
-  if (failed) return box("unknown", "Runtime readiness could not be loaded — treat dashboard as unknown state.", "UNKNOWN");
-  if (!status || status === "HEALTHY") return null;
-  if (status === "DEGRADED") {
-    return box(
-      "warn",
-      "Runtime is in degraded mode.",
-      "The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended.",
-      <HealthLink />,
-    );
-  }
-  return box("unknown", "Runtime status is currently unknown.", undefined, <HealthLink suffix="for detail." />);
+/* -------------------------------------------------------- header indicator */
+
+export function ServiceStatusIndicator() {
+  const router = useRouter();
+  const { envelope } = usePlatformContext();
+  const { status, error, settled } = useServiceStatus();
+  const [open, setOpen] = useState(false);
+  if (!settled) return null;
+  const summary = summarizeTenantServiceStatus(error ? null : status);
+  if (summary.level === "OK") return null;
+  const issue = summary.level === "ISSUE";
+  return (
+    <View testID={`service-status-${summary.level.toLowerCase()}`}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={`Service status: ${summary.label}`}
+        accessibilityState={{ expanded: open }}
+        testID="header-service-status"
+        style={{
+          borderWidth: 1,
+          borderColor: issue ? theme.color.status.pending.fg : theme.color.border.strong,
+          borderRadius: 999,
+          paddingHorizontal: 10,
+          minHeight: 32,
+          justifyContent: "center",
+        }}
+      >
+        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.ink.secondary }} numberOfLines={1}>
+          {summary.label}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View testID="service-status-details" style={{ gap: 4, paddingTop: 6, maxWidth: 280 }}>
+          {summary.notices.length > 0 ? (
+            summary.notices.map((n) => (
+              <ProovraText key={n.capability} variant="label" color={theme.color.ink.secondary}>
+                {n.message}
+              </ProovraText>
+            ))
+          ) : (
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              Service status can't be confirmed right now. We'll keep checking.
+            </ProovraText>
+          )}
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            Evidence you have already recorded is not changed by a service issue.
+          </ProovraText>
+          {canViewWorkspaceHealth(envelope) ? (
+            <ProovraButton
+              label={WORKSPACE_HEALTH_DESTINATION.label}
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => router.push(WORKSPACE_HEALTH_DESTINATION.href)}
+              testID="runtime-status-health-link"
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
 }

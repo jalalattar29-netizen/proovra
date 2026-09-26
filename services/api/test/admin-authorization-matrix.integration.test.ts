@@ -478,9 +478,14 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
       const body = JSON.parse(res.body) as Record<string, unknown>;
       expect(
         Object.keys(body).sort(),
-        "the projection must carry exactly one field",
-      ).toEqual(["status"]);
+        "the projection carries the rollup, the capabilities and when they were checked — nothing else",
+      ).toEqual(["capabilities", "checkedAt", "status"]);
       expect(["HEALTHY", "DEGRADED", "UNAVAILABLE"]).toContain(body.status);
+      const caps = body.capabilities as Record<string, unknown>;
+      expect(Object.keys(caps).sort()).toEqual(["artifactGeneration", "downloads", "reviewAutomation", "search", "uploads"]);
+      for (const v of Object.values(caps)) {
+        expect(["HEALTHY", "DEGRADED", "UNAVAILABLE", "UNKNOWN"]).toContain(v);
+      }
     });
 
     it("carries none of the platform detail OWN-1 withholds", async () => {

@@ -256,9 +256,12 @@ describe("Phase 32.6.4 — Global runtime state clear-on-null + generation guard
     expect(nullBranchStart).toBeGreaterThan(-1);
     const nullBranchEnd = src.indexOf("return;", nullBranchStart);
     const branch = src.slice(nullBranchStart, nullBranchEnd);
-    expect(branch).toMatch(/setReadiness\(null\)/);
     expect(branch).toMatch(/setIncidents\(\[\]\)/);
     expect(branch).toMatch(/setEscalations\(\[\]\)/);
+    // Readiness is DERIVED from the shared service-status store and reads
+    // nothing without a workspace: no teamId, no readiness.
+    expect(src).toMatch(/const readsReadiness = Boolean\(teamId\) && !silent && access\.readiness;/);
+    expect(src).toMatch(/if \(!readsReadiness \|\| !service\.settled \|\| service\.error \|\| !service\.status\) return null;/);
   });
 
   it("uses a request-generation counter to drop stale in-flight responses", () => {
@@ -269,13 +272,16 @@ describe("Phase 32.6.4 — Global runtime state clear-on-null + generation guard
   it("resets state on every teamId transition (not only null)", () => {
     // Look for an explicit clear OUTSIDE the null branch — i.e.
     // after `const myGeneration = ++generationRef.current;` we
-    // expect to see setReadiness(null) again.
+    // expect to see the workspace-scoped sources cleared again. Readiness
+    // is caller-independent (one platform projection for every workspace),
+    // so there is nothing workspace-specific in it to go stale.
     const ackIdx = src.indexOf("const myGeneration = ++generationRef.current");
     expect(ackIdx).toBeGreaterThan(-1);
     const tickOnceIdx = src.indexOf("async function tickOnce", ackIdx);
     expect(tickOnceIdx).toBeGreaterThan(ackIdx);
     const between = src.slice(ackIdx, tickOnceIdx);
-    expect(between).toMatch(/setReadiness\(null\)/);
+    expect(between).toMatch(/setIncidents\(\[\]\)/);
+    expect(between).toMatch(/setEscalations\(\[\]\)/);
     expect(between).toMatch(/setLoading\(true\)/);
   });
 });

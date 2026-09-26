@@ -8,8 +8,9 @@
  *   - The sidebar operational badges (escalation count, runtime dot)
  *   - Any future operator-facing chrome that needs a unified snapshot
  *
- * The hook polls THREE real endpoints (no fake counters, ever):
- *   - GET /v1/runtime/status            (tenant-safe status enum only)
+ * The hook reads THREE real sources (no fake counters, ever):
+ *   - tenant service status, from the app-wide `useServiceStatus` store
+ *     (GET /v1/runtime/status — one poll shared with every other consumer)
  *   - GET /v1/ops/incidents?teamId=…&status=OPEN
  *   - GET /v1/reviewer-ops/escalations?teamId=…&status=OPEN
  *
@@ -54,8 +55,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { TenantServiceStatus } from "@proovra/shared";
+
 import { apiFetch } from "./api";
 import { usePlatformContext } from "./platform-context";
+import { refreshServiceStatus, useServiceStatus } from "./useServiceStatus";
 import {
   readsNothing,
   resolveRuntimeReadAccess,
@@ -109,6 +113,11 @@ export type GlobalRuntimeState = {
     ranAtUtc: string | null;
     subsystems: ReadonlyArray<GlobalRuntimeReadinessSubsystem>;
   } | null;
+  /**
+   * The tenant service projection itself — what users cannot currently do.
+   * Null when this context may not read it or the read has not settled.
+   */
+  service: TenantServiceStatus | null;
   /** Open incidents (status in OPEN | ACKNOWLEDGED) — bounded list. */
   incidents: ReadonlyArray<GlobalRuntimeIncident>;
   /** Open reviewer escalations. */
@@ -178,6 +187,10 @@ export function useGlobalRuntimeState(
   );
   const silent = readsNothing(access);
 
+  // Readiness is the shared store's poll, not a request of this hook's own.
+  const readsReadiness = Boolean(teamId) && !silent && access.readiness;
+  const service = useServiceStatus({ enabled: readsReadiness });
+
   /**
    * Sources the SERVER refused for this workspace.
    *
@@ -186,29 +199,27 @@ export function useGlobalRuntimeState(
    * requests that will never succeed, and a permanent "unknown" in the pill.
    * The latch is keyed on the workspace and cleared whenever it changes.
    */
-  const refusedRef = useRef<Set<"readiness" | "incidents" | "escalations">>(
-    new Set(),
-  );
+  const refusedRef = useRef<Set<"incidents" | "escalations">>(new Set());
 
-  const [readiness, setReadiness] =
-    useState<GlobalRuntimeState["readiness"]>(null);
   const [incidents, setIncidents] = useState<
     ReadonlyArray<GlobalRuntimeIncident>
   >([]);
   const [escalations, setEscalations] = useState<
     ReadonlyArray<GlobalRuntimeEscalation>
   >([]);
-  const [errors, setErrors] = useState<GlobalRuntimeState["errors"]>({
-    readiness: false,
-    incidents: false,
-    escalations: false,
-  });
-  const [loading, setLoading] = useState(true);
+  const [sourceErrors, setSourceErrors] = useState<{
+    incidents: boolean;
+    escalations: boolean;
+  }>({ incidents: false, escalations: false });
+  const [sourcesLoading, setLoading] = useState(true);
   const [refreshedAtUtc, setRefreshedAtUtc] = useState<string | null>(null);
 
   // Bump this to force a re-poll outside the timer.
   const [tick, setTick] = useState(0);
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refresh = useCallback(() => {
+    setTick((t) => t + 1);
+    void refreshServiceStatus();
+  }, []);
 
   // Track whether component is still mounted; effects cleanup with this.
   const mountedRef = useRef(true);
@@ -240,10 +251,9 @@ export function useGlobalRuntimeState(
     // colour the next one's badge.
     if (silent) {
       refusedRef.current = new Set();
-      setReadiness(null);
       setIncidents([]);
       setEscalations([]);
-      setErrors({ readiness: false, incidents: false, escalations: false });
+      setSourceErrors({ incidents: false, escalations: false });
       setRefreshedAtUtc(null);
       setLoading(false);
       generationRef.current += 1;
@@ -251,10 +261,9 @@ export function useGlobalRuntimeState(
     }
 
     if (!teamId) {
-      setReadiness(null);
       setIncidents([]);
       setEscalations([]);
-      setErrors({ readiness: false, incidents: false, escalations: false });
+      setSourceErrors({ incidents: false, escalations: false });
       setRefreshedAtUtc(null);
       setLoading(false);
       // Bump the generation so any in-flight previous-teamId tick
@@ -273,10 +282,9 @@ export function useGlobalRuntimeState(
     // INCIDENT_ACTIVE from the prior workspace while the new poll
     // is still in flight. Loading state goes back to true so
     // severity correctly maps to UNKNOWN during the transition.
-    setReadiness(null);
     setIncidents([]);
     setEscalations([]);
-    setErrors({ readiness: false, incidents: false, escalations: false });
+    setSourceErrors({ incidents: false, escalations: false });
     setRefreshedAtUtc(null);
     setLoading(true);
 
@@ -284,7 +292,6 @@ export function useGlobalRuntimeState(
       if (!teamId) return;
       const enc = encodeURIComponent(teamId);
       const nextErrors = {
-        readiness: false,
         incidents: false,
         escalations: false,
       };
@@ -319,7 +326,6 @@ export function useGlobalRuntimeState(
        * refusal latch and its own error flag, and the staleness guards below
        * still run once against the settled result of all three.
        */
-      let nextReadiness: GlobalRuntimeState["readiness"] = null;
       let nextIncidents: ReadonlyArray<GlobalRuntimeIncident> = [];
       let nextEscalations: ReadonlyArray<GlobalRuntimeEscalation> = [];
 
@@ -330,45 +336,6 @@ export function useGlobalRuntimeState(
        * — but a partial dashboard is still better than none.
        */
       await Promise.allSettled([
-        // 1) Readiness
-        (async () => {
-          if (!access.readiness || refusedRef.current.has("readiness")) return;
-          try {
-            /*
-             * THE TENANT-SAFE PROJECTION (ADM-P1-003 / OWN-1).
-             *
-             * This used to read the unversioned admin runtime-readiness route
-             * with a `teamId` query — the full
-             * platform aggregator, authorised by tenant membership plus
-             * `audit.read`. Fourteen subsystems with reason codes, remediation
-             * hints and the deployment's configuration posture, delivered to
-             * anyone who could hold a workspace. The shell needed exactly one
-             * thing from all of it: whether to colour the pill.
-             *
-             * `/v1/runtime/status` answers that and nothing else. The
-             * full payload is platform-admin only, under the versioned admin
-             * runtime namespace.
-             *
-             * No `teamId`: the answer is identical for every caller, so there
-             * is nothing for a workspace to scope and no caller-supplied field
-             * sitting beside an authorization decision.
-             */
-            const r = (await apiFetch("/v1/runtime/status")) as {
-              status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
-            };
-            nextReadiness = {
-              // UNAVAILABLE is "we could not measure", which is what this
-              // shell has always called UNKNOWN.
-              status: r.status === "UNAVAILABLE" ? "UNKNOWN" : r.status,
-              ranAtUtc: null,
-              subsystems: [],
-            };
-          } catch (err) {
-            nextErrors.readiness = true;
-            if (isSettledRefusal(err)) refusedRef.current.add("readiness");
-          }
-        })(),
-
         // 2) Incidents (OPEN)
         (async () => {
           if (!access.incidents || refusedRef.current.has("incidents")) return;
@@ -405,10 +372,9 @@ export function useGlobalRuntimeState(
       // teardown has run.
       if (cancelled || !mountedRef.current) return;
       if (generationRef.current !== myGeneration) return;
-      setReadiness(nextReadiness);
       setIncidents(nextIncidents);
       setEscalations(nextEscalations);
-      setErrors(nextErrors);
+      setSourceErrors(nextErrors);
       setRefreshedAtUtc(new Date().toISOString());
       setLoading(false);
     }
@@ -476,6 +442,26 @@ export function useGlobalRuntimeState(
     };
   }, [teamId, clampedPoll, tick, silent, access]);
 
+  /*
+   * Readiness, derived from the shared store. UNAVAILABLE is "we could not
+   * measure", which this shell has always called UNKNOWN; a failed read is an
+   * error, never HEALTHY.
+   */
+  const readiness = useMemo<GlobalRuntimeState["readiness"]>(() => {
+    if (!readsReadiness || !service.settled || service.error || !service.status) return null;
+    const st = service.status.status;
+    return {
+      status: st === "UNAVAILABLE" ? "UNKNOWN" : st,
+      ranAtUtc: service.status.checkedAt,
+      subsystems: [],
+    };
+  }, [readsReadiness, service]);
+  const errors = useMemo<GlobalRuntimeState["errors"]>(
+    () => ({ readiness: readsReadiness && service.error, ...sourceErrors }),
+    [readsReadiness, service.error, sourceErrors],
+  );
+  const loading = sourcesLoading || (readsReadiness && !service.settled);
+
   const severity = useMemo<GlobalRuntimeSeverity>(() => {
     if (!teamId) return "UNKNOWN";
     // A context that reads nothing knows nothing. UNKNOWN — never HEALTHY,
@@ -529,6 +515,7 @@ export function useGlobalRuntimeState(
     // HEALTHY_READINESS here would paint a green subsystem list for a caller
     // who was never allowed to look.
     readiness: readiness ?? (loading || silent ? null : HEALTHY_READINESS),
+    service: readsReadiness && !service.error ? service.status : null,
     incidents,
     escalations,
     counts,

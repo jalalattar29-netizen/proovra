@@ -327,22 +327,34 @@ describe("Phase 32.7 — subsystem→domain map", () => {
  * platform payload at all — because that is the property whose loss would
  * matter.
  */
+/*
+ * 2026-09-26 — THE BANNER STOPPED BEING A BANNER.
+ *
+ * The cost stated above ("a degraded platform now shows this banner on every
+ * page that mounts it") turned out to be the defect: a Personal user's healthy
+ * evidence record opened under "Runtime is in degraded mode … the data on this
+ * page may be partial or stale" because the deployment lacked a Sentry DSN.
+ * The tenant projection now answers per CAPABILITY, and the component is a
+ * one-line notice beside an action that declares the capabilities it depends
+ * on. The boundary asserted here — the component cannot reach platform detail —
+ * is unchanged.
+ */
 describe("RuntimeStatusBanner reads only the tenant-safe projection", () => {
   const SRC = readWeb("components/operational/RuntimeStatusBanner.tsx");
+  const STORE = readWeb("lib/useServiceStatus.ts");
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
-  it("reads GET /v1/runtime/status and nothing else", () => {
-    expect(SRC).toContain('"/v1/runtime/status"');
-    // The platform aggregator, in either spelling. Absence is asserted against
-    // CODE: the file deliberately NAMES the route it stopped reading, in the
-    // docblock that explains why, and a check that failed on the explanation
-    // would be closed by deleting the explanation.
-    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-    expect(code).not.toContain("/admin/runtime/readiness");
-    expect(code).not.toContain("/v1/admin/runtime/readiness");
+  it("reads GET /v1/runtime/status (through the one shared store) and nothing else", () => {
+    expect(strip(SRC)).toContain("useServiceStatus()");
+    expect(STORE).toContain('"/v1/runtime/status"');
+    for (const code of [strip(SRC), strip(STORE)]) {
+      expect(code).not.toContain("/admin/runtime/readiness");
+      expect(code).not.toContain("/v1/admin/runtime/readiness");
+    }
   });
 
   it("cannot render a platform subsystem, a reason code or a remediation hint", () => {
-    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const code = strip(SRC);
     for (const forbidden of [
       "reasonCode",
       "remediationHint",
@@ -351,79 +363,71 @@ describe("RuntimeStatusBanner reads only the tenant-safe projection", () => {
     ]) {
       expect(
         code.includes(forbidden),
-        `the tenant banner reaches for ${forbidden}, which the tenant-safe projection does not carry`,
+        `the tenant notice reaches for ${forbidden}, which the tenant-safe projection does not carry`,
       ).toBe(false);
     }
   });
 
-  it("declares only the three values the projection can answer", () => {
-    expect(SRC).toMatch(
-      /TenantRuntimeStatus\s*=\s*"HEALTHY"\s*\|\s*"DEGRADED"\s*\|\s*"UNAVAILABLE"/,
-    );
+  it("declares its relevance: `requires` is a mandatory capability list", () => {
+    expect(SRC).toMatch(/requires: ReadonlyArray<TenantServiceCapability>;/);
+    expect(strip(SRC)).toContain("contextualServiceNotices(status, requires)");
   });
 
   it("the `forDomains` prop is GONE, not inert", () => {
-    // An accepted-but-ignored prop is worse than none: every call site would
-    // still read as scoped while nothing filtered.
-    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const code = strip(SRC);
     expect(code).not.toMatch(/forDomains/);
     expect(code).not.toMatch(/RuntimeOperationalDomain/);
   });
 
-  it("fails CLOSED — a failed status read renders a banner, never silence", () => {
-    // Rendering nothing on a failed read is visually identical to HEALTHY,
-    // which is the one thing this component must never assert without proof.
-    expect(SRC).toMatch(/UNKNOWN|setError\(/);
+  it("fails CLOSED where it is said once — the header indicator — never as an all-clear", () => {
+    // A failed read renders nothing beside an action (an unverified warning
+    // next to a working button is the false alarm this contract removes), and
+    // the header indicator says "Status unavailable" instead of going silent.
+    const HEADER = strip(readWeb("components/operational/ServiceStatusIndicator.tsx"));
+    expect(HEADER).toContain("summarizeTenantServiceStatus(error ? null : status)");
   });
 });
 
 // =============================================================================
-// Part 7 — no page scopes the banner any more, and none may reintroduce it
+// Part 7 — where the notice may appear, and where it may not
 // =============================================================================
 
-describe("no page passes the removed scoping prop", () => {
-  const CONSUMERS = [
+describe("the notice sits beside actions, never over a record or a governance page", () => {
+  const read = (file: string) =>
+    readFileSync(fileURLToPath(new URL(`../../../${file}`, import.meta.url)), "utf8");
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  for (const file of [
     "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
     "apps/web/app/(app)/evidence/[id]/page.tsx",
-    "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-    "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
     "apps/web/app/(app)/governance/policy/page.tsx",
-    "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-  ] as const;
-
-  for (const file of CONSUMERS) {
-    it(`${file} still mounts the banner, unscoped`, () => {
-      const src = readFileSync(
-        fileURLToPath(new URL(`../../../${file}`, import.meta.url)),
-        "utf8",
-      );
-      // Still mounted: the boundary fix must not have quietly removed the
-      // banner from the pages that need it.
-      expect(src, "the runtime banner is no longer mounted here").toContain(
-        "<RuntimeStatusBanner",
-      );
-      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-      expect(
-        code.includes("forDomains"),
-        "forDomains is passed to a component that no longer accepts it — the page reads as scoped while nothing filters",
-      ).toBe(false);
+    "apps/web/components/command-center/CommandCenter.tsx",
+  ] as const) {
+    it(`${file} mounts no platform status panel`, () => {
+      expect(strip(read(file))).not.toMatch(/<RuntimeStatusBanner/);
     });
   }
 
+  for (const file of [
+    "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+  ] as const) {
+    it(`${file} says review automation, and only that`, () => {
+      const code = strip(read(file));
+      expect(code).toContain('<RuntimeStatusBanner requires={["reviewAutomation"]} />');
+      expect(code).not.toMatch(/forDomains/);
+    });
+  }
+
+  it("the Artifacts section carries generation and download notices beside those actions", () => {
+    const code = strip(read("apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx"));
+    expect(code).toContain('<RuntimeStatusBanner requires={["artifactGeneration"]} />');
+    expect(code).toContain('<RuntimeStatusBanner requires={["downloads"]} />');
+  });
+
   it("the platform observability page mounts NO workspace banner at all", () => {
-    const src = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
-          import.meta.url,
-        ),
-      ),
-      "utf8",
-    );
-    // ADM-013 PHASE 1 — this asserted the page kept an UNSCOPED banner because it "IS
-    // the runtime visibility surface". The banner was never unscoped: it took
-    // a teamId and reported one workspace. Being the runtime surface is the
-    // reason it must not carry a tenant widget, not a licence to.
+    const src = read("apps/web/app/(app)/admin/platform/observability/page.tsx");
     expect(src).not.toMatch(/<RuntimeStatusBanner/);
   });
 });

@@ -201,10 +201,12 @@ describe("Operational component contrast (Phase 28-I)", () => {
     const src = readSource(
       "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
     );
-    expect(src).toMatch(/OPS_TONES\.unknown\.bg/);
-    expect(src).toMatch(/OPS_TONES\.unknown\.ink/);
-    expect(src).toMatch(/OPS_TONES\.warning\.bg/);
-    expect(src).toMatch(/OPS_TONES\.warning\.ink/);
+    // 2026-09-26 — a one-line contextual notice with two reachable tones:
+    // degraded (delayed) and warning (unavailable), both light-surface, read
+    // through `tone.bg` / `tone.ink`.
+    expect(src).toMatch(/unavailable \? OPS_TONES\.warning : OPS_TONES\.degraded/);
+    expect(src).toMatch(/background: tone\.bg/);
+    expect(src).toMatch(/color: tone\.ink/);
     expect(
       src,
       "no branch may paint the dark shell's white-on-transparent",

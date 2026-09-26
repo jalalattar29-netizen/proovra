@@ -2442,3 +2442,6 @@ export * from "./user-facing-errors.js";
 /* Same reason as the dictionary above: the native app resolves the root. */
 export * from "./password-rules.js";
 export * from "./security-event-labels.js";
+
+/* Tenant service status: the one client reading of GET /v1/runtime/status (web + native). */
+export * from "./tenant-service-status.js";

@@ -349,32 +349,31 @@ test("with WORKSPACE_HEALTH_VIEW the queue links to Workspace health and the pag
   r.unmount();
 });
 
-/* ------------------------------------------------------ runtime banner */
+/* ------------------------------------------------- service status chip */
 
-async function renderBanner(status) {
-  handlers["GET /v1/runtime/status"] = () => ({ body: { status } });
-  const r = await renderComponent(h(BANNER.TestProviders, null, h(BANNER.RuntimeStatusBanner, { pollMs: 0 })));
+async function renderChip(capabilities) {
+  BANNER.resetServiceStatusForTests();
+  handlers["GET /v1/runtime/status"] = () => ({ body: { status: "DEGRADED", capabilities } });
+  const r = await renderComponent(h(BANNER.TestProviders, null, h(BANNER.ServiceStatusIndicator, null)));
   await settleN(6);
   return r;
 }
+const IMPAIRED = { uploads: "HEALTHY", artifactGeneration: "DEGRADED", downloads: "HEALTHY", search: "HEALTHY", reviewAutomation: "HEALTHY" };
 
-test("runtime UNAVAILABLE: 'View workspace health … for detail.' for a WORKSPACE_HEALTH_VIEW holder (RuntimeStatusBanner:185-196)", async () => {
-  const r = await renderBanner("UNAVAILABLE");
-  assert.ok(r.hasText("Runtime status is currently unknown."));
-  assert.ok(r.hasText("for detail."));
+test("service chip offers 'View workspace health' to a WORKSPACE_HEALTH_VIEW holder, and it routes there", async () => {
+  const r = await renderChip(IMPAIRED);
+  await r.press("Service status: Service issue");
   await r.press("View workspace health");
   assert.deepEqual(BANNER.calls.push.at(-1), "/operations/health");
   r.unmount();
 });
 
-test("runtime DEGRADED offers the health destination; without the capability there is no link", async () => {
-  const r = await renderBanner("DEGRADED");
-  assert.ok(r.hasText("Runtime is in degraded mode."));
-  assert.ok(r.byLabel("View workspace health").length > 0);
-  r.unmount();
+test("without WORKSPACE_HEALTH_VIEW the chip offers no health link — and never an admin one", async () => {
   handlers["GET /v1/platform/context"] = () => ({ body: opsEnvelope({ capabilities: { OPERATIONS_VIEW: true } }) });
-  const r2 = await renderBanner("DEGRADED");
-  assert.ok(r2.hasText("Runtime is in degraded mode."));
-  assert.equal(r2.byLabel("View workspace health").length, 0);
-  r2.unmount();
+  const r = await renderChip(IMPAIRED);
+  await r.press("Service status: Service issue");
+  assert.ok(r.hasText("Report and package generation is delayed. Requests are queued and will complete automatically."));
+  assert.equal(r.byLabel("View workspace health").length, 0);
+  assert.ok(!r.texts().some((t) => /runbook|observability/i.test(t)));
+  r.unmount();
 });

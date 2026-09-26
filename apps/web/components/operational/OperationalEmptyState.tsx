@@ -526,48 +526,8 @@ export function NoOperationalTimelineEmptyState() {
 }
 
 // -----------------------------------------------------------------------------
-// Degraded / unknown variants — fail-closed UI when backend state is partial.
+// Unknown variant — fail-closed UI when backend state is partial.
 // -----------------------------------------------------------------------------
-
-/**
- * THE TENANT FORM IS THE DEFAULT.
- *
- * The tenant-safe runtime projection carries no subsystem list, so the only
- * caller (`RuntimeStatusBanner`) passed `[]` and this rendered "0 subsystem(s)
- * reported a non-healthy state" beside an empty "Failing subsystems: ." line,
- * plus a runbook link every tenant was refused at. With no list, the notice
- * now says only what is true for the reader — the sentence native already
- * uses — and names subsystems only when a caller genuinely has some.
- */
-export function RuntimeDegradedNotice({
-  failingSubsystems = [],
-}: {
-  failingSubsystems?: ReadonlyArray<string>;
-}) {
-  const healthDestination = useHealthDestination();
-  const canRunbooks = useCan("RUNBOOKS_VIEW");
-  const named = failingSubsystems.length > 0;
-  return (
-    <OperationalEmptyState
-      kicker="Runtime"
-      emptyStateCode="runtime_degraded"
-      title="Runtime is in degraded mode."
-      reason={
-        named
-          ? `${failingSubsystems.length} subsystem(s) reported a non-healthy state. The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended.`
-          : "The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended."
-      }
-      runtimeDependency={
-        named ? `Failing subsystems: ${failingSubsystems.join(", ")}.` : undefined
-      }
-      variant="degraded"
-      actions={[
-        ...healthActions(healthDestination),
-        ...runbookActions(canRunbooks, "Review runbooks"),
-      ]}
-    />
-  );
-}
 
 export function GovernanceSnapshotUnavailableNotice({
   requestId,

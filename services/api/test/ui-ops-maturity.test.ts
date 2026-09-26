@@ -60,7 +60,10 @@ describe("useGlobalRuntimeState (Phase 28-J)", () => {
      * route it stopped reading, and a check that failed on that explanation
      * would be closed by deleting it.
      */
-    expect(src).toMatch(/["'`]\/v1\/runtime\/status["'`]/);
+    // 2026-09-26 — readiness is the app-wide store's single poll
+    // (`useServiceStatus`), shared with every other consumer on the page.
+    expect(src).toMatch(/useServiceStatus\(\{ enabled: readsReadiness \}\)/);
+    expect(readSource("../../../apps/web/lib/useServiceStatus.ts")).toMatch(/["'`]\/v1\/runtime\/status["'`]/);
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
     expect(
       code,
@@ -158,8 +161,12 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
     expect(src).toMatch(/window\.addEventListener\("mousedown"/);
   });
 
-  it("dropdown rows surface degraded subsystems, active incidents, and escalations from the hook", () => {
-    expect(src).toContain('title="Degraded subsystems"');
+  it("dropdown rows surface service impact, active incidents, and escalations from the hook", () => {
+    // "Degraded subsystems" was always empty (the tenant projection carries
+    // no subsystem list) and read "All subsystems healthy" under a Degraded
+    // pill. It is the user-facing service impact now.
+    expect(src).toContain('title="Service impact"');
+    expect(src).not.toContain('title="Degraded subsystems"');
     expect(src).toContain('title="Active incidents"');
     expect(src).toContain('title="Reviewer escalations"');
   });
@@ -178,7 +185,7 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
   });
 
   it("on any source failure the dropdown labels rows as unavailable, never silently empty", () => {
-    expect(src).toMatch(/Readiness unavailable — treat as unknown/);
+    expect(src).toMatch(/Service status unavailable — treat as unknown/);
     expect(src).toMatch(/Incident endpoint unavailable — treat as unknown/);
     expect(src).toMatch(/Escalation endpoint unavailable — treat as unknown/);
   });
@@ -214,6 +221,14 @@ describe("AppAccountToolbar — runtime indicator wiring", () => {
     // fallback is not used.
     expect(src).toMatch(/usePlatformContext/);
     expect(src).toMatch(/envelope[\s\S]{0,200}activeSpace\.id/);
+  });
+
+  it("operators get the operational pill; everyone else the service indicator — never both", () => {
+    // The operator pill used to mount for every member of an organization
+    // workspace and sat at "Status pending" for anyone without operational
+    // read access. It now requires that access.
+    expect(src).toMatch(/!readsNothing\(resolveRuntimeReadAccess\(\{ envelope, teamId: organizationTeamId \}\)\)/);
+    expect(src).toMatch(/runtimeTeamId \? \([\s\S]*?<GlobalRuntimeIndicator[\s\S]*?\) : \([\s\S]*?<ServiceStatusIndicator \/>/);
   });
 
   it("renders the indicator inside the topbar actions, before the language switcher", () => {

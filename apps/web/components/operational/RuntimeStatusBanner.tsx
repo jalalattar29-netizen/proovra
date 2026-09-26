@@ -1,200 +1,78 @@
 "use client";
 
 /**
- * Phase 28-G — Runtime Status Banner.
- *
- * A concise top-of-page banner shown on TENANT pages when the platform runtime
- * is not serving normally. When everything is healthy it renders nothing, so
- * operational pages stay uncluttered.
+ * CONTEXTUAL SERVICE NOTICE — one line beside an action that a real service
+ * incident affects.
  *
  * =============================================================================
- * WHAT IT USED TO READ, AND WHY THAT WAS THE DEFECT (ADM-P1-003 / OWN-1)
+ * WHAT THIS USED TO BE, AND WHY THAT WAS THE DEFECT
  * =============================================================================
- * It consumed `GET /admin/runtime/readiness` — the full platform aggregator,
- * authorised by workspace membership plus `audit.read` — and rendered, to
- * ordinary tenant users on `/evidence/:id`, `/governance/policy`,
- * `/reviewer-ops/*` and the command centre:
- *
- *   - the ids of failing platform subsystems,
- *   - their `reasonCode` and operator `detail`,
- *   - their `remediationHint`.
- *
- * Those are instructions for repairing PROOVRA's deployment, and the tenant
- * pages showing them belong to customers. OWN-1 settles the boundary: full
- * runtime, migrations, schema drift, worker state and global queue detail are
- * platform-admin only.
+ * A full-width "Runtime is in degraded mode" panel mounted unconditionally at
+ * the top of Evidence detail, Home, Governance and the reviewer pages. It was
+ * driven by a rollup of every platform readiness check — including Sentry
+ * configuration, Object Lock posture, the reviewer reconcile sweep and
+ * search-index lag — and it told the reader "the data on this page may be
+ * partial or stale". A platform diagnostic was presented as a statement about
+ * the evidence record in front of the user.
  *
  * =============================================================================
- * WHAT IT READS NOW
+ * THE CONTRACT NOW
  * =============================================================================
- * `GET /v1/runtime/status`, whose entire body is:
+ *   * `requires` is mandatory: the capabilities the adjacent action depends
+ *     on. The notice renders ONLY when one of them is confirmed DEGRADED or
+ *     UNAVAILABLE. Everything else — healthy, unmeasured, a failed status read,
+ *     an unrelated capability — renders nothing. "Could not measure" is said
+ *     once, by the header indicator, not beside every button.
+ *   * The words describe the ACTION ("Report and package generation is
+ *     delayed"), never the record. Existing artifacts stay downloadable unless
+ *     downloads themselves are affected.
+ *   * No subsystem names, no runbooks, no links: this is a sentence next to a
+ *     button. Details live behind the header indicator and Workspace Health.
  *
- *     { "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }
- *
- * That is enough for the only thing this banner is for — telling a customer
- * that what they are looking at may be incomplete — and it carries none of the
- * detail above.
- *
- * THE `forDomains` PROP IS GONE, not left inert. It scoped the banner to
- * subsystems affecting a named domain (`reviewer_ops`, `search_discovery`, …).
- * That mapping lives in the platform payload, and the domain names are internal
- * service topology, which the tenant-safe projection deliberately withholds. A
- * prop that silently stopped filtering would be a permanently-true condition
- * dressed as a control, so the callers lost it too. The consequence is stated
- * plainly: a degraded platform now shows this banner on every page that mounts
- * it, rather than only on the pages whose domain was affected.
- *
- * FAIL-CLOSED: when the status read itself fails, an UNKNOWN banner renders.
- * Rendering nothing would be visually indistinguishable from HEALTHY.
+ * Global service status belongs to `ServiceStatusIndicator` in the header;
+ * record-specific processing and integrity belong to their own sections.
  */
 
-import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { useEffect, useState } from "react";
+import {
+  contextualServiceNotices,
+  type TenantServiceCapability,
+} from "@proovra/shared";
 
-import { apiFetch } from "../../lib/api";
-import { useHealthDestination } from "../../lib/navigation/healthDestination";
-import { RuntimeDegradedNotice } from "./OperationalEmptyState";
+import { useServiceStatus } from "../../lib/useServiceStatus";
 import { OPS_TONES } from "./tokens";
 
-/** Exactly the three values the tenant-safe projection can answer. */
-type TenantRuntimeStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
-
 export type RuntimeStatusBannerProps = {
-  /** Poll interval in ms. 0 disables polling (single read on mount). */
-  pollMs?: number;
+  /** The capabilities the adjacent action depends on. Required on purpose. */
+  requires: ReadonlyArray<TenantServiceCapability>;
 };
 
-export function RuntimeStatusBanner({ pollMs = 60_000 }: RuntimeStatusBannerProps) {
-  const [status, setStatus] = useState<TenantRuntimeStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
-  // "check the health" goes for THIS actor. It returns the label with the href,
-  // so a link can never name a scope it does not open, and null when the actor
-  // holds neither authority — in which case no link is rendered at all.
-  const healthDestination = useHealthDestination();
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const data = (await apiFetch("/v1/runtime/status")) as {
-          status: TenantRuntimeStatus;
-        };
-        if (!cancelled) {
-          setStatus(data?.status ?? "UNAVAILABLE");
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setStatus(null);
-          setError(
-            toSafeUserError(err, { message: "readiness_unavailable" }).message,
-          );
-        }
-      }
-    }
-    void load();
-
-    if (pollMs > 0) {
-      const interval = setInterval(() => void load(), pollMs);
-      return () => {
-        cancelled = true;
-        clearInterval(interval);
-      };
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [pollMs]);
-
-  // FAIL-CLOSED: the status read failed → show UNKNOWN. Rendering nothing here
-  // would be visually indistinguishable from HEALTHY.
-  if (error) {
-    return (
-      <div
-        role="status"
-        data-runtime-status="UNKNOWN"
-        style={{
-          border: `1px solid ${OPS_TONES.unknown.border}`,
-          background: OPS_TONES.unknown.bg,
-          borderRadius: 6,
-          padding: "10px 14px",
-          fontSize: 13,
-          color: OPS_TONES.unknown.ink,
-          fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <span>
-          Runtime readiness could not be loaded — treat dashboard as unknown
-          state.
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: 0.5,
-            fontWeight: 700,
-            color: OPS_TONES.unknown.kicker,
-          }}
-        >
-          UNKNOWN
-        </span>
-      </div>
-    );
-  }
-
-  // HEALTHY → render nothing (operational pages stay clean).
-  if (!status || status === "HEALTHY") {
-    return null;
-  }
-
-  if (status === "DEGRADED") {
-    /*
-     * NO SUBSYSTEM IDS. The tenant projection has none to give, and inventing
-     * one would be the leak this change removed, restated. Without a list the
-     * notice says the platform is degraded without a count, an empty list or
-     * an admin-only runbook link.
-     */
-    return <RuntimeDegradedNotice />;
-  }
-
-  // UNAVAILABLE — the platform could not measure its own readiness.
+export function RuntimeStatusBanner({ requires }: RuntimeStatusBannerProps) {
+  const { status } = useServiceStatus();
+  const notices = contextualServiceNotices(status, requires);
+  if (notices.length === 0) return null;
+  const unavailable = notices.some((n) => n.status === "UNAVAILABLE");
+  const tone = unavailable ? OPS_TONES.warning : OPS_TONES.degraded;
   return (
     <div
       role="status"
-      data-runtime-status="UNKNOWN"
+      aria-live="polite"
+      data-service-notice={notices.map((n) => n.capability).join(" ")}
+      data-service-notice-status={unavailable ? "UNAVAILABLE" : "DEGRADED"}
       style={{
-        border: `1px solid ${OPS_TONES.warning.border}`,
-        background: OPS_TONES.warning.bg,
+        border: `1px solid ${tone.border}`,
+        background: tone.bg,
+        color: tone.ink,
         borderRadius: 6,
-        padding: "10px 14px",
-        fontSize: 13,
-        color: OPS_TONES.warning.ink,
-        fontWeight: 500,
-        marginBottom: 12,
+        padding: "6px 10px",
+        fontSize: 12.5,
+        lineHeight: 1.45,
+        display: "grid",
+        gap: 2,
       }}
     >
-      Runtime status is currently unknown.
-      {healthDestination ? (
-        <>
-          {" "}
-          <a
-            href={healthDestination.href}
-            style={{
-              color: OPS_TONES.warning.link,
-              fontWeight: 700,
-              textDecoration: "underline",
-            }}
-          >
-            {healthDestination.label}
-          </a>{" "}
-          for detail.
-        </>
-      ) : null}
+      {notices.map((n) => (
+        <span key={n.capability}>{n.message}</span>
+      ))}
     </div>
   );
 }

@@ -326,9 +326,13 @@ describe("Enterprise empty-state components", () => {
     expect(src).toContain("export function NoOperationalTimelineEmptyState");
   });
 
-  it("exports the two fail-closed variants (degraded + unknown)", () => {
-    expect(src).toContain("export function RuntimeDegradedNotice");
+  it("exports the fail-closed unknown variant — and no platform 'runtime degraded' panel", () => {
+    // 2026-09-26 — RuntimeDegradedNotice (a subsystem count, a subsystem list
+    // and a runbook link, mounted over tenant pages) was the operator
+    // diagnostic reused as a tenant banner. It is removed; service impact is
+    // said beside actions (RuntimeStatusBanner) and in the header.
     expect(src).toContain("export function GovernanceSnapshotUnavailableNotice");
+    expect(src).not.toContain("RuntimeDegradedNotice");
   });
 
   it("each preset includes runtime dependency explanation", () => {
@@ -352,7 +356,6 @@ describe("Enterprise empty-state components", () => {
       "no_governance_incidents",
       "no_sla_breaches",
       "no_operational_timeline",
-      "runtime_degraded",
       "governance_snapshot_unavailable",
     ];
     for (const code of expectedCodes) {
@@ -369,7 +372,6 @@ describe("Enterprise empty-state components", () => {
   });
 
   it("fail-closed variants use appropriate severity tones", () => {
-    expect(src).toMatch(/RuntimeDegradedNotice[\s\S]+?variant="degraded"/);
     expect(src).toMatch(
       /GovernanceSnapshotUnavailableNotice[\s\S]+?variant="unknown"/,
     );
@@ -401,10 +403,13 @@ describe("Phase 28-F [fail-closed UI behavior]", () => {
     expect(slice).toMatch(/blocked|treat as blocked/i);
   });
 
-  it("RuntimeDegradedNotice exposes the failing subsystem list (operator-visible)", () => {
-    const slice = functionSource(src, "RuntimeDegradedNotice", "OperationalEmptyState.tsx");
-    expect(slice).toMatch(/failingSubsystems/);
-    expect(slice).toMatch(/Failing subsystems:/);
+  it("the failing subsystem list stays operator-visible — on the platform observability console", () => {
+    // Removed from the tenant empty-state kit (RuntimeDegradedNotice), kept
+    // where platform operators read it: the admin observability page renders
+    // the readiness report's subsystems.
+    expect(src).not.toMatch(/Failing subsystems:/);
+    const OBS = readSource("../../../apps/web/app/(app)/admin/platform/observability/page.tsx");
+    expect(OBS).toMatch(/readiness\.subsystems/);
   });
 
   it("Unknown variant uses the 'unknown' severity tone", () => {
