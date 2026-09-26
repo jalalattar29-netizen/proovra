@@ -126,6 +126,11 @@ const ENTRYPOINTS = Object.freeze({
     // BEFORE enabling automatic physical destruction, so it is emphatically
     // live code rather than a leftover.
     "services/worker/src/scripts/destruction-candidates.ts",
+    // ARTIFACT RECOVERY (2026-09-26) — the historical package-recovery
+    // discovery (`pnpm --filter proovra-api package-recovery:dry-run`).
+    // Read-only by default; its execution arm refuses without an owner
+    // approval bound to the dry run's plan hash.
+    "services/api/src/scripts/package-recovery-backfill.ts",
   ],
 });
 

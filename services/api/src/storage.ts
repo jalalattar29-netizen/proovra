@@ -499,7 +499,15 @@ export async function applyDefaultObjectRetention(params: {
   });
 }
 
-export async function headObject(params: { bucket: string; key: string }) {
+export async function headObject(params: {
+  bucket: string;
+  key: string;
+  /**
+   * Ask the store for the object's recorded SHA-256 (ChecksumMode ENABLED).
+   * Opt-in: the default HEAD is unchanged for every existing caller.
+   */
+  withChecksum?: boolean;
+}) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
 
@@ -520,11 +528,13 @@ export async function headObject(params: { bucket: string; key: string }) {
         new HeadObjectCommand({
           Bucket: bucket,
           Key: key,
+          ...(params.withChecksum ? { ChecksumMode: "ENABLED" as const } : {}),
         })
       );
 
       return {
         sizeBytes: res.ContentLength ?? null,
+        checksumSha256: res.ChecksumSHA256 ?? null,
         contentType: res.ContentType ?? null,
         etag: res.ETag ?? null,
         metadata: res.Metadata ?? null,

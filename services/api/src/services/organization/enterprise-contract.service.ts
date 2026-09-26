@@ -16,6 +16,7 @@
  * customers by definition).
  */
 
+import { isReadOnlyScan } from "../../lib/read-only-scan.js";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -174,7 +175,9 @@ export async function resolveEnterpriseContract(
   // production writer creates fallback-dependent rows (provisioning upserts
   // real contract rows). Runtime audit below tracks remaining fallback use
   // so Phase 12 can retire it on zero-use + applied backfill.
-  emitTenantAudit({
+  // Not recorded inside a read-only scan (an operator's dry run): that is not
+  // a use of the fallback by a customer, and a dry run writes nothing.
+  if (!isReadOnlyScan()) emitTenantAudit({
     action: "billing.enterprise_contract_legacy_fallback",
     outcome: "success",
     sourceApp: "API",
