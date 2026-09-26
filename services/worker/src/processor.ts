@@ -1852,6 +1852,12 @@ async function prepareReportArtifacts(
     // when absent.
     jobId?: string | number | null;
     attempt?: number | null;
+    /**
+     * Package-only recovery embeds an EXISTING, verified report. Rendering a
+     * provisional report would cost a Chromium run whose bytes are thrown
+     * away, and add a failure mode unrelated to the package.
+     */
+    skipProvisionalPdf?: boolean;
   }
 ): Promise<PreparedReportArtifacts> {
   const evidence = await prisma.evidence.findFirst({
@@ -2809,7 +2815,14 @@ const trustDecision = buildTrustDecision({
 // signerKeyId + warning. The legacy bytes-only signature
 // (`buildReportPdfV2`) is preserved for callers that only need
 // the PDF; new code paths use the outcome variant.
-const pdfSigningOutcome = await buildReportPdfV2WithSignatureOutcome(reportBuildParams);
+const pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome =
+  options?.skipProvisionalPdf === true
+    ? {
+        status: "UNSIGNED_OPT_OUT",
+        pdf: Buffer.alloc(0),
+        warning: "Not rendered: package-only recovery embeds the stored report.",
+      }
+    : await buildReportPdfV2WithSignatureOutcome(reportBuildParams);
 const reportPdf = pdfSigningOutcome.pdf;
 
 const verificationZip: Buffer | null = null;
@@ -3004,6 +3017,203 @@ function toBoundedReasonCode(error: unknown): string {
   return "unknown_error";
 }
 
+/**
+ * The stored bytes of a committed report, VERIFIED, or an explicit refusal.
+ *
+ * Package-only recovery embeds the report that already exists. It may do so
+ * only after proving the bytes in storage are the bytes that were recorded:
+ *
+ *   * `reports.pdf_sha256` when the row carries it (every report written since
+ *     it was introduced);
+ *   * otherwise the SHA-256 the object store validated and kept when the
+ *     worker PUT the PDF with `ChecksumSHA256` (legacy rows);
+ *   * otherwise nothing can vouch for the bytes, and they are not used.
+ *
+ * Every refusal is terminal and non-retryable: a missing, unverifiable or
+ * altered report is a matter for a person, and silently rendering a
+ * replacement would put new bytes behind a version that is already published.
+ * Only a transient read failure is retried.
+ */
+async function readVerifiedStoredReport(report: {
+  version: number;
+  storageBucket: string;
+  storageKey: string;
+  sizeBytes: bigint | null;
+  pdfSha256: string | null;
+}): Promise<{ bytes: Buffer; sha256: string }> {
+  const isNotFound = (err: unknown) => {
+    const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } } | null;
+    return (
+      e?.name === "NoSuchKey" ||
+      e?.name === "NotFound" ||
+      e?.Code === "NoSuchKey" ||
+      e?.$metadata?.httpStatusCode === 404
+    );
+  };
+  let head: Awaited<ReturnType<typeof headObject>>;
+  try {
+    head = await headObject({ bucket: report.storageBucket, key: report.storageKey });
+  } catch (err) {
+    if (isNotFound(err)) throw createWorkerError("REPORT_OBJECT_MISSING", false);
+    throw createWorkerError("REPORT_OBJECT_READ_FAILED", true);
+  }
+  let bytes: Buffer;
+  try {
+    const body = await getObjectStream({ bucket: report.storageBucket, key: report.storageKey });
+    bytes = await streamToBuffer(body as unknown as Readable);
+  } catch (err) {
+    if (isNotFound(err)) throw createWorkerError("REPORT_OBJECT_MISSING", false);
+    throw createWorkerError("REPORT_OBJECT_READ_FAILED", true);
+  }
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  if (report.sizeBytes != null && BigInt(bytes.length) !== report.sizeBytes) {
+    throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
+  }
+  if (report.pdfSha256) {
+    if (report.pdfSha256.toLowerCase() !== sha256) {
+      throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
+    }
+    return { bytes, sha256 };
+  }
+  // A composite checksum ("…-N", multipart upload) is not a hash of the bytes.
+  const stored = head.checksumSha256;
+  if (stored && !stored.includes("-")) {
+    if (Buffer.from(stored, "base64").toString("hex") !== sha256) {
+      throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
+    }
+    return { bytes, sha256 };
+  }
+  throw createWorkerError("REPORT_INTEGRITY_UNVERIFIABLE", false);
+}
+
+/**
+ * The `finalized` context the package stage needs, for a report that ALREADY
+ * exists — built from persisted state instead of from a report transaction.
+ *
+ * Nothing here writes. The report row, its object and the evidence row are
+ * read; the version, keys and trust decision are the report's own, so the
+ * package certifies exactly the report it embeds.
+ */
+async function loadCommittedReportForPackage(params: {
+  evidenceId: string;
+  version: number;
+  prepared: PreparedReportArtifacts;
+  teamId: string | null;
+}) {
+  const { evidenceId, version, prepared } = params;
+  const report = await prisma.report.findUnique({
+    where: { evidenceId_version: { evidenceId, version } },
+    select: {
+      version: true,
+      storageBucket: true,
+      storageKey: true,
+      sizeBytes: true,
+      pdfSha256: true,
+      generatedAtUtc: true,
+      reviewerSummaryVersion: true,
+      trustDecisionSnapshot: true,
+    },
+  });
+  if (!report) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
+
+  const verified = await readVerifiedStoredReport(report);
+
+  // Every downstream consumer reads the version and keys from `prepared`.
+  prepared.version = version;
+  prepared.reportKey = report.storageKey;
+  prepared.verificationKey = `verification/${evidenceId}/v${version}.zip`;
+
+  const current = await prisma.evidence.findUniqueOrThrow({
+    where: { id: evidenceId },
+    select: {
+      verificationStatus: true,
+      recordedIntegrityVerifiedAtUtc: true,
+      reviewReadyAtUtc: true,
+    },
+  });
+  const custodyEvents = await prisma.custodyEvent.findMany({
+    where: { evidenceId },
+    orderBy: { sequence: "asc" },
+    select: {
+      sequence: true,
+      atUtc: true,
+      eventType: true,
+      payload: true,
+      prevEventHash: true,
+      eventHash: true,
+    },
+  });
+
+  const effectiveVerificationStatus =
+    current.verificationStatus ?? prepared.identitySnapshot.verificationStatus;
+  const effectiveRecordedIntegrityVerifiedAtUtc =
+    current.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null;
+  const finalizedReportEvidencePayload = {
+    ...prepared.reportEvidencePayload,
+    status: EvidenceStatus.REPORTED,
+    verificationStatus: effectiveVerificationStatus,
+    recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
+    reportGeneratedAtUtc: report.generatedAtUtc.toISOString(),
+    latestReportVersion: version,
+    reviewReadyAtUtc:
+      current.reviewReadyAtUtc?.toISOString() ?? report.generatedAtUtc.toISOString(),
+    reviewerSummaryVersion: report.reviewerSummaryVersion ?? version,
+  };
+
+  // The decision the report itself carries; rebuilt only for rows written
+  // before the snapshot existed.
+  let finalizedTrustDecision = report.trustDecisionSnapshot as unknown as ReturnType<
+    typeof buildTrustDecision
+  > | null;
+  if (!finalizedTrustDecision) {
+    const acquisition = await buildReportAcquisitionContext({
+      teamId: params.teamId,
+      evidenceId,
+    });
+    const displayContext = {
+      itemCount: prepared.contentSummary.itemCount,
+      structure: prepared.contentSummary.structure,
+      isIntake: acquisition?.isIntake === true,
+      acquisitionMode: finalizedReportEvidencePayload.acquisitionMode ?? null,
+    } as const;
+    finalizedTrustDecision = buildTrustDecision({
+      evidence: finalizedReportEvidencePayload,
+      custodyEvents: custodyEvents.map((ev) => ({
+        sequence: ev.sequence,
+        atUtc: ev.atUtc.toISOString(),
+        eventType: ev.eventType,
+        payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload, displayContext),
+        prevEventHash: ev.prevEventHash ?? null,
+        eventHash: ev.eventHash ?? null,
+        category: classifyCustodyEventType(ev.eventType),
+      })),
+      isIntake: acquisition?.isIntake === true,
+    });
+  }
+
+  return {
+    skipped: false as const,
+    reportCreated: false as const,
+    version,
+    reportKey: report.storageKey,
+    reportVersion: version,
+    finalizedReportSha256: verified.sha256,
+    finalizedReportEvidencePayload,
+    effectiveVerificationStatus,
+    effectiveRecordedIntegrityVerifiedAtUtc,
+    finalizedReportPdf: verified.bytes,
+    finalizedTrustDecision,
+    finalizedCustodyEvents: custodyEvents.map((ev) => ({
+      sequence: ev.sequence,
+      atUtc: ev.atUtc.toISOString(),
+      eventType: ev.eventType,
+      payload: ev.payload,
+      prevEventHash: ev.prevEventHash ?? null,
+      eventHash: ev.eventHash ?? null,
+    })),
+  };
+}
+
 async function runReportGeneration(
   job: Job<unknown>,
   command: ResolvedReportCommand,
@@ -3089,66 +3299,79 @@ async function runReportGeneration(
      */
     let packageTechnicalFailure: { phase: string; message: string } | null = null;
 
-    if (evidence.status === EvidenceStatus.REPORTED && !forceRegenerate) {
-      const existingReport = await prisma.report.findFirst({
-        where: { evidenceId },
-        orderBy: { version: "desc" },
-      });
+    /*
+     * =====================================================================
+     * WHAT THIS RUN IS FOR — decided from durable facts, not from "a Report
+     * row exists".
+     * =====================================================================
+     *
+     *   NEW_REPORT           render, sign and commit report vN+1, then its
+     *                        package. First generation, or an explicit new
+     *                        version (`forceRegenerate`, authorized upstream).
+     *   PACKAGE_FOR_VERSION  the report the request owns already exists; build
+     *                        ONLY its package, embedding the STORED report
+     *                        bytes after verifying them. Never a new report.
+     *
+     * A retry of a request that already committed its report (`stage =
+     * REPORT_COMMITTED`) resumes as PACKAGE_FOR_VERSION for exactly that
+     * version — this is what stops every retry from minting another report.
+     * A package-only recovery request (`artifactType = VERIFICATION_PACKAGE`)
+     * targets the version it names. A non-forced completion request on a
+     * REPORTED record completes the pair for the latest report; that path used
+     * to reach `prepareReportArtifacts(allowReported: false)`, throw
+     * `REPORT_ALREADY_GENERATED`, and be recorded as SUCCEEDED with no package.
+     */
+    const latestReportRow = await prisma.report.findFirst({
+      where: { evidenceId },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    let runMode: "NEW_REPORT" | "PACKAGE_FOR_VERSION";
+    let packageTargetVersion: number | null = null;
+    if (
+      command.reportVersion != null &&
+      (command.stage === "REPORT_COMMITTED" ||
+        command.stage === "PACKAGE_PUBLISHED" ||
+        command.artifactType === "VERIFICATION_PACKAGE")
+    ) {
+      runMode = "PACKAGE_FOR_VERSION";
+      packageTargetVersion = command.reportVersion;
+    } else if (command.artifactType === "VERIFICATION_PACKAGE") {
+      if (!latestReportRow) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
+      runMode = "PACKAGE_FOR_VERSION";
+      packageTargetVersion = latestReportRow.version;
+    } else if (forceRegenerate) {
+      runMode = "NEW_REPORT";
+    } else if (evidence.status === EvidenceStatus.REPORTED) {
+      if (!latestReportRow) {
+        // REPORTED with no report row is a consistency fault, not a request to
+        // mint one: a person reviews it before anything is regenerated.
+        throw createWorkerError("REPORT_MISSING_FOR_REPORTED_EVIDENCE", false);
+      }
+      runMode = "PACKAGE_FOR_VERSION";
+      packageTargetVersion = latestReportRow.version;
+    } else {
+      runMode = "NEW_REPORT";
+    }
 
-      /*
-       * RELIABILITY CLOSURE (2026-09-09) — "A REPORT EXISTS" IS NOT THE SAME AS
-       * "THE REQUESTED OUTPUT PAIR EXISTS".
-       *
-       * This guard asked only whether a Report row existed, and returned if one
-       * did. That is right for a duplicate delivery of finished work and wrong
-       * for the failure the audit found: the report transaction commits, the
-       * verification package is built AFTERWARDS in its own transaction, and its
-       * failure path was swallowed. The record was left REPORTED with a report
-       * and no package — and every path that could have repaired it landed
-       * here and returned.
-       *
-       * That included the Operations remediation registered for exactly this
-       * condition. `report.regenerate_artifacts` dispatches with
-       * `forceRegenerate: false` (correctly — the executor authorizes REQUESTING
-       * generation, not overwriting a finalised artifact), so the PACKAGE
-       * incident's own remediation button reached this line, returned, was
-       * marked SUCCEEDED and reported `QUEUED` to the operator while the
-       * condition never resolved.
-       *
-       * The guard now asks whether the OUTPUT PAIR this request is responsible
-       * for is complete. A missing package on an entitled record is unfinished
-       * work, so the run proceeds and produces a genuine matched pair at the
-       * next version.
-       *
-       * WHY A NEW PAIR AND NOT A PACKAGE AT THE EXISTING VERSION. The package
-       * embeds THIS RUN's report bytes; there is no stored intermediate to
-       * re-assemble from, and a freshly rendered report is not byte-identical to
-       * the stored one (its generated-at stamp alone differs). Writing that
-       * under the name of an existing version would put different bytes behind a
-       * version number that is already published. A fresh matched pair is the
-       * only truthful option — and it is already the product's shipped
-       * semantic: the customer-facing projection reports "report present,
-       * package absent" as `ELIGIBLE_NOT_GENERATED` for the package, whose
-       * Generate action produces exactly this.
-       */
-      const outputPairComplete =
-        existingReport !== null &&
-        (!verificationPackageEntitled ||
-          (await prisma.verificationPackage.findFirst({
-            where: { evidenceId },
-            select: { id: true },
-          })) !== null);
-
-      if (outputPairComplete) {
-        logger.info(ctx, "Report already generated, skipping");
+    if (runMode === "PACKAGE_FOR_VERSION" && packageTargetVersion != null) {
+      const pairComplete =
+        !verificationPackageEntitled ||
+        (await prisma.verificationPackage.findFirst({
+          where: { evidenceId, version: packageTargetVersion },
+          select: { id: true },
+        })) !== null;
+      if (pairComplete) {
+        logger.info(
+          { ...ctx, reportVersion: packageTargetVersion, status: "pair_complete" },
+          "Report and its verification package already exist for this version; nothing to do",
+        );
         return;
       }
-      if (existingReport) {
-        logger.warn(
-          { ...ctx, status: "package_missing_completing_pair" },
-          "Report exists but its verification package does not; generating a new matched pair",
-        );
-      }
+      logger.warn(
+        { ...ctx, reportVersion: packageTargetVersion, status: "package_recovery" },
+        "Report exists without its verification package; building the package for the stored report",
+      );
     }
 
     /*
@@ -3179,7 +3402,8 @@ async function runReportGeneration(
      * rather than absent for a record that does not.
      */
     const prepared = await prepareReportArtifacts(evidenceId, {
-      allowReported: forceRegenerate,
+      allowReported: forceRegenerate || runMode === "PACKAGE_FOR_VERSION",
+      skipProvisionalPdf: runMode === "PACKAGE_FOR_VERSION",
       refreshReason: regenerateReason,
       // Phase A0 — pass job context through so the integrity-rejection
       // helper can tag any SecurityEvent / log with the originating job.
@@ -3187,7 +3411,15 @@ async function runReportGeneration(
       attempt: job.attemptsMade + 1,
     });
 
-    const finalized = await prisma.$transaction(
+    const finalized =
+      runMode === "PACKAGE_FOR_VERSION"
+        ? await loadCommittedReportForPackage({
+            evidenceId,
+            version: packageTargetVersion!,
+            prepared,
+            teamId: evidence.teamId ?? null,
+          })
+        : await prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
@@ -3289,25 +3521,39 @@ async function runReportGeneration(
          * the two checks; what must not happen is that this one skips while the
          * package the request is responsible for is still absent.
          */
-        const lockedPackage = verificationPackageEntitled
-          ? await tx.verificationPackage.findFirst({
-              where: { evidenceId: prepared.evidenceId },
-              select: { id: true },
-            })
-          : null;
+        /*
+         * Completeness is a PAIR AT ONE VERSION: the package that accompanies
+         * the latest report, not "some package". Report v2 beside package v1 is
+         * not complete — package v1 embeds report v1.
+         */
+        const lockedPackage =
+          verificationPackageEntitled && existingLatestReport
+            ? await tx.verificationPackage.findFirst({
+                where: {
+                  evidenceId: prepared.evidenceId,
+                  version: existingLatestReport.version,
+                },
+                select: { id: true },
+              })
+            : null;
 
         if (
           lockedEvidence.status === EvidenceStatus.REPORTED &&
           existingLatestReport &&
-          !forceRegenerate &&
-          (!verificationPackageEntitled || lockedPackage !== null)
+          !forceRegenerate
         ) {
-          return {
-            skipped: true as const,
-            existingReportVersion: existingLatestReport.version,
-            reportVersion: existingLatestReport.version,
-            finalizedCustodyEvents: [],
-          };
+          if (!verificationPackageEntitled || lockedPackage !== null) {
+            return {
+              skipped: true as const,
+              existingReportVersion: existingLatestReport.version,
+              reportVersion: existingLatestReport.version,
+              finalizedCustodyEvents: [],
+            };
+          }
+          // A concurrent run committed a report after this run decided to
+          // generate the first one. Minting another would be wrong; the retry
+          // re-reads the state and completes that report's package instead.
+          throw createWorkerError("REPORT_STATE_CHANGED_RETRY", true);
         }
 
         if (
@@ -3630,6 +3876,12 @@ const effectiveReportEvidencePayload = {
           /* identity propagation failure must never break report flow */
         }
 
+        // The hash of the exact bytes stored below; package-only recovery
+        // verifies the stored object against it before embedding it.
+        const finalizedReportSha256 = createHash("sha256")
+          .update(finalizedReportPdf)
+          .digest("hex");
+
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.reportKey,
@@ -3681,6 +3933,7 @@ const effectiveReportEvidencePayload = {
                 : null,
             generatedAtUtc: prepared.now,
             sizeBytes: BigInt(finalizedReportPdf.length),
+            pdfSha256: finalizedReportSha256,
 
             verificationStatusSnapshot: effectiveIdentitySnapshot.verificationStatus,
             identityLevelSnapshot:
@@ -3837,11 +4090,23 @@ const effectiveReportEvidencePayload = {
           },
         });
 
+        /*
+         * DURABLE PROGRESS, IN THE SAME TRANSACTION AS THE REPORT ROW. A retry
+         * of this request after this point resumes at the package for exactly
+         * this version; if the transaction rolls back, neither exists.
+         */
+        await tx.reportGenerationRequest.update({
+          where: { id: command.requestId },
+          data: { reportVersion: prepared.version, stage: "REPORT_COMMITTED" },
+        });
+
         return {
           skipped: false as const,
+          reportCreated: true as const,
           version: prepared.version,
           reportKey: prepared.reportKey,
           reportVersion: prepared.version,
+          finalizedReportSha256,
           finalizedReportEvidencePayload: effectiveReportEvidencePayload,
           effectiveVerificationStatus,
           effectiveRecordedIntegrityVerifiedAtUtc,
@@ -4423,6 +4688,10 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
 packageType: "full_evidence_package",
 trustDecisionSnapshot:
   finalized.finalizedTrustDecision as unknown as Prisma.InputJsonValue,
+              // The report this package certifies, and the hash of the exact
+              // report bytes embedded in it.
+              reportVersion: prepared.version,
+              reportSha256: finalized.finalizedReportSha256,
             },
           });
 
@@ -4469,7 +4738,17 @@ trustDecisionSnapshot:
             payload: {
               version: prepared.version,
               packageType: "full_evidence_package",
+              reportVersion: prepared.version,
+              reportSha256: finalized.finalizedReportSha256,
+              // A package built for an existing, verified report rather than
+              // alongside a newly rendered one.
+              ...(finalized.reportCreated ? {} : { recovery: true }),
             } as Prisma.InputJsonValue,
+          });
+
+          await tx.reportGenerationRequest.update({
+            where: { id: command.requestId },
+            data: { reportVersion: prepared.version, stage: "PACKAGE_PUBLISHED" },
           });
         });
 
@@ -4490,6 +4769,8 @@ trustDecisionSnapshot:
           metadata: {
             evidenceId: prepared.evidenceId,
             verificationPackageVersion: prepared.version,
+            reportVersion: prepared.version,
+            recovery: !finalized.reportCreated,
             effectivePlan: prepared.effectivePlan,
           },
         }).catch(() => null);
@@ -4627,7 +4908,7 @@ trustDecisionSnapshot:
       }
     }
 
-    if (!finalized.skipped) {
+    if (!finalized.skipped && finalized.reportCreated) {
       appendWorkerAnalyticsEvent({
         eventType: "report_generated",
         userId: evidence.ownerUserId,
@@ -4740,25 +5021,15 @@ trustDecisionSnapshot:
       );
     }
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "REPORT_ALREADY_GENERATED"
-    ) {
-      const durationMs = Date.now() - start;
-
-      logger.info(
-        withJobContext({
-          requestId,
-          jobId: job.id,
-          evidenceId,
-          attempt: job.attemptsMade + 1,
-          durationMs,
-          status: "already_completed",
-        }),
-        "GenerateReportJob skipped because report already exists"
-      );
-      return;
-    }
+    /*
+     * `REPORT_ALREADY_GENERATED` IS NO LONGER SWALLOWED AS SUCCESS.
+     *
+     * It returned normally here, and the caller recorded the request as
+     * SUCCEEDED "generated" — while the package the request owned did not
+     * exist and no build had been attempted. Runs are now routed by what they
+     * own (see WHAT THIS RUN IS FOR above), so reaching this error is a genuine
+     * inconsistency, and it is reported as the failure it is.
+     */
 
     /*
      * A COMMERCIAL DENIAL IS NOT AN OPERATIONAL FAILURE.

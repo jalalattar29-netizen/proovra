@@ -548,11 +548,17 @@ export async function headObject(params: { bucket: string; key: string }) {
         new HeadObjectCommand({
           Bucket: bucket,
           Key: key,
+          // Returns the SHA-256 the store validated and kept when the object
+          // was PUT with `ChecksumSHA256` (every report PDF is). Package-only
+          // recovery verifies legacy report bytes against it.
+          ChecksumMode: "ENABLED",
         })
       );
 
       return {
         sizeBytes: res.ContentLength ?? null,
+        /** Base64 SHA-256 recorded by the store at upload, when it kept one. */
+        checksumSha256: res.ChecksumSHA256 ?? null,
         contentType: res.ContentType ?? null,
         etag: res.ETag ?? null,
         metadata: res.Metadata ?? null,

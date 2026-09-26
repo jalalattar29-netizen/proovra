@@ -771,6 +771,8 @@ model Report {
   /// UNSIGNED_OPT_OUT / SIGNING_FAILED / SIGNING_UNAVAILABLE.
   /// Operator-readable; NEVER carries secrets or stack traces.
   pdfSigningWarning  String?   @map("pdf_signing_warning") @db.VarChar(400)
+  /// SHA-256 (hex) of the exact PDF bytes stored at storageKey.
+  pdfSha256          String?   @map("pdf_sha256") @db.VarChar(64)
 
   evidence Evidence @relation(fields: [evidenceId], references: [id])
 
@@ -835,6 +837,10 @@ model VerificationPackage {
   generatedAtUtc                   DateTime  @map("generated_at_utc") @db.Timestamptz(6)
   packageType                      String?   @map("package_type") @db.VarChar(64)
   trustDecisionSnapshot            Json?     @map("trust_decision_snapshot")
+  /// The report version this package certifies and embeds.
+  reportVersion                    Int?      @map("report_version")
+  /// SHA-256 (hex) of the report PDF bytes embedded in this package.
+  reportSha256                     String?   @map("report_sha256") @db.VarChar(64)
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
@@ -14307,6 +14313,16 @@ model ReportGenerationRequest {
   resultChecksum     String? @map("result_checksum") @db.VarChar(128)
   terminalReasonCode String? @map("terminal_reason_code") @db.VarChar(64)
 
+  /// The report version this request COMMITTED (full generation) or TARGETS
+  /// (package-only recovery). A retry resumes from it; it never mints another.
+  reportVersion    Int?    @map("report_version")
+  /// Last durable boundary reached: REPORT_COMMITTED, PACKAGE_PUBLISHED.
+  stage            String? @db.VarChar(32)
+  /// What was asked for: GENERATE, RECOVER, RETRY, NEW_VERSION, OPERATOR_SUPERSEDE.
+  intent           String? @db.VarChar(24)
+  /// Caller idempotency key for an explicit new version (lost-response replay).
+  clientRequestKey String? @map("client_request_key") @db.VarChar(80)
+
   createdAtUtc   DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc   DateTime  @default(now()) @updatedAt @map("updated_at_utc") @db.Timestamptz(6)
   completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
@@ -14314,6 +14330,7 @@ model ReportGenerationRequest {
   @@index([teamId, state, createdAtUtc(sort: Desc)], map: "report_generation_requests_team_state_idx")
   @@index([evidenceId, state], map: "report_generation_requests_evidence_idx")
   @@index([state, claimedAtUtc], map: "report_generation_requests_claim_idx")
+  @@unique([evidenceId, clientRequestKey], map: "report_generation_requests_evidence_client_key")
   @@map("report_generation_requests")
 }
 

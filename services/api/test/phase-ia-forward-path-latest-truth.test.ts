@@ -64,9 +64,11 @@ describe("Phase IA-forward-path — report processor honours forceRegenerate", (
     expect(PROCESSOR).toMatch(
       /const forceRegenerate = command\.forceRegenerate/,
     );
-    // And the guard it feeds is untouched.
+    // And the decision it feeds: only a durable forceRegenerate mints a new
+    // report on a REPORTED record; without it, the run completes the pair for
+    // the existing report (package-only), never a second report.
     expect(PROCESSOR).toMatch(
-      /evidence\.status\s*===\s*EvidenceStatus\.REPORTED\s*&&\s*!forceRegenerate/,
+      /\} else if \(forceRegenerate\) \{\s*runMode = "NEW_REPORT";\s*\} else if \(evidence\.status === EvidenceStatus\.REPORTED\) \{/,
     );
   });
 

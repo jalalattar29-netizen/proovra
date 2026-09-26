@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1280
+TerminalWriters                             1282
 ROUTE_ATTRIBUTED_REACHABLE                  1134
-JOB_ATTRIBUTED_REACHABLE                     128
+JOB_ATTRIBUTED_REACHABLE                     130
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          14
@@ -231,6 +231,18 @@ and it is the same number twice:
     tenant-UNBOUND while they matched on job id alone and relied on the route
     having checked ownership one call earlier; every write carries the owner
     predicate now, which is the rule the reads in that service already followed.
+
+Result deltas after ARTIFACT RECOVERY GATE A (2026-09-26). One number moved,
+and it is the same number twice:
+
+  * TerminalWriters 1280 -> 1282 and JOB_ATTRIBUTED_REACHABLE 128 -> 130. The
+    SAME TWO writers, both in the report worker and no route was added: the
+    generation request row now records its durable progress
+    (`report_version`, `stage`) inside the report transaction and inside the
+    package transaction, so a retry resumes at the package for the report
+    version it already committed instead of minting another. Both writes run
+    only from the report job, which is why both scalars move by the same amount
+    and DEAD_UNREACHABLE stays 0.
 
 AuditEngineIntegrity returned to PASS in this pass, from FAIL with
 DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,

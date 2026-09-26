@@ -34,6 +34,7 @@
  *     mutates nothing.
  */
 
+import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { bump } from "@proovra/shared-runtime/ops";
 import {
   createReportGenerationRequest,
@@ -46,7 +47,12 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "./db.js";
+import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
+import {
+  resolveEffectivePlanForEvidence,
+  resolveEvidenceFundingSource,
+} from "./workspace-billing.js";
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.GENERATE_REPORT);
 
@@ -87,6 +93,13 @@ export type ResolvedReportCommand = {
   forceRegenerate: boolean;
   regenerateReason: string | null;
   attemptCount: number;
+  /**
+   * Durable progress. `reportVersion` is the report this request committed
+   * (full generation) or targets (package-only recovery); `stage` is the last
+   * boundary it reached. A retry resumes from them.
+   */
+  reportVersion: number | null;
+  stage: string | null;
 };
 
 export type ReportCommandResolution =
@@ -130,6 +143,8 @@ export async function resolveAndClaimReportRequest(input: {
       requestedByUserId: true,
       requestedByMachineId: true,
       idempotencyKey: true,
+      reportVersion: true,
+      stage: true,
     },
   });
 
@@ -289,6 +304,8 @@ export async function resolveAndClaimReportRequest(input: {
       forceRegenerate: request.forceRegenerate,
       regenerateReason: request.regenerateReason,
       attemptCount: request.attemptCount + 1,
+      reportVersion: request.reportVersion,
+      stage: request.stage,
     },
   };
 }
@@ -480,27 +497,75 @@ export async function reconcileStrandedReportRequests(input: {
   // The generation succeeded and the process died before the terminal write.
   // The artifact exists, so re-running would DUPLICATE it; the honest repair
   // is to record the success that already happened.
+  /*
+   * SUCCESS IS THE OUTPUTS THE REQUEST OWNS, AS A PAIR AT ONE VERSION.
+   *
+   * This used to close any in-flight request as SUCCEEDED the moment a report
+   * newer than the request existed — without asking about the package. A
+   * request whose report committed and whose package failed was therefore
+   * closed within one tick, the package was never retried, and the retry
+   * budget could never be reached. A request is complete only when:
+   *
+   *   * the report it committed or targets (`report_version`, or for rows
+   *     written before that column, the newest report generated after the
+   *     request) exists, AND
+   *   * the package AT THAT SAME VERSION exists — or the record is not
+   *     entitled to one.
+   */
   const possiblyDone = await prisma.reportGenerationRequest.findMany({
     where: { state: { in: ["PROCESSING", "FAILED_RETRYABLE"] } },
-    select: { id: true, evidenceId: true, createdAtUtc: true },
+    select: {
+      id: true,
+      evidenceId: true,
+      createdAtUtc: true,
+      artifactType: true,
+      reportVersion: true,
+      claimedAtUtc: true,
+      state: true,
+    },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
   });
   for (const candidate of possiblyDone) {
-    const newerReport = await prisma.report.findFirst({
+    // A live claim is a worker mid-run; its own terminal write decides.
+    if (
+      candidate.state === "PROCESSING" &&
+      candidate.claimedAtUtc &&
+      candidate.claimedAtUtc >= leaseFloor
+    ) {
+      continue;
+    }
+    let targetVersion = candidate.reportVersion;
+    if (targetVersion == null) {
+      if (candidate.artifactType === "VERIFICATION_PACKAGE") continue;
+      const newerReport = await prisma.report.findFirst({
+        where: {
+          evidenceId: candidate.evidenceId,
+          generatedAtUtc: { gte: candidate.createdAtUtc },
+        },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      if (!newerReport) continue;
+      targetVersion = newerReport.version;
+    }
+    const report = await prisma.report.findUnique({
       where: {
-        evidenceId: candidate.evidenceId,
-        generatedAtUtc: { gte: candidate.createdAtUtc },
+        evidenceId_version: { evidenceId: candidate.evidenceId, version: targetVersion },
       },
-      orderBy: { version: "desc" },
       select: { id: true },
     });
-    if (!newerReport) continue;
+    if (!report) continue;
+    const pkg = await prisma.verificationPackage.findFirst({
+      where: { evidenceId: candidate.evidenceId, version: targetVersion },
+      select: { id: true },
+    });
+    if (!pkg && (await verificationPackageOwed(candidate.evidenceId))) continue;
     const repaired = await markRequestTerminal({
       requestId: candidate.id,
       state: "SUCCEEDED",
       terminalReasonCode: "reconciled_artifact_present",
-      resultReportId: newerReport.id,
+      resultReportId: report.id,
     });
     if (repaired) summary.terminalRepaired += 1;
   }
@@ -523,7 +588,7 @@ export async function reconcileStrandedReportRequests(input: {
       state: "FAILED_RETRYABLE",
       attemptCount: { gte: REPORT_RECONCILE_MAX_ATTEMPTS },
     },
-    select: { id: true, attemptCount: true },
+    select: { id: true, attemptCount: true, evidenceId: true, teamId: true },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
   });
@@ -535,6 +600,30 @@ export async function reconcileStrandedReportRequests(input: {
     });
     if (retired) {
       summary.terminalRepaired += 1;
+      /*
+       * An exhausted request is an operator matter, and the customer is told
+       * so. It opens (or re-counts) the SAME incident the pipeline's own DLQ
+       * path uses for this record — deduplicated on (workspace, fingerprint) —
+       * so Operations shows one actionable condition, never a second system.
+       */
+      await recordWorkerIncident({
+        sourceId: "pipeline.report_generation_failed",
+        teamId: row.teamId,
+        category: "REPORT",
+        severity: "HIGH",
+        fingerprint: `REPORT:${row.evidenceId}:RETRY_BUDGET_EXHAUSTED`,
+        title: "Report generation stopped after its retry budget was exhausted",
+        safeSummary:
+          "Automatic retries for this record's report or verification package were exhausted. An operator can review and retry it from Operations.",
+        relatedEvidenceId: row.evidenceId,
+        metadata: {
+          queueName: "report",
+          retriable: false,
+          errorClass: "RETRY_BUDGET_EXHAUSTED",
+          requestId: row.id,
+          attemptCount: row.attemptCount,
+        },
+      }).catch(() => null);
       logger.warn(
         {
           event: "report_generation.retry_budget_exhausted",
@@ -583,4 +672,30 @@ export async function reconcileStrandedReportRequests(input: {
     );
   }
   return summary;
+}
+
+/**
+ * Is a verification package still owed for this record? Fails TRUE on a
+ * resolution error: closing a request whose package is owed is the silent
+ * state this reconciler must never produce, while leaving one open only costs
+ * a re-run that decides the same question with full context.
+ */
+async function verificationPackageOwed(evidenceId: string): Promise<boolean> {
+  try {
+    const ev = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { ownerUserId: true, teamId: true },
+    });
+    if (!ev) return true;
+    const plan = await resolveEffectivePlanForEvidence({
+      ownerUserId: ev.ownerUserId,
+      teamId: ev.teamId ?? null,
+    });
+    return resolveEvidenceOutputEntitlements({
+      plan,
+      funding: await resolveEvidenceFundingSource(evidenceId),
+    }).verificationPackageIncluded;
+  } catch {
+    return true;
+  }
 }

@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1280,
-    "ReachableSensitiveMutations": 1273,
-    "ClassifiedSensitiveMutations": 1273,
+    "TerminalWriters": 1282,
+    "ReachableSensitiveMutations": 1275,
+    "ClassifiedSensitiveMutations": 1275,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 7,
@@ -83,7 +83,7 @@
       "BILLING_SUBSCRIPTION_SEAT": 63,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 114,
-      "REPORT_EXPORT_REDACTION": 49,
+      "REPORT_EXPORT_REDACTION": 51,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 110
     },
     "byNonRequestDisposition": {
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1134,
-      "JOB_ATTRIBUTED_REACHABLE": 128,
+      "JOB_ATTRIBUTED_REACHABLE": 130,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 14,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8846,
+      "METHOD_ON_VALUE": 8848,
       "UNRESOLVED_IDENTIFIER": 1151
     },
     "MutationFixpointRounds": 9,
@@ -82812,17 +82812,21 @@
         "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
         "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
         "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests"
       ],
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
         "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
         "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
         "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
         "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82854,17 +82858,21 @@
         "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
         "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
         "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests"
       ],
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
         "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
         "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
         "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
         "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82896,17 +82904,21 @@
         "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
         "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
         "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests"
       ],
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
         "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
         "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
         "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
         "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82938,17 +82950,21 @@
         "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
         "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
         "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests"
       ],
       "entryModules": [],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:1239#runRetentionReconciliation",
         "BOOT services/worker/src/index.ts:1313#runDestructionOrchestration",
         "BOOT services/worker/src/index.ts:1363#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:754#runLifecycleRecovery",
         "SCHEDULE services/worker/src/index.ts:1257#startRetentionReconciliationScheduler",
         "SCHEDULE services/worker/src/index.ts:1331#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler"
+        "SCHEDULE services/worker/src/index.ts:1387#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:768#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84558,8 +84574,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3475",
-      "terminalLocation": "services/worker/src/processor.ts:3475",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3721",
+      "terminalLocation": "services/worker/src/processor.ts:3721",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -84589,8 +84605,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4257",
-      "terminalLocation": "services/worker/src/processor.ts:4257",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4522",
+      "terminalLocation": "services/worker/src/processor.ts:4522",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -84620,8 +84636,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4429",
-      "terminalLocation": "services/worker/src/processor.ts:4429",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4698",
+      "terminalLocation": "services/worker/src/processor.ts:4698",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -84651,8 +84667,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.copyObject@4369",
-      "terminalLocation": "services/worker/src/processor.ts:4369",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.copyObject@4634",
+      "terminalLocation": "services/worker/src/processor.ts:4634",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "EXTERNAL",
@@ -84682,8 +84698,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4349",
-      "terminalLocation": "services/worker/src/processor.ts:4349",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4614",
+      "terminalLocation": "services/worker/src/processor.ts:4614",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "EXTERNAL",
@@ -84713,8 +84729,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4364",
-      "terminalLocation": "services/worker/src/processor.ts:4364",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4629",
+      "terminalLocation": "services/worker/src/processor.ts:4629",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "EXTERNAL",
@@ -84744,8 +84760,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4568",
-      "terminalLocation": "services/worker/src/processor.ts:4568",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4849",
+      "terminalLocation": "services/worker/src/processor.ts:4849",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "EXTERNAL",
@@ -84775,8 +84791,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4574",
-      "terminalLocation": "services/worker/src/processor.ts:4574",
+      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@4855",
+      "terminalLocation": "services/worker/src/processor.ts:4855",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "EXTERNAL",
@@ -84806,8 +84822,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@3666",
-      "terminalLocation": "services/worker/src/processor.ts:3666",
+      "writerId": "services/worker/src/processor.ts#report.create@3918",
+      "terminalLocation": "services/worker/src/processor.ts:3918",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -84837,8 +84853,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@4454",
-      "terminalLocation": "services/worker/src/processor.ts:4454",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@4723",
+      "terminalLocation": "services/worker/src/processor.ts:4723",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -84868,8 +84884,70 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4405",
-      "terminalLocation": "services/worker/src/processor.ts:4405",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.update@4098",
+      "terminalLocation": "services/worker/src/processor.ts:4098",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "DATABASE",
+      "target": "reportGenerationRequest",
+      "mutationKind": "update",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.update@4749",
+      "terminalLocation": "services/worker/src/processor.ts:4749",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "DATABASE",
+      "target": "reportGenerationRequest",
+      "mutationKind": "update",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4670",
+      "terminalLocation": "services/worker/src/processor.ts:4670",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -85110,8 +85188,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@260",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:260",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@275",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:275",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "resolveAndClaimReportRequest",
       "kind": "DATABASE",
@@ -85141,8 +85219,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@314",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:314",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@331",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:331",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestTerminal",
       "kind": "DATABASE",
@@ -85177,8 +85255,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@343",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:343",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@360",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:360",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestRetryable",
       "kind": "DATABASE",
@@ -85208,8 +85286,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@473",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:473",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@490",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:490",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "reconcileStrandedReportRequests",
       "kind": "DATABASE",
@@ -85621,8 +85699,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.DeleteObjectCommand@572",
-      "terminalLocation": "services/worker/src/storage.ts:572",
+      "writerId": "services/worker/src/storage.ts#OBJECT_STORAGE.DeleteObjectCommand@578",
+      "terminalLocation": "services/worker/src/storage.ts:578",
       "file": "services/worker/src/storage.ts",
       "enclosingDeclaration": "deleteObject",
       "kind": "EXTERNAL",

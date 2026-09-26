@@ -156,9 +156,9 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1280,
-      "reachable": 1273,
-      "classified": 1273,
+      "terminalWriters": 1282,
+      "reachable": 1275,
+      "classified": 1275,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
       "nonRequest": 7,
@@ -175,7 +175,7 @@
       "writerConservationHolds": true,
       "byWriterBucket": {
         "ROUTE_ATTRIBUTED_REACHABLE": 1134,
-        "JOB_ATTRIBUTED_REACHABLE": 128,
+        "JOB_ATTRIBUTED_REACHABLE": 130,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 3,
         "STARTUP_OR_SCHEDULED": 14,
@@ -203,7 +203,7 @@
         "BILLING_SUBSCRIPTION_SEAT": 63,
         "SSO_OIDC_SCIM_PROVISIONING": 45,
         "AUTOMATION_QUEUE_WEBHOOK": 114,
-        "REPORT_EXPORT_REDACTION": 49,
+        "REPORT_EXPORT_REDACTION": 51,
         "API_KEY_SECRET_OPERATIONAL_ADMIN": 110
       }
     },
@@ -346,8 +346,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "d0a51c9cf414449b408516506eba234acadcf933db18c1c3357b204fcb85b4b4",
-      "byteLength": 1044365,
+      "contentHash": "93b8f6b04be5008459f851aff76436c515095ed8592043da6a4118b05fad1161",
+      "byteLength": 1048136,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

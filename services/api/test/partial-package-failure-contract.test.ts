@@ -134,13 +134,15 @@ describe("partial Report/Package failure — the state transition", () => {
      * "report exists, package absent" state, and returning would let the caller
      * write SUCCEEDED for an incomplete pair.
      */
-    const guard = PROCESSOR.slice(PROCESSOR.indexOf("const outputPairComplete ="))
+    const guard = PROCESSOR.slice(PROCESSOR.indexOf("const pairComplete ="))
       .slice(0, 600);
-    expect(guard).toContain("existingReport !== null");
     expect(guard).toContain("!verificationPackageEntitled");
     expect(guard).toContain("prisma.verificationPackage.findFirst");
+    // Complete means the package AT THE REPORT'S VERSION, not any package:
+    // report v2 beside package v1 is not a pair.
+    expect(guard).toContain("version: packageTargetVersion");
     // The return is conditional on completeness, never on the report alone.
-    expect(guard).toMatch(/if \(outputPairComplete\) \{[\s\S]{0,200}return;/);
+    expect(guard).toMatch(/if \(pairComplete\) \{[\s\S]{0,300}return;/);
   });
 
   it("the package row and its version pointer commit together", () => {
