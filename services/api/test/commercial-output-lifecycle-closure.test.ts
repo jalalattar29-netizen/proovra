@@ -290,8 +290,13 @@ describe("the output state machine", () => {
 
   it("the artifact-status projection takes the record's owner and derives all three axes", () => {
     const code = stripComments(readApi("services/evidence-artifact-status.service.ts"));
+    // The facts (owner eligibility, request rows, artifacts) are gathered by the
+    // one loader the projection calls; the three axes are still derived here.
+    const loader = stripComments(readApi("services/reports/output-recovery.service.ts"));
     expect(code).toMatch(/evidenceOwnerUserId/);
-    expect(code).toMatch(/reportGenerationRequest/);
+    expect(code).toMatch(/loadEvidenceOutputFacts\(/);
+    expect(loader).toMatch(/reportGenerationRequest/);
+    expect(loader).toMatch(/resolveEvidenceOutputEligibility\(/);
     expect(code).toMatch(/deriveEvidenceOutputState/);
     // The symptom: `const reportPending = finalized && !latestReport;`
     expect(code).not.toMatch(/reportPending\s*=\s*finalized\s*&&\s*!latestReport/);
@@ -344,7 +349,11 @@ describe("the output state machine", () => {
       "routes/reports.routes.ts",
     ]) {
       const code = stripComments(readApi(file));
-      expect(code, file).toMatch(/outputActionFor\(/);
+      // The action comes from the one loader + shared decision, never a
+      // per-surface derivation.
+      expect(code, file).toMatch(/loadEvidenceOutputFacts\(/);
+      expect(code, file).toMatch(/actions\.report\.action/);
+      expect(code, file).toMatch(/actions\.verificationPackage\.action/);
       expect(code, file).toMatch(/terminalReasonClass/);
     }
   });
@@ -508,8 +517,10 @@ describe("operations population", () => {
     // The symptom: every terminal state mapped to ALREADY_SATISFIED —
     // "Nothing to do — this has already completed" — on a record that had
     // terminally failed.
-    expect(code).toMatch(/terminalState === "SUCCEEDED"/);
-    expect(code).toMatch(/not_included_in_plan/);
+    // Only "nothing to recover" is satisfied; a terminal or commercial refusal
+    // is NOT_ELIGIBLE, never "already completed".
+    expect(code).toMatch(/result\.outcome === "NOTHING_TO_RECOVER"\) return outcome\("ALREADY_SATISFIED"\)/);
+    expect(code).toMatch(/case "TERMINAL":\s*case "RECOVERABLE_BLOCKED":\s*case "NOT_INCLUDED":\s*return outcome\("NOT_ELIGIBLE"/);
   });
 });
 

@@ -99,6 +99,12 @@ export type RequestReportGenerationInput = {
   regenerateReason?: string | null;
   requestedByUserId?: string | null;
   requestedByMachineId?: string | null;
+  /** Package-only recovery: the report version whose package is built. */
+  reportVersion?: number | null;
+  /** Caller idempotency key for an explicit new version. */
+  clientRequestKey?: string | null;
+  /** Operator-only: supersede a TECHNICAL terminal (see the writer). */
+  supersedeTechnicalTerminal?: boolean;
 };
 
 export type RequestReportGenerationResult =
@@ -283,6 +289,20 @@ export async function requestReportGeneration(
               : "REQUEST_PERSIST_FAILED",
     };
   }
+  if (persisted.replayed) {
+    // The caller's key named an earlier request. It is returned as it stands;
+    // nothing new is created or enqueued.
+    return {
+      requested: true,
+      requestId: persisted.requestId,
+      enqueued: false,
+      reason: "client_request_replayed",
+      deduplicated: true,
+      terminalState: isTerminalJobExecutionState(persisted.state) ? persisted.state : undefined,
+      outcome: "REPLAYED",
+      forceRegenerate,
+    };
+  }
   bump("report_generation_request_created_total");
 
   /**
@@ -385,4 +405,29 @@ export async function requestReportGeneration(
     outcome: "QUEUE_UNAVAILABLE",
     forceRegenerate,
   };
+}
+
+/**
+ * Put an EXISTING, still-runnable request back on the queue — the explicit
+ * Retry of a request that failed retryably. No new row, no new identity: the
+ * worker resumes it from the stage it reached.
+ */
+export async function reenqueueReportGenerationRequest(
+  requestId: string,
+): Promise<{ enqueued: boolean; outcome: GenerationRequestOutcome }> {
+  const row = await prisma.reportGenerationRequest.findUnique({
+    where: { id: requestId },
+    select: { state: true },
+  });
+  if (!row) return { enqueued: false, outcome: "REQUEST_PERSIST_FAILED" };
+  if (isTerminalJobExecutionState(row.state)) {
+    return { enqueued: false, outcome: "TERMINAL" };
+  }
+  const outcome = await enqueueCanonicalWork({
+    workName: JOB_NAMES.GENERATE_REPORT,
+    commandId: requestId,
+    traceId: "retry",
+  });
+  if (!outcome.enqueued) return { enqueued: false, outcome: "QUEUE_UNAVAILABLE" };
+  return { enqueued: true, outcome: outcome.collapsed ? "ALREADY_ACTIVE" : "ENQUEUED" };
 }

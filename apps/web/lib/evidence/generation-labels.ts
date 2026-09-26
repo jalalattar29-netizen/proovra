@@ -36,6 +36,7 @@ import type { EvidenceOutputState, OutputAction } from "@proovra/shared";
  */
 export const GENERATION_ACTION_LABEL: Record<OutputAction, string> = {
   GENERATE: "Generate report & verification package",
+  RECOVER: "Recover verification package",
   RETRY: "Retry report & verification package",
   REGENERATE: "Regenerate report & verification package",
   NONE: "",
@@ -53,6 +54,7 @@ export const GENERATION_ACTION_LABEL: Record<OutputAction, string> = {
  */
 export const GENERATION_ACTION_LABEL_COMPACT: Record<OutputAction, string> = {
   GENERATE: "Generate report & package",
+  RECOVER: "Recover package",
   RETRY: "Retry report & package",
   REGENERATE: "Regenerate report & package",
   NONE: "",

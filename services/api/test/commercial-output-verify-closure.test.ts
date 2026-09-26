@@ -209,11 +209,14 @@ describe("P1-3 — a record that cannot carry an output is not 'not included'", 
      * A status compared inline at three call sites is how a fourth status comes
      * to be classified two ways. The mapping is exported once and imported.
      */
-    const status = strip(api("services/evidence-artifact-status.service.ts"));
-    expect(status).toMatch(
-      /export function resolveOutputRecordApplicability\b/,
+    // Defined once, beside the output facts it feeds; the projection
+    // re-exports it for existing importers.
+    const owner = strip(api("services/reports/output-recovery.service.ts"));
+    expect(owner).toMatch(/export function resolveOutputRecordApplicability\b/);
+    expect(owner).toMatch(/FAILED_HASH_MISMATCH/);
+    expect(strip(api("services/evidence-artifact-status.service.ts"))).toMatch(
+      /export \{ resolveOutputRecordApplicability \} from "\.\/reports\/output-recovery\.service\.js"/,
     );
-    expect(status).toMatch(/FAILED_HASH_MISMATCH/);
     for (const consumer of [
       "routes/reports.routes.ts",
       "services/reports/reports-aggregator.service.ts",
@@ -620,12 +623,13 @@ describe("P2-1 — legacy null-workspace records tell the truth", () => {
   it("WIRING: the ACTION is withdrawn, so the button is never offered", () => {
     // Suppressed rather than offered-and-refused. And the STATE is untouched,
     // so an existing artifact on such a record stays READY and downloadable.
+    const loader = strip(api("services/reports/output-recovery.service.ts"));
     const status = strip(api("services/evidence-artifact-status.service.ts"));
     // The fact comes from the record's own workspace binding…
-    expect(status).toMatch(/workspaceResolved\s*=\s*Boolean\(params\.evidenceTeamId\)/);
+    expect(loader).toMatch(/workspaceResolved:\s*Boolean\(ev\.teamId\)/);
     // …and the DECISION comes from the one shared rule, not from an inline
     // comparison repeated per output.
-    expect(status).toMatch(/resolveOfferedOutputAction\(/);
+    expect(loader).toMatch(/resolveEvidenceOutputActions\(facts\)/);
     expect(status).toMatch(/actionUnavailableReason/);
   });
 
@@ -670,7 +674,9 @@ describe("P2-1 — legacy null-workspace records tell the truth", () => {
       "services/reports/reports-aggregator.service.ts",
       "routes/reports.routes.ts",
     ]) {
-      expect(strip(api(file)), file).toMatch(/resolveOfferedOutputAction\(/);
+      // All three read the one loader, whose decision withdraws the verb
+      // (WORKSPACE_UNRESOLVED) for a record with no workspace.
+      expect(strip(api(file)), file).toMatch(/loadEvidenceOutputFacts\(/);
     }
   });
 
@@ -1034,11 +1040,11 @@ describe("P3-8 — a supersession is not 'already in progress'", () => {
      * Reporting it as "already in progress" hid the click that finally worked.
      */
     const src = strip(api("services/operations/remediation-executor.ts"));
-    const fn = src.slice(src.indexOf("async function regenerateArtifacts"));
-    const supersededAt = fn.indexOf('requested.outcome === "SUPERSEDED"');
-    const dedupAt = fn.indexOf("requested.deduplicated");
-    expect(supersededAt).toBeGreaterThan(-1);
-    expect(supersededAt).toBeLessThan(dedupAt);
+    const fn = src.slice(src.indexOf("async function recoverArtifacts"));
+    // The typed outcome is the ONLY input: SUPERSEDED is accepted work, and
+    // `deduplicated` is no longer consulted at all.
+    expect(fn).toMatch(/case "ENQUEUED":\s*case "SUPERSEDED":\s*return outcome\("QUEUED"/);
+    expect(fn).not.toMatch(/deduplicated/);
   });
 });
 

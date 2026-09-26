@@ -40,10 +40,9 @@ import {
   PDF_UNSIGNED_OPT_OUT_WARNING_COPY,
   classifyTerminalReason,
   deriveEvidenceOutputState,
-  outputActionFor,
   outputNotApplicableReason,
-  resolveOfferedOutputAction,
   projectReportRequestState,
+  type EvidenceOutputActions,
   type EvidenceOutputState,
   type OutputAction,
   type OutputArtifactAvailability,
@@ -52,6 +51,7 @@ import {
   type OutputIneligibilityReason,
   type OutputActionUnavailableReason,
   type OutputNotApplicableReason,
+  type OutputOperation,
   type OutputRecordApplicability,
   type OutputTerminalReasonClass,
   type PersistedReportRequestState,
@@ -61,7 +61,10 @@ import {
   type VerificationPackageSignatureStatus,
 } from "@proovra/shared";
 import { prisma } from "../db.js";
-import { resolveEvidenceOutputEligibility } from "./billing/evidence-output-eligibility.service.js";
+import {
+  loadEvidenceOutputFacts,
+  type NewVersionStorageEstimate,
+} from "./reports/output-recovery.service.js";
 
 /**
  * Phase A2 — Bounded set of artifact signature status strings the
@@ -113,31 +116,10 @@ function resolveWarningCopy(
 export type VerificationPackageUnavailableReason = OutputIneligibilityReason;
 
 /**
- * THE ONE MAPPING from a persisted `EvidenceStatus` to the record axis.
- *
- * P1-3 CLOSURE (2026-09-10). Three call sites need it — this projection, the
- * Reports aggregator and the user-scoped Reports fallback — and a status
- * string compared inline at each of them is how a fourth status comes to be
- * classified two different ways. It is a pure function of the status, so it
- * takes the status and nothing else.
- *
- * A status this function does not recognise reads `NOT_FINALIZED`, which is
- * the conservative answer: it offers no action and promises nothing.
+ * THE ONE MAPPING from a persisted `EvidenceStatus` to the record axis lives
+ * with the output facts it feeds; re-exported here for existing importers.
  */
-export function resolveOutputRecordApplicability(
-  status: prismaPkg.EvidenceStatus | string | null | undefined,
-): OutputRecordApplicability {
-  if (status === prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH) {
-    return "INTEGRITY_FAILED";
-  }
-  if (
-    status === prismaPkg.EvidenceStatus.SIGNED ||
-    status === prismaPkg.EvidenceStatus.REPORTED
-  ) {
-    return "FINALIZED";
-  }
-  return "NOT_FINALIZED";
-}
+export { resolveOutputRecordApplicability } from "./reports/output-recovery.service.js";
 
 /**
  * The three-axis projection for one output, plus the derived state and the
@@ -195,6 +177,18 @@ export type EvidenceOutputProjection = {
    * relies on. Only the verb goes.
    */
   actionUnavailableReason: OutputActionUnavailableReason | null;
+  /** The server operation the offered action performs, when one is offered. */
+  operation: OutputOperation | null;
+  /**
+   * The version this output's state describes: the latest report, and for the
+   * package the one PAIRED with it (same version). Null when absent.
+   */
+  version: number | null;
+  /**
+   * The newest version of this output that exists at all — for the package it
+   * can be older than the latest report, and stays downloadable from history.
+   */
+  latestAvailableVersion: number | null;
 };
 
 export interface EvidenceArtifactStatus {
@@ -208,6 +202,16 @@ export interface EvidenceArtifactStatus {
   outputs: {
     report: EvidenceOutputProjection;
     verificationPackage: EvidenceOutputProjection;
+    /**
+     * The separate, optional "create a new version" action. Offered only when
+     * the latest pair is complete and the caller may create one; carries the
+     * versions involved and a storage ESTIMATE (never an exact figure).
+     */
+    newVersion: EvidenceOutputActions["newVersion"] & {
+      estimate: NewVersionStorageEstimate | null;
+    };
+    /** Poll `/artifacts/status` at this interval while work is live; null = stop. */
+    pollIntervalMs: number | null;
   };
   report:
     | {
@@ -277,6 +281,12 @@ export interface EvidenceArtifactStatus {
 
 export async function buildEvidenceArtifactStatus(params: {
   evidenceId: string;
+  /**
+   * Who is asking. Actions are offered only to a caller the canonical record
+   * access engine allows `evidence.generate_report`; with no caller, the
+   * projection offers none.
+   */
+  callerUserId?: string | null;
   evidenceStatus: prismaPkg.EvidenceStatus | null;
   /** Phase 32.5 — Required for verification-package availability
    *  reasoning. When null, the evidence belongs to a personal
@@ -302,109 +312,84 @@ export async function buildEvidenceArtifactStatus(params: {
   evidenceVerificationPackageMetadata?: prismaPkg.Prisma.JsonValue | null;
 }): Promise<EvidenceArtifactStatus> {
   const { evidenceId } = params;
-  const [latestReport, latestPackage, latestRequest, eligibility] =
-    await Promise.all([
-      prisma.report.findFirst({
-        where: { evidenceId },
-        orderBy: { version: "desc" },
-        select: {
-          version: true,
-          generatedAtUtc: true,
-          verificationPackageVersion: true,
-          reviewerSummaryVersion: true,
-          // Phase A2 — explicit PDF signature columns.
-          pdfSignatureStatus: true,
-          pdfSignedAtUtc: true,
-          pdfSignerKeyId: true,
-          pdfSigningWarning: true,
-        },
-      }),
-      prisma.verificationPackage.findFirst({
-        where: { evidenceId },
-        orderBy: { version: "desc" },
-        select: {
-          version: true,
-          generatedAtUtc: true,
-          packageType: true,
-        },
-      }),
-      /*
-       * AXIS 2. The most recent durable generation request for this record.
-       *
-       * `ReportGenerationRequest` carries the only real execution state the
-       * platform has, and until now NOTHING outside the worker read it: a
-       * customer could not learn that their report had failed, only that it
-       * was "pending" forever. The projection below is deliberately narrower
-       * than the row (see `projectReportRequestState`).
-       */
-      prisma.reportGenerationRequest
-        .findFirst({
-          where: { evidenceId },
-          orderBy: { createdAtUtc: "desc" },
-          select: {
-            state: true,
-            terminalReasonCode: true,
-            attemptCount: true,
-            createdAtUtc: true,
-            completedAtUtc: true,
-          },
-        })
-        .catch(() => null),
-      /*
-       * AXIS 1. Plan AND this record's own funding, through the one authority.
-       * Degrades to fail-closed FREE rather than throwing — an artifact status
-       * read must not 500 because a commercial lookup was slow.
-       */
-      params.evidenceOwnerUserId
-        ? resolveEvidenceOutputEligibility({
-            evidenceId,
-            ownerUserId: params.evidenceOwnerUserId,
-            teamId: params.evidenceTeamId,
-          }).catch(() => null)
-        : Promise.resolve(null),
-    ]);
+  const [latestReport, loadedMap] = await Promise.all([
+    prisma.report.findFirst({
+      where: { evidenceId },
+      orderBy: { version: "desc" },
+      select: {
+        version: true,
+        generatedAtUtc: true,
+        verificationPackageVersion: true,
+        reviewerSummaryVersion: true,
+        // Phase A2 — explicit PDF signature columns.
+        pdfSignatureStatus: true,
+        pdfSignedAtUtc: true,
+        pdfSignerKeyId: true,
+        pdfSigningWarning: true,
+      },
+    }),
+    /*
+     * THE FACTS AND THE DECISION, from the one loader every surface uses.
+     * The actions below are `resolveEvidenceOutputActions` — the same function
+     * the POST route re-derives before it acts — so a button and the work it
+     * starts cannot disagree.
+     */
+    loadEvidenceOutputFacts({
+      evidenceIds: [evidenceId],
+      callerUserId: params.callerUserId ?? null,
+      includeNewVersionEstimate: true,
+    }),
+  ]);
+  const loaded = loadedMap.get(evidenceId);
+  if (!loaded) {
+    const err: Error & { statusCode?: number } = new Error("Evidence not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  const { facts, actions } = loaded;
+
+  /*
+   * THE PACKAGE THAT BELONGS TO THE LATEST REPORT.
+   *
+   * "Any package" used to count: report v2 beside package v1 read as a
+   * complete pair, and the package served embedded report v1. The package
+   * output now describes the package AT the latest report's version; an older
+   * package stays downloadable from the version history and is disclosed as
+   * `latestAvailableVersion`.
+   */
+  const latestPackage =
+    loaded.packageAtLatest ??
+    // A package with no report at all is the legacy consistency case; it is
+    // still the record's package and still downloadable.
+    (latestReport ? null : loaded.latestPackage);
 
   const finalized =
     params.evidenceStatus === prismaPkg.EvidenceStatus.SIGNED ||
     params.evidenceStatus === prismaPkg.EvidenceStatus.REPORTED;
+  const recordApplicability: OutputRecordApplicability = facts.record;
 
   /*
-   * P1-3 CLOSURE (2026-09-10) — THE RECORD AXIS.
-   *
-   * `finalized` alone folded a terminal integrity failure into "not finalized
-   * yet", and the derivation then folded THAT into `NOT_INCLUDED`, which every
-   * surface renders with plan copy. A `FAILED_HASH_MISMATCH` record was
-   * therefore told its billing plan was the reason it had no report.
-   *
-   * The three record conditions are named here, once, from the status the
-   * caller already holds.
+   * Display eligibility. An unresolvable commercial answer offers no ACTION
+   * (the decision already treats it as not included) but keeps the previous
+   * display behaviour: hiding a report a customer is entitled to is the worse
+   * error on a read surface.
    */
-  const recordApplicability: OutputRecordApplicability =
-    resolveOutputRecordApplicability(params.evidenceStatus);
-
   const reportEligibility: OutputCommercialEligibility =
-    eligibility?.reportEligibility ?? "ELIGIBLE";
+    loaded.eligibility?.reportEligibility ?? "ELIGIBLE";
   const packageEligibility: OutputCommercialEligibility =
-    eligibility?.packageEligibility ?? "ELIGIBLE";
+    loaded.eligibility?.packageEligibility ?? "ELIGIBLE";
   const ineligibilityReason: OutputIneligibilityReason | null =
-    eligibility?.ineligibilityReason ?? null;
+    loaded.eligibility?.ineligibilityReason ?? null;
 
-  /*
-   * `eligibility === null` means the caller passed no owner, so axis 1 is
-   * UNKNOWN rather than NOT_INCLUDED. Assuming ELIGIBLE there preserves the
-   * previous behaviour exactly for any un-migrated caller — it can still say
-   * "pending" — while every migrated caller gets the truth. Assuming
-   * NOT_INCLUDED would have been the fail-closed choice for an authorization
-   * question; this is a DISPLAY question, and hiding a report a customer is
-   * entitled to is the worse error.
-   */
+  const project = (row: typeof loaded.reportRequest): OutputGenerationState =>
+    row ? projectReportRequestState(row.state as PersistedReportRequestState) : "NOT_REQUESTED";
 
-  const generation: OutputGenerationState = latestRequest
-    ? projectReportRequestState(latestRequest.state as PersistedReportRequestState)
-    : "NOT_REQUESTED";
+  // AXIS 2, per output: the report follows report-producing requests; the
+  // package follows every request, because every request produces one.
+  const generation = project(loaded.reportRequest);
   const terminalReasonClass: OutputTerminalReasonClass | null =
     generation === "TERMINAL_FAILURE"
-      ? classifyTerminalReason(latestRequest?.terminalReasonCode ?? null)
+      ? classifyTerminalReason(loaded.reportRequest?.terminalReasonCode ?? null)
       : null;
 
   const reportAvailability: OutputArtifactAvailability = latestReport
@@ -414,34 +399,14 @@ export async function buildEvidenceArtifactStatus(params: {
     ? "READY"
     : "NO_ARTIFACT";
 
-  // Phase 32.6.6 — personal-workspace evidence is now first-class.
-  // The worker generates a PERSONAL BASIC package (no governance
-  // gate); the personal-workspace `unavailable` derivation is
-  // therefore retired.
-  //
-  // COMMERCIAL CLOSURE (2026-09-08) — `unavailable` is no longer always false.
-  // It now carries the one thing it was reserved for: an output the plan (and
-  // this record's funding) genuinely exclude.
   const packageUnavailableForPersonalWorkspace = false;
 
-  // Phase 32.6.1 — read the bounded gate-denial metadata the worker
-  // persists after PackageGateDeniedError. Distinguishes "blocked by
-  // governance" from "still pending" so the frontend doesn't poll
-  // forever for a package that will only become available when the
-  // governance condition resolves.
+  // Phase 32.6.1 — the bounded gate-denial metadata the worker persists.
   const blockedMeta = readBlockedMetadata(
     params.evidenceVerificationPackageMetadata ?? null,
   );
   const packageBlocked = finalized && !latestPackage && blockedMeta !== null;
 
-  /*
-   * THE DERIVED STATES. One call each, from the shared machine.
-   *
-   * The governance block is folded into axis 2 for the package, because from
-   * the customer's side "a policy refused this" and "the pipeline refused this"
-   * are the same kind of fact — something stopped it — and the reason is what
-   * differs. The report has no equivalent metadata blob.
-   */
   const reportAxes = {
     eligibility: reportEligibility,
     generation,
@@ -457,46 +422,29 @@ export async function buildEvidenceArtifactStatus(params: {
     terminalReasonClass,
     terminalReasonCode:
       generation === "TERMINAL_FAILURE"
-        ? (latestRequest?.terminalReasonCode ?? null)
+        ? (loaded.reportRequest?.terminalReasonCode ?? null)
         : null,
-    attemptCount: latestRequest?.attemptCount ?? null,
-    requestedAtUtc: latestRequest?.createdAtUtc?.toISOString() ?? null,
-    completedAtUtc: latestRequest?.completedAtUtc?.toISOString() ?? null,
+    attemptCount: loaded.reportRequest?.attemptCount ?? null,
+    requestedAtUtc: loaded.reportRequest?.createdAtUtc?.toISOString() ?? null,
+    completedAtUtc: loaded.reportRequest?.completedAtUtc?.toISOString() ?? null,
     availability: reportAvailability,
     state: deriveEvidenceOutputState(reportAxes),
-    action: "NONE",
-    actionUnavailableReason: null,
+    action: actions.report.action,
+    actionUnavailableReason:
+      actions.report.action === "NONE" ? actions.report.reason : null,
+    operation: actions.report.operation,
+    version: latestReport?.version ?? null,
+    latestAvailableVersion: latestReport?.version ?? null,
   };
-  /*
-   * P2-1 CLOSURE (2026-09-10) — A RECORD WITH NO WORKSPACE CARRIES NO VERB.
-   *
-   * The generation writer refuses a record whose workspace is null, because a
-   * request that cannot be scoped must not exist. Legacy personal rows written
-   * before the workspace backfill are exactly that shape AND are listed, so
-   * the verb was offered and the click was answered with "This evidence record
-   * is not available."
-   *
-   * Withdrawn here, once, for both outputs — and the STATE is untouched, so an
-   * existing artifact on such a record stays READY and stays downloadable.
-   */
-  const workspaceResolved = Boolean(params.evidenceTeamId);
 
-  {
-    const offered = resolveOfferedOutputAction({
-      action: outputActionFor({
-        state: reportOutput.state,
-        eligibility: reportEligibility,
-        terminalReasonClass,
-      }),
-      workspaceResolved,
-    });
-    reportOutput.action = offered.action;
-    reportOutput.actionUnavailableReason = offered.actionUnavailableReason;
-  }
-
+  const rawPackageGeneration = project(loaded.packageRequest);
   const packageGeneration: OutputGenerationState = packageBlocked
     ? "BLOCKED"
-    : generation;
+    : rawPackageGeneration;
+  const packageTerminalClass: OutputTerminalReasonClass | null =
+    packageGeneration === "TERMINAL_FAILURE"
+      ? classifyTerminalReason(loaded.packageRequest?.terminalReasonCode ?? null)
+      : null;
   const packageAxes = {
     eligibility: packageEligibility,
     generation: packageGeneration,
@@ -509,49 +457,50 @@ export async function buildEvidenceArtifactStatus(params: {
       packageEligibility === "NOT_INCLUDED" ? ineligibilityReason : null,
     notApplicableReason: outputNotApplicableReason(packageAxes),
     generation: packageGeneration,
-    terminalReasonClass:
-      packageGeneration === "TERMINAL_FAILURE" ? terminalReasonClass : null,
+    terminalReasonClass: packageTerminalClass,
     terminalReasonCode:
       packageGeneration === "TERMINAL_FAILURE"
-        ? (latestRequest?.terminalReasonCode ?? null)
+        ? (loaded.packageRequest?.terminalReasonCode ?? null)
         : null,
-    attemptCount: latestRequest?.attemptCount ?? null,
-    requestedAtUtc: latestRequest?.createdAtUtc?.toISOString() ?? null,
-    completedAtUtc: latestRequest?.completedAtUtc?.toISOString() ?? null,
+    attemptCount: loaded.packageRequest?.attemptCount ?? null,
+    requestedAtUtc: loaded.packageRequest?.createdAtUtc?.toISOString() ?? null,
+    completedAtUtc: loaded.packageRequest?.completedAtUtc?.toISOString() ?? null,
     availability: packageAvailability,
     state: deriveEvidenceOutputState(packageAxes),
-    action: "NONE",
-    actionUnavailableReason: null,
+    action: actions.verificationPackage.action,
+    actionUnavailableReason:
+      actions.verificationPackage.action === "NONE"
+        ? actions.verificationPackage.reason
+        : null,
+    operation: actions.verificationPackage.operation,
+    version: latestPackage?.version ?? null,
+    latestAvailableVersion: loaded.latestPackage?.version ?? null,
   };
-  {
-    const offered = resolveOfferedOutputAction({
-      action: outputActionFor({
-        state: packageOutput.state,
-        eligibility: packageEligibility,
-        terminalReasonClass: packageOutput.terminalReasonClass,
-      }),
-      workspaceResolved,
-    });
-    packageOutput.action = offered.action;
-    packageOutput.actionUnavailableReason = offered.actionUnavailableReason;
-  }
 
   /*
    * THE LEGACY BOOLEANS, KEPT IN AGREEMENT WITH THE STATE.
-   *
-   * `pending` used to be `finalized && !artifact` — pure absence. It is now
-   * derived from the state, so it means what the word means: work is expected
-   * or under way. A record the plan excludes is `unavailable`, and a record
-   * whose generation terminally failed is neither pending nor available.
    */
   const reportPending =
     reportOutput.state === "QUEUED" || reportOutput.state === "GENERATING";
-  // The report's legacy union carries no `unavailable` member; its exclusion
-  // reason travels on `outputs.report`, which is what consumers now read.
-
   const packagePending =
     packageOutput.state === "QUEUED" || packageOutput.state === "GENERATING";
   const packageNotIncluded = packageOutput.state === "NOT_INCLUDED";
+
+  /*
+   * POLLING, DECIDED ONCE. Clients poll `/artifacts/status` at this interval
+   * and stop when it is null — including while an older version stays READY
+   * and downloadable during a new generation. A retry the pipeline has
+   * scheduled on its own is polled slowly.
+   */
+  const inFlight = (row: typeof loaded.reportRequest) =>
+    row != null && (row.state === "QUEUED" || row.state === "PROCESSING");
+  const pollIntervalMs =
+    inFlight(loaded.reportRequest) || inFlight(loaded.packageRequest)
+      ? 3_000
+      : loaded.reportRequest?.state === "FAILED_RETRYABLE" ||
+          loaded.packageRequest?.state === "FAILED_RETRYABLE"
+        ? 30_000
+        : null;
 
   // Phase A2 — project the PDF signature block. When the Report row
   // pre-dates A2, `pdfSignatureStatus` is NULL — we surface this as
@@ -627,6 +576,11 @@ export async function buildEvidenceArtifactStatus(params: {
     outputs: {
       report: reportOutput,
       verificationPackage: packageOutput,
+      newVersion: {
+        ...actions.newVersion,
+        estimate: loaded.newVersionEstimate,
+      },
+      pollIntervalMs,
     },
     report: latestReport
       ? {

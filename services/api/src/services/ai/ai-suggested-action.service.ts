@@ -23,6 +23,11 @@ import type { AiCitation } from "./ai-citation.service.js";
  * action without a real executor is a fake action; the registry only lists
  * actions with a proven backend path (report endpoints) or a real navigation
  * target (metadata section, reviewer assignment surface).
+ *
+ * 2026-09-26 — a missing or failed package IS now recoverable on its own, and
+ * it rides the SAME endpoint and the same two ids: the server re-derives the
+ * operation (package-only for an existing report) from the record's facts,
+ * so no separate package action id is needed or added.
  */
 export const SUGGESTABLE_ACTIONS = [
   "GENERATE_REPORT",

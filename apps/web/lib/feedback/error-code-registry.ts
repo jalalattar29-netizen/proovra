@@ -206,6 +206,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
 
   // -- Rate limiting --------------------------------------------------------
   RATE_LIMITED: { disposition: "customer", where: "global" },
+  // Report / package generation and recovery (2026-09-26).
+  GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
+  IDEMPOTENCY_KEY_REQUIRED: { disposition: "customer", where: "global" },
+  IDEMPOTENCY_KEY_INVALID: { disposition: "customer", where: "global" },
+  CONCURRENCY_LIMITED: { disposition: "customer", where: "global" },
   AI_CHAT_RATE_LIMITED: { disposition: "customer", where: "global" },
   AI_CHAT_TIMEOUT: { disposition: "customer", where: "global" },
   AI_WORKSPACE_POLICY_DENIED: { disposition: "customer", where: "global" },

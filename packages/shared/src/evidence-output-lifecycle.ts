@@ -258,7 +258,13 @@ export function classifyTerminalReason(
     code === "FAILED_HASH_MISMATCH" ||
     code === "SIGNING_KEY_NOT_FOUND" ||
     code === "OWNER_USER_NOT_FOUND" ||
-    code === "EVIDENCE_STORAGE_NOT_SET"
+    code === "EVIDENCE_STORAGE_NOT_SET" ||
+    // The stored report could not be verified; never retried or replaced.
+    code === "REPORT_INTEGRITY_MISMATCH" ||
+    code === "REPORT_INTEGRITY_UNVERIFIABLE" ||
+    code === "REPORT_OBJECT_MISSING" ||
+    code === "REPORT_VERSION_NOT_FOUND" ||
+    code === "REPORT_MISSING_FOR_REPORTED_EVIDENCE"
   ) {
     return "INTEGRITY";
   }
@@ -489,7 +495,25 @@ export function deriveEvidenceOutputState(
  * that inference is exactly how a first generation came to be labelled a
  * regeneration.
  */
-export const OUTPUT_ACTIONS = ["GENERATE", "RETRY", "REGENERATE", "NONE"] as const;
+export const OUTPUT_ACTIONS = [
+  "GENERATE",
+  /**
+   * An eligible output is missing or failed while the rest of the record is
+   * fine — for example a report whose verification package was never built.
+   * Recovery restores exactly that output; it never mints a new report.
+   */
+  "RECOVER",
+  "RETRY",
+  /**
+   * RETIRED (2026-09-26). A READY record no longer carries a recovery verb;
+   * a new report/package pair is the separate, optional
+   * {@link NEW_VERSION_ACTION} on `outputs.newVersion`. Kept in the union only
+   * so clients built before the change still type-check; the projection
+   * never produces it.
+   */
+  "REGENERATE",
+  "NONE",
+] as const;
 export type OutputAction = (typeof OUTPUT_ACTIONS)[number];
 
 export function outputActionFor(input: {
@@ -556,6 +580,44 @@ export function outputActionFor(input: {
  */
 export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
   "WORKSPACE_UNRESOLVED",
+  /** Generation or recovery for this output is queued or running. */
+  "IN_PROGRESS",
+  /** Nothing is missing or failed. */
+  "NOT_REQUIRED",
+  /** The report action covers this output: the package is built with it. */
+  "FOLLOWS_REPORT",
+  "NOT_FINALIZED",
+  "INTEGRITY_FAILED",
+  "NOT_INCLUDED",
+  /** The caller may read the record but not generate or recover its outputs. */
+  "PERMISSION_DENIED",
+  "LEGAL_HOLD_ACTIVE",
+  "WORKSPACE_SUSPENDED",
+  "WORKSPACE_CLOSED",
+  "EVIDENCE_TRASHED",
+  "EVIDENCE_ARCHIVED",
+  "PENDING_DESTRUCTION",
+  "EVIDENCE_DESTROYED",
+  /** A governance policy refused it. */
+  "BLOCKED_BY_POLICY",
+  /**
+   * Automatic retries were exhausted. An operator reviews it; another customer
+   * click could not work.
+   */
+  "ESCALATED_TO_OPERATOR",
+  /**
+   * The stored report could not be verified (missing, altered or with no
+   * recorded hash). It is never replaced silently; a person reviews it.
+   */
+  "REPORT_INTEGRITY_REVIEW",
+  /** A package exists with no report: a consistency case a person reviews. */
+  "CONSISTENCY_REVIEW_REQUIRED",
+  /** A new version needs the complete latest pair first. */
+  "PAIR_INCOMPLETE",
+  /** A new version would exceed the workspace storage allowance. */
+  "STORAGE_LIMIT",
+  /** The last attempt failed and can be retried; retry it first. */
+  "RETRY_AVAILABLE",
 ] as const;
 export type OutputActionUnavailableReason =
   (typeof OUTPUT_ACTION_UNAVAILABLE_REASONS)[number];
@@ -703,7 +765,15 @@ export function listNonRecoverableBlockedTerminalReasons(): readonly string[] {
  * branch and burned its own idempotency key on a record that had nothing to
  * preserve.
  */
-export const GENERATION_INTENTS = ["GENERATE", "RETRY", "REGENERATE"] as const;
+export const GENERATION_INTENTS = [
+  "GENERATE",
+  "RETRY",
+  "RECOVER",
+  /** An explicit new report/package pair. Requires a caller idempotency key. */
+  "NEW_VERSION",
+  /** Legacy spelling of NEW_VERSION, still accepted from older clients. */
+  "REGENERATE",
+] as const;
 export type GenerationIntent = (typeof GENERATION_INTENTS)[number];
 
 /**
@@ -733,8 +803,10 @@ export function intentForOutputAction(
       return "GENERATE";
     case "RETRY":
       return "RETRY";
+    case "RECOVER":
+      return "RECOVER";
     case "REGENERATE":
-      return "REGENERATE";
+      return "NEW_VERSION";
     case "NONE":
       return null;
   }
@@ -803,6 +875,18 @@ export const GENERATION_REQUEST_OUTCOMES = [
   "WORKSPACE_UNRESOLVED",
   /** A request with no principal cannot be audited, so it is refused. */
   "REQUESTER_REQUIRED",
+  /** Nothing is missing or failed, so there is nothing to recover. */
+  "NOTHING_TO_RECOVER",
+  /**
+   * The output cannot be recovered by this caller in the record's current
+   * state; the response carries the bounded reason.
+   */
+  "NOT_RECOVERABLE",
+  /**
+   * The same caller idempotency key was used before: the original request is
+   * returned and no second version is created.
+   */
+  "REPLAYED",
 ] as const;
 export type GenerationRequestOutcome =
   (typeof GENERATION_REQUEST_OUTCOMES)[number];
@@ -820,4 +904,308 @@ export function generationOutcomeAcceptedWork(
   outcome: GenerationRequestOutcome,
 ): boolean {
   return outcome === "ENQUEUED" || outcome === "SUPERSEDED";
+}
+
+// ===========================================================================
+// THE PER-OUTPUT ACTION CONTRACT (2026-09-26)
+// ===========================================================================
+
+/**
+ * The separate, optional action that creates a new report/package pair. Never
+ * a recovery verb, never the default: offered only when the latest pair is
+ * complete and the caller may create one.
+ */
+export const NEW_VERSION_ACTION = "CREATE_NEW_VERSION" as const;
+export type NewVersionAction = typeof NEW_VERSION_ACTION | "NONE";
+
+/**
+ * What a click on an offered action makes the server do. Derived by the SAME
+ * function that decides the action, so the button and the operation cannot
+ * disagree.
+ */
+export const OUTPUT_OPERATIONS = [
+  /** Report then package, in one request. */
+  "FULL_GENERATION",
+  /** Only the package, for the existing report version. */
+  "PACKAGE_RECOVERY",
+  /** Re-run the request that failed retryably. */
+  "RETRY_REQUEST",
+  /** A new report version and its package. */
+  "NEW_VERSION",
+] as const;
+export type OutputOperation = (typeof OUTPUT_OPERATIONS)[number];
+
+/** Lifecycle, legal and workspace facts that restrict actions. */
+export type OutputRestrictions = {
+  /** Evidence `lifecycleState`. */
+  lifecycleState: string | null;
+  /** Any effective legal hold: evidence, case or workspace scope. */
+  legalHold: boolean;
+  /** The organization is not ACTIVE. */
+  workspaceSuspended: boolean;
+  /** The workspace is closed. */
+  workspaceClosed: boolean;
+  /** The record carries a workspace a request can be scoped to. */
+  workspaceResolved: boolean;
+};
+
+/** The latest generation request relevant to one output. */
+export type OutputRequestFact = {
+  state: PersistedReportRequestState;
+  terminalReasonCode: string | null;
+  /**
+   * The request was made after the latest report was generated, i.e. it was
+   * an attempt to go BEYOND the current version. A failure of such a request
+   * is disclosed beside the still-downloadable report.
+   */
+  afterLatestReport?: boolean;
+} | null;
+
+/** Everything the decision needs, gathered once by the API. */
+export type EvidenceOutputFacts = {
+  record: OutputRecordApplicability;
+  reportEligibility: OutputCommercialEligibility;
+  packageEligibility: OutputCommercialEligibility;
+  latestReportVersion: number | null;
+  /** A package exists AT the latest report's version (a complete pair). */
+  packageAtLatestReport: boolean;
+  /** The newest package of any version, for history and the legacy case. */
+  latestPackageVersion: number | null;
+  /** Governance refused the package for this record. */
+  packageBlockedByGovernance: boolean;
+  /** Latest request that produces a report (artifactType REPORT). */
+  reportRequest: OutputRequestFact;
+  /** Latest request of any kind (both kinds produce a package). */
+  packageRequest: OutputRequestFact;
+  restrictions: OutputRestrictions;
+  /** May the caller generate or recover outputs for this record? */
+  callerMayGenerate: boolean;
+  /** Would a new pair fit the workspace storage allowance? `null` = unknown. */
+  newVersionFitsStorage: boolean | null;
+};
+
+export type OutputActionDecision = {
+  action: OutputAction;
+  /** Why no action is offered, when none is. `null` when an action is offered. */
+  reason: OutputActionUnavailableReason | null;
+  /** The server operation the offered action performs. */
+  operation: OutputOperation | null;
+};
+
+export type EvidenceOutputActions = {
+  report: OutputActionDecision;
+  verificationPackage: OutputActionDecision;
+  newVersion: {
+    action: NewVersionAction;
+    reason: OutputActionUnavailableReason | null;
+    currentVersion: number | null;
+    nextVersion: number | null;
+  };
+};
+
+const IN_FLIGHT: ReadonlySet<string> = new Set(["QUEUED", "PROCESSING"]);
+
+const REPORT_INTEGRITY_CODES: ReadonlySet<string> = new Set([
+  "REPORT_INTEGRITY_MISMATCH",
+  "REPORT_INTEGRITY_UNVERIFIABLE",
+  "REPORT_OBJECT_MISSING",
+  "REPORT_VERSION_NOT_FOUND",
+  "REPORT_MISSING_FOR_REPORTED_EVIDENCE",
+]);
+
+/** The restriction that withdraws every action, if any. */
+function blockingRestriction(
+  r: OutputRestrictions,
+): OutputActionUnavailableReason | null {
+  switch ((r.lifecycleState ?? "ACTIVE").toUpperCase()) {
+    case "TRASHED":
+      return "EVIDENCE_TRASHED";
+    case "DESTROYED":
+      return "EVIDENCE_DESTROYED";
+    case "PENDING_DESTRUCTION":
+      return "PENDING_DESTRUCTION";
+    case "ARCHIVED":
+      return "EVIDENCE_ARCHIVED";
+    default:
+      break;
+  }
+  if (r.workspaceClosed) return "WORKSPACE_CLOSED";
+  if (r.workspaceSuspended) return "WORKSPACE_SUSPENDED";
+  if (!r.workspaceResolved) return "WORKSPACE_UNRESOLVED";
+  return null;
+}
+
+/** What a failed or blocked request means for a customer action. */
+function failedRequestDecision(
+  request: NonNullable<OutputRequestFact>,
+  eligible: boolean,
+): OutputActionDecision | null {
+  const code = (request.terminalReasonCode ?? "").trim().toUpperCase();
+  if (request.state === "FAILED_RETRYABLE") {
+    return { action: "RETRY", reason: null, operation: "RETRY_REQUEST" };
+  }
+  if (request.state === "BLOCKED_POLICY" || request.state === "BLOCKED_STALE") {
+    if (code === "LEGAL_HOLD_ACTIVE") {
+      return { action: "NONE", reason: "LEGAL_HOLD_ACTIVE", operation: null };
+    }
+    if (code === "ORGANIZATION_NOT_ACTIVE") {
+      return { action: "NONE", reason: "WORKSPACE_SUSPENDED", operation: null };
+    }
+    // A stale policy version is a race; the next request runs.
+    if (code === "POLICY_VERSION_CHANGED") return null;
+    return { action: "NONE", reason: "BLOCKED_BY_POLICY", operation: null };
+  }
+  if (request.state === "FAILED_TERMINAL") {
+    if (REPORT_INTEGRITY_CODES.has(code)) {
+      return { action: "NONE", reason: "REPORT_INTEGRITY_REVIEW", operation: null };
+    }
+    switch (classifyTerminalReason(code)) {
+      case "COMMERCIAL":
+        // The old refusal is history; under the current entitlement this is
+        // a first attempt, which the caller supplies.
+        return eligible ? null : { action: "NONE", reason: "NOT_INCLUDED", operation: null };
+      case "INTEGRITY":
+        return { action: "NONE", reason: "INTEGRITY_FAILED", operation: null };
+      case "POLICY":
+        return { action: "NONE", reason: "BLOCKED_BY_POLICY", operation: null };
+      case "TECHNICAL":
+        return { action: "NONE", reason: "ESCALATED_TO_OPERATOR", operation: null };
+    }
+  }
+  return null;
+}
+
+/**
+ * THE decision: which action each output offers, why not when it offers none,
+ * and what the server does when it is taken.
+ *
+ *   * A READY output offers nothing. A complete latest pair offers only the
+ *     separate CREATE_NEW_VERSION.
+ *   * Work in flight offers nothing; the state and generation fields carry the
+ *     progress, and existing downloads stay available.
+ *   * A missing or failed PACKAGE beside an existing report is recovered on
+ *     its own (PACKAGE_RECOVERY) — never by minting a new report.
+ *   * A missing report is generated together with its package.
+ *   * An exhausted technical failure, an unverifiable stored report, or a
+ *     package with no report goes to a person, with a reason.
+ *   * Lifecycle, workspace and permission restrictions withdraw the action and
+ *     say why. A legal hold blocks a NEW version (it would add a new record of
+ *     the evidence while it must be preserved as it is) but not the recovery
+ *     of a missing output, which replaces nothing.
+ */
+export function resolveEvidenceOutputActions(
+  f: EvidenceOutputFacts,
+): EvidenceOutputActions {
+  const none = (reason: OutputActionUnavailableReason): OutputActionDecision => ({
+    action: "NONE",
+    reason,
+    operation: null,
+  });
+
+  const reportReady = f.latestReportVersion != null;
+  const pairComplete =
+    reportReady && (f.packageAtLatestReport || f.packageEligibility !== "ELIGIBLE");
+
+  const recordReason: OutputActionUnavailableReason | null =
+    f.record === "INTEGRITY_FAILED"
+      ? "INTEGRITY_FAILED"
+      : f.record === "NOT_FINALIZED"
+        ? "NOT_FINALIZED"
+        : null;
+  const restriction = blockingRestriction(f.restrictions);
+
+  // ---- REPORT --------------------------------------------------------------
+  const report: OutputActionDecision = (() => {
+    if (recordReason) return none(recordReason);
+    if (f.reportRequest && IN_FLIGHT.has(f.reportRequest.state)) return none("IN_PROGRESS");
+    if (reportReady) {
+      // The report is downloadable. A failed attempt to go beyond it is still
+      // disclosed — retryable, or escalated — instead of hidden behind READY.
+      if (f.reportRequest?.afterLatestReport) {
+        const failed = failedRequestDecision(f.reportRequest, f.reportEligibility === "ELIGIBLE");
+        if (failed) return failed;
+      }
+      return none("NOT_REQUIRED");
+    }
+    if (f.latestPackageVersion != null) return none("CONSISTENCY_REVIEW_REQUIRED");
+    if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
+    if (f.reportRequest) {
+      const failed = failedRequestDecision(
+        f.reportRequest,
+        f.reportEligibility === "ELIGIBLE",
+      );
+      if (failed) return failed;
+    }
+    return { action: "GENERATE", reason: null, operation: "FULL_GENERATION" };
+  })();
+
+  // ---- VERIFICATION PACKAGE ------------------------------------------------
+  const verificationPackage: OutputActionDecision = (() => {
+    if (recordReason) return none(recordReason);
+    if (f.packageRequest && IN_FLIGHT.has(f.packageRequest.state)) return none("IN_PROGRESS");
+    if (!reportReady) {
+      // Legacy package with no report is the report's consistency case.
+      return f.latestPackageVersion != null ? none("NOT_REQUIRED") : none("FOLLOWS_REPORT");
+    }
+    if (f.packageAtLatestReport) return none("NOT_REQUIRED");
+    if (f.packageEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
+    if (f.packageBlockedByGovernance) return none("BLOCKED_BY_POLICY");
+    if (f.packageRequest) {
+      const failed = failedRequestDecision(f.packageRequest, true);
+      if (failed) {
+        // A retry of a failed request whose report is committed is a package
+        // recovery for that report; say so.
+        return failed.action === "RETRY"
+          ? { action: "RETRY", reason: null, operation: "PACKAGE_RECOVERY" }
+          : failed;
+      }
+    }
+    return { action: "RECOVER", reason: null, operation: "PACKAGE_RECOVERY" };
+  })();
+
+  // ---- NEW VERSION ---------------------------------------------------------
+  const newVersion = (() => {
+    const base = {
+      currentVersion: f.latestReportVersion,
+      nextVersion: f.latestReportVersion != null ? f.latestReportVersion + 1 : null,
+    };
+    const no = (reason: OutputActionUnavailableReason) => ({
+      action: "NONE" as const,
+      reason,
+      ...base,
+    });
+    if (recordReason) return no(recordReason);
+    if (restriction) return no(restriction);
+    if (!f.callerMayGenerate) return no("PERMISSION_DENIED");
+    if (
+      (f.reportRequest && IN_FLIGHT.has(f.reportRequest.state)) ||
+      (f.packageRequest && IN_FLIGHT.has(f.packageRequest.state))
+    ) {
+      return no("IN_PROGRESS");
+    }
+    if (f.reportRequest?.afterLatestReport) {
+      const failed = failedRequestDecision(f.reportRequest, f.reportEligibility === "ELIGIBLE");
+      if (failed) return no(failed.reason ?? "RETRY_AVAILABLE");
+    }
+    if (!pairComplete) return no("PAIR_INCOMPLETE");
+    if (f.reportEligibility !== "ELIGIBLE") return no("NOT_INCLUDED");
+    if (f.restrictions.legalHold) return no("LEGAL_HOLD_ACTIVE");
+    if (f.newVersionFitsStorage === false) return no("STORAGE_LIMIT");
+    return { action: NEW_VERSION_ACTION, reason: null, ...base };
+  })();
+
+  // Restrictions and permission withdraw recovery verbs too, but never hide
+  // WHY nothing is needed: a READY output keeps NOT_REQUIRED.
+  const gate = (d: OutputActionDecision): OutputActionDecision => {
+    if (d.action === "NONE") return d;
+    if (restriction) return none(restriction);
+    if (!f.callerMayGenerate) return none("PERMISSION_DENIED");
+    return d;
+  };
+
+  return {
+    report: gate(report),
+    verificationPackage: gate(verificationPackage),
+    newVersion,
+  };
 }

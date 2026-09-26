@@ -523,8 +523,11 @@ describe("SCENARIO 16 — a real technical failure is visible and retryable", ()
 describe("SCENARIO 17 — a terminal failure is never reported as satisfied", () => {
   it("WIRING: only SUCCEEDED is ALREADY_SATISFIED", () => {
     const exec = strip(api("services/operations/remediation-executor.ts"));
-    expect(exec).toMatch(/terminalState === "SUCCEEDED"/);
-    expect(exec).toMatch(/outcome\("NOT_ELIGIBLE", requested\.requestId\)/);
+    // Recovery goes through the canonical authority; only "nothing to recover"
+    // is satisfied, and a terminal request is NOT_ELIGIBLE.
+    expect(exec).toMatch(/requestOutputRecovery\(/);
+    expect(exec).toMatch(/result\.outcome === "NOTHING_TO_RECOVER"\) return outcome\("ALREADY_SATISFIED"\)/);
+    expect(exec).toMatch(/case "TERMINAL":[\s\S]{0,120}outcome\("NOT_ELIGIBLE", result\.requestId/);
   });
 
   it("BEHAVIOUR: a non-commercial terminal failure offers no customer action", () => {

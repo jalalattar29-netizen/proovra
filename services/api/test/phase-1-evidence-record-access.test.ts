@@ -226,11 +226,17 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     expect(service).toContain('UNARCHIVE: "evidence.archive"');
     expect(service).toContain('TRASH: "evidence.delete"');
     expect(service).toContain('RESTORE_FROM_TRASH: "evidence.delete"');
-    // regenerate + cert request + cert attest + cert revoke = 4
-    // (the attest route was wired in Phase 12 Point 4 Pass H — the service,
-    // request schema and CERTIFICATION_ATTESTED custody event already
-    // existed, but no route reached them.)
-    expect(count("evidence.generate_report")).toBe(4);
+    // cert request + cert attest + cert revoke = 3 (the attest route was wired
+    // in Phase 12 Point 4 Pass H — the service, request schema and
+    // CERTIFICATION_ATTESTED custody event already existed, but no route
+    // reached them.)
+    expect(count("evidence.generate_report")).toBe(3);
+    // The regenerate/recover route asks the SAME canonical engine for the
+    // SAME capability, through the D5 variant that answers 403 to a member
+    // who can read the record and 404 to everyone else (2026-09-26).
+    expect(SRC).toMatch(
+      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*\}\)/,
+    );
   });
 
   it("the loader throws one uniform 404 for every denial class (anti-enum)", () => {

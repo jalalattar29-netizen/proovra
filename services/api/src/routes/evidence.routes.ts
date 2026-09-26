@@ -61,10 +61,9 @@ import {
   parseEvidenceIdNeedle,
   // RELIABILITY CLOSURE (2026-09-09) — the generation intent vocabulary and the
   // typed outcome every surface must render instead of a boolean.
-  GENERATION_INTENTS,
-  generationOutcomeAcceptedWork,
-  type GenerationIntent,
   type GenerationRequestOutcome,
+  type OutputActionUnavailableReason,
+  type OutputOperation,
   // UC-0 — the ONE acquisition authority.
   acquisitionModesForCategory,
   resolveEvidenceAcquisition,
@@ -107,6 +106,52 @@ const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
   WORKSPACE_UNRESOLVED:
     "This older evidence record needs a workspace association before new output generation can be requested. Its existing materials are unaffected — contact support to have it associated.",
   REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
+  NOTHING_TO_RECOVER:
+    "Nothing is missing or failed for this record. Its report and verification package are available.",
+  NOT_RECOVERABLE:
+    "This output cannot be recovered in the record's current state.",
+  REPLAYED:
+    "This request was already received. No additional version was created.",
+};
+
+/** What an accepted request will produce, by the operation the server chose. */
+const OPERATION_ACCEPTED_MESSAGE: Record<OutputOperation, string> = {
+  FULL_GENERATION:
+    "Generation requested. The report and verification package will appear here when they complete.",
+  PACKAGE_RECOVERY:
+    "Recovery requested. The verification package is being rebuilt from the existing report; the report itself is unchanged.",
+  RETRY_REQUEST: "Retry requested. The previous attempt resumes from where it stopped.",
+  NEW_VERSION:
+    "New version requested. A new report and its verification package will appear here when they complete; earlier versions stay available.",
+};
+
+/** Why an output cannot be recovered now, for the people who asked. */
+const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, string>> = {
+  NOT_REQUIRED: "Nothing is missing or failed for this record.",
+  IN_PROGRESS: "Generation is already under way for this record.",
+  NOT_FINALIZED: "This record has not been finalized yet.",
+  INTEGRITY_FAILED: "This record did not pass its integrity check, so no report or package can be produced for it.",
+  NOT_INCLUDED: "Reports and verification packages are not included for this evidence record.",
+  LEGAL_HOLD_ACTIVE: "A legal hold preserves this record as it is, so a new version cannot be created while it is in place.",
+  WORKSPACE_SUSPENDED: "This workspace is suspended, so new outputs cannot be generated.",
+  WORKSPACE_CLOSED: "This workspace is closed, so new outputs cannot be generated.",
+  EVIDENCE_TRASHED: "This record is in the trash. Restore it to generate or recover its outputs.",
+  EVIDENCE_ARCHIVED: "This record is archived. Outputs cannot be generated for archived records.",
+  PENDING_DESTRUCTION: "This record is scheduled for destruction, so no new outputs are generated.",
+  EVIDENCE_DESTROYED: "This record has been destroyed.",
+  BLOCKED_BY_POLICY: "A workspace policy blocks generating this output.",
+  ESCALATED_TO_OPERATOR:
+    "Automatic retries for this output were exhausted. The issue has been reported to your workspace operators, who can retry it from Operations.",
+  REPORT_INTEGRITY_REVIEW:
+    "The stored report could not be verified, so it will not be used or replaced automatically. The issue has been reported for review.",
+  CONSISTENCY_REVIEW_REQUIRED:
+    "This record's outputs need a review before anything is regenerated. The issue has been reported.",
+  PAIR_INCOMPLETE: "A new version can be created once the current report and its verification package are both available.",
+  STORAGE_LIMIT: "A new version would exceed this workspace's storage allowance.",
+  RETRY_AVAILABLE: "The last attempt failed and can be retried first.",
+  WORKSPACE_UNRESOLVED:
+    "This older evidence record needs a workspace association before new output generation can be requested.",
+  PERMISSION_DENIED: "You do not have permission to generate or recover outputs for this record.",
 };
 
 import {
@@ -162,7 +207,10 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
-import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
+import {
+  normalizeGenerationIntent,
+  requestOutputRecovery,
+} from "../services/reports/output-recovery.service.js";
 import {
   appendCustodyEvent,
   evaluateCustodyChain,
@@ -204,6 +252,7 @@ const BULK_LIFECYCLE_ACTION = {
   RESTORE_TRASH: "RESTORE_FROM_TRASH",
 } as const satisfies Record<string, EvidenceLifecycleAction>;
 import {
+  resolveEvidenceOperationAccess,
   resolveEvidenceRecordAccess,
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
@@ -9046,6 +9095,7 @@ return {
          * this costs nothing and removes the second authority.
          */
         const artifactStatus = await buildEvidenceArtifactStatus({
+          callerUserId: ownerUserId,
           evidenceId: id,
           evidenceStatus: evidence.status,
           evidenceTeamId: evidence.teamId ?? null,
@@ -9945,6 +9995,7 @@ const timestampDigestMatches: boolean | null =
          * answer and hands it in, exactly as the review-workspace route does.
          */
         const artifactStatus = await buildEvidenceArtifactStatus({
+          callerUserId: ownerUserId,
           evidenceId: id,
           evidenceStatus: evidence.status,
           evidenceTeamId: evidence.teamId ?? null,
@@ -10658,6 +10709,7 @@ if (
       // record's own funding. Without it a Free record reported "pending"
       // forever and a credit-funded one reported "not included".
       const artifactStatus = await buildEvidenceArtifactStatus({
+        callerUserId: ownerUserId,
         evidenceId: id,
         evidenceStatus: evidenceRecord.status as
           | prismaPkg.EvidenceStatus
@@ -10685,69 +10737,36 @@ if (
   );
 
   /**
-   * Phase A.1D — POST /v1/evidence/:id/reports/regenerate
+   * POST /v1/evidence/:id/reports/regenerate — THE ONE endpoint for generating
+   * and recovering a record's report and verification package.
    *
-   * Operational retry / regenerate path for the evidence report
-   * artifact pair (report PDF + verification package). Wraps the same
-   * `enqueueGenerateReportJob()` the `evidence-complete.service`
-   * already uses on first finalize, with `forceRegenerate: true` so
-   * the BullMQ job:
-   *   1. supersedes any existing queued/processing job for this
-   *      evidence id (the enqueue function handles dedup), AND
-   *   2. runs with the 3-attempt budget reserved for retries
-   *      (vs the 5-attempt budget for first generation).
+   * WHAT RUNS IS DECIDED BY THE SERVER, from the same facts the projection
+   * shows (`requestOutputRecovery` → `resolveEvidenceOutputActions`):
    *
-   * Verification package generation happens IN-PROCESS during report
-   * generation (see worker `processor.ts`), so a single regenerate
-   * call refreshes BOTH artifacts. There is no separate package-only
-   * regenerate endpoint by design.
+   *   (no intent) / GENERATE / RETRY / RECOVER
+   *       Recover exactly what is missing or failed. A report without its
+   *       package gets ONLY the package, built from the stored report after
+   *       its hash is verified. A record with no report gets the pair. A
+   *       retryable request is re-enqueued as itself. Nothing missing →
+   *       NOTHING_TO_RECOVER; not possible now → 409 with a bounded reason.
+   *   NEW_VERSION (legacy spelling: REGENERATE)
+   *       An explicit new report/package pair. Requires the complete latest
+   *       pair and a caller idempotency key (`Idempotency-Key` header or
+   *       `clientRequestKey`); a repeat with the same key returns the first
+   *       request (REPLAYED) and never creates a second version.
    *
-   * RBAC (docblock corrected 2026-09-08 — the code was already right):
-   *   - The DOMAIN permission `evidence.generate_report`, checked through
-   *     `getEvidenceWithRecordAccess`. OWNER, ADMIN and REVIEWER hold it;
-   *     VIEWER and CONTRIBUTOR do not.
+   * AUTHORIZATION (D5): `evidence.generate_report` through the canonical record
+   * access engine. A caller who can READ the record but lacks the permission
+   * gets 403; anyone else gets the same 404 as a missing record. A denied call
+   * creates no request, job, version or object.
    *
-   *     CORRECTED 2026-09-09. The note said "OWNER, ADMIN and MEMBER hold it;
-   *     VIEWER and REVIEWER do not", which was itself a correction of an even
-   *     older wrong note — and it was wrong twice over. `ROLE_PERMISSIONS.REVIEWER`
-   *     in packages/shared/src/permissions.ts lists `evidence.generate_report`,
-   *     and MEMBER is not a canonical role at all (it is a DB team role; the
-   *     canonical vocabulary is OWNER / ADMIN / REVIEWER / CONTRIBUTOR /
-   *     VIEWER). The permission table is the authority and is unchanged; only
-   *     this description of it moves. A comment that has now been wrong in two
-   *     different directions is worth stating precisely.
-   *   - This block used to claim "Owner-only … Team admins do NOT yet get a
-   *     regenerate path", describing an earlier implementation that used an
-   *     owner helper. The route moved to the canonical permission model and the
-   *     note did not follow, so the documentation and the source disagreed
-   *     about who may act. The SOURCE is right and stays as it is: a
-   *     workspace's members are the people who need a report regenerated, and
-   *     `packages/shared/src/permissions.ts` already decides which of them may.
-   *     Only the note changes; no role's rights were altered to make a comment
-   *     true.
+   * RESOURCE CONTROLS (D6): per-user and per-record rate limits (tighter for
+   * new versions) and a per-workspace cap on live new-version requests. A
+   * recovery never consumes an evidence credit; the worker only reads the
+   * record's funding.
    *
-   * COMMERCIAL:
-   *   - Deliberately NOT gated on the plan here. Eligibility is a per-RECORD
-   *     question (plan AND funding), and `requestReportGeneration` asks the one
-   *     authority before creating anything — returning `not_included_in_plan`
-   *     rather than opening a job that could only be refused.
-   *
-   * Audit:
-   *   - Emits a platform audit log row with action
-   *     `evidence.report.regenerate_requested`. No CustodyEvent is
-   *     appended here — custody tracks the actual GENERATED artifact,
-   *     not the regenerate REQUEST. When the worker completes, the
-   *     normal `REPORT_GENERATED` + `VERIFICATION_PACKAGE_GENERATED`
-   *     custody events fire from the worker's existing path.
-   *
-   * Responses:
-   *   - 202 Accepted with `{ enqueued: true | false, reason?: string }`.
-   *     `enqueued: false` is returned when an active job already
-   *     exists and the dedup helper decided to skip; the response is
-   *     STILL 202 because from the caller's perspective the regen has
-   *     been requested.
-   *   - 403 Forbidden if the caller is not the evidence owner.
-   *   - 404 Not Found if the evidence id does not exist.
+   * Every accepted, blocked and denied request is audited as
+   * `evidence.report.regenerate_requested`, with the derived operation.
    */
   app.post(
     "/v1/evidence/:id/reports/regenerate",
@@ -10759,49 +10778,57 @@ if (
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      // Ownership gate — same helper the existing owner-only
-      // mutations use. Translates not-found → 404 and not-owner → 403.
-      let evidenceRecord: SelectedEvidence;
-      try {
-        evidenceRecord = await getEvidenceWithRecordAccess(userId, id, "evidence.generate_report");
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+      const body = (req.body ?? {}) as { intent?: unknown; clientRequestKey?: unknown };
+      const intent = normalizeGenerationIntent(body.intent);
+      const headerKey = req.headers["idempotency-key"];
+      const rawKey =
+        typeof headerKey === "string"
+          ? headerKey
+          : typeof body.clientRequestKey === "string"
+            ? body.clientRequestKey
+            : "";
+      const clientRequestKey = rawKey.trim() || null;
+      if (clientRequestKey && !/^[A-Za-z0-9._:-]{8,80}$/.test(clientRequestKey)) {
+        return reply.code(400).send({
+          code: "IDEMPOTENCY_KEY_INVALID",
+          message: "The idempotency key must be 8-80 letters, digits or . _ : -",
+        });
       }
 
-      /*
-       * The actor's stated verb. OPTIONAL, BOUNDED, AND NOT AN AUTHORITY.
-       *
-       * It is recorded on the audit row so a reviewer can see what the person
-       * believed they were doing, and it is used for nothing else: the server
-       * derives `forceRegenerate` from whether an artifact exists. A client that
-       * sends REGENERATE for a record with no report gets a first generation,
-       * not an error — its belief was stale, and the truth is cheap to read.
-       */
-      const bodyIntent = (() => {
-        const raw = (req.body as { intent?: unknown } | null | undefined)
-          ?.intent;
-        if (typeof raw !== "string") return undefined;
-        const upper = raw.trim().toUpperCase();
-        return (GENERATION_INTENTS as readonly string[]).includes(upper)
-          ? (upper as GenerationIntent)
-          : undefined;
-      })();
+      // ---- D5: 403 for a reader without the permission, 404 otherwise -----
+      const access = await resolveEvidenceOperationAccess({
+        userId,
+        evidenceId: id,
+        permission: "evidence.generate_report",
+      });
+      if (!access.allowed) {
+        if (access.visibility === "FORBIDDEN") {
+          auditEvidenceAction(req, {
+            userId,
+            action: "evidence.report.regenerate_requested",
+            outcome: "blocked",
+            resourceId: id,
+            severity: "warning",
+            metadata: { reason: "permission_denied", requestedIntent: intent ?? null },
+          });
+          return reply.code(403).send({
+            code: "GENERATION_NOT_PERMITTED",
+            message:
+              "You can view this record, but you do not have permission to generate or recover its report and verification package.",
+          });
+        }
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      const evidenceRecord = await prisma.evidence.findUnique({
+        where: { id },
+        select: { status: true, teamId: true },
+      });
+      if (!evidenceRecord) return reply.code(404).send({ message: "Evidence not found" });
 
-      // Phase A0 — integrity hard-gate. A record whose recomputed
-      // SHA-256 disagreed with the value stored at completion cannot
-      // be re-promoted into a Report or Verification Package by
-      // re-enqueueing. The owner-facing error is operationally
-      // specific so the UI can render the re-capture path; the audit
-      // row carries the failed-status reason.
-      if (
-        evidenceRecord.status ===
-        prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH
-      ) {
+      // Phase A0 — integrity hard-gate. A record whose recomputed SHA-256
+      // disagreed with the value stored at completion can never be promoted
+      // into a report or package; the recovery is a new record.
+      if (evidenceRecord.status === prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH) {
         auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
@@ -10822,67 +10849,100 @@ if (
         });
       }
 
-      /*
-       * PHASE 12 — POINT 5. The permission gate above IS the authorization for
-       * a force-regeneration, and its outcome is persisted on the request row
-       * rather than asserted as a boolean on a queue message.
-       *
-       * COMMERCIAL CLOSURE (2026-09-08) — `forceRegenerate: true` is what
-       * permits REPLACING a finalised artifact, and it is right for this route:
-       * an authorized human asked for a new version. It also means that for a
-       * record with NO report the key is `REPORT:<id>:v0:force`, which is
-       * exactly the key a previous commercial refusal would have burned — so
-       * the supersession rule in `createReportGenerationRequest` is what keeps
-       * this endpoint usable after an upgrade.
-       */
-      let result: {
-        enqueued: boolean;
-        reason?: string;
-        outcome: GenerationRequestOutcome;
-        forceRegenerate?: boolean;
-      };
+      // ---- D6: rate and concurrency limits --------------------------------
+      const isNewVersion = intent === "NEW_VERSION";
+      // A repeat after a lost response is answered from the first request and
+      // must not be refused for spending the budget the first one used.
+      const isReplay =
+        isNewVersion && clientRequestKey
+          ? (await prisma.reportGenerationRequest.findFirst({
+              where: { evidenceId: id, clientRequestKey },
+              select: { id: true },
+            })) !== null
+          : false;
+      if (!isReplay) {
+        const window = readPositiveIntEnv("ARTIFACT_GENERATION_RATE_WINDOW_SEC", 3600);
+        const [perUser, perRecord] = await Promise.all([
+          enforceRateLimit({
+            key: `ratelimit:artifact-generation:${isNewVersion ? "new" : "recover"}:user:${userId}`,
+            max: isNewVersion
+              ? readPositiveIntEnv("NEW_VERSION_RATE_LIMIT_PER_USER", 10)
+              : readPositiveIntEnv("ARTIFACT_RECOVERY_RATE_LIMIT_PER_USER", 60),
+            windowSec: window,
+          }),
+          enforceRateLimit({
+            key: `ratelimit:artifact-generation:${isNewVersion ? "new" : "recover"}:evidence:${id}`,
+            max: isNewVersion
+              ? readPositiveIntEnv("NEW_VERSION_RATE_LIMIT_PER_RECORD", 3)
+              : readPositiveIntEnv("ARTIFACT_RECOVERY_RATE_LIMIT_PER_RECORD", 10),
+            windowSec: window,
+          }),
+        ]);
+        const limited = !perUser.allowed ? perUser : !perRecord.allowed ? perRecord : null;
+        if (limited) {
+          const retryAfterSec = Math.max(1, Math.ceil((limited.resetAtMs - Date.now()) / 1000));
+          auditEvidenceAction(req, {
+            userId,
+            action: "evidence.report.regenerate_requested",
+            outcome: "blocked",
+            resourceId: id,
+            teamId: evidenceRecord.teamId ?? null,
+            metadata: {
+              reason: "rate_limited",
+              bucket: !perUser.allowed ? "user" : "record",
+              requestedIntent: intent ?? null,
+            },
+          });
+          reply.header("Retry-After", String(retryAfterSec));
+          return reply.code(429).send({
+            code: "RATE_LIMITED",
+            retryAfterSec,
+            message: isNewVersion
+              ? "Too many new versions were requested recently. Try again later."
+              : "Too many generation requests were made recently. Try again later.",
+          });
+        }
+        if (isNewVersion && evidenceRecord.teamId) {
+          const live = await prisma.reportGenerationRequest.count({
+            where: {
+              teamId: evidenceRecord.teamId,
+              intent: "NEW_VERSION",
+              state: { in: ["QUEUED", "PROCESSING"] },
+            },
+          });
+          if (live >= readPositiveIntEnv("NEW_VERSION_MAX_CONCURRENT_PER_WORKSPACE", 10)) {
+            auditEvidenceAction(req, {
+              userId,
+              action: "evidence.report.regenerate_requested",
+              outcome: "blocked",
+              resourceId: id,
+              teamId: evidenceRecord.teamId,
+              metadata: { reason: "concurrency_limited", liveNewVersions: live },
+            });
+            reply.header("Retry-After", "60");
+            return reply.code(429).send({
+              code: "CONCURRENCY_LIMITED",
+              retryAfterSec: 60,
+              message:
+                "Several new versions are already being created in this workspace. Try again when they finish.",
+            });
+          }
+        }
+      }
+
+      // ---- The decision and the work --------------------------------------
+      let result: Awaited<ReturnType<typeof requestOutputRecovery>>;
       try {
-        const requested = await requestReportGeneration({
+        result = await requestOutputRecovery({
           evidenceId: id,
+          actorUserId: userId,
+          intent,
+          clientRequestKey,
           purpose: "operator_regenerate",
-          /*
-           * RELIABILITY CLOSURE (2026-09-09) — `forceRegenerate: true` IS GONE
-           * FROM THIS CALL.
-           *
-           * One endpoint serves all three verbs, and it asserted the strongest
-           * of them unconditionally. For a FIRST generation that meant entering
-           * the worker's regeneration-only legal-hold branch — refusing a record
-           * that had no artifact to preserve — and writing a terminal row at the
-           * exact idempotency key every future Generate click would compute.
-           * Releasing the hold did not restore the action, because a policy
-           * terminal is not commercially obsolete.
-           *
-           * The authority now DERIVES the flag from whether an artifact exists,
-           * which is the fact it was always supposed to express. The client's
-           * stated intent travels alongside for the audit trail; it authorizes
-           * nothing.
-           */
-          intent: bodyIntent,
-          regenerateReason: "operator_requested",
-          requestedByUserId: userId,
+          regenerateReason: isNewVersion ? "new_version_requested" : "recovery_requested",
         });
-        result = requested.requested
-          ? {
-              enqueued: requested.enqueued,
-              reason: requested.reason,
-              outcome: requested.outcome,
-              forceRegenerate: requested.forceRegenerate,
-            }
-          : {
-              enqueued: false,
-              reason: requested.reason,
-              outcome: requested.outcome,
-            };
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to enqueue report regenerate job.";
+        const message = err instanceof Error ? err.message : "Failed to request generation.";
         auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
@@ -10890,49 +10950,65 @@ if (
           resourceId: id,
           severity: "warning",
           teamId: evidenceRecord.teamId ?? null,
-          metadata: { error: message },
+          metadata: { error: message.slice(0, 200) },
         });
-        return reply.code(500).send({ message });
+        return reply.code(500).send({ message: "Failed to request generation." });
       }
 
+      if (result.kind === "not_found") {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      if (result.kind === "idempotency_key_required") {
+        return reply.code(400).send({
+          code: "IDEMPOTENCY_KEY_REQUIRED",
+          message:
+            "Creating a new version requires an idempotency key, so a repeated request cannot create a second version.",
+        });
+      }
+
+      const accepted = result.kind === "accepted";
       auditEvidenceAction(req, {
         userId,
         action: "evidence.report.regenerate_requested",
-        outcome: generationOutcomeAcceptedWork(result.outcome)
-          ? "success"
-          : "blocked",
+        outcome: accepted && result.outcome !== "NOT_INCLUDED" ? "success" : "blocked",
         resourceId: id,
         teamId: evidenceRecord.teamId ?? null,
         metadata: {
-          enqueued: result.enqueued,
-          reason: result.reason ?? null,
           generationOutcome: result.outcome,
-          requestedIntent: bodyIntent ?? null,
-          // The flag the SERVER derived, not the one a client asserted.
-          forceRegenerate: result.forceRegenerate ?? null,
+          operation: result.kind === "accepted" ? result.operation : null,
+          reason: result.kind === "declined" ? (result.reason ?? null) : null,
+          requestedIntent: intent ?? null,
+          requestId: result.kind === "accepted" ? result.requestId : null,
+          clientRequestKey: clientRequestKey ?? null,
           evidenceStatus: evidenceRecord.status ?? null,
           evidenceTeamId: evidenceRecord.teamId ?? null,
         },
       });
 
-      /*
-       * RELIABILITY CLOSURE (2026-09-09) — THE OUTCOME, NOT A BOOLEAN.
-       *
-       * `enqueued: false` was rendered by every caller as "an active report job
-       * already exists". That sentence was true for exactly one of the six
-       * reasons it was shown for: a customer whose request was lost to a Redis
-       * outage, and one whose record was permanently blocked, were both told the
-       * work was in progress.
-       *
-       * `enqueued` is RETAINED for compatibility and still means what it says.
-       * `outcome` is the field to read.
-       */
+      if (result.kind === "declined") {
+        const status = result.outcome === "NOTHING_TO_RECOVER" ? 200 : 409;
+        return reply.code(status).send({
+          evidenceId: id,
+          enqueued: false,
+          outcome: result.outcome,
+          reason: result.reason,
+          message:
+            (result.reason && OUTPUT_REASON_MESSAGE[result.reason]) ||
+            GENERATION_OUTCOME_MESSAGE[result.outcome],
+        });
+      }
+
       return reply.code(202).send({
         evidenceId: id,
         enqueued: result.enqueued,
-        reason: result.reason ?? null,
         outcome: result.outcome,
-        message: GENERATION_OUTCOME_MESSAGE[result.outcome],
+        operation: result.operation,
+        requestId: result.requestId,
+        reason: null,
+        message:
+          result.outcome === "ENQUEUED" || result.outcome === "SUPERSEDED"
+            ? OPERATION_ACCEPTED_MESSAGE[result.operation]
+            : GENERATION_OUTCOME_MESSAGE[result.outcome],
       });
     }
   );
@@ -11865,8 +11941,27 @@ displayName: resolvedDisplayName,
         }
       }
 
-      const latest = await prisma.verificationPackage.findFirst({
+      /*
+       * THE PACKAGE PAIRED WITH THE LATEST REPORT. Report v2 beside package v1
+       * is an incomplete latest pair, not "the package": v1 embeds report v1.
+       * It stays downloadable by version from the history, and the response
+       * below says which version that is. With no report at all (a legacy
+       * record), the newest package is still the record's package.
+       */
+      const latestReportForPair = await prisma.report.findFirst({
         where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      const newestPackageAnyVersion = await prisma.verificationPackage.findFirst({
+        where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      const latest = await prisma.verificationPackage.findFirst({
+        where: latestReportForPair
+          ? { evidenceId: id, version: latestReportForPair.version }
+          : { evidenceId: id },
         orderBy: { version: "desc" },
         select: {
           version: true,
@@ -11936,6 +12031,7 @@ displayName: resolvedDisplayName,
         if (blocked) {
           return reply.code(409).send({
             code: "verification_package_blocked",
+            latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
             outcome: typeof meta?.outcome === "string" ? meta!.outcome : null,
             reason: typeof meta?.reason === "string" ? meta!.reason : null,
             blockedAtUtc:
@@ -11967,6 +12063,7 @@ displayName: resolvedDisplayName,
          * for a record that has nothing and has been asked for nothing.
          */
         const projected = await buildEvidenceArtifactStatus({
+          callerUserId: ownerUserId,
           evidenceId: id,
           evidenceStatus: evidenceForState?.status ?? null,
           evidenceTeamId: evidenceForState?.teamId ?? null,
@@ -11982,6 +12079,8 @@ displayName: resolvedDisplayName,
               return reply.code(409).send({
                 code: "verification_package_not_included",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 reason: packageOutput.ineligibilityReason,
                 action: packageOutput.action,
                 message:
@@ -11991,6 +12090,8 @@ displayName: resolvedDisplayName,
               return reply.code(409).send({
                 code: "verification_package_blocked",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 action: packageOutput.action,
                 message:
                   "Verification package generation is blocked by a policy decision.",
@@ -11999,6 +12100,8 @@ displayName: resolvedDisplayName,
               return reply.code(409).send({
                 code: "verification_package_generation_failed",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 action: packageOutput.action,
                 attemptCount: packageOutput.attemptCount,
                 message:
@@ -12008,6 +12111,8 @@ displayName: resolvedDisplayName,
               return reply.code(409).send({
                 code: "verification_package_generation_stopped",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 action: packageOutput.action,
                 // The CLASS, never the raw worker branch name.
                 terminalReasonClass: packageOutput.terminalReasonClass,
@@ -12026,6 +12131,8 @@ displayName: resolvedDisplayName,
                     ? "verification_package_integrity_failed"
                     : "verification_package_not_applicable",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 reason: packageOutput.notApplicableReason,
                 action: packageOutput.action,
                 message:
@@ -12037,6 +12144,8 @@ displayName: resolvedDisplayName,
               return reply.code(409).send({
                 code: "verification_package_not_generated",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 action: packageOutput.action,
                 message:
                   "No verification package has been generated for this record yet.",
@@ -12048,6 +12157,8 @@ displayName: resolvedDisplayName,
               return reply.code(202).send({
                 code: "verification_package_pending",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 action: packageOutput.action,
                 message:
                   "Verification package is being generated. Poll /v1/evidence/:id/artifacts/status for completion.",
@@ -12061,6 +12172,8 @@ displayName: resolvedDisplayName,
               return reply.code(404).send({
                 code: "verification_package_not_found",
                 state: packageOutput.state,
+              latestAvailablePackageVersion: newestPackageAnyVersion?.version ?? null,
+              latestReportVersion: latestReportForPair?.version ?? null,
                 message: "Verification package not found.",
               });
           }

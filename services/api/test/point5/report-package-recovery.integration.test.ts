@@ -217,7 +217,17 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     });
   }, 180_000);
 
+  /** Every record this suite creates, so it leaves nothing for other suites' sweeps. */
+  const createdEvidence: string[] = [];
+
   afterAll(async () => {
+    // A failed case can leave a SIGNED record with no report, which the
+    // global lifecycle-recovery sweep of a later suite would pick up.
+    if (createdEvidence.length) {
+      await prisma?.evidence
+        .updateMany({ where: { id: { in: createdEvidence } }, data: { deletedAt: new Date() } })
+        .catch(() => undefined);
+    }
     await harness?.cleanup();
   });
 
@@ -246,6 +256,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       },
       select: { id: true },
     });
+    createdEvidence.push(ev.id);
     const storageKey = `evidence/${ev.id}/original.txt`;
     const { putObjectBuffer } = await import("../../../worker/src/storage.js");
     await putObjectBuffer({ bucket: process.env.S3_BUCKET!, key: storageKey, body, contentType: "text/plain" });
@@ -444,6 +455,26 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.reports.map((r) => r.version)).toEqual([1]);
     expect(after.packages.map((p) => p.version)).toEqual([1]);
     expect(seam.packageBuildCalls).toBe(calls);
+  });
+
+  it("a request that exhausts its retry budget is retired AND opens the deduplicated REPORT incident (D3)", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const id = await request({ evidenceId, teamId });
+    await prisma.reportGenerationRequest.update({
+      where: { id },
+      data: { state: "FAILED_RETRYABLE", attemptCount: 12, terminalReasonCode: "VERIFICATION_PACKAGE_INCOMPLETE_STORE" },
+    });
+    for (let i = 0; i < 2; i += 1) {
+      await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: true }), batchSize: 500 });
+    }
+    const after = await state(evidenceId, id);
+    expect(after.req!.state).toBe("FAILED_TERMINAL");
+    expect(after.req!.terminalReasonCode).toBe("retry_budget_exhausted");
+    const incidents = await prisma.operationalIncident.findMany({
+      where: { teamId, fingerprint: `REPORT:${evidenceId}:RETRY_BUDGET_EXHAUSTED` },
+      select: { status: true, category: true, relatedEvidenceId: true },
+    });
+    expect(incidents).toEqual([{ status: "OPEN", category: "REPORT", relatedEvidenceId: evidenceId }]);
   });
 
   // -------------------------------------------------------------------------

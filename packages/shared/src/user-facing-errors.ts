@@ -447,6 +447,29 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "The record has been sealed and can no longer be edited. You can still view, verify and export it.",
     severity: "info",
   },
+  // Report / package generation and recovery (2026-09-26).
+  GENERATION_NOT_PERMITTED: {
+    title: "You can't generate outputs for this record",
+    message:
+      "You can view this record, but generating or recovering its report and verification package needs a role with that permission. Ask a workspace admin.",
+    severity: "warning",
+  },
+  IDEMPOTENCY_KEY_REQUIRED: {
+    title: "Please try again",
+    message: "The request could not be sent safely. Reload the page and try again; no new version was created.",
+    severity: "error",
+  },
+  IDEMPOTENCY_KEY_INVALID: {
+    title: "Please try again",
+    message: "The request could not be sent safely. Reload the page and try again; no new version was created.",
+    severity: "error",
+  },
+  CONCURRENCY_LIMITED: {
+    title: "Several versions are already being created",
+    message:
+      "New versions are already being created in this workspace. Try again when they finish; nothing was lost.",
+    severity: "info",
+  },
   EVIDENCE_NOT_FINALIZED: {
     title: "This record isn't finalized yet",
     message:

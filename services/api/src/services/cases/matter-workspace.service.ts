@@ -19,6 +19,7 @@
  *     report/package generation, NO queue enqueues.
  */
 
+import { loadOutputPairing } from "../reports/output-recovery.service.js";
 import { prisma } from "../../db.js";
 import { evidenceAnalysisRevisionFor } from "../ai/evidence-analysis-snapshot.service.js";
 import * as prismaPkg from "@prisma/client";
@@ -800,6 +801,11 @@ async function runEvidenceBoard(
     const requestByEvidence = new Map(
       latestRequests.map((r) => [r.evidenceId, r.state]),
     );
+    // A package counts as READY only when it is paired with the latest
+    // report; an older package does not complete a newer report.
+    const pairing = await loadOutputPairing(boardEvidenceIds).catch(
+      () => new Map<string, { reportVersion: number | null; packagePaired: boolean; anyPackage: boolean }>(),
+    );
 
     /** The canonical output state for one row, from the one state machine. */
     const outputStatesFor = (e: {
@@ -828,8 +834,11 @@ async function runEvidenceBoard(
           state: deriveEvidenceOutputState({
             eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
             generation,
-            availability:
-              e._count.verificationPackages > 0 ? "READY" : "NO_ARTIFACT",
+            availability: (
+              pairing.get(e.id)?.packagePaired ?? e._count.verificationPackages > 0
+            )
+              ? "READY"
+              : "NO_ARTIFACT",
             record,
           }),
         },

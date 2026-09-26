@@ -99,3 +99,50 @@ export async function resolveEvidenceRecordAccess(
     return { allowed: false, internalReason: "authorization_unavailable" };
   }
 }
+
+/**
+ * D5 — THE RESPONSE CLASS FOR A DENIED OPERATION.
+ *
+ * Every denial used to be an indistinguishable 404, including for a member who
+ * can open the record and simply lacks the right to (for example) generate its
+ * report. That is correct for someone who may not know the record exists, and
+ * wrong for someone looking at it: telling them it does not exist sends them
+ * looking for a bug instead of for the permission they need.
+ *
+ * So the canonical engine is asked twice, in this order:
+ *   1. the OPERATION's permission — allowed means allowed;
+ *   2. `evidence.read` — a caller who may read the record gets FORBIDDEN (403),
+ *      anyone else gets HIDDEN (404), with the same body as a missing record,
+ *      so nothing about existence leaks to an outsider.
+ */
+export type EvidenceOperationAccess =
+  | { allowed: true }
+  | {
+      allowed: false;
+      visibility: "FORBIDDEN" | "HIDDEN";
+      internalReason: EvidenceRecordDenyReason;
+    };
+
+export async function resolveEvidenceOperationAccess(
+  input: {
+    userId: string;
+    evidenceId: string;
+    permission: EvidenceRecordPermission;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<EvidenceOperationAccess> {
+  const op = await resolveEvidenceRecordAccess(input, client);
+  if (op.allowed) return { allowed: true };
+  if (input.permission === "evidence.read") {
+    return { allowed: false, visibility: "HIDDEN", internalReason: op.internalReason };
+  }
+  const read = await resolveEvidenceRecordAccess(
+    { ...input, permission: "evidence.read" },
+    client,
+  );
+  return {
+    allowed: false,
+    visibility: read.allowed ? "FORBIDDEN" : "HIDDEN",
+    internalReason: op.internalReason,
+  };
+}

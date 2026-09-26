@@ -1214,6 +1214,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const envelope = await listWorkspaceArtifacts({
         teamId: query.teamId,
         role: member.role,
+        callerUserId: member.userId,
         matchRecipientContact: disclosure === "REVEALED",
         limit: query.limit,
         cursor: query.cursor ?? null,

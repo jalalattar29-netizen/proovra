@@ -35,6 +35,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import {
+  loadEvidenceOutputFacts,
+  type LoadedOutputFacts,
+} from "../services/reports/output-recovery.service.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { prisma } from "../db.js";
@@ -43,8 +47,6 @@ import { prisma } from "../db.js";
 // aggregator cannot describe the same record differently.
 import {
   deriveEvidenceOutputState,
-  outputActionFor,
-  resolveOfferedOutputAction,
   classifyTerminalReason,
   type OutputAction,
   type OutputActionUnavailableReason,
@@ -414,10 +416,22 @@ export default async function registerReportsRoutes(
       const requestByEvidence = new Map(
         requestRows.map((q) => [q.evidenceId, q]),
       );
+      // The same facts and decision as Evidence Detail and the workspace list.
+      const loadedFacts = await loadEvidenceOutputFacts({
+        evidenceIds: pageRows.map((r) => r.id),
+        callerUserId: userId,
+      }).catch(() => new Map<string, LoadedOutputFacts>());
 
       const items: UserReportRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
-        const pkg = packageByEvidence.get(r.id) ?? null;
+        const loaded = loadedFacts.get(r.id) ?? null;
+        // The package PAIRED with the latest report (W4).
+        const paired = loaded
+          ? (loaded.packageAtLatest ?? (report ? null : loaded.latestPackage))
+          : (packageByEvidence.get(r.id) ?? null);
+        const pkg = paired
+          ? { version: paired.version, generatedAtUtc: paired.generatedAtUtc }
+          : null;
         // P1-3 — the record axis, from the ONE status mapping.
         const record = resolveOutputRecordApplicability(r.status);
         const request = requestByEvidence.get(r.id) ?? null;
@@ -435,7 +449,11 @@ export default async function registerReportsRoutes(
         });
         const packageLifecycle = deriveEvidenceOutputState({
           eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-          generation,
+          generation: loaded?.packageRequest
+            ? projectReportRequestState(
+                loaded.packageRequest.state as PersistedReportRequestState,
+              )
+            : generation,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
@@ -462,35 +480,40 @@ export default async function registerReportsRoutes(
           outputs: {
             report: {
               state: reportLifecycle,
-              /*
-               * P2-1 (2026-09-10) — the verb is withdrawn for a record whose
-               * workspace cannot be resolved. This fallback lists those records
-               * too, so the rule has to be applied here as well.
-               */
-              ...resolveOfferedOutputAction({
-                action: outputActionFor({
-                  state: reportLifecycle,
-                  eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
-                  terminalReasonClass,
-                }),
-                workspaceResolved: Boolean(r.teamId),
-              }),
+              // The one decision; no facts → no verb.
+              action: loaded?.actions.report.action ?? "NONE",
+              actionUnavailableReason: loaded
+                ? loaded.actions.report.action === "NONE"
+                  ? loaded.actions.report.reason
+                  : null
+                : "PERMISSION_DENIED",
+              operation: loaded?.actions.report.operation ?? null,
               terminalReasonClass,
               downloadable: report !== null,
             },
             verificationPackage: {
               state: packageLifecycle,
-              ...resolveOfferedOutputAction({
-                action: outputActionFor({
-                  state: packageLifecycle,
-                  eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-                  terminalReasonClass,
-                }),
-                workspaceResolved: Boolean(r.teamId),
-              }),
+              action: loaded?.actions.verificationPackage.action ?? "NONE",
+              actionUnavailableReason: loaded
+                ? loaded.actions.verificationPackage.action === "NONE"
+                  ? loaded.actions.verificationPackage.reason
+                  : null
+                : "PERMISSION_DENIED",
+              operation: loaded?.actions.verificationPackage.operation ?? null,
               terminalReasonClass,
               downloadable: pkg !== null,
+              latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },
+            newVersion: loaded
+              ? { action: loaded.actions.newVersion.action, reason: loaded.actions.newVersion.reason }
+              : { action: "NONE" as const, reason: "PERMISSION_DENIED" as const },
+            pollIntervalMs:
+              loaded &&
+              [loaded.reportRequest?.state, loaded.packageRequest?.state].some(
+                (st) => st === "QUEUED" || st === "PROCESSING",
+              )
+                ? 3_000
+                : null,
           },
           evidenceId: r.id,
           title: r.title,

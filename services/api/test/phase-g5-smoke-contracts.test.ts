@@ -58,7 +58,12 @@ describe("Phase G5.7 smoke 1 — Solo capture → report → public verify", () 
   });
 
   it("evidence completion enqueues report generation", () => {
-    expect(EVIDENCE_ROUTES).toContain("enqueueGenerateReportJob");
+    // Completion requests the pair through the durable generation authority
+    // (the name this check used to find was only in a route docblock).
+    const complete = readSource("../src/services/evidence-complete.service.ts");
+    expect(complete).toMatch(/await requestReportGeneration\(\{/);
+    // And the one generation/recovery endpoint is mounted.
+    expect(EVIDENCE_ROUTES).toContain('"/v1/evidence/:id/reports/regenerate"');
   });
 
   it("public verify route mounts WITHOUT auth", () => {

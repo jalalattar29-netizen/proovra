@@ -36,11 +36,11 @@ import {
   deriveEvidenceOutputState,
   // RELIABILITY CLOSURE (2026-09-09) — the canonical action and terminal class,
   // projected by the server so the Reports page derives neither.
-  outputActionFor,
-  resolveOfferedOutputAction,
   classifyTerminalReason,
+  type NewVersionAction,
   type OutputAction,
   type OutputActionUnavailableReason,
+  type OutputOperation,
   type OutputTerminalReasonClass,
   projectReportRequestState,
   type EvidenceOutputState,
@@ -49,6 +49,10 @@ import {
 } from "@proovra/shared";
 import { resolveEvidenceOutputEligibilityMany } from "../billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
+import {
+  loadEvidenceOutputFacts,
+  type LoadedOutputFacts,
+} from "./output-recovery.service.js";
 
 /** `skipped` = the caller did not ask for it. NOT a failure. */
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
@@ -159,14 +163,27 @@ export type ArtifactRow = {
       terminalReasonClass: OutputTerminalReasonClass | null;
       /** An artifact exists and may be opened, whatever the current request says. */
       downloadable: boolean;
+      /** The server operation the offered action performs. */
+      operation: OutputOperation | null;
     };
     verificationPackage: {
       state: EvidenceOutputState;
       action: OutputAction;
       actionUnavailableReason: OutputActionUnavailableReason | null;
       terminalReasonClass: OutputTerminalReasonClass | null;
+      /** A package PAIRED with the latest report exists. */
       downloadable: boolean;
+      operation: OutputOperation | null;
+      /** The newest package of any version (may predate the latest report). */
+      latestAvailableVersion: number | null;
     };
+    /** The separate "create a new version" action; never a recovery verb. */
+    newVersion: {
+      action: NewVersionAction;
+      reason: OutputActionUnavailableReason | null;
+    };
+    /** Poll interval while work is live; null = no live work. */
+    pollIntervalMs: number | null;
   };
   /**
    * Phase 6 — workflow-template provenance trio. Surfaced as part of
@@ -338,6 +355,11 @@ function readPackageBlocked(metadata: unknown): {
 export async function listWorkspaceArtifacts(input: {
   teamId: string;
   role: string;
+  /**
+   * Who is asking. Row actions are offered only to a caller the canonical
+   * record access engine allows `evidence.generate_report`.
+   */
+  callerUserId?: string | null;
   limit?: number;
   cursor?: string | null;
   lifecycleFilter?: ReportLifecycleFilter;
@@ -612,6 +634,15 @@ export async function listWorkspaceArtifacts(input: {
       artifacts = { status: "ok", items: [], nextCursor: null, total };
     } else {
       const evidenceIds = pageRows.map((r) => r.id);
+      /*
+       * THE SAME FACTS AND DECISION AS EVIDENCE DETAIL, for the page, in
+       * batch. Row actions and the paired package come from here, so the list
+       * and the record can never offer different verbs for one record.
+       */
+      const loadedFacts = await loadEvidenceOutputFacts({
+        evidenceIds,
+        callerUserId: input.callerUserId ?? null,
+      }).catch(() => new Map<string, LoadedOutputFacts>());
       const [reportRows, packageRows, requestRows, eligibilityByEvidence] =
         await Promise.all([
         prisma.report.findMany({
@@ -710,7 +741,15 @@ export async function listWorkspaceArtifacts(input: {
 
       const items: ArtifactRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
-        const pkg = packageByEvidence.get(r.id) ?? null;
+        const loaded = loadedFacts.get(r.id) ?? null;
+        // The package PAIRED with the latest report; an older package stays in
+        // the record's version history but does not make the pair complete.
+        const pairedPackage = loaded
+          ? (loaded.packageAtLatest ?? (report ? null : loaded.latestPackage))
+          : (packageByEvidence.get(r.id) ?? null);
+        const pkg = pairedPackage
+          ? { version: pairedPackage.version, generatedAtUtc: pairedPackage.generatedAtUtc }
+          : null;
         const { blocked, reason } = readPackageBlocked(
           r.verificationPackageMetadata,
         );
@@ -718,11 +757,20 @@ export async function listWorkspaceArtifacts(input: {
         const record = resolveOutputRecordApplicability(r.status);
         const eligibility = eligibilityByEvidence.get(r.id) ?? null;
         const request = requestByEvidence.get(r.id) ?? null;
-        const generation: OutputGenerationState = request
-          ? projectReportRequestState(
-              request.state as PersistedReportRequestState,
-            )
-          : "NOT_REQUESTED";
+        const projectRow = (
+          row: { state: string } | null | undefined,
+        ): OutputGenerationState =>
+          row
+            ? projectReportRequestState(row.state as PersistedReportRequestState)
+            : "NOT_REQUESTED";
+        // Per output: the report follows report-producing requests, the
+        // package follows every request.
+        const generation: OutputGenerationState = loaded
+          ? projectRow(loaded.reportRequest)
+          : projectRow(request);
+        const packageGeneration: OutputGenerationState = loaded
+          ? projectRow(loaded.packageRequest)
+          : generation;
 
         const reportCanonicalState = deriveEvidenceOutputState({
           eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
@@ -732,14 +780,25 @@ export async function listWorkspaceArtifacts(input: {
         });
         const packageCanonicalState = deriveEvidenceOutputState({
           eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-          generation: blocked ? "BLOCKED" : generation,
+          generation: blocked ? "BLOCKED" : packageGeneration,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
         const terminalReasonClass =
           generation === "TERMINAL_FAILURE"
-            ? classifyTerminalReason(request?.terminalReasonCode ?? null)
+            ? classifyTerminalReason(
+                (loaded ? loaded.reportRequest : request)?.terminalReasonCode ?? null,
+              )
             : null;
+        const packageTerminalReasonClass =
+          packageCanonicalState === "TERMINAL_FAILURE"
+            ? classifyTerminalReason(loaded?.packageRequest?.terminalReasonCode ?? null)
+            : null;
+        const noAction = {
+          action: "NONE" as OutputAction,
+          actionUnavailableReason: "PERMISSION_DENIED" as OutputActionUnavailableReason,
+          operation: null,
+        };
         const reportState = toReportLifecycle(reportCanonicalState);
         const packageState = toPackageLifecycle(packageCanonicalState, blocked);
         return {
@@ -775,43 +834,47 @@ export async function listWorkspaceArtifacts(input: {
           outputs: {
             report: {
               state: reportCanonicalState,
-              /*
-               * P2-1 (2026-09-10) — the verb is withdrawn for a record whose
-               * workspace cannot be resolved. This surface LISTS those records
-               * (the canonical scope predicate has an owner-scoped null arm for
-               * them), so a rule applied only on Evidence Detail would leave the
-               * same dead button here.
-               */
-              ...resolveOfferedOutputAction({
-                action: outputActionFor({
-                  state: reportCanonicalState,
-                  eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
-                  terminalReasonClass,
-                }),
-                workspaceResolved: Boolean(r.teamId),
-              }),
+              // The one decision (`resolveEvidenceOutputActions`), never
+              // re-derived here. No facts → no verb.
+              ...(loaded
+                ? {
+                    action: loaded.actions.report.action,
+                    actionUnavailableReason:
+                      loaded.actions.report.action === "NONE"
+                        ? loaded.actions.report.reason
+                        : null,
+                    operation: loaded.actions.report.operation,
+                  }
+                : noAction),
               terminalReasonClass,
               downloadable: report !== null,
             },
             verificationPackage: {
               state: packageCanonicalState,
-              ...resolveOfferedOutputAction({
-                action: outputActionFor({
-                  state: packageCanonicalState,
-                  eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-                  terminalReasonClass:
-                    packageCanonicalState === "TERMINAL_FAILURE"
-                      ? terminalReasonClass
-                      : null,
-                }),
-                workspaceResolved: Boolean(r.teamId),
-              }),
-              terminalReasonClass:
-                packageCanonicalState === "TERMINAL_FAILURE"
-                  ? terminalReasonClass
-                  : null,
+              ...(loaded
+                ? {
+                    action: loaded.actions.verificationPackage.action,
+                    actionUnavailableReason:
+                      loaded.actions.verificationPackage.action === "NONE"
+                        ? loaded.actions.verificationPackage.reason
+                        : null,
+                    operation: loaded.actions.verificationPackage.operation,
+                  }
+                : noAction),
+              terminalReasonClass: packageTerminalReasonClass,
               downloadable: pkg !== null,
+              latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },
+            newVersion: loaded
+              ? { action: loaded.actions.newVersion.action, reason: loaded.actions.newVersion.reason }
+              : { action: "NONE", reason: "PERMISSION_DENIED" },
+            pollIntervalMs:
+              loaded &&
+              [loaded.reportRequest?.state, loaded.packageRequest?.state].some(
+                (st) => st === "QUEUED" || st === "PROCESSING",
+              )
+                ? 3_000
+                : null,
           },
           // Phase 6 — surface template-identity trio in the envelope.
           // Identity propagation only; legacy rows surface NULL.

@@ -44,7 +44,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { requestEvidenceOtsAnchoring } from "../integrity/ots-anchoring-authority.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
-import { requestReportGeneration } from "../reports/report-generation-authority.service.js";
+import {
+  requestOutputRecovery,
+  type OutputRecoveryResult,
+} from "../reports/output-recovery.service.js";
 import {
   actionById,
   entryForIncident,
@@ -57,6 +60,8 @@ export type ExecuteRemediationInput = {
   teamId: string;
   actionId: string;
   actorUserId: string;
+  /** Required by actions that override a pipeline decision; audited. */
+  reason?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 };
@@ -109,7 +114,10 @@ export async function executeRemediation(
     category: incident.category,
     fingerprint: incident.fingerprint,
   });
-  if (!entry?.action || entry.action.actionId !== action.actionId) {
+  if (
+    entry?.action?.actionId !== action.actionId &&
+    entry?.secondaryAction?.actionId !== action.actionId
+  ) {
     // The caller posted an action id that this incident type does not govern.
     // A projection is a convenience, not a permission.
     return outcome("REFUSED");
@@ -140,10 +148,18 @@ export async function executeRemediation(
   // Cross-tenant evidence, or evidence deleted since the incident opened.
   if (!evidence || evidence.deletedAt) return outcome("NOT_ELIGIBLE");
 
+  if (action.requiresReason && !(input.reason ?? "").trim()) {
+    return outcome("REFUSED");
+  }
+
   const dispatched =
     action.actionId === ("ots.resume_anchoring" satisfies RemediationActionId)
       ? await resumeOtsAnchoring(evidence)
-      : await regenerateArtifacts(evidence.id, input.actorUserId);
+      : await recoverArtifacts(evidence.id, input.actorUserId, {
+          supersede:
+            action.actionId ===
+            ("report.supersede_failed_generation" satisfies RemediationActionId),
+        });
 
   // ---- 5. Audit, exactly once, on the canonical tenant authority ---------
   //
@@ -176,6 +192,7 @@ export async function executeRemediation(
         category: incident.category,
         severity: incident.severity,
         reference: dispatched.reference ?? null,
+        reason: input.reason?.trim().slice(0, 500) || null,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
       },
@@ -196,7 +213,9 @@ export async function executeRemediation(
         data: {
           incidentId: incident.id,
           eventType: "remediation_queued",
-          safeMessage: `${action.label} was requested by an operator and accepted.`,
+          safeMessage: input.reason?.trim()
+            ? `${action.label} was requested by an operator and accepted. Reason: ${input.reason.trim().slice(0, 300)}`
+            : `${action.label} was requested by an operator and accepted.`,
         },
       })
       .catch(() => null);
@@ -255,91 +274,54 @@ async function resumeOtsAnchoring(evidence: {
 }
 
 /**
- * Report + verification package.
+ * Report + verification package, through the SAME recovery authority as the
+ * customer route (`requestOutputRecovery`): the server decides what the
+ * record needs — only the package beside an existing report, the pair when
+ * there is no report — and never mints a report to obtain a package.
  *
- * ONE action, because it is one pipeline: `createVerificationPackage` runs
- * inside the report processor. Offering "retry report" and "retry package"
- * separately would be two controls for one job, and one of them would be
- * describing work it does not start.
- *
- * `forceRegenerate` is an authorization OUTCOME, and it is passed as `false`:
- * this executor's gate authorizes REQUESTING generation, not overwriting an
- * already-finalized artifact. The domain keeps its own guard over historical
- * versions, which is where that decision belongs.
+ * `supersede` is the D3 override. The route has already required the
+ * operator capability and the stated reason; the writer supersedes a
+ * TECHNICAL terminal only.
  */
-async function regenerateArtifacts(
+async function recoverArtifacts(
   evidenceId: string,
   actorUserId: string,
+  opts: { supersede: boolean },
 ): Promise<ExecuteRemediationOutcome> {
-  const requested = await requestReportGeneration({
+  const result: OutputRecoveryResult = await requestOutputRecovery({
     evidenceId,
+    actorUserId,
     purpose: "operator_regenerate",
-    forceRegenerate: false,
-    regenerateReason: "operations_remediation",
-    requestedByUserId: actorUserId,
+    regenerateReason: opts.supersede ? "operations_supersede" : "operations_remediation",
+    operatorSupersede: opts.supersede,
   });
 
-  if (!requested.requested) {
-    /*
-     * COMMERCIAL CLOSURE (2026-09-08) — a commercial refusal is not a
-     * permission refusal.
-     *
-     * Every `requested: false` used to collapse into REFUSED ("This action is
-     * not permitted for this record"), which told an operator they lacked a
-     * right when what had actually happened was that the record's plan does not
-     * include the output. NOT_ELIGIBLE is the honest one, and it is already in
-     * the bounded result vocabulary.
-     */
-    if (requested.reason === "not_included_in_plan") {
-      return outcome("NOT_ELIGIBLE");
+  if (result.kind === "not_found") return outcome("NOT_ELIGIBLE");
+  if (result.kind === "idempotency_key_required") return outcome("REFUSED");
+  if (result.kind === "declined") {
+    if (result.outcome === "NOTHING_TO_RECOVER") return outcome("ALREADY_SATISFIED");
+    if (result.reason === "ESCALATED_TO_OPERATOR" && !opts.supersede) {
+      return {
+        result: "NOT_ELIGIBLE",
+        message:
+          "Automatic retries for this record were exhausted. Use “Retry after exhausted failure” and state a reason.",
+      };
     }
-    // The domain refused — policy, legal hold or lifecycle. Its reason stays in
-    // the log; the operator gets the bounded form.
-    return outcome("REFUSED");
+    return outcome("NOT_ELIGIBLE");
   }
-  /*
-   * A TERMINAL REQUEST IS NOT A SATISFIED ONE.
-   *
-   * `terminalState` was mapped straight to ALREADY_SATISFIED — "Nothing to do
-   * — this has already completed" — for SUCCEEDED, FAILED_TERMINAL,
-   * BLOCKED_POLICY and BLOCKED_STALE alike. So an operator retrying a report
-   * that had terminally FAILED was told it had succeeded, on the surface whose
-   * entire job is to tell them the truth about unresolved work.
-   *
-   * Only SUCCEEDED is satisfied. A commercial terminal is now superseded by a
-   * new row upstream, so reaching this branch with one means the record is
-   * still not entitled; the other terminals are genuine refusals.
-   */
-  if (requested.terminalState) {
-    return requested.terminalState === "SUCCEEDED"
-      ? outcome("ALREADY_SATISFIED", requested.requestId)
-      : outcome("NOT_ELIGIBLE", requested.requestId);
+  switch (result.outcome) {
+    case "ENQUEUED":
+    case "SUPERSEDED":
+      return outcome("QUEUED", result.requestId ?? undefined);
+    case "ALREADY_ACTIVE":
+      return outcome("ALREADY_IN_PROGRESS");
+    case "QUEUE_UNAVAILABLE":
+      return outcome("QUEUE_UNAVAILABLE", result.requestId ?? undefined);
+    case "TERMINAL":
+    case "RECOVERABLE_BLOCKED":
+    case "NOT_INCLUDED":
+      return outcome("NOT_ELIGIBLE", result.requestId ?? undefined);
+    default:
+      return outcome("FAILED");
   }
-  /*
-   * P3-8 CLOSURE (2026-09-10) — THE OUTCOME OUTRANKS `deduplicated`.
-   *
-   * `deduplicated` was consulted first and mapped straight to
-   * ALREADY_IN_PROGRESS. But the loser of a SUPERSESSION race is also
-   * `deduplicated: true` — it did not create the row, it reuses the winner's —
-   * and that row IS the supersession the operator asked for. So the one click
-   * that finally worked on a record that had been locked out was reported as
-   * "This work is already in progress", which is the sentence for a different
-   * situation and hides the thing the operator most wanted to know.
-   *
-   * The typed outcome already distinguishes them, so it decides. `SUPERSEDED`
-   * and `ENQUEUED` are both accepted work and both read QUEUED here;
-   * `ALREADY_ACTIVE` is the one case that genuinely is already under way.
-   */
-  if (requested.outcome === "SUPERSEDED" || requested.outcome === "ENQUEUED") {
-    return outcome("QUEUED", requested.requestId);
-  }
-  if (requested.outcome === "ALREADY_ACTIVE" || requested.deduplicated) {
-    return outcome("ALREADY_IN_PROGRESS");
-  }
-  if (!requested.enqueued) {
-    // Durable but unscheduled. The reconciler owns it, and saying so is more
-    // useful than a generic failure.
-    return outcome("QUEUE_UNAVAILABLE", requested.requestId);
-  }
-  return outcome("QUEUED", requested.requestId);
 }

@@ -313,6 +313,12 @@ export {
   generationOutcomeAcceptedWork,
   IN_FLIGHT_REPORT_REQUEST_STATES,
   SETTLED_REPORT_REQUEST_STATES,
+  // 2026-09-26 — the per-output action contract: one decision for every
+  // surface, with the operation each action performs and a bounded reason
+  // when none is offered.
+  NEW_VERSION_ACTION,
+  OUTPUT_OPERATIONS,
+  resolveEvidenceOutputActions,
 } from "./evidence-output-lifecycle.js";
 export type {
   OutputCommercialEligibility,
@@ -329,6 +335,13 @@ export type {
   PersistedReportRequestState,
   GenerationIntent,
   GenerationRequestOutcome,
+  NewVersionAction,
+  OutputOperation,
+  OutputRestrictions,
+  OutputRequestFact,
+  EvidenceOutputFacts,
+  OutputActionDecision,
+  EvidenceOutputActions,
 } from "./evidence-output-lifecycle.js";
 
 export {

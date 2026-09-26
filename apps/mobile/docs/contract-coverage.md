@@ -93,7 +93,7 @@ top level of it.
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | bucket, evidenceId, generatedAtUtc, key, reviewerSnapshot, snapshots, storage, url, vers… | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
-| OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, evidenceId, generatedAtUtc, key, message, packageType, state, storage, tru… | url |
+| OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, evidenceId, generatedAtUtc, key, latestAvailablePackageVersion, latestRepo… | url |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, request, session | link, request, session |
 | OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |

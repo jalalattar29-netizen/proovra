@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1282
-ROUTE_ATTRIBUTED_REACHABLE                  1134
+TerminalWriters                             1283
+ROUTE_ATTRIBUTED_REACHABLE                  1135
 JOB_ATTRIBUTED_REACHABLE                     130
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -243,6 +243,18 @@ and it is the same number twice:
     version it already committed instead of minting another. Both writes run
     only from the report job, which is why both scalars move by the same amount
     and DEAD_UNREACHABLE stays 0.
+
+Result deltas after ARTIFACT RECOVERY GATE B (2026-09-26). One writer:
+
+  * TerminalWriters 1282 -> 1283 and ROUTE_ATTRIBUTED_REACHABLE 1134 -> 1135
+    (AUTOMATION_QUEUE_WEBHOOK 114 -> 115). An explicit Retry of a request that
+    failed retryably re-enqueues THAT request (`reenqueueReportGenerationRequest`)
+    instead of minting a new one; it is reachable from
+    `POST /v1/evidence/:id/reports/regenerate` through the one recovery service
+    (`services/reports/output-recovery.service.ts`, the one new production
+    module). No route was added: the per-output action contract, the D5 403,
+    the D6 limits and the operator supersession all ride the existing
+    endpoints.
 
 AuditEngineIntegrity returned to PASS in this pass, from FAIL with
 DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,

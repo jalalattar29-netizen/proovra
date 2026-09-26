@@ -32,6 +32,7 @@ import {
   // commercial one: the writer here, the worker's claim path and the customer
   // projection must not each hold their own list.
   isRecoverableBlockedTerminalReason,
+  classifyTerminalReason,
 } from "@proovra/shared";
 
 /**
@@ -93,6 +94,25 @@ export type CreateReportGenerationRequestInput = {
   /** Exactly one of these must be set; a request with no principal is refused. */
   requestedByUserId?: string | null;
   requestedByMachineId?: string | null;
+  /**
+   * For a package-only recovery: the report version whose package is built.
+   * Persisted so the worker targets exactly that report.
+   */
+  reportVersion?: number | null;
+  /** What the actor asked for, recorded on the row. */
+  intent?: string | null;
+  /**
+   * The caller's idempotency key for an explicit new version. A second
+   * request with the same key for the same record returns the first row.
+   */
+  clientRequestKey?: string | null;
+  /**
+   * OPERATOR SUPERSESSION of a TECHNICAL terminal — set only by the
+   * Operations remediation path, after it has checked the operator's
+   * capability and recorded their reason. Never supersedes an INTEGRITY,
+   * POLICY or COMMERCIAL terminal, and never a live request.
+   */
+  supersedeTechnicalTerminal?: boolean;
 };
 
 export type CreateReportGenerationRequestResult =
@@ -110,6 +130,8 @@ export type CreateReportGenerationRequestResult =
        * supersession is the click that finally worked.
        */
       superseded: boolean;
+      /** The caller's idempotency key matched an earlier request, returned as-is. */
+      replayed?: boolean;
       /**
        * The terminal reason when `state` is a terminal one, so the caller can
        * tell a still-standing recoverable blocker apart from a dead terminal
@@ -182,6 +204,29 @@ export async function createReportGenerationRequest(
 
   const artifactType: ReportArtifactType = input.artifactType ?? "REPORT";
   const forceRegenerate = input.forceRegenerate === true;
+  const clientRequestKey = input.clientRequestKey?.trim().slice(0, 80) || null;
+
+  // ---- A repeat of an explicit request after a lost response --------------
+  // The caller's key names ONE request for this record, whatever state it is
+  // in now; the answer is that request, never a second version.
+  if (clientRequestKey) {
+    const prior = await prisma.reportGenerationRequest.findFirst({
+      where: { evidenceId, clientRequestKey },
+      select: { id: true, state: true, teamId: true, terminalReasonCode: true },
+    });
+    if (prior) {
+      return {
+        created: true,
+        requestId: prior.id,
+        state: prior.state,
+        teamId: prior.teamId,
+        deduplicated: true,
+        superseded: false,
+        replayed: true,
+        terminalReasonCode: prior.terminalReasonCode,
+      };
+    }
+  }
 
   // ---- Tenancy comes from the evidence row, both now and again at run time --
   const evidence = await prisma.evidence.findFirst({
@@ -346,7 +391,20 @@ export async function createReportGenerationRequest(
       terminalReasonCode: head!.terminalReasonCode,
     }));
 
-  if (commerciallyObsolete || blockerCleared) {
+  /*
+   * OPERATOR SUPERSESSION (2026-09-26). An exhausted TECHNICAL terminal stays
+   * terminal for every customer path — another click could only collapse onto
+   * it. An operator who holds the capability, and whose reason the caller has
+   * recorded, may start a NEW request identity beside it. The old row is kept
+   * as the record of what failed. Integrity, policy and commercial terminals
+   * are never superseded here: none of them is resolved by trying again.
+   */
+  const technicalTerminalSuperseded =
+    input.supersedeTechnicalTerminal === true &&
+    head?.state === "FAILED_TERMINAL" &&
+    classifyTerminalReason(head.terminalReasonCode) === "TECHNICAL";
+
+  if (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) {
     idempotencyKey = `${baseKey}:s${headOrdinal + 1}`.slice(0, 160);
     superseded = true;
   }
@@ -366,6 +424,12 @@ export async function createReportGenerationRequest(
         expectedPolicyVersion: policy?.version ?? 0,
         idempotencyKey,
         state: "QUEUED",
+        reportVersion:
+          artifactType === "VERIFICATION_PACKAGE"
+            ? (input.reportVersion ?? latestReport?.version ?? null)
+            : null,
+        intent: input.intent?.trim().slice(0, 24) || null,
+        clientRequestKey,
       },
       select: { id: true, state: true },
     });
@@ -387,15 +451,22 @@ export async function createReportGenerationRequest(
     if (!isUniqueViolation) {
       return { created: false, reason: "request_persist_failed" };
     }
-    const existing = await prisma.reportGenerationRequest.findUnique({
-      where: { idempotencyKey },
-      select: {
-        id: true,
-        state: true,
-        teamId: true,
-        terminalReasonCode: true,
-      },
-    });
+    const existing =
+      (clientRequestKey
+        ? await prisma.reportGenerationRequest.findFirst({
+            where: { evidenceId, clientRequestKey },
+            select: { id: true, state: true, teamId: true, terminalReasonCode: true },
+          })
+        : null) ??
+      (await prisma.reportGenerationRequest.findUnique({
+        where: { idempotencyKey },
+        select: {
+          id: true,
+          state: true,
+          teamId: true,
+          terminalReasonCode: true,
+        },
+      }));
     if (!existing) return { created: false, reason: "request_persist_failed" };
     return {
       created: true,

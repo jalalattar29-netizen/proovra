@@ -130,6 +130,71 @@ vi.mock("../src/db.js", () => ({
     reportGenerationRequest: { findFirst: async () => null },
   },
 }));
+/*
+ * THE OUTPUT FACTS, derived from the same fixture through the REAL shared
+ * decision (2026-09-26). The loader resolves eligibility, holds and access
+ * through services this Prisma double does not model; the copilot route only
+ * needs its RESULT, so the facts are built here from the fixture's artifact
+ * counts and versions and the actions come from `resolveEvidenceOutputActions`
+ * itself — the rule under test is still the production one.
+ */
+vi.mock("../src/services/reports/output-recovery.service.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  const { resolveEvidenceOutputActions } = await import("@proovra/shared");
+  return {
+    ...actual,
+    loadEvidenceOutputFacts: async (input: { evidenceIds: readonly string[] }) => {
+      const row = H.evidenceRow as Record<string, unknown> | null;
+      const out = new Map();
+      if (!row || !input.evidenceIds.includes(row.id as string)) return out;
+      const counts = (row._count ?? {}) as { reports?: number; verificationPackages?: number };
+      const reportVersion = counts.reports ? ((row.latestReportVersion as number | null) ?? 1) : null;
+      const packageVersion = counts.verificationPackages
+        ? ((row.verificationPackageVersion as number | null) ?? 1)
+        : null;
+      const facts = {
+        record: "FINALIZED",
+        reportEligibility: "ELIGIBLE",
+        packageEligibility: "ELIGIBLE",
+        latestReportVersion: reportVersion,
+        packageAtLatestReport: reportVersion != null && packageVersion === reportVersion,
+        latestPackageVersion: packageVersion,
+        packageBlockedByGovernance: false,
+        reportRequest: null,
+        packageRequest: null,
+        restrictions: {
+          lifecycleState: "ACTIVE",
+          legalHold: false,
+          workspaceSuspended: false,
+          workspaceClosed: false,
+          workspaceResolved: true,
+        },
+        callerMayGenerate: true,
+        newVersionFitsStorage: null,
+      } as const;
+      const at = new Date();
+      out.set(row.id, {
+        evidenceId: row.id,
+        teamId: row.teamId ?? null,
+        ownerUserId: "owner-1",
+        facts,
+        actions: resolveEvidenceOutputActions(facts as never),
+        eligibility: null,
+        latestReport: reportVersion != null ? { version: reportVersion, generatedAtUtc: at, sizeBytes: null } : null,
+        packageAtLatest:
+          facts.packageAtLatestReport && packageVersion != null
+            ? { version: packageVersion, generatedAtUtc: at, sizeBytes: null, packageType: null }
+            : null,
+        latestPackage:
+          packageVersion != null ? { version: packageVersion, generatedAtUtc: at, sizeBytes: null, packageType: null } : null,
+        reportRequest: null,
+        packageRequest: null,
+        newVersionEstimate: null,
+      });
+      return out;
+    },
+  };
+});
 vi.mock("../src/middleware/auth.js", () => ({
   requireAuth: async () => undefined,
 }));
@@ -312,7 +377,8 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     expect(body.data.data.operationalSummary).toContain("report available");
     expect(body.data.advisoryBoundary).toBe(ADVISORY_BOUNDARY_TEXT);
     expect(body.runId).toBe("run-1");
-    // latestReportVersion=2 → RETRY_ELIGIBLE_REPORT (not GENERATE_REPORT) + metadata link.
+    // Report v2 beside only package v1 → the package is recovered for v2
+    // (RETRY_ELIGIBLE_REPORT, never GENERATE_REPORT) + metadata link.
     const types = (body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
     expect(types).toContain("RETRY_ELIGIBLE_REPORT");
     expect(types).toContain("OPEN_MISSING_METADATA");
@@ -331,17 +397,28 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     // and is the derivation the lifecycle contract forbids.
     H.evidenceRow = signedEvidenceRow({
       latestReportVersion: null,
+      verificationPackageVersion: null,
+      // An unreported record has no package either: a package without a
+      // report is the legacy consistency case, which offers no Generate.
       _count: {
         custodyEvents: 4,
         parts: 1,
         caseLinks: 0,
         reports: 0,
-        verificationPackages: 1,
+        verificationPackages: 0,
       },
     });
     const { body } = await run();
     const types = (body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
     expect(types).toContain("GENERATE_REPORT");
+    expect(types).not.toContain("RETRY_ELIGIBLE_REPORT");
+  });
+
+  it("a complete latest pair suggests NO report action — a new version is never an AI suggestion (D2)", async () => {
+    H.evidenceRow = signedEvidenceRow({ latestReportVersion: 2, verificationPackageVersion: 2 });
+    const { body } = await run();
+    const types = (body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
+    expect(types).not.toContain("GENERATE_REPORT");
     expect(types).not.toContain("RETRY_ELIGIBLE_REPORT");
   });
 

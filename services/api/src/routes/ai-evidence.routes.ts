@@ -370,6 +370,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     const outputStatus = outputSubject
       ? await buildEvidenceArtifactStatus({
           evidenceId: ev.id,
+          callerUserId: userId,
           evidenceStatus: outputSubject.status,
           evidenceTeamId: outputSubject.teamId ?? null,
           evidenceOwnerUserId: outputSubject.ownerUserId,
@@ -377,9 +378,25 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
             outputSubject.verificationPackageMetadata,
         }).catch(() => null)
       : null;
-    const canonicalAction = outputStatus?.outputs.report.action ?? "NONE";
+    /*
+     * 2026-09-26 — THE SAME PER-OUTPUT DECISION EVERY SURFACE RENDERS.
+     *
+     * The copilot offers what the record actually needs: the report's action
+     * when there is no report (it builds both), otherwise the package's own
+     * recovery. It never offers a new version — that is a deliberate,
+     * separately confirmed action on the record, not a suggestion.
+     */
+    const reportDecision = outputStatus?.outputs.report;
+    const packageDecision = outputStatus?.outputs.verificationPackage;
+    const suggested =
+      reportDecision && reportDecision.action !== "NONE" && reportDecision.action !== "REGENERATE"
+        ? { output: "report" as const, action: reportDecision.action }
+        : packageDecision && packageDecision.action !== "NONE" && packageDecision.action !== "REGENERATE"
+          ? { output: "package" as const, action: packageDecision.action }
+          : null;
+    const canonicalAction = suggested?.action ?? "NONE";
     try {
-      if (canonicalAction !== "NONE") {
+      if (suggested) {
         serverActions.push(buildSuggestedAction({
           /*
            * The bounded action id still distinguishes a first generation from a
@@ -387,28 +404,33 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
            * the canonical one either way.
            */
           actionType:
-            canonicalAction === "REGENERATE"
-              ? "RETRY_ELIGIBLE_REPORT"
-              : "GENERATE_REPORT",
+            canonicalAction === "GENERATE" ? "GENERATE_REPORT" : "RETRY_ELIGIBLE_REPORT",
           displayLabel:
-            canonicalAction === "GENERATE"
-              ? "Generate report & verification package"
+            suggested.output === "package"
+              ? canonicalAction === "RETRY"
+                ? "Retry verification package"
+                : "Recover verification package"
               : canonicalAction === "RETRY"
-                ? "Retry report & verification package"
-                : "Regenerate report & verification package",
+                ? "Retry report generation"
+                : "Generate report & verification package",
           reason:
-            canonicalAction === "GENERATE"
-              ? "This record is entitled to a report and does not have one yet."
+            suggested.output === "package"
+              ? "This record's report exists but its verification package is missing or failed. Only the package is rebuilt, from the existing report."
               : canonicalAction === "RETRY"
-                ? "The last generation attempt for this record failed and can be retried."
-                : "A newer report version can be generated for this record.",
+                ? "The last report generation attempt for this record failed and can be retried."
+                : "This record is entitled to a report and does not have one yet.",
           affectedObject: {
             type: "EVIDENCE_RECORD",
             id: ev.id,
             version: snapshot.row.verificationPackageVersion,
           },
           proposedChange: {
-            reportVersion: (snapshot.row.latestReportVersion ?? 0) + 1,
+            // A package recovery does not change the report version.
+            reportVersion:
+              suggested.output === "package"
+                ? (snapshot.row.latestReportVersion ?? null)
+                : (snapshot.row.latestReportVersion ?? 0) + 1,
+            intent: canonicalAction === "RETRY" ? "RETRY" : suggested.output === "package" ? "RECOVER" : "GENERATE",
           },
           /*
            * P3-6 CLOSURE (2026-09-10) — the CANONICAL permission, from the

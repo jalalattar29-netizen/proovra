@@ -1330,6 +1330,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // index, enum or mapping is touched, which is what this allowlist is
       // about.
       "20280670000000_bd2_durable_batch_analysis_jobs",
+      // Artifact recovery (2026-09-26): nullable report/package pairing and
+      // per-request progress columns + one guarded unique index. EXPAND.
+      "20280680000000_artifact_recovery_progress",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

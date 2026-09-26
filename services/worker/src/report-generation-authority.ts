@@ -47,6 +47,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "./db.js";
+import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
 import {
@@ -253,10 +254,18 @@ export async function resolveAndClaimReportRequest(input: {
   // mutation of preserved material, so it is refused; first generation is not,
   // because there is nothing yet to preserve.
   if (request.forceRegenerate) {
-    const hold = await prisma.evidenceLegalHold.findFirst({
-      where: { evidenceId: evidence.id, status: "ACTIVE" },
-      select: { id: true },
-    });
+    /*
+     * THE EFFECTIVE HOLD, not only one placed directly on the record. A hold
+     * on a linked case or on the whole workspace preserves this record just
+     * the same, and the API's projection already withholds "create a new
+     * version" for all three — the claim path now agrees with it.
+     */
+    const hold = (
+      await evaluateEffectiveLegalHold(prisma, {
+        teamId: evidence.teamId,
+        evidenceId: evidence.id,
+      }).catch(() => ({ held: true }))
+    ).held;
     if (hold) {
       await markRequestTerminal({
         requestId,

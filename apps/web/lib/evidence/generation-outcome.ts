@@ -83,6 +83,10 @@ const FALLBACK_MESSAGE: Record<GenerationRequestOutcome, string> = {
   WORKSPACE_UNRESOLVED:
     "This older evidence record needs a workspace association before new output generation can be requested. Its existing materials are unaffected.",
   REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
+  NOTHING_TO_RECOVER:
+    "Nothing is missing or failed for this record. Its report and verification package are available.",
+  NOT_RECOVERABLE: "This output cannot be recovered in the record's current state.",
+  REPLAYED: "This request was already received. No additional version was created.",
 };
 
 /**
@@ -111,6 +115,9 @@ const TONE: Record<GenerationRequestOutcome, GenerationOutcomeTone> = {
    */
   WORKSPACE_UNRESOLVED: "info",
   REQUESTER_REQUIRED: "error",
+  NOTHING_TO_RECOVER: "info",
+  NOT_RECOVERABLE: "info",
+  REPLAYED: "info",
 };
 
 function isOutcome(value: unknown): value is GenerationRequestOutcome {

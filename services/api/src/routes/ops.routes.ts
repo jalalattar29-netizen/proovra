@@ -1528,6 +1528,8 @@ export async function opsRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           actionId: z.string().min(1).max(64),
+          // Required by actions that override a pipeline decision (audited).
+          reason: z.string().trim().max(500).optional(),
         })
         .parse(req.body ?? {});
 
@@ -1567,6 +1569,25 @@ export async function opsRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
 
+      /*
+       * 3. An override (superseding an exhausted failure) additionally needs
+       *    the right to RESOLVE conditions here, and a stated reason.
+       */
+      if (action.requiresReason && !(body.reason ?? "").trim()) {
+        return reply
+          .code(400)
+          .send({ error: { code: "remediation_reason_required" } });
+      }
+      if (action.operatorPermission) {
+        const resolver = await requireOpsCapability(
+          req,
+          reply,
+          body.teamId,
+          action.operatorPermission,
+        );
+        if (!resolver) return;
+      }
+
       const domainAllowed = await evaluateMemberAccess({
         teamId: body.teamId,
         userId: actor.userId,
@@ -1588,6 +1609,7 @@ export async function opsRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         actionId: action.actionId,
         actorUserId: actor.userId,
+        reason: body.reason ?? null,
         ipAddress: requestIp(req),
         userAgent: requestUa(req),
       });

@@ -68,6 +68,7 @@ export type RemediationDisposition =
 export const REMEDIATION_ACTION_IDS = [
   "ots.resume_anchoring",
   "report.regenerate_artifacts",
+  "report.supersede_failed_generation",
 ] as const;
 export type RemediationActionId = (typeof REMEDIATION_ACTION_IDS)[number];
 
@@ -135,6 +136,14 @@ export type RemediationAction = {
   /** The canonical audit family the executor appends under. */
   auditFamily: string;
   /**
+   * An Operations capability required IN ADDITION to `operations.view` and the
+   * domain permission — for actions that override a decision the pipeline
+   * made (superseding an exhausted failure), not merely request work.
+   */
+  operatorPermission?: "operations.resolve";
+  /** The operator must state why; the reason is audited. */
+  requiresReason?: boolean;
+  /**
    * What the browser should re-read once the request settles. The queue and
    * the summary are always refreshed; the detail carries the timeline.
    */
@@ -162,6 +171,8 @@ export type RemediationEntry = {
   disposition: RemediationDisposition;
   /** Present only for DIRECT_REMEDIATION. */
   action?: RemediationAction;
+  /** A second, stronger action for the same condition (operator override). */
+  secondaryAction?: RemediationAction;
   /** Present for SAFE_DEEP_LINK, and permitted alongside a direct action. */
   deepLink?: RemediationDeepLink;
   /** Shown when there is nothing to do, or nothing safe to do. */
@@ -188,10 +199,35 @@ const RESUME_OTS: RemediationAction = {
 
 const REGENERATE_ARTIFACTS: RemediationAction = {
   actionId: "report.regenerate_artifacts",
-  label: "Regenerate report & verification package",
+  label: "Recover report or package",
   description:
-    "Re-runs the artifact pipeline for this record. The report and the verification package are produced by ONE job, so this is one action; previous versions are preserved.",
+    "Rebuilds exactly what is missing or failed for this record: only the verification package when the report exists (built from the stored report after its hash is verified), or the report and its package together when there is no report. Existing versions are never replaced.",
   permission: "evidence.generate_report",
+  confirm: true,
+  async: true,
+  auditFamily: "report.generation",
+  refresh: ["queue", "summary", "detail"],
+};
+
+/**
+ * D3 — the ONE path out of an exhausted technical failure.
+ *
+ * After the retry budget is spent, the customer is told the issue was routed
+ * here and is offered no button: another click would only collapse onto the
+ * failed request. An operator who can resolve conditions in this workspace,
+ * AND holds the domain permission, may start a NEW request identity beside the
+ * failed one, stating why. It never overrides an integrity failure, a legal
+ * hold, a workspace restriction or tenancy — the writer supersedes only a
+ * TECHNICAL terminal, and the worker re-checks everything at claim time.
+ */
+const SUPERSEDE_FAILED_GENERATION: RemediationAction = {
+  actionId: "report.supersede_failed_generation",
+  label: "Retry after exhausted failure",
+  description:
+    "Automatic retries for this record's report or package were exhausted. This starts a new, audited attempt beside the failed one, which is kept as history. It does not override integrity checks, legal holds or workspace restrictions.",
+  permission: "evidence.generate_report",
+  operatorPermission: "operations.resolve",
+  requiresReason: true,
   confirm: true,
   async: true,
   auditFamily: "report.generation",
@@ -304,13 +340,15 @@ const CATEGORY_ENTRIES: Readonly<Record<IncidentCategory, RemediationEntry>> =
     REPORT: {
       disposition: "DIRECT_REMEDIATION",
       action: REGENERATE_ARTIFACTS,
+      secondaryAction: SUPERSEDE_FAILED_GENERATION,
     },
     PACKAGE: {
-      // The SAME action. The verification package is produced inside the
-      // report job, so offering a separate "retry package" would be two
-      // buttons for one pipeline — and one of them would be a lie.
+      // The SAME action: the server decides what the record needs (the
+      // package alone beside an existing report), so there is still one
+      // recovery button, and it never mints a report to get a package.
       disposition: "DIRECT_REMEDIATION",
       action: REGENERATE_ARTIFACTS,
+      secondaryAction: SUPERSEDE_FAILED_GENERATION,
     },
     UPLOAD: {
       disposition: "SAFE_DEEP_LINK",
@@ -451,6 +489,8 @@ export type ProjectedRemediation = {
     description: string;
     confirm: boolean;
     async: boolean;
+    /** The operator must enter a reason before submitting. */
+    requiresReason: boolean;
   }>;
   deepLink: RemediationDeepLink | null;
   guidance: string | null;
@@ -483,21 +523,24 @@ export function resolveRemediations(
   const openForAction =
     ctx.incidentStatus === "OPEN" || ctx.incidentStatus === "ACKNOWLEDGED";
 
-  const actions =
-    entry.action &&
+  const offered = (a: RemediationAction | undefined) =>
+    a &&
     openForAction &&
     ctx.workspaceCanMutate &&
-    ctx.can(entry.action.permission)
+    ctx.can(a.permission) &&
+    (!a.operatorPermission || ctx.hasPermission(a.operatorPermission))
       ? [
           {
-            actionId: entry.action.actionId,
-            label: entry.action.label,
-            description: entry.action.description,
-            confirm: entry.action.confirm,
-            async: entry.action.async,
+            actionId: a.actionId,
+            label: a.label,
+            description: a.description,
+            confirm: a.confirm,
+            async: a.async,
+            requiresReason: a.requiresReason === true,
           },
         ]
       : [];
+  const actions = [...offered(entry.action), ...offered(entry.secondaryAction)];
 
   // A destination the reader cannot open is withheld, not rendered and
   // refused.
@@ -521,6 +564,7 @@ export function resolveRemediations(
 export function actionById(id: string): RemediationAction | null {
   if (id === RESUME_OTS.actionId) return RESUME_OTS;
   if (id === REGENERATE_ARTIFACTS.actionId) return REGENERATE_ARTIFACTS;
+  if (id === SUPERSEDE_FAILED_GENERATION.actionId) return SUPERSEDE_FAILED_GENERATION;
   return null;
 }
 

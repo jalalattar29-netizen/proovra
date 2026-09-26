@@ -3077,6 +3077,8 @@
         "evidenceId",
         "generatedAtUtc",
         "key",
+        "latestAvailablePackageVersion",
+        "latestReportVersion",
         "message",
         "packageType",
         "state",

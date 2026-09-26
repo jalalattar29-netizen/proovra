@@ -194,6 +194,9 @@ export const GENERATION_REQUEST_OUTCOMES = [
   "EVIDENCE_NOT_FOUND",
   "WORKSPACE_UNRESOLVED",
   "REQUESTER_REQUIRED",
+  "NOTHING_TO_RECOVER",
+  "NOT_RECOVERABLE",
+  "REPLAYED",
 ] as const;
 export type GenerationRequestOutcome = (typeof GENERATION_REQUEST_OUTCOMES)[number];
 
