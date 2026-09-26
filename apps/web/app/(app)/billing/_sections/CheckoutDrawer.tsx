@@ -79,6 +79,11 @@ export function CheckoutDrawer({
 }) {
   const [provider, setProvider] = useState<Provider>("STRIPE");
   const [busy, setBusy] = useState(false);
+  const [pendingPayPal, setPendingPayPal] = useState<{
+    plan: PlanKey;
+    warning: string | null;
+    confirmationRequired: boolean;
+  } | null>(null);
 
   const openedWithPlan = intent.kind === "PLAN" ? (intent.planKey ?? null) : null;
   const openedWithAddon = intent.kind === "STORAGE" ? (intent.addonKey ?? null) : null;
@@ -93,6 +98,7 @@ export function CheckoutDrawer({
     if (!open) return;
     setSelectedPlan(openedWithPlan);
     setSelectedAddon(openedWithAddon);
+    setPendingPayPal(null);
   }, [open, openedWithPlan, openedWithAddon]);
 
   const currency = projection.plan.currency ?? "USD";
@@ -146,6 +152,34 @@ export function CheckoutDrawer({
       throw new Error("Checkout did not return an approval destination");
     } catch (err) {
       captureException(err, { feature: "billing_checkout_drawer", intent: intent.kind });
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: unknown }).code ?? "")
+          : "";
+      const details =
+        err && typeof err === "object" && "details" in err
+          ? ((err as { details?: Record<string, unknown> }).details ?? {})
+          : {};
+      const blockedPlan =
+        typeof details.plan === "string"
+          ? details.plan
+          : typeof details.pendingPlan === "string"
+            ? details.pendingPlan
+            : selectedPlan;
+      const blockedOffer = planOffers.find((offer) => offer.planKey === blockedPlan);
+      if (
+        provider === "PAYPAL" &&
+        intent.kind === "PLAN" &&
+        (code === "PAYPAL_APPROVAL_PENDING" ||
+          code === "PAYPAL_DIFFERENT_PLAN_PENDING") &&
+        blockedOffer
+      ) {
+        setPendingPayPal({
+          plan: blockedOffer.planKey,
+          warning: null,
+          confirmationRequired: false,
+        });
+      }
       // Never a raw provider or internal message.
       const safe = toSafeUserError(err, {
         message: "We could not start checkout. Please try again in a moment.",
@@ -154,6 +188,66 @@ export function CheckoutDrawer({
     } finally {
       setBusy(false);
       onCompleted();
+    }
+  }
+
+  async function resolvePendingPayPal(confirmed = false) {
+    const plan = pendingPayPal?.plan ?? selectedPlan;
+    if (!plan) return;
+    setBusy(true);
+    try {
+      const result = (await apiFetch("/v1/billing/checkout/paypal/pending/resolve", {
+        method: "POST",
+        body: JSON.stringify({ plan, confirmed }),
+      })) as {
+        outcome?: string;
+        warning?: string;
+        confirmation?: { canConfirmAbandon?: boolean };
+      };
+
+      if (result.outcome === "ABANDON_CONFIRMATION_REQUIRED") {
+        setPendingPayPal({
+          plan,
+          warning:
+            result.warning ??
+            "PayPal could not confirm this approval attempt. You can abandon PROOVRA's local blocker, but that does not cancel anything at PayPal.",
+          confirmationRequired: Boolean(result.confirmation?.canConfirmAbandon),
+        });
+        return;
+      }
+
+      if (result.outcome === "STILL_PENDING") {
+        setPendingPayPal({
+          plan,
+          warning:
+            "PayPal still reports that approval as open. Finish that approval or wait for it to expire before starting another checkout.",
+          confirmationRequired: false,
+        });
+        return;
+      }
+
+      setPendingPayPal(null);
+      onCompleted();
+      if (selectedPlan) {
+        await send(() =>
+          apiFetch("/v1/billing/checkout/paypal", {
+            method: "POST",
+            body: JSON.stringify({ plan: selectedPlan, currency }),
+          }),
+        );
+      }
+    } catch (err) {
+      captureException(err, {
+        feature: "billing_paypal_pending_checkout_resolve",
+        intent: intent.kind,
+      });
+      const safe = toSafeUserError(err, {
+        message:
+          "We could not resolve the pending PayPal approval. Nothing has changed.",
+      });
+      onError(safe.title, safe.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -406,6 +500,38 @@ export function CheckoutDrawer({
               Plans are billed monthly. You can cancel at any time from this
               page.
             </p>
+            {pendingPayPal ? (
+              <div className="bill-pending-paypal" data-billing-paypal-pending-resolution>
+                <p className="bill-summary__note">
+                  {pendingPayPal.warning ??
+                    "PayPal approval is already pending for this plan. We can re-check it before starting another checkout."}
+                </p>
+                <div className="bill-panel__actions">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy}
+                    loading={busy && !pendingPayPal.confirmationRequired}
+                    onClick={() => void resolvePendingPayPal(false)}
+                    data-billing-paypal-pending-recheck
+                  >
+                    Re-check pending approval
+                  </Button>
+                  {pendingPayPal.confirmationRequired ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      loading={busy}
+                      onClick={() => void resolvePendingPayPal(true)}
+                      data-billing-paypal-pending-abandon
+                    >
+                      Abandon local attempt
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 

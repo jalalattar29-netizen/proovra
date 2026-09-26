@@ -300,6 +300,44 @@ describe("the checkout drawer", () => {
 
     expect(apiFetch).toHaveBeenCalledTimes(1);
   });
+
+  it("turns a PayPal pending-approval refusal into an explicit recovery action", async () => {
+    const user = userEvent.setup();
+    const err = Object.assign(new Error("pending"), {
+      code: "PAYPAL_APPROVAL_PENDING",
+      statusCode: 409,
+      details: {
+        provider: "PAYPAL",
+        plan: "PRO",
+        retry: "RESOLVE_PENDING_CHECKOUT",
+      },
+    });
+    apiFetch
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({
+        outcome: "ABANDON_CONFIRMATION_REQUIRED",
+        warning: "PayPal could not confirm this approval attempt.",
+        confirmation: { canConfirmAbandon: true },
+      });
+    mountDrawer("PRO");
+
+    await user.click(screen.getByRole("radio", { name: "PayPal" }));
+    await user.click(continueButton());
+
+    const recheck = await screen.findByRole("button", {
+      name: "Re-check pending approval",
+    });
+    expect(recheck).toBeTruthy();
+
+    await user.click(recheck);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+    expect(apiFetch.mock.calls[1]?.[0]).toBe(
+      "/v1/billing/checkout/paypal/pending/resolve",
+    );
+    expect(
+      screen.getByRole("button", { name: "Abandon local attempt" }),
+    ).toBeTruthy();
+  });
 });
 
 // ===========================================================================

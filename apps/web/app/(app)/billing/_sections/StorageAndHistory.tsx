@@ -151,8 +151,11 @@ export function StorageAddonsSection({
   if (!addons) return null;
 
   const hasOffers = addons.offers.length > 0;
-  const hasActive = addons.active.length > 0;
-  if (!hasOffers && !hasActive) return null;
+  const hasRows = addons.active.length > 0;
+  const hasBillableActive = addons.active.some((addon) =>
+    ["ACTIVE", "PAST_DUE"].includes(addon.status.toUpperCase()),
+  );
+  if (!hasOffers && !hasRows) return null;
 
   return (
     <section className="bill-panel" data-billing-storage-addons>
@@ -201,11 +204,12 @@ export function StorageAddonsSection({
       ) : null}
 
       {/* The ACTIVE add-ons, each with the action the server allows on it. */}
-      {hasActive ? (
+      {hasRows ? (
         <ul className="bill-addon-list">
           {addons.active.map((addon) => {
             const price = formatMoney(addon.priceCents ?? null, addon.currency ?? null);
             const renews = formatDate(addon.currentPeriodEndUtc);
+            const pending = addon.status.toUpperCase() === "PENDING";
             return (
               <li
                 key={addon.id}
@@ -226,7 +230,9 @@ export function StorageAddonsSection({
                     ) : null}
                   </span>
                   <span className="bill-addon__meta">
-                    {addon.legacyOneTime
+                    {pending
+                      ? "Waiting for payment approval — not counted in your capacity yet."
+                      : addon.legacyOneTime
                       ? // Named honestly: it never renews and it is never taken
                         // away. It is capacity already paid for outright.
                         "One-time purchase from before add-ons became monthly — kept, and never charged again."
@@ -285,12 +291,12 @@ export function StorageAddonsSection({
             onClick={onManageStorage}
             data-billing-manage-storage
           >
-            {hasActive ? "Manage storage" : "Add storage"}
+            {hasBillableActive ? "Manage storage" : "Add storage"}
           </button>
         </div>
       ) : null}
 
-      {!hasActive && !hasOffers ? (
+      {!hasRows && !hasOffers ? (
         <p className="bill-panel__note" data-billing-no-addons>
           No extra storage yet.
         </p>

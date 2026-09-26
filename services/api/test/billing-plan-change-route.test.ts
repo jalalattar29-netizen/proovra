@@ -41,6 +41,12 @@ const H = vi.hoisted(() => ({
     pendingPlan?: "PRO" | "TEAM";
     subscriptionId: string;
   },
+  pendingResolution: {
+    outcome: "NO_PENDING_ATTEMPT",
+    provider: "PAYPAL",
+    plan: "PRO",
+    status: null,
+  } as Record<string, unknown>,
 }));
 
 vi.mock("../src/middleware/auth.js", () => ({
@@ -120,6 +126,12 @@ vi.mock("../src/services/billing/pending-checkout-attempt.service.js", async () 
   );
   return {
     ...actual,
+    resolvePendingPayPalCheckout: async (input: { confirmed?: boolean; targetPlan: string }) => {
+      H.calls.push(
+        `resolvePending:${input.targetPlan}:${input.confirmed ? "confirmed" : "unconfirmed"}`,
+      );
+      return H.pendingResolution;
+    },
     withPendingProviderCheckoutGate: async (input: { create: () => Promise<unknown> }) => {
       H.calls.push("pendingCheckoutGate");
       if (H.pendingAttempt) {
@@ -186,6 +198,12 @@ beforeEach(async () => {
   H.capabilityDenied = false;
   H.personalSpaceDenied = false;
   H.pendingAttempt = null;
+  H.pendingResolution = {
+    outcome: "NO_PENDING_ATTEMPT",
+    provider: "PAYPAL",
+    plan: "PRO",
+    status: null,
+  };
   app = await buildApp();
 });
 
@@ -340,6 +358,51 @@ describe("checkout refuses a SECOND subscription", () => {
           code: "PAYPAL_DIFFERENT_PLAN_PENDING",
           details: { pendingPlan: "TEAM", requestedPlan: "PRO" },
         });
+        expect(H.calls).not.toContain("paypalCheckout");
+      });
+
+      it("PayPal: pending approval resolver is explicit and does not create checkout itself", async () => {
+        H.pendingResolution = {
+          outcome: "ABANDON_CONFIRMATION_REQUIRED",
+          provider: "PAYPAL",
+          plan: "PRO",
+          status: "TRIALING",
+          warning: "PayPal could not confirm this approval attempt.",
+          confirmation: { canConfirmAbandon: true },
+        };
+
+        const first = await app.inject({
+          method: "POST",
+          url: "/v1/billing/checkout/paypal/pending/resolve",
+          headers: JSON_HEADERS,
+          payload: { plan: "PRO" },
+        });
+
+        expect(first.statusCode).toBe(200);
+        expect(first.json()).toMatchObject({
+          outcome: "ABANDON_CONFIRMATION_REQUIRED",
+          confirmation: { canConfirmAbandon: true },
+        });
+        expect(H.calls).toContain("capability:BILLING_MANAGE");
+        expect(H.calls).toContain("resolvePending:PRO:unconfirmed");
+        expect(H.calls).not.toContain("paypalCheckout");
+
+        H.pendingResolution = {
+          outcome: "ABANDONED",
+          provider: "PAYPAL",
+          plan: "PRO",
+          status: "CANCELED",
+        };
+        const second = await app.inject({
+          method: "POST",
+          url: "/v1/billing/checkout/paypal/pending/resolve",
+          headers: JSON_HEADERS,
+          payload: { plan: "PRO", confirmed: true },
+        });
+
+        expect(second.statusCode).toBe(200);
+        expect(second.json()).toMatchObject({ outcome: "ABANDONED" });
+        expect(H.calls).toContain("resolvePending:PRO:confirmed");
         expect(H.calls).not.toContain("paypalCheckout");
       });
     }

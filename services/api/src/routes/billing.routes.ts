@@ -81,6 +81,7 @@ import {
 } from "../services/billing/plan-transition.service.js";
 import {
   pendingCheckoutHttpResponse,
+  resolvePendingPayPalCheckout,
   withPendingProviderCheckoutGate,
 } from "../services/billing/pending-checkout-attempt.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
@@ -1688,6 +1689,51 @@ export async function billingRoutes(app: FastifyInstance) {
         summary,
         supportRequired: summary?.supportRequired ?? false,
       });
+    },
+  );
+
+  app.post(
+    "/v1/billing/checkout/paypal/pending/resolve",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          plan: RecurringPlanSchema,
+          confirmed: z.boolean().optional(),
+        })
+        .safeParse(req.body ?? {});
+      if (!body.success) {
+        return reply.code(400).send({ error: { code: "invalid_body" } });
+      }
+
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+
+      const result = await resolvePendingPayPalCheckout({
+        userId,
+        targetPlan: body.data.plan,
+        confirmed: body.data.confirmed === true,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.paypal_pending_checkout_resolved",
+        outcome: "success",
+        metadata: {
+          result: result.outcome,
+          plan: result.plan,
+          status: result.status,
+          providerFailure: result.providerFailure ?? null,
+          confirmed: body.data.confirmed === true,
+        },
+      });
+
+      return reply.code(200).send(result);
     },
   );
 

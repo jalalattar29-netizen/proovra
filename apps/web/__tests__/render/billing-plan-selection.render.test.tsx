@@ -1055,6 +1055,54 @@ describe("the FREE storage card", () => {
     // A real subscriber is never sent back to the plan chooser.
     expect(chose).toBe(0);
   });
+
+  it("does not describe a pending PayPal add-on as usable capacity", () => {
+    const projection = free({
+      storageAddons: {
+        offers: [
+          {
+            key: "PERSONAL_50_GB",
+            label: "+50 GB",
+            storageBytes: "53687091200",
+            storageLabel: "50 GB",
+            priceCents: 799,
+            currency: "EUR",
+            billingCycle: "MONTHLY",
+          },
+        ],
+        active: [
+          {
+            id: "addon-pending",
+            addonKey: "PERSONAL_50_GB",
+            label: "+50 GB",
+            storageLabel: "50 GB",
+            status: "PENDING",
+            billingCycle: "MONTHLY",
+            legacyOneTime: false,
+            canCancel: false,
+            activatedAtUtc: null,
+            currentPeriodEndUtc: null,
+            priceCents: 799,
+            currency: "EUR",
+          },
+        ],
+      },
+    } as never);
+
+    const { container } = render(
+      <StorageAddonsSection
+        projection={projection}
+        onManageStorage={noop}
+        onChoosePlan={noop}
+        onCancelAddon={noop}
+        cancelBusyId={null}
+      />,
+    );
+
+    expect(container.textContent).toMatch(/Waiting for payment approval/);
+    expect(container.textContent).toMatch(/not counted in your capacity yet/);
+    expect(container.querySelector("[data-billing-cancel-addon]")).toBeNull();
+  });
 });
 
 // ===========================================================================

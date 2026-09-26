@@ -359,3 +359,27 @@ export async function requestSubscriptionCancellation(input: {
     dependentAddonsFailed: dependents.failed,
   };
 }
+
+/**
+ * Clear a provider-created approval attempt that never became an entitlement.
+ *
+ * This is intentionally narrower than the provider cancellation flow above:
+ * the row is a pre-approval checkout blocker, not a proved active subscription
+ * lifecycle event, so terminalizing it must not downgrade or otherwise rewrite
+ * the customer's current entitlement.
+ */
+export async function terminalizePendingPlanCheckout(params: {
+  subscriptionId: string;
+  observedAtUtc?: Date | null;
+}) {
+  await prisma.subscription.updateMany({
+    where: {
+      id: params.subscriptionId,
+      status: prismaPkg.SubscriptionStatus.TRIALING,
+    },
+    data: {
+      status: prismaPkg.SubscriptionStatus.CANCELED,
+      providerStateAtUtc: params.observedAtUtc ?? new Date(),
+    },
+  });
+}

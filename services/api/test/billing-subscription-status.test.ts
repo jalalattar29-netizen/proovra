@@ -53,6 +53,17 @@ describe("subscription provider-state ordering", () => {
     ).toMatchObject({ apply: false, reason: "TERMINAL_NOT_REGRESSED" });
   });
 
+  it("CANCELED can yield to newer provider-proven activation", () => {
+    expect(
+      decideSubscriptionTransition({
+        current: "CANCELED",
+        currentObservedAtUtc: T0,
+        observed: "SUCCEEDED",
+        observedAtUtc: T1,
+      }),
+    ).toEqual({ apply: true, status: "ACTIVE" });
+  });
+
   it("equal timestamp with different status is not treated as newer", () => {
     expect(
       decideSubscriptionTransition({

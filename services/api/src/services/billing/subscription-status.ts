@@ -78,6 +78,14 @@ export function decideSubscriptionTransition(
   }
 
   if (input.current === S.CANCELED) {
+    if (
+      next === S.ACTIVE &&
+      input.observedAtUtc &&
+      input.currentObservedAtUtc &&
+      input.observedAtUtc.getTime() > input.currentObservedAtUtc.getTime()
+    ) {
+      return { apply: true, status: next };
+    }
     return { apply: false, reason: "TERMINAL_NOT_REGRESSED" };
   }
 
