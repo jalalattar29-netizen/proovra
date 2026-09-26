@@ -145,7 +145,13 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     );
     expect(src).toContain('data-reports-regenerate=');
     expect(src).toContain("/reports/regenerate");
-    expect(src).toContain('"Retry generation"');
+    // 2026-09-26 — the retry CTA is now PER OUTPUT, and its words come from
+    // the shared verb table ("Retry report", "Retry recovery", "Recover
+    // package"), with the intent the output offers. The single "Retry
+    // generation" label named one verb for two outputs and is retired.
+    expect(src).toContain('outputActionLabel(kind, action, "compact")');
+    expect(src).toContain("JSON.stringify({ intent })");
+    expect(src).not.toMatch(/"(Retry generation|Regenerate report & package)"/);
   });
 
   test("Reviewer workspace detail source ships the Phase A.1D cross-surface links", async () => {
@@ -178,7 +184,18 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     );
     expect(src).toContain('/v1/evidence/:id/reports/regenerate');
     expect(src).toContain("evidence.report.regenerate_requested");
-    expect(src).toContain("forceRegenerate: true");
+    // 2026-09-26 — a FORCED generation is no longer a flag the route sets on
+    // every request: the route delegates to the one executor, where only an
+    // explicit NEW_VERSION with a caller idempotency key forces a new version.
+    expect(src).toContain("requestOutputRecovery(");
+    const executor = await fs.readFile(
+      path.resolve(process.cwd(), "services/api/src/services/reports/output-recovery.service.ts"),
+      "utf8",
+    );
+    expect(executor).toMatch(
+      /forceRegenerate: true,\s*intent: "NEW_VERSION",\s*clientRequestKey: key,/,
+    );
+    expect(executor.match(/forceRegenerate: true/g)?.length).toBe(1);
     // A GATE, AND A STRICTER ONE THAN THIS USED TO DEMAND.
     //
     // This required `getEvidenceWithOwnerAccess(userId, id)`. That helper was
@@ -190,8 +207,13 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     // So the point of the original line still holds and holds harder: this
     // mutation is not readable-by-anyone, and the capability it demands is
     // named rather than implied.
-    expect(src).toContain(
-      'getEvidenceWithRecordAccess(userId, id, "evidence.generate_report")',
+    //
+    // 2026-09-26 (D5) — the same capability, through the canonical record
+    // access engine's operation-access arm, which also decides 403 (a reader
+    // without the permission) versus 404 (someone who must not learn the
+    // record exists).
+    expect(src).toMatch(
+      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*\}\)/,
     );
   });
 });

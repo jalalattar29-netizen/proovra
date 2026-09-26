@@ -14,7 +14,7 @@
  *   outage  — run only after the worker has been STOPPED for longer than the
  *             heartbeat window (WORKER_HEARTBEAT_STALE_SECONDS, default 180s).
  *             Generation reads as impaired, the notice sits beside
- *             Regenerate, and the EXISTING report still downloads.
+ *             the new-version action, and the EXISTING report still downloads.
  *   recovered — run after the worker is started again and has heartbeated.
  *
  * State between phases is written to RUNTIME_E2E_STATE (a JSON file).
@@ -189,7 +189,7 @@ test.describe("runtime boundary — generation outage (worker stopped past the h
     expect(b.capabilities.artifactGeneration).toBe(a.capabilities.artifactGeneration);
   });
 
-  test("rendered: the notice sits beside Regenerate, the existing report still downloads, no panel", async ({ page }) => {
+  test("rendered: the notice sits beside the new-version action, the existing report still downloads, no panel", async ({ page }) => {
     const s = state();
     await signIn(page, s.a.email);
     await openArtifacts(page, s.evidenceId);
