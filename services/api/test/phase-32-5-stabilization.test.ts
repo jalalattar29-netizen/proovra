@@ -179,47 +179,56 @@ describe("Phase 32.5 — evidence detail page artifact polling", () => {
     "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
   ].map(readSource).join("\n\n");
 
-  it("polls /v1/evidence/:id/artifacts/status (the side-effect-free endpoint)", () => {
-    expect(PAGE_SRC).toMatch(
-      /\/v1\/evidence\/\$\{evidenceId\}\/artifacts\/status/,
-    );
-    // It must NOT poll the report download endpoint — that one creates
-    // custody / audit events. We anchor on the bounded pollOnce()
-    // helper name (not a doc comment), which survives stripComments.
+  /*
+   * 2026-09-26 — the poll hook was rewritten to follow the SERVER's
+   * `outputs.pollIntervalMs` (a setTimeout chain at the interval the server
+   * states) instead of deriving "still pending" locally, which never polled a
+   * new version generated beside a READY report. Every property below is the
+   * same one this suite always pinned, anchored on the new tick function.
+   */
+  const tickBlock = () => {
     const code = stripComments(PAGE_SRC);
-    const pollBlock = code.match(/const pollOnce[\s\S]*?\}, \[/);
-    expect(pollBlock).toBeTruthy();
-    expect(pollBlock![0]).not.toMatch(/report\/latest/);
+    const m = code.match(/const tick = async \(\) => \{[\s\S]*?\n {4}\};/);
+    expect(m).toBeTruthy();
+    return m![0];
+  };
+
+  it("polls /v1/evidence/:id/artifacts/status (the side-effect-free endpoint)", () => {
+    const tick = tickBlock();
+    expect(tick).toMatch(/\/v1\/evidence\/\$\{evidenceId\}\/artifacts\/status/);
+    // It must NOT poll a download endpoint — those create custody / audit events.
+    expect(tick).not.toMatch(/report\/latest|verification-package/);
   });
 
   it("polling pauses when the tab is hidden (document.hidden gate)", () => {
-    expect(PAGE_SRC).toMatch(/document\.hidden/);
+    expect(tickBlock()).toMatch(/document\.hidden/);
   });
 
-  it("polling stops when both report + package are no longer pending", () => {
-    expect(PAGE_SRC).toMatch(
-      /reportStillPending\s*\|\|\s*packageStillPending/,
-    );
-    // The interval is cleared when pollOnce returns false.
-    expect(PAGE_SRC).toMatch(/clearInterval\(timer\)/);
+  it("polling stops when the server says nothing is live (pollIntervalMs null)", () => {
+    const tick = tickBlock();
+    expect(tick).toMatch(/const nextInterval = r\.outputs\?\.pollIntervalMs \?\? null;\s*if \(nextInterval == null\) \{[\s\S]*?return;\s*\}/);
+    // No free-running interval: each tick schedules the next, and the
+    // effect's cleanup cancels the pending one.
+    expect(PAGE_SRC).not.toMatch(/setInterval\(/);
+    expect(PAGE_SRC).toMatch(/if \(timer\) clearTimeout\(timer\);/);
   });
 
   it("polling triggers loadWorkspace ONLY on state transition (not every tick)", () => {
-    const code = stripComments(PAGE_SRC);
-    expect(code).toMatch(
-      /stateChanged\s*=\s*reportNowAvailable !== priorReportAvailable \|\|\s*packageNowAvailable !== priorPackageAvailable/,
-    );
-    // The reload is injected into the extracted hook as `reloadWorkspace`
-    // (bound to the orchestrator's `loadWorkspace`), so the requirement is
-    // that the reload happens ONLY inside the state-transition branch.
-    expect(code).toMatch(/if \(stateChanged\) \{\s*await reloadWorkspace\(\);/);
-    expect(code).toMatch(/reloadWorkspace: loadWorkspace,/);
+    const tick = tickBlock();
+    expect(tick).toMatch(/const changed = next !== prior;\s*if \(changed\) \{\s*prior = next;\s*await reloadWorkspace\(\);/);
+    // The one other reload is the FINAL one when polling ends, and only when
+    // the transition branch did not already carry that state.
+    expect(tick.match(/reloadWorkspace\(\)/g)?.length).toBe(2);
+    expect(tick).toMatch(/if \(!changed\) await reloadWorkspace\(\)/);
+    expect(stripComments(PAGE_SRC)).toMatch(/reloadWorkspace: loadWorkspace,/);
   });
 
-  it("polling is gated on finalized status (SIGNED or REPORTED) — no polling for CREATED/UPLOADING", () => {
-    expect(PAGE_SRC).toMatch(
-      /const finalized = status === "SIGNED" \|\| status === "REPORTED";/,
-    );
+  it("polling is gated on the server's live requests — no polling for CREATED/UPLOADING", () => {
+    // A record that is not finalized has no generation request, and the
+    // server's interval is non-null only while a request is live.
+    expect(PAGE_SRC).toMatch(/return workspace\?\.artifactStatus\?\.outputs\?\.pollIntervalMs != null;/);
+    const STATUS = readSource("../src/services/evidence-artifact-status.service.ts");
+    expect(STATUS).toMatch(/row != null && \(row\.state === "QUEUED" \|\| row\.state === "PROCESSING"\)/);
   });
 });
 

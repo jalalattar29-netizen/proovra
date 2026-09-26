@@ -69,20 +69,35 @@ const CAPTURE_PAGE = readFileSync(
 );
 
 describe("Part A — Plan-gated report polling + banner", () => {
-  it("shouldPollArtifactReadiness consults workspaceCapabilitySnapshot.reportsIncluded", () => {
-    expect(PAGE).toMatch(/const caps\s*=\s*workspace\.workspaceCapabilitySnapshot/);
-    expect(PAGE).toMatch(/const reportReachable\s*=\s*\n?\s*caps\?\.reportsIncluded\s*!==\s*false/);
+  /*
+   * 2026-09-26 — THE SERVER STATES WHEN TO POLL. The client predicate used to
+   * consult the plan caps so a plan-gated record would not poll forever, and
+   * it polled only while `report.available` was false — which also meant a
+   * new version generated beside a READY report was never polled. The server
+   * now sends `outputs.pollIntervalMs`, non-null ONLY while a request is
+   * queued, processing, or awaiting a scheduled retry. A plan-gated output
+   * has no such request, so it never polls: the same guarantee, from the one
+   * authority that knows about requests.
+   */
+  it("shouldPollArtifactReadiness follows the server's pollIntervalMs, and nothing else", () => {
     expect(PAGE).toMatch(
-      /const packageReachable\s*=\s*\n?\s*caps\?\.verificationPackageIncluded\s*!==\s*false/,
+      /export function shouldPollArtifactReadiness\([\s\S]{0,200}?return workspace\?\.artifactStatus\?\.outputs\?\.pollIntervalMs != null;/,
     );
   });
 
-  it("polling does not return true when plan denies reports AND artifact is unavailable", () => {
-    // The combined condition stops the loop; the source-level assertion
-    // proves it's gated on the plan caps (avoids endless polling).
-    expect(PAGE).toMatch(
-      /reportReachable\s*&&\s*!workspace\.artifactStatus\.report\.available/,
+  it("polling does not return true when plan denies reports: the server polls only live requests", () => {
+    const STATUS = readFileSync(
+      resolve(REPO_ROOT, "services", "api", "src", "services", "evidence-artifact-status.service.ts"),
+      "utf8",
     );
+    const start = STATUS.indexOf("const inFlight = (row");
+    expect(start).toBeGreaterThan(0);
+    const block = STATUS.slice(start, STATUS.indexOf("? 30_000", start) + 40);
+    expect(block).toMatch(/row\.state === "QUEUED" \|\| row\.state === "PROCESSING"/);
+    expect(block).toMatch(/"FAILED_RETRYABLE"/);
+    // No state, eligibility or availability reading — only live requests.
+    expect(block).not.toMatch(/eligib|available|reportsIncluded|NOT_INCLUDED/);
+    expect(block).toMatch(/: null;/);
   });
 
   it("Artifacts tab renders the plan-gated banner when reportsIncluded=false", () => {

@@ -331,7 +331,9 @@ describe("the output state machine", () => {
      * action the server projected, the same `outputActionFor` answer Evidence
      * Detail renders.
      */
-    expect(code).toMatch(/row\.outputs\?\.report\.action/);
+    // 2026-09-26 — PER OUTPUT: each output's own server action, read by key.
+    expect(code).toMatch(/const a = row\.outputs\?\.\[kind\]\.action;/);
+    expect(code).toMatch(/for \(const kind of \["report", "verificationPackage"\] as const\)/);
     expect(code).not.toMatch(/generationVerb/);
     // The lossy vocabulary may still be read for STATUS TEXT, which is what it
     // is good at — but never to decide whether a control exists.

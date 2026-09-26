@@ -841,9 +841,12 @@ describe("P2-3 — mobile consumes the canonical output state", () => {
 
   it("WIRING: mobile imports the shared state type and duplicates no enum", () => {
     const screen = mobile("app/(stack)/evidence/[id].tsx");
+    // The type, from the shared package (beside a shared value it also uses).
     expect(screen).toMatch(
-      /import type \{ EvidenceOutputState \} from "@proovra\/shared"/,
+      /import (type \{ EvidenceOutputState \}|\{[^}]*\btype EvidenceOutputState\b[^}]*\}) from "@proovra\/shared"/,
     );
+    // And no local union of the states.
+    expect(screen).not.toMatch(/type EvidenceOutputState\s*=/);
   });
 
   it("WIRING: mobile handles every canonical state", () => {

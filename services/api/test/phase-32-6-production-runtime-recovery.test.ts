@@ -283,7 +283,8 @@ describe("Phase 32.6 — polling never triggers download/custody events", () => 
   it("polling block NEVER calls /report/latest or /verification-package/latest", () => {
     const code = stripComments(PAGE_SRC);
     // Anchor on the pollOnce function body.
-    const pollBlock = code.match(/const pollOnce[\s\S]*?\}, \[/);
+    // The poll hook's tick (2026-09-26 rewrite; see phase-32-5).
+    const pollBlock = code.match(/const tick = async \(\) => \{[\s\S]*?\n {4}\};/);
     expect(pollBlock).toBeTruthy();
     expect(pollBlock![0]).not.toMatch(/\/report\/latest/);
     expect(pollBlock![0]).not.toMatch(/\/verification-package\/latest/);

@@ -160,7 +160,8 @@ function ArtifactLifecyclePanel({
       <OutputUnavailableNote kind="report" output={output} />
     </>
   );
-  const newVersion = ctx.workspace.artifactStatus.outputs.newVersion;
+  const { workspace } = ctx;
+  const newVersion = workspace.artifactStatus.outputs.newVersion;
   const newVersionInFlight =
     output.state === "READY" && newVersion?.reason === "IN_PROGRESS";
 

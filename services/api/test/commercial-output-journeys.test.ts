@@ -201,7 +201,11 @@ describe("SCENARIO 4 — FREE upgrades to PRO and its history becomes generatabl
 
   it("WIRING: the Generate action exists on the record's own page", () => {
     const tab = strip(web("app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx"));
-    expect(tab).toMatch(/GenerateOutputsButton/);
+    // The per-output control (2026-09-26): the server's verb for THAT output,
+    // sent as its intent.
+    expect(tab).toMatch(/function OutputActionButton/);
+    expect(tab).toMatch(/ctx\.generateOutputs\(action\)/);
+    expect(tab).toMatch(/<OutputActionButton ctx=\{ctx\} kind="report"/);
     expect(tab).toMatch(/ELIGIBLE_NOT_GENERATED/);
     const actions = strip(
       web("app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts"),
