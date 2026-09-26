@@ -67,6 +67,8 @@ export default function ReportsScreen() {
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [summary, setSummary] = useState<ReportsSummary | null>(null);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
+  /** Bumped after a generation request so the counters are re-read, not assumed. */
+  const [summaryNonce, setSummaryNonce] = useState(0);
   const [items, setItems] = useState<ArtifactRow[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
@@ -105,7 +107,7 @@ export default function ReportsScreen() {
     return () => {
       alive = false;
     };
-  }, [teamId]);
+  }, [teamId, summaryNonce]);
 
   const apply = useCallback((page: ArtifactPage, existing: ArtifactRow[] | null) => {
     setItems(existing ? [...existing, ...page.items] : page.items);
@@ -291,7 +293,15 @@ export default function ReportsScreen() {
               >
                 <View style={{ gap: theme.space.s2 }}>
                   {items.map((row) => (
-                    <ReportArtifactRow key={row.evidenceId} row={row} teamId={teamId} />
+                    <ReportArtifactRow
+                      key={row.evidenceId}
+                      row={row}
+                      teamId={teamId}
+                      onOutputsRequested={() => {
+                        setSummaryNonce((n) => n + 1);
+                        void load(null, []);
+                      }}
+                    />
                   ))}
                   <ProovraCursorPager
                     hasMore={!!cursor}

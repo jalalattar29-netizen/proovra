@@ -55,16 +55,17 @@ test("a whitespace-only title falls through rather than rendering blank", () => 
 
 /* ----------------------------------------------------------------- summary */
 
-test("the six canonical counters are projected in the web's order", () => {
+test("the canonical counters are projected in the web's order", () => {
   assert.deepEqual(
     R.REPORTS_METRICS.map((m) => m.label),
     [
-      "Reports generated",
+      "Reports ready",
       "Reports pending",
+      "Reports failed",
       "Packages ready",
       "Packages pending",
       "Packages blocked",
-      "Evidence with artifacts",
+      "Records with artifacts",
     ],
   );
   const s = R.parseReportsSummary(envelope());

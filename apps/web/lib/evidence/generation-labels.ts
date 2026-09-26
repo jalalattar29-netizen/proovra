@@ -59,6 +59,19 @@ export const GENERATION_ACTION_LABEL_COMPACT: Record<OutputAction, string> = {
 };
 
 /**
+ * What a REGENERATION costs, said before it happens — on every surface that
+ * offers it. Verified against the pipeline, not assumed: each run writes a new
+ * report + package version (older versions are kept and stay downloadable),
+ * the bytes count toward workspace storage, and no evidence credit is charged
+ * (funding is one ledger entry per record). Mobile carries the same sentence
+ * (`REGENERATE_CONSEQUENCE` in apps/mobile/src/product/evidence-detail.ts).
+ */
+export const REGENERATE_CONSEQUENCE =
+  "This creates a new immutable version. Previous versions are retained and remain " +
+  "downloadable, and the new one uses additional workspace storage. No evidence " +
+  "credit is charged.";
+
+/**
  * The two download controls, named the same way everywhere.
  *
  * THESE ARE THE EXISTING PRODUCT STRINGS, ADOPTED — not new ones. The "PDF" and

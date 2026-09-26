@@ -328,8 +328,17 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
      * Prisma relation from `Evidence`, and a read filter is not a reason to add
      * a foreign key.
      */
-    ["report_pending", "{ reports: { none: {} }, id: { in: ids } }"],
+    /*
+     * REPORTS TILE ⇔ FILTER PARITY (2026-09-25) — the id set is no longer a
+     * platform-wide scan of the newest 5,000 request rows in a state (any
+     * workspace's, any request rather than the record's latest). It is the
+     * workspace-scoped classification the summary tiles read too, so a tile
+     * and its filter cannot disagree. Proven against PostgreSQL by
+     * services/api/test/reports-summary-filter-parity.integration.test.ts.
+     */
+    ["report_pending", "{ id: { in: (await classified()).reportPending } }"],
     ["package_ready", "{ verificationPackages: { some: {} } }"],
+    ["package_pending", "{ id: { in: (await classified()).packagePending } }"],
   ];
   for (const [key, predicate] of cases) {
     assert.match(block, new RegExp(`case "${key}":`), `${key} has no branch`);
@@ -344,8 +353,25 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
     block.indexOf('case "package_ready":'),
   );
   assert.ok(
-    failed.includes("FAILED_RETRYABLE") && failed.includes("FAILED_TERMINAL"),
-    "report_failed must select the persisted failure states",
+    failed.includes("(await classified()).reportFailed"),
+    "report_failed must select the classified failure states",
+  );
+  // …and the classification is the LATEST request's projected state, through
+  // the same shared derivation the rows use.
+  const classifier = AGGREGATOR.slice(
+    AGGREGATOR.indexOf("export async function classifyWorkspaceOutputs"),
+    AGGREGATOR.indexOf("function lifecycleWhere"),
+  );
+  assert.ok(classifier.includes('distinct: ["evidenceId"]'), "latest request per record");
+  assert.ok(classifier.includes("projectReportRequestState"));
+  assert.ok(classifier.includes("deriveEvidenceOutputState"));
+  assert.ok(
+    classifier.includes('state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE"'),
+    "failed = retryable or terminal failure",
+  );
+  assert.ok(
+    !AGGREGATOR.includes("LIFECYCLE_REQUEST_ID_SCAN") && !AGGREGATOR.includes("take: 500"),
+    "no platform-wide request scan and no sampled count",
   );
   assert.ok(
     !failed.includes("id: { in: [] }"),
@@ -361,8 +387,9 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
   );
   const blocked = block.slice(block.indexOf('case "package_blocked":'));
   assert.ok(
-    pending.includes("verificationPackages: { none: {} }") &&
-      pending.includes("NOT: { verificationPackageMetadata"),
+    pending.includes("packagePending") &&
+      classifier.includes("row._count.verificationPackages === 0") &&
+      classifier.includes("!readPackageBlocked(row.verificationPackageMetadata).blocked"),
     "package_pending must EXCLUDE the blocked ones",
   );
   assert.ok(
@@ -526,15 +553,17 @@ test("every filter maps to a predicate over the full dataset", () => {
   const cases: Array<[string, RegExp]> = [
     ["all", /case "all":\s*\n\s*return null;/],
     ["report_ready", /reports: \{ some: \{\} \}/],
-    ["report_pending", /reports: \{ none: \{\} \}/],
+    ["report_pending", /case "report_pending":[\s\S]{0,200}reportPending/],
     ["package_ready", /verificationPackages: \{ some: \{\} \}/],
     ["package_blocked", /verificationPackageMetadata: \{ path: \["blocked"\], equals: true \}/],
   ];
   for (const [key, re] of cases) {
     assert.match(block, re, `${key} has no full-dataset predicate`);
   }
-  // Pending is "no package AND not blocked" — the two are disjoint.
-  assert.match(block, /NOT: \{ verificationPackageMetadata: \{ path: \["blocked"\], equals: true \} \}/);
+  // Pending is "no package AND not blocked" — the two are disjoint. The
+  // classifier walks the WHOLE workspace in id-ordered batches, never a sample.
+  assert.match(AGGREGATOR, /!readPackageBlocked\(row\.verificationPackageMetadata\)\.blocked/);
+  assert.match(AGGREGATOR, /id: \{ gt: after \}/);
 });
 
 test("changing filter or search resets to page 1", () => {

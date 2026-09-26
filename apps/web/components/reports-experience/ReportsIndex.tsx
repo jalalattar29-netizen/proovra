@@ -28,6 +28,7 @@ import {
   DOWNLOAD_PACKAGE_LABEL,
   DOWNLOAD_REPORT_LABEL,
   GENERATION_ACTION_LABEL_COMPACT,
+  REGENERATE_CONSEQUENCE,
 } from "../../lib/evidence/generation-labels";
 import {
   readGenerationOutcome,
@@ -90,16 +91,25 @@ import type {
  * one.
  */
 const SUMMARY_METRICS = [
-  { key: "reports_ready", field: "reportsReady", label: "Reports generated", tone: "blue" },
+  /*
+   * Each tile counts RECORDS and names the filter whose total it equals. The
+   * labels used to promise things the numbers were not: "Reports generated"
+   * beside a "Report ready" filter, "pending" for records nobody had asked to
+   * generate. Pending means a request is queued or running; a failure is its
+   * own tile, never pending.
+   */
+  { key: "reports_ready", field: "reportsReady", filter: "report_ready", label: "Reports ready", tone: "blue" },
   // PENDING takes the shared attention orange, not the caution amber.
-  { key: "reports_pending", field: "reportsPending", label: "Reports pending", tone: "orange" },
-  { key: "packages_ready", field: "packagesReady", label: "Packages ready", tone: "green" },
-  { key: "packages_pending", field: "packagesPending", label: "Packages pending", tone: "indigo" },
-  { key: "packages_blocked", field: "packagesBlocked", label: "Packages blocked", tone: "red" },
-  { key: "total_artifacts", field: "totalEvidenceWithArtifacts", label: "Evidence with artifacts", tone: "slate" },
+  { key: "reports_pending", field: "reportsPending", filter: "report_pending", label: "Reports pending", tone: "orange" },
+  { key: "reports_failed", field: "reportsFailed", filter: "report_failed", label: "Reports failed", tone: "red" },
+  { key: "packages_ready", field: "packagesReady", filter: "package_ready", label: "Packages ready", tone: "green" },
+  { key: "packages_pending", field: "packagesPending", filter: "package_pending", label: "Packages pending", tone: "indigo" },
+  { key: "packages_blocked", field: "packagesBlocked", filter: "package_blocked", label: "Packages blocked", tone: "red" },
+  { key: "total_artifacts", field: "totalEvidenceWithArtifacts", filter: null, label: "Records with artifacts", tone: "slate" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   field: keyof ReportsSummary;
+  filter: LifecycleFilter | null;
   label: string;
   tone: string;
 }>;
@@ -548,6 +558,21 @@ export function ReportsIndex() {
     setCursors([]);
   }, []);
 
+  /*
+   * AFTER A GENERATION REQUEST, RE-READ — never assume.
+   *
+   * The row showed the server's outcome message and nothing else moved, so
+   * the tiles and the row's own status kept describing the moment before the
+   * click. Both are re-read from the server: a queued request moves the record
+   * into "pending" only when the server says it did, and nothing is marked
+   * complete optimistically.
+   */
+  const refreshAfterAction = useCallback(() => {
+    void loadSummary();
+    const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
+    void reload(filter, search, cursor);
+  }, [loadSummary, reload, filter, search, cursors]);
+
   if (state.status === "loading") {
     return <ReportsLoading />;
   }
@@ -574,6 +599,7 @@ export function ReportsIndex() {
     ["all", "All"],
     ["report_ready", "Report ready"],
     ["report_pending", "Report pending"],
+    ["report_failed", "Report failed"],
     ["package_ready", "Package ready"],
     ["package_pending", "Package pending"],
     ["package_blocked", "Package blocked"],
@@ -631,12 +657,15 @@ export function ReportsIndex() {
       {summarySection.status === "ok" && summarySection.data ? (
         <PageSection title="Operational summary" data-reports-summary>
           <ul className="rpt-summary__grid" data-reports-summary-grid>
-            {SUMMARY_METRICS.map((m) => (
+            {SUMMARY_METRICS.filter(
+              (m) => typeof summarySection.data![m.field] === "number",
+            ).map((m) => (
               <li key={m.key}>
                 <div
                   className="app-metric-card rpt-metric"
                   data-rpt-tone={m.tone}
                   data-reports-summary-key={m.key}
+                  data-reports-summary-filter={m.filter ?? undefined}
                   data-reports-summary-value={String(
                     summarySection.data![m.field],
                   )}
@@ -732,6 +761,7 @@ export function ReportsIndex() {
                   key={row.evidenceId}
                   row={row}
                   teamId={workspaceId}
+                  onOutputsRequested={refreshAfterAction}
                 />
             ))}
           </ul>
@@ -795,9 +825,11 @@ export function ReportsIndex() {
 function ArtifactRowView({
   row,
   teamId,
+  onOutputsRequested,
 }: {
   row: ArtifactRow;
   teamId: string | null;
+  onOutputsRequested?: () => void;
 }) {
   return (
     <li
@@ -906,7 +938,11 @@ function ArtifactRowView({
           `/v1/evidence/:id/verification-package`) still gates on
           workspace policy + retention; this UI never simulates
           permission. */}
-        <ArtifactRowActions row={row} teamId={teamId} />
+        <ArtifactRowActions
+          row={row}
+          teamId={teamId}
+          onOutputsRequested={onOutputsRequested}
+        />
       </div>
     </li>
   );
@@ -921,9 +957,11 @@ function ArtifactRowView({
 function ArtifactRowActions({
   row,
   teamId,
+  onOutputsRequested,
 }: {
   row: ArtifactRow;
   teamId: string | null;
+  onOutputsRequested?: () => void;
 }) {
   // Phase A.1D — busy tag widened to include the "regen" retry path
   // for the new `POST /v1/evidence/:id/reports/regenerate` endpoint.
@@ -932,6 +970,13 @@ function ArtifactRowActions({
   // Phase A.1D — explicit notice when a regen has just been enqueued
   // so the operator sees acknowledgement without leaving the row.
   const [regenNotice, setRegenNotice] = useState<string | null>(null);
+  /**
+   * REGENERATE IS CONFIRMED HERE TOO. Evidence Detail asked before creating a
+   * new immutable version; this row posted on the first click. A first
+   * generation and a retry produce what the record is already owed, so only
+   * REGENERATE asks.
+   */
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
 
   const triggerReport = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1014,6 +1059,7 @@ function ArtifactRowActions({
     e.preventDefault();
     e.stopPropagation();
     if (busy) return;
+    setConfirmingRegenerate(false);
     setBusy("regen");
     setError(null);
     setRegenNotice(null);
@@ -1029,6 +1075,7 @@ function ArtifactRowActions({
        * already under way for this record."
        */
       setRegenNotice(readGenerationOutcome(resp).message);
+      onOutputsRequested?.();
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
       if (e.statusCode === 403) {
@@ -1150,7 +1197,9 @@ function ArtifactRowActions({
           {row.report.state === "pending"
             ? "Report generating — refresh shortly"
             : row.report.state === "failed"
-              ? "Report generation failed"
+              ? canonicalAction === "NONE"
+                ? "Report generation failed — needs operator review"
+                : "Report generation failed"
               : row.report.state === "not_requested"
                 ? "Report not generated yet"
                 : "Report not included for this record"}
@@ -1219,7 +1268,7 @@ function ArtifactRowActions({
           Needs a workspace association
         </span>
       ) : null}
-      {canonicalAction !== "NONE" ? (
+      {canonicalAction !== "NONE" && canonicalAction !== "REGENERATE" ? (
         <Button
           variant="secondary"
           size="sm"
@@ -1249,6 +1298,64 @@ function ArtifactRowActions({
       >
         Open evidence
       </Link>
+      {/* REGENERATE is SECONDARY: the record already has its artifacts, so a
+          new version comes after the downloads and the way into the record,
+          and only after a confirmation that states what it costs. */}
+      {canonicalAction === "REGENERATE" && !confirmingRegenerate ? (
+        <button
+          type="button"
+          className="app-secondary-action rpt-row__action"
+          data-reports-regenerate={row.evidenceId}
+          data-reports-generate-verb={canonicalAction}
+          data-reports-regenerate-trigger-report-state={row.report.state}
+          data-reports-regenerate-trigger-package-state={row.package.state}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setConfirmingRegenerate(true);
+          }}
+          disabled={busy !== null}
+        >
+          {busy === "regen"
+            ? "Requesting…"
+            : GENERATION_ACTION_LABEL_COMPACT[canonicalAction]}
+        </button>
+      ) : null}
+      {canonicalAction === "REGENERATE" && confirmingRegenerate ? (
+        <div
+          className="app-inner-surface rpt-row__confirm"
+          role="dialog"
+          aria-modal="false"
+          aria-label="Confirm regeneration"
+          data-reports-regenerate-confirm={row.evidenceId}
+          style={{ width: "100%", padding: 10, display: "grid", gap: 8 }}
+        >
+          <p style={{ margin: 0, fontSize: 13 }}>{REGENERATE_CONSEQUENCE}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--filled"
+              onClick={triggerRegenerate}
+              disabled={busy !== null}
+              data-reports-regenerate-confirm-action={row.evidenceId}
+            >
+              Create a new version
+            </button>
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmingRegenerate(false);
+              }}
+              data-reports-regenerate-cancel={row.evidenceId}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <span
           role="alert"

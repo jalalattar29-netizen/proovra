@@ -38,25 +38,31 @@ export const REPORTS_PAGE_SIZE = 25;
 export interface ReportsSummary {
   reportsReady: number | null;
   reportsPending: number | null;
+  reportsFailed: number | null;
   packagesReady: number | null;
   packagesPending: number | null;
   packagesBlocked: number | null;
   totalEvidenceWithArtifacts: number | null;
 }
 
-/** The six canonical counters, in the web's order, with its labels. */
+/**
+ * The canonical counters, in the web's order, with its labels
+ * (ReportsIndex.tsx SUMMARY_METRICS). Every one counts RECORDS, and every one
+ * with a lifecycle filter equals that filter's total on the server.
+ */
 export const REPORTS_METRICS: ReadonlyArray<{
   key: keyof ReportsSummary;
   label: string;
   tone: ProovraStatusTone;
 }> = [
-  { key: "reportsReady", label: "Reports generated", tone: "info" },
+  { key: "reportsReady", label: "Reports ready", tone: "info" },
   // PENDING takes the shared attention tone, not the caution amber.
   { key: "reportsPending", label: "Reports pending", tone: "pending" },
+  { key: "reportsFailed", label: "Reports failed", tone: "risk" },
   { key: "packagesReady", label: "Packages ready", tone: "verified" },
   { key: "packagesPending", label: "Packages pending", tone: "pending" },
   { key: "packagesBlocked", label: "Packages blocked", tone: "risk" },
-  { key: "totalEvidenceWithArtifacts", label: "Evidence with artifacts", tone: "neutral" },
+  { key: "totalEvidenceWithArtifacts", label: "Records with artifacts", tone: "neutral" },
 ];
 
 export function parseReportsSummary(payload: unknown): ReportsSummary | null {
@@ -67,6 +73,7 @@ export function parseReportsSummary(payload: unknown): ReportsSummary | null {
   return {
     reportsReady: int(d.reportsReady),
     reportsPending: int(d.reportsPending),
+    reportsFailed: int(d.reportsFailed),
     packagesReady: int(d.packagesReady),
     packagesPending: int(d.packagesPending),
     packagesBlocked: int(d.packagesBlocked),

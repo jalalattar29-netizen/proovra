@@ -414,8 +414,15 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // in the batch that was already running. Sanctioned, audited growth —
       // the pin moves to the current size so it keeps catching UNAUDITED
       // drift.
+      // Rebaselined 2026-09-25 (REPORTS TILE ⇔ FILTER PARITY): 34,034 →
+      // 39,740. The summary tiles each had their own arithmetic and the
+      // pending/failed filters read a platform-wide 5,000-row request scan, so
+      // a tile disagreed with its own filter and another workspace's requests
+      // could leak in. Both now read one workspace-scoped classification
+      // (`classifyWorkspaceOutputs`) through `lifecycleWhere`. Sanctioned,
+      // audited growth — the pin moves so it keeps catching UNAUDITED drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 34034,
+        expected: 39740,
       },
     ];
     for (const { rel, expected } of PINS) {

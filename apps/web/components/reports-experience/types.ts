@@ -102,10 +102,16 @@ export type ArtifactOutputProjection = {
   downloadable: boolean;
 };
 
-/** The six operational counters the summary strip renders. */
+/**
+ * The operational counters the summary strip renders. Every one counts
+ * RECORDS (never artifact versions), and every one with a lifecycle filter
+ * equals that filter's total over the same workspace.
+ */
 export type ReportsSummary = {
   reportsReady: number;
   reportsPending: number;
+  /** Absent from servers older than the tile ⇔ filter parity change. */
+  reportsFailed?: number;
   packagesReady: number;
   packagesPending: number;
   packagesBlocked: number;

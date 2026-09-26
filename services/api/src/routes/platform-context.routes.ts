@@ -24,7 +24,11 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { isDomainError } from "../errors.js";
 import { buildPlatformContext } from "../services/platform-context/platform-context.service.js";
-import { runReadinessCheck } from "../runtime/runtime-readiness.js";
+import {
+  projectTenantRuntimeStatus,
+  runReadinessCheck,
+  type TenantRuntimeStatus,
+} from "../runtime/runtime-readiness.js";
 // P0 remediation (2026-07-21) — tenant-scoped context-switch audit events.
 // NOTE: the GET route remains strictly read-only/no-audit; only the
 // switch MUTATION below emits.
@@ -140,15 +144,12 @@ export async function platformContextRoutes(app: FastifyInstance) {
     "/v1/runtime/status",
     { preHandler: requireAuth },
     async (_req: FastifyRequest, reply) => {
-      let status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE" = "UNAVAILABLE";
+      let status: TenantRuntimeStatus = "UNAVAILABLE";
       try {
-        const report = await runReadinessCheck(prisma, null);
-        status =
-          report.status === "HEALTHY"
-            ? "HEALTHY"
-            : report.status === "DEGRADED" || report.status === "CRITICAL"
-              ? "DEGRADED"
-              : "UNAVAILABLE";
+        // Tenant-IMPACTING subsystems only: a deployment without Sentry is an
+        // operator concern, not a degraded service (see
+        // `OPERATOR_ONLY_SUBSYSTEMS`).
+        status = projectTenantRuntimeStatus(await runReadinessCheck(prisma, null));
       } catch {
         status = "UNAVAILABLE";
       }

@@ -154,12 +154,12 @@ export function RuntimeStatusBanner({ pollMs = 60_000 }: RuntimeStatusBannerProp
 
   if (status === "DEGRADED") {
     /*
-     * NO SUBSYSTEM IDS. `RuntimeDegradedNotice` takes a list and names it; the
-     * tenant projection has none to give, and inventing one would be the leak
-     * this change removed, restated. An empty list makes the notice say that
-     * the platform is degraded without saying which part of it.
+     * NO SUBSYSTEM IDS. The tenant projection has none to give, and inventing
+     * one would be the leak this change removed, restated. Without a list the
+     * notice says the platform is degraded without a count, an empty list or
+     * an admin-only runbook link.
      */
-    return <RuntimeDegradedNotice failingSubsystems={[]} />;
+    return <RuntimeDegradedNotice />;
   }
 
   // UNAVAILABLE — the platform could not measure its own readiness.

@@ -300,7 +300,11 @@ describe("the output state machine", () => {
   it("the reports aggregator can reach `failed` and `unavailable`", () => {
     const code = stripComments(readApi("services/reports/reports-aggregator.service.ts"));
     expect(code).toMatch(/deriveEvidenceOutputState/);
-    expect(code).toMatch(/FAILED_RETRYABLE/);
+    // `failed` is the LATEST durable request's state, projected through the
+    // shared mapping (FAILED_RETRYABLE / FAILED_TERMINAL → a failure state),
+    // and the `report_failed` filter reads that same classification.
+    expect(code).toMatch(/projectReportRequestState/);
+    expect(code).toMatch(/case "report_failed":[\s\S]{0,120}reportFailed/);
     // The symptom: `case "report_failed": return { id: { in: [] } }` — a filter
     // that matched nothing, beside a control gated on the state it never
     // produced.

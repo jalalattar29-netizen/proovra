@@ -171,6 +171,50 @@ function rollUpStatus(
   return "UNKNOWN";
 }
 
+/**
+ * Subsystems whose state says how the PLATFORM is instrumented or operated,
+ * not whether a tenant's work is being served.
+ *
+ *   - `sentry`: a missing DSN makes exception capture a no-op. Requests,
+ *     uploads, reports and downloads are unaffected.
+ *   - `metrics`: always HEALTHY today; the scrape endpoint's gating only.
+ *   - `cron_secrets`: the shared secret for the EXTERNAL reconcile trigger
+ *     endpoints. The worker schedules those reconciliations itself.
+ *
+ * They stay in the full platform report (`/v1/admin/runtime/*`), where an
+ * operator should see them. They are excluded only from the tenant projection,
+ * which told every customer the platform was "degraded" whenever a deployment
+ * ran without Sentry.
+ */
+export const OPERATOR_ONLY_SUBSYSTEMS: ReadonlySet<SubsystemId> = new Set<SubsystemId>([
+  "sentry",
+  "metrics",
+  "cron_secrets",
+]);
+
+/** The three values `GET /v1/runtime/status` may answer. */
+export type TenantRuntimeStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
+
+/**
+ * THE TENANT-IMPACTING ROLLUP.
+ *
+ * Same rollup as the platform status, over the subsystems that can affect a
+ * tenant's evidence, storage, queues, workers, search, media or reports. A
+ * real failure there is never hidden: CRITICAL and DEGRADED both read
+ * DEGRADED. A subsystem that could not be measured (UNKNOWN) reads
+ * UNAVAILABLE — distinct from HEALTHY, never collapsed into it.
+ */
+export function projectTenantRuntimeStatus(
+  report: Pick<RuntimeReadinessReport, "subsystems">,
+): TenantRuntimeStatus {
+  const impacting = report.subsystems.filter((s) => !OPERATOR_ONLY_SUBSYSTEMS.has(s.id));
+  if (impacting.length === 0) return "UNAVAILABLE";
+  const rolled = rollUpStatus(impacting);
+  if (rolled === "HEALTHY") return "HEALTHY";
+  if (rolled === "UNKNOWN") return "UNAVAILABLE";
+  return "DEGRADED";
+}
+
 // -----------------------------------------------------------------------------
 // Per-subsystem checks
 // -----------------------------------------------------------------------------

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "d23ae19e73d809817e78aa818fd6cfa9d40a3f95f18de958c4e841c510c76fda",
   "routeInventoryHash": "27f5cf6532bc67adfd4216763902bdd6ae966fbc54c8b50e33a41b8278fcd2d4",
-  "consumerInventoryHash": "f437eebe1444d078b64237bb891225d522c5e1932689604854bfcd26e1b399be",
+  "consumerInventoryHash": "c902df4b8b383d200bf8f564c0eb2eef1fb2afd04643f36ac9bcc186b8dfc94c",
   "dispositionsHash": "84258bb75ea0397d36382918b8b5b556c1d7c9407eecac9698b9b3aede4b12fe",
   "totals": {
     "RegisteredRoutes": 1163,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8831,
+      "METHOD_ON_VALUE": 8836,
       "UNRESOLVED_IDENTIFIER": 1149
     },
     "MutationFixpointRounds": 9,
@@ -161,7 +161,7 @@
       "NO_DATA_ACCESS": 49
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 225,
+    "OrganizationRoutesMeasured": 224,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
@@ -5631,7 +5631,7 @@
       "method": "GET",
       "route": "/v1/reports",
       "registeringFile": "services/api/src/routes/reports.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/reports.tsx:136",
+      "productConsumer": "apps/mobile/app/(stack)/reports.tsx:138",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5643,7 +5643,7 @@
       "method": "GET",
       "route": "/v1/reports/artifacts",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/reports.tsx:94",
+      "productConsumer": "apps/mobile/app/(stack)/reports.tsx:96",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -20782,8 +20782,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/platform-context.routes.ts#user.update@482",
-      "terminalLocation": "services/api/src/routes/platform-context.routes.ts:482",
+      "writerId": "services/api/src/routes/platform-context.routes.ts#user.update@483",
+      "terminalLocation": "services/api/src/routes/platform-context.routes.ts:483",
       "file": "services/api/src/routes/platform-context.routes.ts",
       "enclosingDeclaration": "platformContextRoutes",
       "kind": "DATABASE",
@@ -100398,7 +100398,7 @@
         },
         {
           "file": "apps/mobile/src/ui/report-artifact-row.tsx",
-          "line": 76,
+          "line": 84,
           "caller": "download",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -100438,7 +100438,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 943,
+          "line": 988,
           "caller": "triggerReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100456,7 +100456,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:371 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:365 (EvidenceLibraryScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:76 (download, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:371 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:365 (EvidenceLibraryScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:84 (download, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100967,7 +100967,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 979,
+          "line": 1024,
           "caller": "triggerPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -103329,7 +103329,7 @@
         },
         {
           "file": "apps/mobile/src/ui/report-artifact-row.tsx",
-          "line": 66,
+          "line": 74,
           "caller": "download",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -103347,7 +103347,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:351 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:66 (download, MOBILE); apps/web/components/governance/GovernedExportAction.tsx:123 (GovernedExportAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:351 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:74 (download, MOBILE); apps/web/components/governance/GovernedExportAction.tsx:123 (GovernedExportAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114352,7 +114352,7 @@
       "method": "GET",
       "path": "/v1/platform/context",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:71",
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:75",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/platform-context/platform-context.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -116379,7 +116379,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/reports.tsx",
-          "line": 136,
+          "line": 138,
           "caller": "fallback",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116387,7 +116387,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/reports.tsx",
-          "line": 150,
+          "line": 152,
           "caller": "ReportsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116411,7 +116411,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 221,
+          "line": 231,
           "caller": "tryUserScopedReports",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116421,7 +116421,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:136 (fallback, MOBILE); apps/mobile/app/(stack)/reports.tsx:150 (ReportsScreen, MOBILE); apps/mobile/app/(tabs)/index.tsx:178 (HomeScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:138 (fallback, MOBILE); apps/mobile/app/(stack)/reports.tsx:152 (ReportsScreen, MOBILE); apps/mobile/app/(tabs)/index.tsx:178 (HomeScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116483,7 +116483,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/reports.tsx",
-          "line": 94,
+          "line": 96,
           "caller": "ReportsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116491,7 +116491,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/reports.tsx",
-          "line": 157,
+          "line": 159,
           "caller": "ReportsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116499,7 +116499,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 330,
+          "line": 340,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116507,7 +116507,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 381,
+          "line": 391,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116517,7 +116517,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:94 (ReportsScreen, MOBILE); apps/mobile/app/(stack)/reports.tsx:157 (ReportsScreen, MOBILE); apps/web/components/reports-experience/ReportsIndex.tsx:330 (ReportsIndex, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:96 (ReportsScreen, MOBILE); apps/mobile/app/(stack)/reports.tsx:159 (ReportsScreen, MOBILE); apps/web/components/reports-experience/ReportsIndex.tsx:340 (ReportsIndex, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116532,11 +116532,8 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
-        "enterpriseContract",
-        "entitlement",
         "evidence",
         "evidenceCreditLedgerEntry",
-        "organization",
         "report",
         "reportGenerationRequest",
         "revokedSession",
@@ -116544,12 +116541,10 @@
         "team",
         "teamMember",
         "user",
-        "verificationPackage",
-        "workspaceStorageAddon"
+        "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "entitlement",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -116557,15 +116552,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: verificationPackage.count — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.findMany — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.findMany — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate"
+        "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: report.findMany — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: verificationPackage.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -118646,7 +118641,7 @@
       "method": "GET",
       "path": "/v1/runtime/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:139",
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:143",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -140224,7 +140219,7 @@
         },
         {
           "file": "apps/mobile/src/ui/report-row-action.tsx",
-          "line": 28,
+          "line": 35,
           "caller": "trigger",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -140248,7 +140243,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 1021,
+          "line": 1067,
           "caller": "triggerRegenerate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -140258,7 +140253,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:529 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/evidence-copilot.tsx:66 (run, MOBILE); apps/mobile/src/ui/report-row-action.tsx:28 (trigger, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:529 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/evidence-copilot.tsx:66 (run, MOBILE); apps/mobile/src/ui/report-row-action.tsx:35 (trigger, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -157458,7 +157453,7 @@
       "method": "POST",
       "path": "/v1/platform/context/switch-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:166",
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:167",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/platform-context/platform-context.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",

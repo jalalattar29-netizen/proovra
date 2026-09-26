@@ -65,9 +65,15 @@ test("each row says its integrity verdict once, its case, and the org's Customer
   r.unmount();
 });
 
-test("the server's verb runs the one regenerate request and says the outcome", async () => {
+test("REGENERATE asks first, states its cost, and posts once only when confirmed", async () => {
   const r = await render();
   await r.press("Regenerate report & package: Roof photo");
+  await settle();
+  // Nothing is sent until the new version is confirmed.
+  assert.deepEqual(posts, []);
+  assert.equal(r.byTestId("report-row-regenerate-confirm-e1").length, 1);
+  assert.ok(r.texts().some((t) => /new immutable version/.test(t) && /additional workspace storage/.test(t)));
+  await r.press("Create a new version: Roof photo");
   await settle();
   assert.deepEqual(posts, ["/v1/evidence/e1/reports/regenerate"]);
   assert.equal(r.byTestId("report-row-action-e1").length, 1);
@@ -83,6 +89,8 @@ test("a permission refusal is said in the web's words", async () => {
   regen = () => ({ __status: 403, message: "forbidden" });
   const r = await render();
   await r.press("Regenerate report & package: Roof photo");
+  await settle();
+  await r.press("Create a new version: Roof photo");
   await settle();
   assert.ok(r.hasText("You do not have permission to generate reports in this workspace."));
 });

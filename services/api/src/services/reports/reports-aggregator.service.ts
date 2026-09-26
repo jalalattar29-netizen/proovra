@@ -183,11 +183,19 @@ export type ReportsArtifactsEnvelope = {
     summary: {
       status: SectionStatus;
       data: {
+        /** Records with at least one generated report (not report versions). */
         reportsReady: number;
+        /** Records with no report whose latest generation request is queued or running. */
         reportsPending: number;
+        /** Records with no report whose latest generation request failed (retryable or terminal). */
+        reportsFailed: number;
+        /** Records with at least one verification package (not package versions). */
         packagesReady: number;
+        /** Records with no package whose latest generation request is queued or running. */
         packagesPending: number;
+        /** Records with no package whose package generation is gate-blocked. */
         packagesBlocked: number;
+        /** Records with at least one real artifact (report or package). */
         totalEvidenceWithArtifacts: number;
       } | null;
     };
@@ -392,68 +400,50 @@ export async function listWorkspaceArtifacts(input: {
     summary = { status: "skipped", data: null };
   } else {
   try {
+    // ONE PROJECTION FOR THE TILES AND THE FILTERS.
+    //
+    // Every tile that has a matching lifecycle filter is computed from the
+    // SAME predicate that filter applies (`lifecycleWhere`), over the same
+    // finalized population the list pages through. The old tiles each had
+    // their own arithmetic — `SIGNED − REPORTED` for pending reports, "no
+    // package row" for pending packages, package VERSION rows for ready
+    // packages, a 500-row sample for blocked — so a tile routinely disagreed
+    // with the rows its own filter returned.
+    const finalized = finalizedPopulation(scope);
+    const classified = await classifyWorkspaceOutputs({
+      finalized,
+      teamId: input.teamId,
+    });
+    const countWhere = async (filter: ReportLifecycleFilter) => {
+      const clause = await lifecycleWhere(filter, {
+        finalized,
+        teamId: input.teamId,
+        classified,
+      });
+      return prisma.evidence.count({
+        where: clause ? { AND: [finalized, clause] } : finalized,
+      });
+    };
     const [
       reportsReady,
-      reportsPendingCandidates,
       packagesReady,
-      packagesPendingCandidates,
-      packagesBlockedCount,
+      packagesBlocked,
       totalEvidenceWithArtifacts,
     ] = await Promise.all([
-      prisma.evidence.count({
-        where: { AND: [scope, { status: "REPORTED" }] },
-      }),
-      prisma.evidence.count({
-        where: { AND: [scope, { status: "SIGNED" }] },
-      }),
-      prisma.verificationPackage.count({
-        where: { evidence: scope },
-      }),
+      countWhere("report_ready"),
+      countWhere("package_ready"),
+      countWhere("package_blocked"),
       prisma.evidence.count({
         where: {
           AND: [
-            scope,
+            finalized,
             {
-              status: { in: ["SIGNED", "REPORTED"] },
-              verificationPackages: { none: {} },
+              OR: [
+                { reports: { some: {} } },
+                { verificationPackages: { some: {} } },
+              ],
             },
           ],
-        },
-      }),
-      // Packages where the gate-denial metadata indicates `blocked: true`.
-      // Prisma doesn't support a JSON `blocked === true` predicate at the
-      // count level on all versions; we read a bounded sample then count
-      // the blocked flag client-side.
-      prisma.evidence
-        .findMany({
-          where: {
-            AND: [
-              scope,
-              {
-                status: { in: ["SIGNED", "REPORTED"] },
-                verificationPackageMetadata: {
-                  not: null as unknown as undefined,
-                },
-              },
-            ],
-          },
-          take: 500,
-          select: { verificationPackageMetadata: true },
-        })
-        .then((rows) => {
-          let n = 0;
-          for (const row of rows) {
-            const { blocked } = readPackageBlocked(
-              row.verificationPackageMetadata,
-            );
-            if (blocked) n += 1;
-          }
-          return n;
-        })
-        .catch(() => 0),
-      prisma.evidence.count({
-        where: {
-          AND: [scope, { status: { in: ["SIGNED", "REPORTED"] } }],
         },
       }),
     ]);
@@ -461,10 +451,11 @@ export async function listWorkspaceArtifacts(input: {
       status: "ok",
       data: {
         reportsReady,
-        reportsPending: Math.max(0, reportsPendingCandidates - reportsReady),
+        reportsPending: classified.reportPending.length,
+        reportsFailed: classified.reportFailed.length,
         packagesReady,
-        packagesPending: packagesPendingCandidates,
-        packagesBlocked: packagesBlockedCount,
+        packagesPending: classified.packagePending.length,
+        packagesBlocked,
         totalEvidenceWithArtifacts,
       },
     };
@@ -488,12 +479,15 @@ export async function listWorkspaceArtifacts(input: {
       // header are now population-identical by construction, not by two edits
       // that happen to agree.
       AND: [scope],
-      status: { in: ["SIGNED", "REPORTED"] },
+      status: { in: FINALIZED_STATUSES },
     };
     if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
     // The filter narrows the QUERY, so pagination, the total and the page all
     // describe the same population.
-    const lifecycleClause = await lifecycleWhere(input.lifecycleFilter ?? "all");
+    const lifecycleClause = await lifecycleWhere(input.lifecycleFilter ?? "all", {
+      finalized: finalizedPopulation(scope),
+      teamId: input.teamId,
+    });
     if (lifecycleClause) {
       (whereBase.AND as Prisma.EvidenceWhereInput[]).push(lifecycleClause);
     }
@@ -847,103 +841,193 @@ export async function listWorkspaceArtifacts(input: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// The canonical per-evidence projection behind the tiles AND the filters
+// ---------------------------------------------------------------------------
+
+const FINALIZED_STATUSES: Array<"SIGNED" | "REPORTED"> = ["SIGNED", "REPORTED"];
+
+/** The population every tile, filter and row of this page describes. */
+function finalizedPopulation(scope: WorkspaceEvidenceScope): Prisma.EvidenceWhereInput {
+  return { AND: [scope], status: { in: FINALIZED_STATUSES } };
+}
+
+/**
+ * Evidence ids, per lifecycle state that cannot be written as a relation test.
+ *
+ * "Pending" and "failed" are properties of the record's LATEST generation
+ * request, and `ReportGenerationRequest` has no Prisma relation from
+ * `Evidence`. They used to be approximated by a platform-wide scan of the
+ * newest 5,000 request rows in a state — any workspace's rows, and any request
+ * for a record rather than its latest — which both leaked other workspaces'
+ * volume into this one's result and silently truncated a large workspace.
+ */
+export type ClassifiedWorkspaceOutputs = {
+  reportPending: string[];
+  reportFailed: string[];
+  packagePending: string[];
+};
+
+const CLASSIFY_BATCH = 1000;
+
+/**
+ * Classifies every finalized record in the workspace that is MISSING an
+ * artifact, through the same `deriveEvidenceOutputState` the list rows use.
+ *
+ * Bounded in memory: records are read in id-ordered batches, each batch costs
+ * one evidence read, one latest-request read and (only for records whose
+ * latest request failed) one eligibility read. Only matching ids are kept.
+ * Records that already hold both artifacts are never read — they cannot be
+ * pending, failed or blocked, because READY wins the derivation.
+ */
+export async function classifyWorkspaceOutputs(input: {
+  finalized: Prisma.EvidenceWhereInput;
+  teamId: string;
+}): Promise<ClassifiedWorkspaceOutputs> {
+  const out: ClassifiedWorkspaceOutputs = {
+    reportPending: [],
+    reportFailed: [],
+    packagePending: [],
+  };
+  let after: string | null = null;
+  for (;;) {
+    const batch: Array<{
+      id: string;
+      status: string;
+      verificationPackageMetadata: Prisma.JsonValue;
+      _count: { reports: number; verificationPackages: number };
+    }> = await prisma.evidence.findMany({
+      where: {
+        AND: [
+          input.finalized,
+          {
+            OR: [
+              { reports: { none: {} } },
+              { verificationPackages: { none: {} } },
+            ],
+          },
+          ...(after ? [{ id: { gt: after } }] : []),
+        ],
+      },
+      orderBy: { id: "asc" },
+      take: CLASSIFY_BATCH,
+      select: {
+        id: true,
+        status: true,
+        verificationPackageMetadata: true,
+        _count: { select: { reports: true, verificationPackages: true } },
+      },
+    });
+    if (batch.length === 0) break;
+    after = batch[batch.length - 1].id;
+
+    const ids = batch.map((r) => r.id);
+    const requests = await prisma.reportGenerationRequest.findMany({
+      where: { evidenceId: { in: ids } },
+      orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+      distinct: ["evidenceId"],
+      select: { evidenceId: true, state: true },
+    });
+    const generationById = new Map<string, OutputGenerationState>(
+      requests.map((q) => [
+        q.evidenceId,
+        projectReportRequestState(q.state as PersistedReportRequestState),
+      ]),
+    );
+
+    // Eligibility decides whether a failure reads "failed" or "not included",
+    // so it is resolved — once per batch — for the records that failed.
+    const failedIds = ids.filter((id) => {
+      const g = generationById.get(id);
+      return g === "RETRYABLE_FAILURE" || g === "TERMINAL_FAILURE";
+    });
+    const eligibility =
+      failedIds.length > 0
+        ? await resolveEvidenceOutputEligibilityMany({
+            evidenceIds: failedIds,
+            teamId: input.teamId,
+          })
+        : new Map<string, never>();
+
+    for (const row of batch) {
+      const generation = generationById.get(row.id) ?? "NOT_REQUESTED";
+      if (generation === "NOT_REQUESTED" || generation === "BLOCKED") continue;
+      const record = resolveOutputRecordApplicability(row.status);
+      const elig = eligibility.get(row.id) ?? null;
+
+      if (row._count.reports === 0) {
+        const state = deriveEvidenceOutputState({
+          eligibility: elig?.reportEligibility ?? "ELIGIBLE",
+          generation,
+          availability: "NO_ARTIFACT",
+          record,
+        });
+        if (state === "QUEUED" || state === "GENERATING") {
+          out.reportPending.push(row.id);
+        } else if (state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE") {
+          out.reportFailed.push(row.id);
+        }
+      }
+
+      if (
+        row._count.verificationPackages === 0 &&
+        !readPackageBlocked(row.verificationPackageMetadata).blocked
+      ) {
+        const state = deriveEvidenceOutputState({
+          eligibility: elig?.packageEligibility ?? "ELIGIBLE",
+          generation,
+          availability: "NO_ARTIFACT",
+          record,
+        });
+        if (state === "QUEUED" || state === "GENERATING") {
+          out.packagePending.push(row.id);
+        }
+      }
+    }
+
+    if (batch.length < CLASSIFY_BATCH) break;
+  }
+  return out;
+}
+
 /**
  * THE LIFECYCLE FILTER, AS A DATABASE PREDICATE.
  *
- * It used to run in `filterByLifecycle` AFTER pagination, over the 25 rows the
- * page had already fetched. So "Report pending" searched 25 of 278 records: it
- * returned whichever of the newest 25 happened to be pending, called that the
- * answer, and reported a count derived from the same slice. The filter was not
- * slow — it was looking at 9% of the data.
+ * Each filter selects exactly the rows whose projected lifecycle (see
+ * `toReportLifecycle` / `toPackageLifecycle`) carries that value, across the
+ * whole workspace and before pagination — and the summary tile of the same
+ * name is `count(finalized AND lifecycleWhere(filter))`, so a tile and its
+ * filter's total cannot disagree.
  *
- * The derivations these mirror are `deriveReportState` / `derivePackageState`
- * above, and the mirror is exact BECAUSE the surrounding `whereBase` already
- * pins `status IN (SIGNED, REPORTED)`: within that population "pending" is
- * precisely "no artifact row exists", so `none: {}` is the whole predicate and
- * `not_requested` is unreachable.
- *
- * BLOCKED is the one that cannot be a relation test — it lives in the
- * `verificationPackageMetadata` JSON — so it is expressed as a JSON path
- * filter against the same column `readPackageBlocked` reads.
+ * Ready and blocked are relation / JSON-path tests. Pending and failed come
+ * from `classifyWorkspaceOutputs`, as an id set.
  */
-/**
- * THE GENERATION-REQUEST ARM, AS AN ID SET.
- *
- * `ReportGenerationRequest` carries `evidence_id` as a plain column — there is
- * no Prisma relation from `Evidence`, and adding one would mean a schema
- * change and a foreign key for a read filter. The states are a small closed
- * set and the population is already narrowed to one workspace's finalized
- * records, so a bounded id lookup expresses the same predicate with no
- * migration.
- *
- * Bounded deliberately: a filter is a page of results, not an export, and an
- * unbounded `IN` list is how a filter becomes a table scan.
- */
-const LIFECYCLE_REQUEST_ID_SCAN = 5000;
-
-async function evidenceIdsWithRequestState(
-  states: readonly string[],
-): Promise<string[]> {
-  try {
-    const rows = await prisma.reportGenerationRequest.findMany({
-      where: { state: { in: [...states] } },
-      orderBy: { createdAtUtc: "desc" },
-      take: LIFECYCLE_REQUEST_ID_SCAN,
-      select: { evidenceId: true },
-      distinct: ["evidenceId"],
-    });
-    return rows.map((r) => r.evidenceId);
-  } catch {
-    return [];
-  }
-}
-
 async function lifecycleWhere(
   filter: ReportLifecycleFilter,
+  ctx: {
+    finalized: Prisma.EvidenceWhereInput;
+    teamId: string;
+    classified?: ClassifiedWorkspaceOutputs;
+  },
 ): Promise<Prisma.EvidenceWhereInput | null> {
+  const classified = async () =>
+    ctx.classified ??
+    (await classifyWorkspaceOutputs({ finalized: ctx.finalized, teamId: ctx.teamId }));
   switch (filter) {
     case "all":
       return null;
     case "report_ready":
       return { reports: { some: {} } };
-    case "report_pending": {
-      /*
-       * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — "pending" is no
-       * longer "no artifact row". It is "a durable generation request exists
-       * and has not finished", which is what the word means and what the
-       * derivation now returns. Absence with no request is either
-       * `eligible_not_generated` or `unavailable`, and neither is pending.
-       */
-      const ids = await evidenceIdsWithRequestState(["QUEUED", "PROCESSING"]);
-      return { reports: { none: {} }, id: { in: ids } };
-    }
-    case "report_failed": {
-      /*
-       * REACHABLE NOW. The note that stood here — "no persisted failure state
-       * exists for a report" — was true of the DERIVATION and false of the
-       * database: `ReportGenerationRequest` has carried FAILED_RETRYABLE and
-       * FAILED_TERMINAL since Point 5, and nothing outside the worker read
-       * them. The page's own `Retry generation` control was gated on this
-       * state, so it had never rendered for anybody.
-       */
-      const ids = await evidenceIdsWithRequestState([
-        "FAILED_RETRYABLE",
-        "FAILED_TERMINAL",
-      ]);
-      return { reports: { none: {} }, id: { in: ids } };
-    }
+    case "report_pending":
+      // Queued or running, with no report yet. A Free record that was never
+      // entitled to a report has no request and is not pending.
+      return { id: { in: (await classified()).reportPending } };
+    case "report_failed":
+      return { id: { in: (await classified()).reportFailed } };
     case "package_ready":
       return { verificationPackages: { some: {} } };
-    case "package_pending": {
-      // Same correction as `report_pending`: the package is produced inside
-      // the report job, so its pending-ness is that job's request row.
-      const ids = await evidenceIdsWithRequestState(["QUEUED", "PROCESSING"]);
-      return {
-        verificationPackages: { none: {} },
-        NOT: { verificationPackageMetadata: { path: ["blocked"], equals: true } },
-        id: { in: ids },
-      };
-    }
+    case "package_pending":
+      return { id: { in: (await classified()).packagePending } };
     case "package_blocked":
       return {
         verificationPackages: { none: {} },

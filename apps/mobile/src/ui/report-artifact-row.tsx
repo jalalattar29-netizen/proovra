@@ -52,7 +52,15 @@ import { ProovraBadge, ProovraButton, ProovraCard, ProovraText } from "./index";
 
 type Busy = null | "report" | "package";
 
-export function ReportArtifactRow({ row, teamId }: { row: ArtifactRow; teamId: string | null }) {
+export function ReportArtifactRow({
+  row,
+  teamId,
+  onOutputsRequested,
+}: {
+  row: ArtifactRow;
+  teamId: string | null;
+  onOutputsRequested?: () => void;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +173,7 @@ export function ReportArtifactRow({ row, teamId }: { row: ArtifactRow; teamId: s
           <ProovraBadge label={packageWaiting} tone="neutral" />
         ) : null}
       </View>
-      <ReportRowAction row={row} />
+      <ReportRowAction row={row} onRequested={onOutputsRequested} />
       <ProovraButton
         label="Open evidence"
         accessibilityLabel={`Open evidence: ${row.displayTitle}`}

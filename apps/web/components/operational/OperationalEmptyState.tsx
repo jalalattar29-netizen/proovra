@@ -27,6 +27,7 @@
 import Link from "next/link";
 
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
+import { useCan } from "../../lib/platform-context";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 export type OperationalEmptyStateVariant = "neutral" | "degraded" | "unknown";
@@ -434,6 +435,20 @@ function healthActions(
     : [];
 }
 
+/**
+ * The runbook catalog is a platform-admin console (`/admin/platform/runbooks`,
+ * authorised server-side). A link to it is offered only to an actor holding
+ * `RUNBOOKS_VIEW` — the same key the runtime indicator, Command Center and
+ * governance control plane already gate on. Tenants were shown a link that
+ * could only ever refuse them.
+ */
+function runbookActions(
+  canRunbooks: boolean,
+  label: string,
+): OperationalEmptyStateAction[] {
+  return canRunbooks ? [{ label, href: "/admin/platform/runbooks" }] : [];
+}
+
 export function NoEscalationsEmptyState() {
   const healthDestination = useHealthDestination();
   return (
@@ -469,6 +484,7 @@ export function NoWorkloadSnapshotsEmptyState() {
 }
 
 export function NoGovernanceIncidentsEmptyState() {
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
   return (
     <OperationalEmptyState
       kicker="Governance"
@@ -478,7 +494,7 @@ export function NoGovernanceIncidentsEmptyState() {
       runtimeDependency="Immutable-storage reconciliation worker + reviewer reconciliation worker. Both write incidents on detected conflicts."
       actions={[
         { label: "Open Operations Center", href: "/operations" },
-        { label: "View runbooks", href: "/admin/platform/runbooks" },
+        ...runbookActions(canRunbooks, "View runbooks"),
       ]}
     />
   );
@@ -513,23 +529,41 @@ export function NoOperationalTimelineEmptyState() {
 // Degraded / unknown variants — fail-closed UI when backend state is partial.
 // -----------------------------------------------------------------------------
 
+/**
+ * THE TENANT FORM IS THE DEFAULT.
+ *
+ * The tenant-safe runtime projection carries no subsystem list, so the only
+ * caller (`RuntimeStatusBanner`) passed `[]` and this rendered "0 subsystem(s)
+ * reported a non-healthy state" beside an empty "Failing subsystems: ." line,
+ * plus a runbook link every tenant was refused at. With no list, the notice
+ * now says only what is true for the reader — the sentence native already
+ * uses — and names subsystems only when a caller genuinely has some.
+ */
 export function RuntimeDegradedNotice({
-  failingSubsystems,
+  failingSubsystems = [],
 }: {
-  failingSubsystems: ReadonlyArray<string>;
+  failingSubsystems?: ReadonlyArray<string>;
 }) {
   const healthDestination = useHealthDestination();
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
+  const named = failingSubsystems.length > 0;
   return (
     <OperationalEmptyState
       kicker="Runtime"
       emptyStateCode="runtime_degraded"
       title="Runtime is in degraded mode."
-      reason={`${failingSubsystems.length} subsystem(s) reported a non-healthy state. The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended.`}
-      runtimeDependency={`Failing subsystems: ${failingSubsystems.join(", ")}.`}
+      reason={
+        named
+          ? `${failingSubsystems.length} subsystem(s) reported a non-healthy state. The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended.`
+          : "The data on this page may be partial or stale. The platform continues to operate but operator attention is recommended."
+      }
+      runtimeDependency={
+        named ? `Failing subsystems: ${failingSubsystems.join(", ")}.` : undefined
+      }
       variant="degraded"
       actions={[
         ...healthActions(healthDestination),
-        { label: "Review runbooks", href: "/admin/platform/runbooks" },
+        ...runbookActions(canRunbooks, "Review runbooks"),
       ]}
     />
   );

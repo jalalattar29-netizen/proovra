@@ -188,7 +188,10 @@ describe("RuntimeStatusBanner", () => {
     expect(code).not.toMatch(/remediationHint/);
     expect(code).not.toMatch(/affectedDomain/);
     expect(code).not.toMatch(/failingSubsystems\.map/);
-    expect(code).toMatch(/failingSubsystems=\{\[\]\}/);
+    // No list at all: the notice's tenant form (no count, no empty
+    // "Failing subsystems: ." line, no admin-only runbook link).
+    expect(code).not.toMatch(/failingSubsystems=/);
+    expect(code).toMatch(/<RuntimeDegradedNotice \/>/);
   });
 
   it("never exposes env values or secret content", () => {
