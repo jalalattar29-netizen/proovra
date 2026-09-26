@@ -918,6 +918,35 @@ function appendPackageEntry(
  * that still supply one. The canonical ingest digest + size are recorded for the
  * checksums index and match the bytes placed in the archive.
  */
+/**
+ * The evidence files a package can actually be built from — exactly the ones
+ * `appendEvidencePart` can append: a STREAMED part (storage coordinates plus
+ * its verified digest and size) or a legacy in-memory buffer.
+ *
+ * UC-3 moved ORIGINAL parts to streaming and the processor stopped attaching
+ * buffers, but this filter kept requiring one, so every part-based package was
+ * rejected with "requires at least one evidence file".
+ */
+export function selectPackageEvidenceFiles(data: {
+  evidenceFiles?: ReadonlyArray<VerificationEvidenceFile | null | undefined> | null;
+  evidenceBuffer?: Buffer | null;
+}): VerificationEvidenceFile[] {
+  return Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0
+    ? data.evidenceFiles.filter(
+        (file): file is VerificationEvidenceFile =>
+          Boolean(file) &&
+          typeof file!.name === "string" &&
+          (Buffer.isBuffer(file!.buffer) ||
+            (Boolean(file!.storageBucket) &&
+              Boolean(file!.storageKey) &&
+              Boolean(file!.sha256) &&
+              file!.sizeBytes != null)),
+      )
+    : data.evidenceBuffer
+      ? [{ name: "evidence-file", buffer: data.evidenceBuffer }]
+      : [];
+}
+
 async function appendEvidencePart(
   archive: archiver.Archiver,
   entries: PackageEntry[],
@@ -2521,17 +2550,7 @@ export async function createVerificationPackage(data: {
     void (async () => {
   try {
 
-    const evidenceFiles: VerificationEvidenceFile[] =
-      Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0
-        ? data.evidenceFiles.filter(
-            (file): file is VerificationEvidenceFile =>
-              Boolean(file) &&
-              typeof file.name === "string" &&
-              Buffer.isBuffer(file.buffer)
-          )
-        : data.evidenceBuffer
-          ? [{ name: "evidence-file", buffer: data.evidenceBuffer }]
-          : [];
+    const evidenceFiles = selectPackageEvidenceFiles(data);
 
     if (evidenceFiles.length === 0) {
       fail(new Error("Verification package requires at least one evidence file"));

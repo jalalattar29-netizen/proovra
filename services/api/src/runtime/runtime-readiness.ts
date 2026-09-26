@@ -1105,7 +1105,8 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
  * (`getWorkerFleetHealth`, the same projection Platform Health renders).
  *
  * STALE or STOPPED: jobs are accepted and wait — generation is DELAYED, so
- * DEGRADED. Nothing measured, or the store unreadable: UNKNOWN, never HEALTHY.
+ * DEGRADED. Live but unable to reach any queue: DEGRADED too. Nothing
+ * measured, or the store unreadable: UNKNOWN, never HEALTHY.
  */
 async function checkJobWorker(): Promise<SubsystemReadiness> {
   try {
@@ -1118,6 +1119,31 @@ async function checkJobWorker(): Promise<SubsystemReadiness> {
         detail: "Worker fleet liveness did not answer within the readiness budget.",
         remediationHint: null,
         metadata: {},
+      };
+    }
+    /*
+     * ALIVE IS NOT ABLE. The worker touches its lease LIVE every cycle even
+     * when every queue probe of that cycle failed (`telemetry.ts`: the lease is
+     * written in a `finally`, with processedCount/failedCount). A worker that
+     * cannot reach Redis therefore heartbeats perfectly while no job can run.
+     * At least one live instance must have reached a queue on its last cycle;
+     * an instance that reported no counts (an older build) is not evidence
+     * against it. Jobs persist in the queue, so this reads DEGRADED (delayed).
+     */
+    const live = fleet.instances.filter((i) => i.live);
+    const queuesReachable = live.some(
+      (i) => i.failedCount == null || i.failedCount === 0 || (i.processedCount ?? 0) > 0,
+    );
+    if (fleet.state === "HEALTHY" && !queuesReachable) {
+      return {
+        id: "job_worker",
+        status: "DEGRADED",
+        reasonCode: "fleet_queues_unreachable",
+        detail:
+          "Workers are heartbeating, but on their last cycle none could reach any of its job queues.",
+        remediationHint:
+          "Check the worker's Redis connectivity (REDIS_URL, network policy) and its queue connections.",
+        metadata: { liveInstances: fleet.liveInstances },
       };
     }
     const status: ReadinessStatus =

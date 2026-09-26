@@ -260,6 +260,18 @@ jobs:
         env:
           INTERNAL_API_BASE_URL: http://localhost:8081
           LOG_LEVEL: info
+          # The key paths above are relative to services/api (see the note
+          # there). The worker starts in services/worker, where `keys/` does
+          # not exist: report signing fell back, but the verification package
+          # read its public key from here and every package build failed. Same
+          # files, addressed from this directory.
+          SIGNING_PRIVATE_KEY_PATH: ../api/keys/signing-private.pem
+          SIGNING_PUBLIC_KEY_PATH: ../api/keys/signing-public.pem
+          PACKAGE_SIGNING_PRIVATE_KEY_PATH: ../api/keys/signing-private.pem
+          PACKAGE_SIGNING_PUBLIC_KEY_PATH: ../api/keys/signing-public.pem
+          # Report PDFs render with Puppeteer; with PUPPETEER_EXECUTABLE_PATH
+          # unset, render-pdf.ts resolves /usr/bin/google-chrome, which the
+          # GitHub-hosted Ubuntu image ships.
         run: |
           nohup pnpm start > /tmp/worker-e2e.log 2>&1 &
           for _ in {1..60}; do

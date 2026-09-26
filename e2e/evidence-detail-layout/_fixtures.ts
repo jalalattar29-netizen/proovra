@@ -368,6 +368,43 @@ function makeWorkspace(): unknown {
         generatedAtUtc: iso("2026-07-04T05:23:22Z"),
         disabledReason: null,
       },
+      /*
+       * The canonical per-output projection (`EvidenceOutputProjection`) the
+       * Artifacts tab renders. A READY, eligible record's server action is
+       * REGENERATE. Without it the Artifacts tab could not be opened here.
+       */
+      outputs: {
+        report: {
+          eligibility: "ELIGIBLE",
+          ineligibilityReason: null,
+          notApplicableReason: null,
+          generation: "SUCCEEDED",
+          terminalReasonClass: null,
+          terminalReasonCode: null,
+          attemptCount: 1,
+          requestedAtUtc: iso("2026-07-04T05:23:00Z"),
+          completedAtUtc: iso("2026-07-04T05:23:22Z"),
+          availability: "AVAILABLE",
+          state: "READY",
+          action: "REGENERATE",
+          actionUnavailableReason: null,
+        },
+        verificationPackage: {
+          eligibility: "ELIGIBLE",
+          ineligibilityReason: null,
+          notApplicableReason: null,
+          generation: "SUCCEEDED",
+          terminalReasonClass: null,
+          terminalReasonCode: null,
+          attemptCount: 1,
+          requestedAtUtc: iso("2026-07-04T05:23:00Z"),
+          completedAtUtc: iso("2026-07-04T05:23:22Z"),
+          availability: "AVAILABLE",
+          state: "READY",
+          action: "REGENERATE",
+          actionUnavailableReason: null,
+        },
+      },
     },
     artifactVersions: {
       trustDecision: {

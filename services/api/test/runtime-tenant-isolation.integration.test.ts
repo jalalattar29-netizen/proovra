@@ -129,4 +129,31 @@ describe("tenant runtime status isolation (live PostgreSQL 16)", () => {
     });
     expect(JSON.parse(other.body)).toEqual(JSON.parse(first.body));
   });
+
+  it("concurrent requests from different tenants and anonymous callers: one projection, auth enforced per request", async () => {
+    readiness.resetTenantRuntimeCacheForTests();
+    const F = harness.fixtures;
+    const tokens = [F.teamA.ownerToken, F.teamB.ownerToken, F.personal.token, F.teamA.viewerToken, F.teamB.memberToken];
+    const calls = Array.from({ length: 25 }, (_, i) =>
+      i % 5 === 4
+        ? harness.app.inject({ method: "GET", url: "/v1/runtime/status" })
+        : harness.app.inject({
+            method: "GET",
+            url: "/v1/runtime/status",
+            headers: { authorization: `Bearer ${tokens[i % tokens.length]}` },
+          }),
+    );
+    const res = await Promise.all(calls);
+    const authed = res.filter((_, i) => i % 5 !== 4);
+    const anon = res.filter((_, i) => i % 5 === 4);
+    expect(anon.every((r) => r.statusCode === 401)).toBe(true);
+    expect(authed.every((r) => r.statusCode === 200)).toBe(true);
+    // Every tenant received the SAME caller-independent projection (the
+    // single-flight cache served one run to all of them).
+    const bodies = new Set(authed.map((r) => r.body));
+    expect(bodies.size).toBe(1);
+    for (const id of [F.teamA.teamId, F.teamB.teamId, F.personal.teamId]) {
+      expect([...bodies][0]).not.toContain(id);
+    }
+  });
 });

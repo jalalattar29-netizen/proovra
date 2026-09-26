@@ -110,3 +110,15 @@ test("a downloads incident is said at the downloads, not as a record warning", a
   assert.ok(!r.hasText(GEN));
   r.unmount();
 });
+
+test("a record's own generation failure stays visible beside a generation incident", async () => {
+  routes["/v1/evidence/ev-1/artifacts/status"] = () => ({
+    outputs: { report: { state: "RETRYABLE_FAILURE", action: "RETRY" } },
+  });
+  routes["/v1/runtime/status"] = VARIANTS["generation DEGRADED"];
+  const r = await render();
+  assert.equal(r.byTestId("artifact-lifecycle-retryable_failure").length, 1, "the record's failure panel disappeared");
+  assert.ok(r.hasText(GEN), "the generation incident was not said beside Retry");
+  assert.ok(!r.texts().some((t) => PLATFORM_PANEL.test(t)));
+  r.unmount();
+});

@@ -49,6 +49,8 @@ let requestLog: string[] = [];
 let runtimeBody: unknown = { status: "HEALTHY" };
 /** Overrides the report's canonical action (the fixture's own is DOWNLOAD). */
 let reportActionOverride: string | null = null;
+/** Overrides the report's canonical state (the fixture's own is READY). */
+let reportStateOverride: string | null = null;
 
 vi.mock("../../lib/api", () => ({
   apiFetch: async (path: string) => {
@@ -596,6 +598,9 @@ function respond(path: string): unknown {
       artifactStatus: { outputs: { report: { action: string } } };
     };
     if (reportActionOverride) w.artifactStatus.outputs.report.action = reportActionOverride;
+    if (reportStateOverride) {
+      (w.artifactStatus.outputs.report as unknown as { state: string }).state = reportStateOverride;
+    }
     return w;
   }
   if (path.startsWith("/v1/cases?")) return { items: [] };
@@ -1176,6 +1181,7 @@ beforeEach(() => {
   requestLog = [];
   runtimeBody = { status: "HEALTHY" };
   reportActionOverride = null;
+  reportStateOverride = null;
   resetServiceStatusForTests();
 });
 
@@ -1511,6 +1517,29 @@ describe("service status — Evidence never renders the platform diagnostic pane
     expect(report).not.toBeNull();
     expect(report!.disabled).toBe(false);
     expect(document.querySelector("[data-service-notice='downloads']")).toBeNull();
+  }, 15_000);
+
+  it("a record's own generation failure stays visible beside a service notice — neither hides the other", async () => {
+    reportStateOverride = "RETRYABLE_FAILURE";
+    reportActionOverride = "RETRY";
+    runtimeBody = VARIANTS["generation degraded"];
+    await mountLoaded("personal");
+    await openArtifacts();
+    const failure = document.querySelector("[data-evidence-section='reports-retryable-failure']");
+    expect(failure?.textContent).toMatch(/Report generation failed/);
+    // The platform notice is beside the Retry control, inside the record's
+    // own failure panel — it does not replace or explain away the failure.
+    expect(failure?.querySelector("[data-service-notice='artifactGeneration']")).not.toBeNull();
+    expect(document.querySelector("[data-evidence-generate-verb='RETRY']")).not.toBeNull();
+  }, 15_000);
+
+  it("healthy status: the record's own failure is still shown, with no service notice", async () => {
+    reportStateOverride = "RETRYABLE_FAILURE";
+    reportActionOverride = "RETRY";
+    await mountLoaded("personal");
+    await openArtifacts();
+    expect(document.querySelector("[data-evidence-section='reports-retryable-failure']")).not.toBeNull();
+    expect(document.querySelector("[data-service-notice]")).toBeNull();
   }, 15_000);
 
   it("a downloads incident is said at the downloads, not over the record", async () => {
