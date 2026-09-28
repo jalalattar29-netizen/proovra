@@ -26,6 +26,7 @@ const H = vi.hoisted(() => ({
   writes: [] as string[],
   /** Every provider call attempted, in order. */
   providerCalls: [] as string[],
+  stripeBodies: [] as URLSearchParams[],
   /** Set to make the next provider call throw. */
   providerFails: false,
   /** What PayPal's revise returns. */
@@ -146,6 +147,7 @@ vi.mock("../src/services/stripe.service.js", () => ({
   },
   stripeRequest: async (path: string, body: URLSearchParams) => {
     H.providerCalls.push(`stripePost ${path}`);
+    H.stripeBodies.push(new URLSearchParams(body));
     if (H.providerFails) throw new Error("stripe unavailable");
     if (path === "/subscription_schedules") return { id: "sched_1" };
     return {
@@ -212,6 +214,7 @@ beforeEach(() => {
   H.subscription = null;
   H.writes.length = 0;
   H.providerCalls.length = 0;
+  H.stripeBodies.length = 0;
   H.providerFails = false;
   H.paypalLinks = [];
   H.planApplied = null;
@@ -536,6 +539,16 @@ describe("applyPersonalPlanChange — UPGRADE (Stripe)", () => {
     expect(out.effectiveAtUtc).toBeNull();
     expect(out.providerConfirmed).toBe(true);
     expect(out.approvalUrl).toBeNull();
+  });
+
+  it("invoices the proration now and refuses to change when payment is incomplete", async () => {
+    H.subscription = live({ plan: "PRO" });
+    await upgrade();
+    const update = H.stripeBodies.find(
+      (_body, index) => H.providerCalls[index + 1] === "stripePost /subscriptions/sub_ext_1",
+    ) ?? H.stripeBodies[0];
+    expect(update?.get("proration_behavior")).toBe("always_invoice");
+    expect(update?.get("payment_behavior")).toBe("error_if_incomplete");
   });
 
   it("applies the plan through the CANONICAL writer, not a second one", async () => {

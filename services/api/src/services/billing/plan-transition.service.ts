@@ -391,7 +391,13 @@ async function applyStripePlanChange(args: {
     const body = new URLSearchParams();
     body.append("items[0][id]", itemId);
     body.append("items[0][price]", priceId);
-    body.append("proration_behavior", "create_prorations");
+    // Charge the prorated difference now. `create_prorations` alone merely
+    // creates invoice items and can leave them unpaid until a later invoice,
+    // while the old code granted TEAM immediately. `error_if_incomplete`
+    // makes Stripe leave the subscription unchanged when the immediate charge
+    // cannot complete (including required customer authentication).
+    body.append("proration_behavior", "always_invoice");
+    body.append("payment_behavior", "error_if_incomplete");
     body.append("metadata[plan]", transition.targetPlan);
     body.append("metadata[userId]", ownerUserId);
 
@@ -408,6 +414,10 @@ async function applyStripePlanChange(args: {
       throw providerFailure(
         err instanceof Error ? err.message : "stripe subscription update failed",
       );
+    }
+
+    if (String(updated.status ?? "").toLowerCase() !== "active") {
+      throw providerFailure("stripe did not confirm an active subscription");
     }
 
     // The provider has confirmed, synchronously. Applying it through the same

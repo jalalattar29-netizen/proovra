@@ -338,12 +338,7 @@ export class PayPalBillingReconciliationProvider
   async observeSubscription(
     providerRef: string,
   ): Promise<SubscriptionObservation> {
-    let body: unknown;
-    try {
-      body = await paypalGet(
-        `/v1/billing/subscriptions/${encodeURIComponent(providerRef)}`,
-      );
-    } catch {
+    if (!isAskablePayPalReference(providerRef)) {
       return {
         kind: "SUBSCRIPTION",
         provider: PROVIDER,
@@ -353,7 +348,33 @@ export class PayPalBillingReconciliationProvider
         cancelAtPeriodEnd: false,
         observedAtUtc: null,
         recentPayments: [],
-        failure: "PROVIDER_UNAVAILABLE",
+        failure: "REFERENCE_INVALID",
+      };
+    }
+
+    let body: unknown;
+    try {
+      body = await paypalGet(
+        `/v1/billing/subscriptions/${encodeURIComponent(providerRef)}`,
+      );
+    } catch (err) {
+      console.warn(
+        "billing.paypal.subscription_observation_failed",
+        payPalFailureDiagnostics(err, {
+          operation: "subscription_read",
+          referenceKind: "subscription",
+        }),
+      );
+      return {
+        kind: "SUBSCRIPTION",
+        provider: PROVIDER,
+        providerRef,
+        state: "UNKNOWN",
+        currentPeriodEndUtc: null,
+        cancelAtPeriodEnd: false,
+        observedAtUtc: null,
+        recentPayments: [],
+        failure: classifyPayPalFailure(err),
       };
     }
 
@@ -387,6 +408,7 @@ export class PayPalBillingReconciliationProvider
       cancelAtPeriodEnd: false,
       observedAtUtc: utcFromIso(sub["update_time"] ?? sub["create_time"]),
       recentPayments: await this.recentTransactions(providerRef),
+      resumeUrl: subscriptionState(sub) === "PENDING" ? approvalLink(sub) : null,
     };
   }
 

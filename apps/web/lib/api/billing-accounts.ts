@@ -213,6 +213,12 @@ export type ActiveStorageAddon = {
   billingCycle: string;
   legacyOneTime: boolean;
   canCancel: boolean;
+  canRecheck: boolean;
+  canAbandon: boolean;
+  attemptReference: string;
+  paymentProvider: string | null;
+  providerReference: string | null;
+  createdAtUtc: string;
   activatedAtUtc: string | null;
   currentPeriodEndUtc: string | null;
   priceCents?: number | null;
@@ -617,8 +623,43 @@ export type ReconciliationResult = {
     actionRequired: number;
     unavailable: number;
     discrepancies: number;
+    storageAttempts: StorageAttemptResult[];
   } | null;
 };
+
+export type StorageAttemptResult = {
+  attemptId: string;
+  kind: "STORAGE_ADDON";
+  addonKey: string;
+  createdAtUtc: string;
+  provider: string | null;
+  providerBound: boolean;
+  previousStatus: string;
+  currentStatus: string;
+  outcome: string;
+  resumeUrl?: string | null;
+};
+
+export async function recheckStorageAttempt(
+  account: BillingAccountRef,
+  attemptId: string,
+): Promise<StorageAttemptResult> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/storage-attempts/${encodeURIComponent(attemptId)}/recheck`,
+    { method: "POST", body: "{}" },
+  )) as StorageAttemptResult;
+}
+
+export async function abandonStorageAttempt(
+  account: BillingAccountRef,
+  attemptId: string,
+  confirmed = false,
+): Promise<StorageAttemptResult | { attemptId: string; outcome: string; warning?: string }> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/storage-attempts/${encodeURIComponent(attemptId)}/abandon`,
+    { method: "POST", body: JSON.stringify({ confirmed }) },
+  )) as StorageAttemptResult | { attemptId: string; outcome: string; warning?: string };
+}
 
 /**
  * Ask the server to CHECK THE PROVIDER for one billing account.

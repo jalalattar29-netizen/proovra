@@ -54,6 +54,8 @@ import { readBillingOverview } from "../services/billing-overview.service.js";
 // subjects); the scope adapter is no longer imported here.
 import {
   buildPricingCatalogResponse,
+  getStorageAddonCurrency,
+  getStorageAddonPriceCents,
   resolveCheckoutCurrency,
 } from "../services/billing-pricing.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
@@ -83,8 +85,13 @@ import {
   pendingCheckoutHttpResponse,
   resolvePendingPayPalCheckout,
   withPendingProviderCheckoutGate,
+  withPendingStorageAddonCheckoutGate,
 } from "../services/billing/pending-checkout-attempt.service.js";
-import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
+import {
+  abandonStorageAddonAttempt,
+  reconcileBillingAccount,
+  reconcileStorageAddonAttempt,
+} from "../services/billing/reconciliation/reconciliation.service.js";
 import {
   abandonPendingPayment,
   cancelPendingPayment,
@@ -1265,6 +1272,56 @@ export async function billingRoutes(app: FastifyInstance) {
     },
   );
 
+  app.post(
+    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/recheck",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z.object({
+        type: z.enum(["PERSONAL", "ORGANIZATION"]),
+        id: z.string().min(1).max(200),
+        attemptId: z.string().uuid(),
+      }).parse(req.params);
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.type,
+        id: params.id,
+        capability: "BILLING_MANAGE",
+      });
+      const result = await reconcileStorageAddonAttempt({
+        account,
+        attemptId: params.attemptId,
+      });
+      return reply.code(200).send(result);
+    },
+  );
+
+  app.post(
+    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/abandon",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z.object({
+        type: z.enum(["PERSONAL", "ORGANIZATION"]),
+        id: z.string().min(1).max(200),
+        attemptId: z.string().uuid(),
+      }).parse(req.params);
+      const body = z.object({ confirmed: z.boolean().optional() }).parse(req.body ?? {});
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.type,
+        id: params.id,
+        capability: "BILLING_MANAGE",
+      });
+      const result = await abandonStorageAddonAttempt({
+        account,
+        attemptId: params.attemptId,
+        confirmed: body.confirmed,
+      });
+      return reply.code(200).send(result);
+    },
+  );
+
   /**
    * BILLING SURFACE CORRECTION (2026-08-29) — ONE pending payment, re-checked.
    *
@@ -1973,11 +2030,22 @@ export async function billingRoutes(app: FastifyInstance) {
         teamId: body.teamId ?? null,
       });
 
+      const offerCurrency = getStorageAddonCurrency({
+        addonKey: body.addonKey,
+      });
+      if (body.currency && body.currency !== offerCurrency) {
+        return reply.code(409).send({
+          message: "The storage offer currency changed. Refresh Billing and try again.",
+          code: "STORAGE_ADDON_CURRENCY_MISMATCH",
+          details: { offeredCurrency: offerCurrency },
+        });
+      }
+
       const result = await createStripeStorageAddonCheckoutSession({
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
-        currency: body.currency,
+        currency: offerCurrency,
         teamId: body.teamId ?? null,
         workspacePlan: scope.plan,
       });
@@ -2159,14 +2227,74 @@ export async function billingRoutes(app: FastifyInstance) {
         teamId: body.teamId ?? null,
       });
 
-      const result = await createPayPalStorageAddonCheckout({
-        userId,
+      const currency = getStorageAddonCurrency({
         addonKey: body.addonKey,
-        billingCycle: body.billingCycle,
-        currency: body.currency,
-        teamId: body.teamId ?? null,
-        workspacePlan: scope.plan,
       });
+      if (body.currency && body.currency !== currency) {
+        return reply.code(409).send({
+          message: "The storage offer currency changed. Refresh Billing and try again.",
+          code: "STORAGE_ADDON_CURRENCY_MISMATCH",
+          details: { offeredCurrency: currency },
+        });
+      }
+      const amountCents = getStorageAddonPriceCents({
+        addonKey: body.addonKey,
+        currency,
+      });
+      const definition = getStorageAddonDefinition(body.addonKey);
+      const gated = await withPendingStorageAddonCheckoutGate({
+        ownerUserId: userId,
+        teamId: body.teamId ?? null,
+        addonKey: body.addonKey,
+        extraStorageBytes: definition.storageBytes,
+        currency,
+        amountCents,
+        create: async (attemptId) => {
+          const result = await createPayPalStorageAddonCheckout({
+            userId,
+            addonKey: body.addonKey,
+            billingCycle: body.billingCycle,
+            currency,
+            teamId: body.teamId ?? null,
+            workspacePlan: scope.plan,
+            attemptId,
+          });
+          return {
+            result,
+            providerSubId: String(
+              (result.subscription as { id?: string } | undefined)?.id ?? "",
+            ),
+            providerHttpStatus: result.responseDiagnostics.httpStatus || null,
+            providerDebugId: result.responseDiagnostics.debugId,
+            providerEnvironment: result.responseDiagnostics.environment,
+            providerClientIdFingerprint:
+              result.responseDiagnostics.clientIdFingerprint,
+            providerPlanId: result.responseDiagnostics.planId,
+            providerCurrency: result.responseDiagnostics.currency,
+            approvalLinkIdentity:
+              result.responseDiagnostics.approvalLink as
+                | prismaPkg.Prisma.InputJsonObject
+                | null,
+          };
+        },
+      });
+
+      if (gated.kind === "BLOCKED") {
+        return reply.code(409).send({
+          message:
+            "A PayPal storage approval is already open for this account. Re-check or abandon that attempt before starting another checkout.",
+          code: "PAYPAL_STORAGE_APPROVAL_PENDING",
+          details: {
+            attemptId: gated.attempt.id,
+            addonKey: gated.attempt.addonKey,
+            createdAtUtc: gated.attempt.createdAt.toISOString(),
+            providerBound: gated.attempt.providerBound,
+            retry: "RECONCILE_STORAGE_ATTEMPT",
+          },
+        });
+      }
+
+      const result = gated.result;
 
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
       // recurring SUBSCRIPTION, so there is no order branch left to take.
@@ -2188,6 +2316,14 @@ export async function billingRoutes(app: FastifyInstance) {
           currency: result.currency,
           workspacePlan: scope.plan,
           mode: result.mode,
+          attemptId: gated.attemptId,
+          providerHttpStatus: result.responseDiagnostics.httpStatus || null,
+          providerDebugId: result.responseDiagnostics.debugId,
+          providerEnvironment: result.responseDiagnostics.environment,
+          providerClientIdFingerprint:
+            result.responseDiagnostics.clientIdFingerprint,
+          providerPlanId: result.responseDiagnostics.planId,
+          approvalLinkIdentity: result.responseDiagnostics.approvalLink,
         },
       });
 
@@ -2205,6 +2341,7 @@ export async function billingRoutes(app: FastifyInstance) {
           currency: result.currency,
           workspacePlan: scope.plan,
           mode: result.mode,
+          attemptId: gated.attemptId,
         },
       });
 

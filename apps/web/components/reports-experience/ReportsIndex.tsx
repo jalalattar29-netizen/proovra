@@ -113,8 +113,12 @@ const SUMMARY_METRICS = [
   { key: "reports_failed", field: "reportsFailed", filter: "report_failed", label: "Reports failed", tone: "red" },
   { key: "packages_ready", field: "packagesReady", filter: "package_ready", label: "Packages ready", tone: "green" },
   { key: "packages_pending", field: "packagesPending", filter: "package_pending", label: "Packages pending", tone: "indigo" },
+  { key: "packages_failed", field: "packagesFailed", filter: "package_failed", label: "Packages failed", tone: "red" },
   { key: "packages_blocked", field: "packagesBlocked", filter: "package_blocked", label: "Packages blocked", tone: "red" },
+  { key: "reports_not_requested", field: "reportsNotRequested", filter: null, label: "Reports not requested", tone: "slate" },
+  { key: "packages_not_requested", field: "packagesNotRequested", filter: null, label: "Packages not requested", tone: "slate" },
   { key: "total_artifacts", field: "totalEvidenceWithArtifacts", filter: null, label: "Records with artifacts", tone: "slate" },
+  { key: "artifact_versions", field: "totalArtifactVersions", filter: null, label: "Artifact versions", tone: "blue" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   field: keyof ReportsSummary;
@@ -137,6 +141,7 @@ type LoadState =
 // returned by GET /v1/reports (see services/api/src/routes/reports.routes.ts).
 type UserReportRow = {
   evidenceId: string;
+  teamId?: string | null;
   title: string | null;
   /** Present on the aggregator; the user-scoped route may omit them. */
   displayFileName?: string | null;
@@ -235,13 +240,14 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
  *     gracefully degrades to "the artifact list below remains
  *     usable" — the summary tiles are advisory only.
  */
-async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> {
+async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifactsEnvelope | null> {
   try {
-    const envelope = (await apiFetch(`/v1/reports`, {
+    const envelope = (await apiFetch(`/v1/reports?teamId=${encodeURIComponent(workspaceId)}`, {
       method: "GET",
     })) as UserReportsEnvelope;
     const items: ArtifactRow[] = (envelope.items ?? []).map((row) => ({
       evidenceId: row.evidenceId,
+      teamId: row.teamId ?? null,
       // VERBATIM. The display name is resolved once, at render, through the
       // canonical cascade — never substituted at the edge of a fetch.
       title: row.title ?? null,
@@ -388,7 +394,7 @@ export function ReportsIndex() {
       const params = new URLSearchParams({
         teamId: workspaceId,
         lifecycle: currentFilter,
-        // THE PERFORMANCE FIX. The six workspace aggregations cannot be
+        // THE PERFORMANCE FIX. The workspace aggregations cannot be
         // changed by a filter, a search or a page, so the list does not ask
         // for them; they are fetched once, by `loadSummary`.
         summary: "0",
@@ -409,7 +415,7 @@ export function ReportsIndex() {
         // row, or evidence may live under a different teamId than
         // the active workspace. Re-query the user-scoped fallback
         // (`/v1/reports`) which finds reports via evidence
-        // ownership + ANY active team membership the user holds.
+        // ownership, scoped back to the selected workspace.
         // THE FALLBACK IS A BOOTSTRAP PROBE, NOT AN EMPTY-RESULT HANDLER.
         //
         // It exists for one case: a personal workspace whose TeamMember row
@@ -432,7 +438,7 @@ export function ReportsIndex() {
           envelope.sections.artifacts.status === "ok" &&
           envelope.sections.artifacts.items.length === 0
         ) {
-          const recovered = await tryUserScopedReports();
+          const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {
             setState({ status: "ready", envelope: recovered });
             return;
@@ -451,7 +457,7 @@ export function ReportsIndex() {
         // PERSONAL users that's a known bootstrap gap; fall back
         // to the user-scoped list instead of surfacing the error.
         if (e.statusCode === 404) {
-          const recovered = await tryUserScopedReports();
+          const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {
             setState({ status: "ready", envelope: recovered });
             return;
@@ -640,6 +646,7 @@ export function ReportsIndex() {
     ["report_failed", "Report failed"],
     ["package_ready", "Package ready"],
     ["package_pending", "Package pending"],
+    ["package_failed", "Package failed"],
     ["package_blocked", "Package blocked"],
   ];
 
@@ -774,7 +781,7 @@ export function ReportsIndex() {
         /* THE TOTAL for the current query, from the server. It read
            `items.length` — always 25 on a workspace with 278 reports, which
            announced the page size as if it were the answer. */
-        title={`Artifacts · ${
+        title={`Evidence records · ${
           sections.artifacts.total ?? sections.artifacts.items.length
         }`}
         data-reports-list
@@ -798,7 +805,7 @@ export function ReportsIndex() {
                 <ArtifactRowView
                   key={row.evidenceId}
                   row={row}
-                  teamId={workspaceId}
+                  teamId={row.teamId}
                   onOutputsRequested={refreshAfterAction}
                 />
             ))}
@@ -916,6 +923,21 @@ function ArtifactRowView({
               Package {packageLabel(row.package.state)}
               {row.package.version ? ` · v${row.package.version}` : ""}
             </span>
+            {row.package.state !== "ready" &&
+            row.outputs?.verificationPackage.latestAvailableVersion ? (
+              <span
+                className="rpt-status"
+                data-tone="slate"
+                data-reports-historical-package-version={
+                  row.outputs.verificationPackage.latestAvailableVersion
+                }
+              >
+                Historical package ready · v
+                {row.outputs.verificationPackage.latestAvailableVersion}; latest
+                report {row.report.version ? `v${row.report.version}` : "version"} has
+                no package
+              </span>
+            ) : null}
             {row.verificationStatus ? (
               /* "Integrity Recorded Integrity Verified" was the raw enum
                  humanised — RECORDED_INTEGRITY_VERIFIED — with the word
@@ -1041,11 +1063,17 @@ function ArtifactRowActions({
         setError("Report URL is unavailable.");
       }
     } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
+      const e = err as { statusCode?: number; code?: string; message?: string };
       if (e.statusCode === 202) {
         setError("Report is still generating. Try again in a moment.");
+      } else if (e.code === "report_artifact_missing" || e.statusCode === 410) {
+        setError(
+          "The report record exists, but the stored PDF is missing. Use recovery or contact an operator.",
+        );
       } else if (e.statusCode === 403) {
-        setError("You don't have permission to download this report.");
+        setError(
+          e.message || "This report download is blocked by workspace policy.",
+        );
       } else if (e.statusCode === 409) {
         setError(
           toSafeUserError(e, { message: "Report download blocked by workspace policy." }).message,
@@ -1077,11 +1105,20 @@ function ArtifactRowActions({
         setError("Package URL is unavailable.");
       }
     } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
+      const e = err as { statusCode?: number; code?: string; message?: string };
       if (e.statusCode === 202) {
         setError("Package is still generating. Try again in a moment.");
+      } else if (
+        e.code === "verification_package_artifact_missing" ||
+        e.statusCode === 410
+      ) {
+        setError(
+          "The package record exists, but the stored ZIP is missing. Use recovery or contact an operator.",
+        );
       } else if (e.statusCode === 403) {
-        setError("You don't have permission to download this package.");
+        setError(
+          e.message || "This package download is blocked by workspace policy.",
+        );
       } else if (e.statusCode === 409) {
         setError(toSafeUserError(e, { message: "Package blocked by workspace policy." }).message);
       } else {

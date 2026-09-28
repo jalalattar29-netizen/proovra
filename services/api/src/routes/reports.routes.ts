@@ -94,6 +94,8 @@ function encodeCursor(createdAt: Date, id: string): string {
 
 export type UserReportRow = {
   evidenceId: string;
+  /** Actual workspace binding so clients never preflight against another team. */
+  teamId: string | null;
   title: string | null;
   /**
    * Inputs to the canonical Evidence title cascade. A record whose name lives
@@ -516,6 +518,7 @@ export default async function registerReportsRoutes(
                 : null,
           },
           evidenceId: r.id,
+          teamId: r.teamId ?? null,
           title: r.title,
           displayFileName: r.displayFileName ?? null,
           originalFileName: r.originalFileName ?? null,

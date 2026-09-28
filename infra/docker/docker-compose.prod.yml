@@ -128,12 +128,22 @@ services:
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
-      PDF_SIGNING_ENABLED: "true"
-      PDF_SIGNING_P12_PATH: /app/services/worker/keys/proovra-signing.p12
-      PACKAGE_SIGNING_PRIVATE_KEY_PATH: /app/services/worker/keys/signing-private.pem
-      PACKAGE_SIGNING_PUBLIC_KEY_PATH: /app/services/worker/keys/signing-public.pem
-      PACKAGE_SIGNING_KEY_ID: ${SIGNING_KEY_ID}
-      PACKAGE_SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION}
+      # The worker validates the EFFECTIVE signer after secrets hydration and
+      # before the report queue starts. Production must select a provider
+      # explicitly; no repository path is baked into this deployment.
+      SIGNER_PROVIDER: ${SIGNER_PROVIDER:?SIGNER_PROVIDER must be aws-kms or local-pem}
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
+      KMS_KEY_ID: ${KMS_KEY_ID:-}
+      SIGNING_KEY_ID: ${SIGNING_KEY_ID:?SIGNING_KEY_ID is required}
+      SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION:?SIGNING_KEY_VERSION is required}
+      SIGNING_PRIVATE_KEY_PATH: ${SIGNING_PRIVATE_KEY_PATH:-}
+      SIGNING_PUBLIC_KEY_PATH: ${SIGNING_PUBLIC_KEY_PATH:-}
+      PACKAGE_SIGNING_PRIVATE_KEY_PATH: ${PACKAGE_SIGNING_PRIVATE_KEY_PATH:-}
+      PACKAGE_SIGNING_PUBLIC_KEY_PATH: ${PACKAGE_SIGNING_PUBLIC_KEY_PATH:-}
+      PACKAGE_SIGNING_KEY_ID: ${PACKAGE_SIGNING_KEY_ID:?PACKAGE_SIGNING_KEY_ID is required}
+      PACKAGE_SIGNING_KEY_VERSION: ${PACKAGE_SIGNING_KEY_VERSION:?PACKAGE_SIGNING_KEY_VERSION is required}
+      PDF_SIGNING_ENABLED: ${PDF_SIGNING_ENABLED:-false}
+      PDF_SIGNING_P12_PATH: ${PDF_SIGNING_P12_PATH:-}
       WORKER_PORT: ${WORKER_PORT}
       OTS_ENABLED: "true"
       OTS_BIN: ots
@@ -194,7 +204,6 @@ services:
       AWS_SECRET_NAME: ${AWS_SECRET_NAME:-proovra/prod/app-secrets}
       AWS_SECRETS_REGION: ${AWS_SECRETS_REGION:-us-east-1}
       AWS_SECRETS_REFRESH_TTL_MS: ${AWS_SECRETS_REFRESH_TTL_MS:-3600000}
-      AWS_REGION: ${AWS_REGION:-eu-north-1}
     volumes:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro

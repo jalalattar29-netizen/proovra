@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import {
   normalizePayPalCurrency,
@@ -40,6 +41,66 @@ function apiBase() {
   return process.env.PAYPAL_API_BASE?.trim() || "https://api-m.paypal.com";
 }
 
+export type PayPalEnvironment = "LIVE" | "SANDBOX" | "CUSTOM";
+
+export type PayPalApprovalLinkIdentity = {
+  rel: "approve" | "payer-action";
+  host: string;
+  path: string;
+  queryKeys: string[];
+  fingerprint: string;
+};
+
+function payPalEnvironment(): PayPalEnvironment {
+  try {
+    const host = new URL(apiBase()).hostname.toLowerCase();
+    if (host === "api-m.paypal.com") return "LIVE";
+    if (host === "api-m.sandbox.paypal.com") return "SANDBOX";
+  } catch {
+    // A malformed/custom base is still identified without persisting it.
+  }
+  return "CUSTOM";
+}
+
+function payPalClientIdFingerprint(): string {
+  return createHash("sha256")
+    .update(must("PAYPAL_CLIENT_ID"))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/**
+ * Correlates one provider approval link without retaining its bearer-like
+ * token or full query string. The fingerprint is one-way and the query values
+ * are never read into the returned object.
+ */
+export function describePayPalApprovalLink(
+  resource: Record<string, unknown>,
+): PayPalApprovalLinkIdentity | null {
+  const links = Array.isArray(resource.links) ? resource.links : [];
+  const raw = links.find((candidate) => {
+    if (!candidate || typeof candidate !== "object") return false;
+    const rel = String((candidate as { rel?: unknown }).rel ?? "");
+    return rel === "approve" || rel === "payer-action";
+  }) as { rel?: unknown; href?: unknown } | undefined;
+  const rel = String(raw?.rel ?? "");
+  const href = typeof raw?.href === "string" ? raw.href : "";
+  if (!href || (rel !== "approve" && rel !== "payer-action")) return null;
+
+  try {
+    const url = new URL(href);
+    return {
+      rel,
+      host: url.hostname.toLowerCase(),
+      path: url.pathname,
+      queryKeys: [...new Set(url.searchParams.keys())].sort(),
+      fingerprint: createHash("sha256").update(href).digest("hex").slice(0, 24),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function cleanUrl(value: string | undefined): string | null {
   const v = value?.trim();
   return v ? v.replace(/\/+$/, "") : null;
@@ -78,8 +139,7 @@ export async function getPayPalAccessToken(): Promise<string> {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal token error: ${text}`);
+    await readPayPalError(res, "PayPal token error");
   }
 
   const data = (await res.json()) as PayPalToken;
@@ -320,6 +380,13 @@ export async function paypalRequest(
   path: string,
   body: Record<string, unknown>,
   method: "POST" | "GET" = "POST",
+  options: {
+    requestId?: string;
+    onResponseDiagnostics?: (value: {
+      httpStatus: number;
+      debugId: string | null;
+    }) => void;
+  } = {},
 ) {
   const token = await getPayPalAccessToken();
 
@@ -328,6 +395,7 @@ export async function paypalRequest(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(options.requestId ? { "PayPal-Request-Id": options.requestId } : {}),
     },
     body: method === "GET" ? undefined : JSON.stringify(body),
   });
@@ -335,6 +403,11 @@ export async function paypalRequest(
   if (!res.ok) {
     await readPayPalError(res, "PayPal error");
   }
+
+  options.onResponseDiagnostics?.({
+    httpStatus: res.status,
+    debugId: extractPayPalDebugId(res),
+  });
 
   return (await res.json()) as Record<string, unknown>;
 }
@@ -478,6 +551,8 @@ export async function createPayPalStorageAddonCheckout(params: {
   amount: string;
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
+  /** Durable local attempt id, reused as PayPal's idempotency key. */
+  requestId: string;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a RECURRING subscription
@@ -513,23 +588,38 @@ export async function createPayPalStorageAddonCheckout(params: {
 
   await assertPayPalPlanIsActive(planId);
 
+  let responseDiagnostics: { httpStatus: number; debugId: string | null } = {
+    httpStatus: 0,
+    debugId: null,
+  };
   const subscription = await withCheckoutDiagnostics(
     "storage_addon_subscription_create",
     () =>
-      paypalRequest("/v1/billing/subscriptions", {
-        plan_id: planId,
-        custom_id: buildPayPalStorageAddonCustomId({
-          userId: params.userId,
-          addonKey: params.addonKey,
-          teamId: params.teamId ?? null,
-        }),
-        application_context: {
-          brand_name: "PROOVRA",
-          user_action: "SUBSCRIBE_NOW",
-          return_url: returnUrl,
-          cancel_url: cancelUrl,
+      paypalRequest(
+        "/v1/billing/subscriptions",
+        {
+          plan_id: planId,
+          custom_id: buildPayPalStorageAddonCustomId({
+            userId: params.userId,
+            addonKey: params.addonKey,
+            teamId: params.teamId ?? null,
+            attemptId: params.requestId,
+          }),
+          application_context: {
+            brand_name: "PROOVRA",
+            user_action: "SUBSCRIBE_NOW",
+            return_url: returnUrl,
+            cancel_url: cancelUrl,
+          },
         },
-      }),
+        "POST",
+        {
+          requestId: params.requestId,
+          onResponseDiagnostics: (value) => {
+            responseDiagnostics = value;
+          },
+        },
+      ),
   );
 
   return {
@@ -538,6 +628,14 @@ export async function createPayPalStorageAddonCheckout(params: {
     subscription,
     currency: normalizedCurrency,
     amountCents: Math.round(Number(params.amount) * 100),
+    responseDiagnostics: {
+      ...responseDiagnostics,
+      environment: payPalEnvironment(),
+      clientIdFingerprint: payPalClientIdFingerprint(),
+      planId,
+      currency: normalizedCurrency,
+      approvalLink: describePayPalApprovalLink(subscription),
+    },
   };
 }
 

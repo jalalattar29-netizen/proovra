@@ -6,7 +6,6 @@ import {
   createPayPalStorageAddonCheckout as createPayPalStorageAddonCheckoutApi,
 } from "./paypal.service.js";
 import { isPayPalRecurringPlan } from "./paypal-plan-map.service.js";
-import { getStorageAddonDefinition } from "./billing.service.js";
 import { syncPlanForSubscription } from "./billing/subscription-lifecycle.handlers.js";
 import {
   getPlanPriceCents,
@@ -51,6 +50,7 @@ export async function createPayPalStorageAddonCheckout(params: {
   currency?: string | null;
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
+  attemptId: string;
 }) {
   if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
     throw new Error(
@@ -59,6 +59,7 @@ export async function createPayPalStorageAddonCheckout(params: {
   }
 
   const currency = getStorageAddonCurrency({
+    addonKey: params.addonKey,
     requestedCurrency: params.currency,
   });
 
@@ -77,6 +78,7 @@ export async function createPayPalStorageAddonCheckout(params: {
     amount,
     teamId: params.teamId ?? null,
     workspacePlan: params.workspacePlan,
+    requestId: params.attemptId,
   });
 }
 
@@ -239,9 +241,9 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     );
   }
 
-  const definition = getStorageAddonDefinition(params.addonKey);
   const currency = getStorageAddonCurrency({
-    requestedCurrency: params.currency ?? definition.currency,
+    addonKey: params.addonKey,
+    requestedCurrency: params.currency,
   });
 
   const amountCents = getStorageAddonPriceCents({

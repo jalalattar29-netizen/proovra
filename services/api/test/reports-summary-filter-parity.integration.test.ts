@@ -74,7 +74,15 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     }
   }
 
-  async function request(teamId: string, evidenceId: string, state: string, ageMs = 0, terminalReasonCode?: string) {
+  async function request(
+    teamId: string,
+    evidenceId: string,
+    state: string,
+    ageMs = 0,
+    terminalReasonCode?: string,
+    artifactType: "REPORT" | "VERIFICATION_PACKAGE" = "REPORT",
+    reportVersion?: number,
+  ) {
     await prisma.reportGenerationRequest.create({
       data: {
         teamId,
@@ -82,6 +90,8 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
         requestedByMachineId: "reports-parity-integration",
         idempotencyKey: `PARITY:${randomUUID()}`,
         state,
+        artifactType,
+        reportVersion: reportVersion ?? null,
         terminalReasonCode: terminalReasonCode ?? null,
         createdAtUtc: new Date(Date.now() - ageMs),
       },
@@ -103,6 +113,24 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     await artifacts(await evidence(A.teamId, A.ownerUserId, "readyBoth", "REPORTED"), [2, 7], ["report", "package"]);
     // Report only.
     await artifacts(await evidence(A.teamId, A.ownerUserId, "reportOnly", "REPORTED"), [1], ["report"]);
+    // Latest report v7 failed to get a package; historical package v2 remains.
+    const latestPackageFailed = await evidence(
+      A.teamId,
+      A.ownerUserId,
+      "latestPackageFailed",
+      "REPORTED",
+    );
+    await artifacts(latestPackageFailed, [2], ["report", "package"]);
+    await artifacts(latestPackageFailed, [7], ["report"]);
+    await request(
+      A.teamId,
+      latestPackageFailed,
+      "FAILED_RETRYABLE",
+      0,
+      undefined,
+      "VERIFICATION_PACKAGE",
+      7,
+    );
     // Queued and running: pending for both outputs.
     await request(A.teamId, await evidence(A.teamId, A.ownerUserId, "queued", "SIGNED"), "QUEUED");
     await request(A.teamId, await evidence(A.teamId, A.ownerUserId, "running", "SIGNED"), "PROCESSING");
@@ -176,6 +204,7 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     ["reportsFailed", "report_failed"],
     ["packagesReady", "package_ready"],
     ["packagesPending", "package_pending"],
+    ["packagesFailed", "package_failed"],
     ["packagesBlocked", "package_blocked"],
   ];
 
@@ -200,6 +229,7 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
       report_failed: (r) => r.report.state === "failed",
       package_ready: (r) => r.package.state === "ready",
       package_pending: (r) => r.package.state === "pending",
+      package_failed: (r) => r.package.state === "failed",
       package_blocked: (r) => r.package.state === "blocked",
     };
     for (const [filter, predicate] of Object.entries(expectFor) as Array<[Exclude<Filter, "all">, (r: (typeof all)[number]) => boolean]>) {
@@ -213,10 +243,18 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
 
   it("counts records, not versions, and only records with a real artifact", async () => {
     const s = await summaryOf(harness.fixtures.teamA.teamId);
-    // readyBoth (v2 + v7 of each) and reportOnly.
-    expect(s.reportsReady).toBe(2);
+    // readyBoth (v2 + v7 of each), reportOnly and latestPackageFailed.
+    expect(s.reportsReady).toBe(3);
     expect(s.packagesReady).toBe(1);
-    expect(s.totalEvidenceWithArtifacts).toBe(2);
+    expect(s.packagesFailed).toBe(1);
+    expect(s.totalEvidenceWithArtifacts).toBe(3);
+    expect(s.totalArtifactVersions).toBe(8);
+
+    const failedRow = (await walk(A.teamId, "package_failed", 100)).rows[0];
+    expect(failedRow?.evidenceId).toBe(ids.latestPackageFailed);
+    expect(failedRow?.report.version).toBe(7);
+    expect(failedRow?.package.version).toBeNull();
+    expect(failedRow?.outputs.verificationPackage.latestAvailableVersion).toBe(2);
   });
 
   it("queued and running are pending; failed, never-requested and other workspaces are not", async () => {

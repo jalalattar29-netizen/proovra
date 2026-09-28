@@ -17,6 +17,13 @@ type SubscriptionClient = Pick<
 
 type LockClient = Pick<prismaPkg.Prisma.TransactionClient, "$executeRaw">;
 
+export type PendingStorageAddonCheckoutAttempt = {
+  id: string;
+  addonKey: prismaPkg.StorageAddonKey;
+  createdAt: Date;
+  providerBound: boolean;
+};
+
 export type PendingProviderCheckoutAttempt =
   | {
       state: "PENDING_SAME_TARGET";
@@ -115,6 +122,149 @@ export async function withPendingProviderCheckoutGate<T>(input: {
 
     return { kind: "CREATED", result: await input.create() };
   });
+}
+
+/**
+ * Serialize recurring PayPal storage checkout creation for one commercial
+ * subject and persist the attempt before leaving for the provider.
+ *
+ * The local row id is also the PayPal-Request-Id. If the HTTP response is lost
+ * after PayPal creates the subscription, the attempt remains durable and the
+ * same provider request can be replayed without creating a second resource.
+ */
+export async function withPendingStorageAddonCheckoutGate<T>(input: {
+  ownerUserId: string;
+  teamId: string | null;
+  addonKey: prismaPkg.StorageAddonKey;
+  extraStorageBytes: bigint;
+  currency: string;
+  amountCents: number;
+  create: (attemptId: string) => Promise<{
+    result: T;
+    providerSubId: string;
+    providerHttpStatus: number | null;
+    providerDebugId: string | null;
+    providerEnvironment: string;
+    providerClientIdFingerprint: string;
+    providerPlanId: string;
+    providerCurrency: string;
+    approvalLinkIdentity: prismaPkg.Prisma.InputJsonObject | null;
+  }>;
+}): Promise<
+  | { kind: "CREATED"; result: T; attemptId: string }
+  | { kind: "BLOCKED"; attempt: PendingStorageAddonCheckoutAttempt }
+> {
+  const gate = await prisma.$transaction(async (tx) => {
+    await (tx as LockClient).$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${`billing-storage-checkout:PAYPAL:${input.ownerUserId}:${input.teamId ?? "personal"}`}))
+    `;
+
+    const existing = await tx.workspaceStorageAddon.findFirst({
+      where: {
+        ownerUserId: input.ownerUserId,
+        teamId: input.teamId,
+        paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+        billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+        status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        addonKey: true,
+        createdAt: true,
+        externalSubscriptionId: true,
+      },
+    });
+    if (existing) {
+      return {
+        kind: "BLOCKED" as const,
+        attempt: {
+          id: existing.id,
+          addonKey: existing.addonKey,
+          createdAt: existing.createdAt,
+          providerBound: Boolean(existing.externalSubscriptionId),
+        },
+      };
+    }
+
+    const attempt = await tx.workspaceStorageAddon.create({
+      data: {
+        ownerUserId: input.ownerUserId,
+        teamId: input.teamId,
+        addonKey: input.addonKey,
+        extraStorageBytes: input.extraStorageBytes,
+        billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+        status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+        paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+        currency: input.currency,
+        amountCents: input.amountCents,
+        metadata: {
+          source: "paypal.storage_addon_checkout",
+          checkoutState: "PROVIDER_CREATE_IN_PROGRESS",
+        },
+      },
+      select: { id: true },
+    });
+
+    return { kind: "ATTEMPT" as const, attemptId: attempt.id };
+  });
+
+  if (gate.kind === "BLOCKED") return gate;
+
+  // The transaction has committed before the network call. A process crash or
+  // lost response therefore leaves one durable attempt with one stable
+  // PayPal-Request-Id instead of losing the guard and creating a duplicate.
+  try {
+    const created = await input.create(gate.attemptId);
+    if (!created.providerSubId.trim()) {
+      throw new Error("PayPal storage checkout returned no subscription id");
+    }
+    await prisma.workspaceStorageAddon.update({
+      where: { id: gate.attemptId },
+      data: {
+        externalSubscriptionId: created.providerSubId,
+        metadata: {
+          source: "paypal.storage_addon_checkout",
+          checkoutState: "AWAITING_CUSTOMER_APPROVAL",
+          providerHttpStatus: created.providerHttpStatus,
+          providerDebugId: created.providerDebugId,
+          providerEnvironment: created.providerEnvironment,
+          providerClientIdFingerprint: created.providerClientIdFingerprint,
+          providerPlanId: created.providerPlanId,
+          providerCurrency: created.providerCurrency,
+          approvalLinkIdentity: created.approvalLinkIdentity,
+        },
+      },
+    });
+    return {
+      kind: "CREATED" as const,
+      result: created.result,
+      attemptId: gate.attemptId,
+    };
+  } catch (error) {
+    const rejected =
+      typeof error === "object" &&
+      error !== null &&
+      "publicCode" in error &&
+      ["PAYMENT_PROVIDER_REJECTED", "PAYMENTS_UNAVAILABLE"].includes(
+        String((error as { publicCode?: unknown }).publicCode ?? ""),
+      );
+    await prisma.workspaceStorageAddon.update({
+      where: { id: gate.attemptId },
+      data: {
+        status: rejected
+          ? prismaPkg.WorkspaceStorageAddonStatus.FAILED
+          : prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+        metadata: {
+          source: "paypal.storage_addon_checkout",
+          checkoutState: rejected
+            ? "PROVIDER_REJECTED"
+            : "PROVIDER_OUTCOME_UNKNOWN",
+        },
+      },
+    });
+    throw error;
+  }
 }
 
 export function pendingCheckoutHttpResponse(

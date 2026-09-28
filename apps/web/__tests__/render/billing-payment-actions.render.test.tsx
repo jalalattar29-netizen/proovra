@@ -23,7 +23,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { BillingHistorySection } from "../../app/(app)/billing/_sections/StorageAndHistory";
-import type { BillingHistoryEntry } from "../../lib/api/billing-accounts";
+import type {
+  ActiveStorageAddon,
+  BillingHistoryEntry,
+} from "../../lib/api/billing-accounts";
 
 const noop = () => {};
 
@@ -72,6 +75,7 @@ function mount(
     onCancelPayment?: (e: BillingHistoryEntry) => void;
     onAbandonPayment?: (e: BillingHistoryEntry) => void;
     rowBusyId?: string | null;
+    storageAttempts?: ActiveStorageAddon[];
   } = {},
 ) {
   return render(
@@ -87,6 +91,7 @@ function mount(
       onAbandonPayment={over.onAbandonPayment ?? noop}
       rowBusyId={over.rowBusyId ?? null}
       resumeUrls={{}}
+      storageAttempts={over.storageAttempts}
     />,
   );
 }
@@ -100,6 +105,39 @@ beforeEach(() => {
 // ===========================================================================
 
 describe("a real provider cancellation and a local abandonment", () => {
+  it("shows two unpaid storage attempts while completed payment history is empty", () => {
+    const attempt = (id: string, providerReference: string): ActiveStorageAddon => ({
+      id,
+      addonKey: "PERSONAL_50_GB",
+      label: "+50 GB",
+      storageLabel: "50 GB",
+      status: "PENDING",
+      billingCycle: "MONTHLY",
+      legacyOneTime: false,
+      canCancel: false,
+      canRecheck: true,
+      canAbandon: true,
+      attemptReference: `SA-${id.slice(0, 8).toUpperCase()}`,
+      paymentProvider: "PAYPAL",
+      providerReference,
+      createdAtUtc: "2026-09-26T10:00:00.000Z",
+      activatedAtUtc: null,
+      currentPeriodEndUtc: null,
+      priceCents: 799,
+      currency: "EUR",
+    });
+    const { container } = mount([], {
+      storageAttempts: [
+        attempt("11111111-1111-4111-8111-111111111111", "I-FIRST"),
+        attempt("22222222-2222-4222-8222-222222222222", "I-SECOND"),
+      ],
+    });
+    expect(container.querySelectorAll("[data-billing-purchase-attempts] li")).toHaveLength(2);
+    expect(container.textContent).toContain("No completed payments are recorded");
+    expect(container.textContent).toContain("I-FIRST");
+    expect(container.textContent).toContain("I-SECOND");
+  });
+
   it("are labelled as the different things they are", () => {
     mount([pendingStripe, pendingPayPal]);
 

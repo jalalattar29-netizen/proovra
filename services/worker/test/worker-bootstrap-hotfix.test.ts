@@ -171,6 +171,19 @@ describe("worker bootstrap — startup readiness protection", () => {
       .replace(/\/\/[^\n]*/g, "");
     expect(noComments).not.toMatch(/new\s+PrismaClient\s*\(/);
   });
+
+  it("does not consume report jobs until secrets and the package signer validate", () => {
+    expect(indexSrc).toMatch(
+      /new Worker\([\s\S]*?reportQueueName[\s\S]*?autorun:\s*false/,
+    );
+    const bootstrap = indexSrc.slice(indexSrc.indexOf("initSecretsAuthority(logger)"));
+    const validateAt = bootstrap.indexOf("await validatePackageSignerAtStartup()");
+    const runAt = bootstrap.indexOf("reportWorker.run()");
+    const healthAt = bootstrap.indexOf("startHealthServer()");
+    expect(validateAt).toBeGreaterThanOrEqual(0);
+    expect(runAt).toBeGreaterThan(validateAt);
+    expect(healthAt).toBeGreaterThan(runAt);
+  });
 });
 
 // =============================================================================

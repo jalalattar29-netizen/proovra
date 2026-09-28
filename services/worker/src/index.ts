@@ -113,6 +113,7 @@ import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
 import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.js";
+import { validatePackageSignerAtStartup } from "./signing/package-signer.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -2064,6 +2065,9 @@ const reportWorker = safeRegisterWorker("report", () =>
     {
       connection: redisConnection,
       concurrency: 2,
+      // Signing configuration is hydrated and verified before this worker is
+      // allowed to claim report/package jobs. See bootstrap below.
+      autorun: false,
     },
   ),
 );
@@ -2619,6 +2623,29 @@ async function shutdown(exitCode: number) {
  * is claimed.
  */
 initSecretsAuthority(logger)
+  .then(async () => {
+    const signer = await validatePackageSignerAtStartup();
+    logger.info(
+      {
+        provider: signer.provider,
+        signingKeyId: signer.signingKeyId,
+        signingKeyVersion: signer.signingKeyVersion,
+      },
+      "worker.package_signer.validated",
+    );
+    if (!reportWorker) {
+      throw new Error("Report worker was not registered");
+    }
+    void reportWorker.run().catch((err) => {
+      emitOperationalAlert({
+        requestId: randomUUID(),
+        reason: "report_worker_start_failed",
+        err,
+      });
+      captureException(err, { phase: "worker.report_worker_start" });
+      void shutdown(1);
+    });
+  })
   .then(() => startHealthServer())
   .then(async (server) => {
     healthServer = server;

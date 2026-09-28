@@ -66,6 +66,7 @@ export const PAYPAL_CUSTOM_ID_MAX_LENGTH = 127;
 
 /** Version tag of the compact storage add-on custom_id. */
 const STORAGE_ADDON_CUSTOM_ID_PREFIX = "sa1";
+const STORAGE_ADDON_ATTEMPT_CUSTOM_ID_PREFIX = "sa2";
 
 /**
  * The compact add-on codes on the wire (origin/main b9b8b54 introduced these;
@@ -105,13 +106,17 @@ export function buildPayPalStorageAddonCustomId(params: {
   userId: string;
   teamId?: string | null;
   addonKey: prismaPkg.StorageAddonKey;
+  attemptId?: string | null;
 }): string {
   const teamId = params.teamId?.trim() || "-";
   const value = [
-    STORAGE_ADDON_CUSTOM_ID_PREFIX,
+    params.attemptId
+      ? STORAGE_ADDON_ATTEMPT_CUSTOM_ID_PREFIX
+      : STORAGE_ADDON_CUSTOM_ID_PREFIX,
     params.userId.trim(),
     teamId,
     STORAGE_ADDON_WIRE_CODES[params.addonKey],
+    ...(params.attemptId ? [params.attemptId.trim()] : []),
   ].join("|");
   if (Buffer.byteLength(value, "utf8") > PAYPAL_CUSTOM_ID_MAX_LENGTH) {
     throw new Error(
@@ -125,6 +130,7 @@ export function buildPayPalStorageAddonCustomId(params: {
  * THE storage add-on custom_id parser. Accepts every format in circulation:
  *
  *   sa1|<userId>|<teamId or ->|<p10 … t1t>        compact, what checkout writes
+ *   sa2|<userId>|<teamId or ->|<code>|<attemptId>  durable-attempt format
  *   sa1|<userId>|<teamId or ->|<PERSONAL_10_GB …> compact, full-key spelling
  *   {"userId":…,"teamId":…,"storageAddonKey":…}   LEGACY JSON (pre-sa1 rows)
  *
@@ -137,22 +143,31 @@ export function parsePayPalStorageAddonCustomId(
   userId: string;
   teamId: string | null;
   storageAddonKey: prismaPkg.StorageAddonKey;
+  attemptId?: string;
 } | null {
   const raw = (value ?? "").trim();
   if (raw.startsWith("{")) return parseLegacyJsonStorageAddonCustomId(raw);
-  if (!raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) return null;
+  const isAttemptFormat = raw.startsWith(
+    `${STORAGE_ADDON_ATTEMPT_CUSTOM_ID_PREFIX}|`,
+  );
+  if (!isAttemptFormat && !raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) {
+    return null;
+  }
   const parts = raw.split("|");
-  if (parts.length !== 4) return null;
-  const [, userIdRaw, teamIdRaw, codeRaw] = parts;
+  if (parts.length !== (isAttemptFormat ? 5 : 4)) return null;
+  const [, userIdRaw, teamIdRaw, codeRaw, attemptIdRaw] = parts;
   const userId = userIdRaw?.trim() ?? "";
   const teamId = teamIdRaw?.trim() ?? "";
   const key = storageAddonKeyFromWire(codeRaw?.trim() ?? "");
   if (!UUID_RE.test(userId) || !key) return null;
   if (teamId !== "-" && !UUID_RE.test(teamId)) return null;
+  const attemptId = attemptIdRaw?.trim() || null;
+  if (isAttemptFormat && (!attemptId || !UUID_RE.test(attemptId))) return null;
   return {
     userId,
     teamId: teamId === "-" ? null : teamId,
     storageAddonKey: key,
+    ...(attemptId ? { attemptId } : {}),
   };
 }
 
@@ -160,6 +175,7 @@ function parseLegacyJsonStorageAddonCustomId(raw: string): {
   userId: string;
   teamId: string | null;
   storageAddonKey: prismaPkg.StorageAddonKey;
+  attemptId?: string;
 } | null {
   let parsed: Record<string, unknown>;
   try {
@@ -191,7 +207,11 @@ export function parsePayPalCustomId(value: string | null | undefined): {
   const raw = (value ?? "").trim();
 
   // A storage add-on custom_id names no plan and must never be read as one.
-  if (!raw || raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`)) {
+  if (
+    !raw ||
+    raw.startsWith(`${STORAGE_ADDON_CUSTOM_ID_PREFIX}|`) ||
+    raw.startsWith(`${STORAGE_ADDON_ATTEMPT_CUSTOM_ID_PREFIX}|`)
+  ) {
     return {
       userId: null,
       plan: null,

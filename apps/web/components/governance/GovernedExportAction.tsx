@@ -154,6 +154,7 @@ export function GovernedExportAction({
 
   const outcome = data?.outcome;
   const allowed = outcome === "ALLOWED";
+  const selectedWorkspaceMismatch = data?.reason === "evidence_not_found";
   const handleClick = useCallback(() => {
     if (!allowed) return;
     if (onAction) onAction();
@@ -282,7 +283,9 @@ export function GovernedExportAction({
             }}
           >
             <strong style={{ fontSize: 13 }}>
-              {actionLabel} — {OUTCOME_LABEL[outcome!]}
+              {actionLabel} — {selectedWorkspaceMismatch
+                ? "Unavailable in this workspace"
+                : OUTCOME_LABEL[outcome!]}
             </strong>
             {/* Lifecycle state comes from the same server projection.
                 Migrated from the deleted preflight component so a
@@ -297,14 +300,18 @@ export function GovernedExportAction({
             ) : null}
           </div>
           <p style={{ margin: "2px 0 0", fontSize: 12, opacity: 0.85 }}>
-            {data.reason}
+            {selectedWorkspaceMismatch
+              ? "This record is not associated with the selected workspace."
+              : data.reason}
           </p>
-          {!allowed && NEXT_STEP[outcome!] ? (
+          {!allowed && (selectedWorkspaceMismatch || NEXT_STEP[outcome!]) ? (
             <p
               data-governed-export-next-step
               style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.95 }}
             >
-              {NEXT_STEP[outcome!]}
+              {selectedWorkspaceMismatch
+                ? "Open the record from its own workspace or ask an administrator to repair its workspace association."
+                : NEXT_STEP[outcome!]}
             </p>
           ) : null}
         </header>

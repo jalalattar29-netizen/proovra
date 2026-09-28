@@ -52,8 +52,17 @@ import {
 const STRIPE_API = "https://api.stripe.com/v1";
 const PAYPAL_FAKE_BASE = "http://127.0.0.1:9/k7-paypal-fake";
 
-type ProviderCall = { url: string; method: string; body: string | null };
-type FakeAnswer = { status?: number; body: unknown } | undefined;
+type ProviderCall = {
+  url: string;
+  method: string;
+  body: string | null;
+  headers: Headers;
+};
+type FakeAnswer = {
+  status?: number;
+  body: unknown;
+  headers?: Record<string, string>;
+} | undefined;
 
 describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -102,7 +111,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       PAYPAL_SECRET: "k7-local-fake-paypal-value",
       PAYPAL_API_BASE: PAYPAL_FAKE_BASE,
       PAYPAL_PRO_PLAN_ID_USD: "P-K7FAKEPROUSD",
-      PAYPAL_PLAN_STORAGE_PERSONAL_10_GB_USD: "P-K7FAKESTORAGE10USD",
+      PAYPAL_PLAN_STORAGE_PERSONAL_10_GB_EUR: "P-K7FAKESTORAGE10EUR",
     };
     const previous = new Map(Object.keys(settings).map((k) => [k, process.env[k]]));
     Object.assign(process.env, settings);
@@ -118,12 +127,13 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         url,
         method: init?.method ?? "GET",
         body: init?.body == null ? null : String(init.body),
+        headers: new Headers(init?.headers),
       };
       calls.push(req);
       const out = answer(req);
       return new Response(JSON.stringify(out?.body ?? { error: { code: "resource_missing" } }), {
         status: out ? (out.status ?? 200) : 404,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...out?.headers },
       });
     });
     try {
@@ -326,7 +336,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   // Storage add-on checkouts
   // ===========================================================================
 
-  const addonBody = { addonKey: "PERSONAL_10_GB", billingCycle: "MONTHLY", currency: "USD" };
+  const addonBody = { addonKey: "PERSONAL_10_GB", billingCycle: "MONTHLY", currency: "EUR" };
 
   describe("POST /v1/billing/storage-addons/checkout/stripe", () => {
     const url = "/v1/billing/storage-addons/checkout/stripe";
@@ -356,7 +366,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(sent.get("metadata[workspacePlan]")).toBe("PRO");
       expect(sent.get("line_items[0][price_data][recurring][interval]")).toBe("month");
       expect(sent.get("metadata[amountCents]")).toBe(
-        String(pricing.getStorageAddonPriceCents({ addonKey: "PERSONAL_10_GB", currency: "USD" })),
+        String(pricing.getStorageAddonPriceCents({ addonKey: "PERSONAL_10_GB", currency: "EUR" })),
       );
 
       const audit = await waitForAudit({ action: "billing.storage_addon_checkout_stripe_created", userId: t.owner.userId });
@@ -396,13 +406,22 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
     it("fake transport: the configured storage plan is subscribed for the payer, 200 and audited", async () => {
       const t = await payer("PRO");
       const subscriptionId = `I-K7ADD${randomUUID().slice(0, 6).toUpperCase()}`;
+      const approvalUrl =
+        "https://www.paypal.com/webapps/billing/subscriptions?ba_token=DO-NOT-PERSIST&country.x=DE";
       const { result: res, calls } = await withFakeProviders(
         (req) =>
           paypalToken(req) ??
           (req.url.startsWith(`${PAYPAL_FAKE_BASE}/v1/billing/plans/`)
-            ? { body: { id: "P-K7FAKESTORAGE10USD", status: "ACTIVE" } }
+            ? { body: { id: "P-K7FAKESTORAGE10EUR", status: "ACTIVE" } }
             : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
-              ? { body: { id: subscriptionId, status: "APPROVAL_PENDING", links: [] } }
+              ? {
+                  body: {
+                    id: subscriptionId,
+                    status: "APPROVAL_PENDING",
+                    links: [{ rel: "approve", href: approvalUrl }],
+                  },
+                  headers: { "paypal-debug-id": "debug-create-storage-1" },
+                }
               : undefined),
         () => call("POST", url, t.owner.token, addonBody),
       );
@@ -410,20 +429,46 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(json(res)).toMatchObject({ provider: "PAYPAL", mode: "subscription", subscription: { id: subscriptionId } });
       const create = calls.find((c) => c.url.endsWith("/v1/billing/subscriptions") && c.method === "POST");
       const sent = JSON.parse(create!.body!) as { plan_id: string; custom_id: string };
-      expect(sent.plan_id).toBe("P-K7FAKESTORAGE10USD");
-      // The custom_id is the COMPACT sa1 form: the JSON object it replaced was
+      expect(sent.plan_id).toBe("P-K7FAKESTORAGE10EUR");
+      const attempt = await prisma.workspaceStorageAddon.findFirstOrThrow({
+        where: { ownerUserId: t.owner.userId, externalSubscriptionId: subscriptionId },
+      });
+      expect(res.body).toContain(approvalUrl);
+      expect(attempt.metadata).toMatchObject({
+        providerHttpStatus: 200,
+        providerDebugId: "debug-create-storage-1",
+        providerEnvironment: "CUSTOM",
+        providerPlanId: "P-K7FAKESTORAGE10EUR",
+        providerCurrency: "EUR",
+        providerClientIdFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        approvalLinkIdentity: {
+          rel: "approve",
+          host: "www.paypal.com",
+          path: "/webapps/billing/subscriptions",
+          queryKeys: ["ba_token", "country.x"],
+          fingerprint: expect.stringMatching(/^[a-f0-9]{24}$/),
+        },
+      });
+      expect(JSON.stringify(attempt.metadata)).not.toContain("DO-NOT-PERSIST");
+      // The custom_id is the compact sa2 form. It remains under PayPal's
+      // 127-byte limit and now carries the durable local attempt UUID so a
+      // fast return/webhook converges on this row rather than creating one.
       // 147+ characters for a UUID payer, over PayPal's 127-character limit,
       // so PayPal refused every storage checkout with 400 INVALID_REQUEST.
       // Cycle (always MONTHLY) and workspace plan are not carried: the webhook
       // re-reads the plan from the database when it applies the add-on.
-      expect(sent.custom_id).toBe(`sa1|${t.owner.userId}|-|p10`);
+      expect(sent.custom_id).toBe(
+        `sa2|${t.owner.userId}|-|p10|${attempt.id}`,
+      );
       expect(sent.custom_id.length).toBeLessThanOrEqual(paypalPolicy.PAYPAL_CUSTOM_ID_MAX_LENGTH);
+      expect(create!.headers.get("paypal-request-id")).toBe(attempt.id);
       // Decoded by THE parser the webhook and the return route use — the
       // identity PayPal hands back is exactly the payer, no team, 10 GB.
       expect(paypalPolicy.parsePayPalStorageAddonCustomId(sent.custom_id)).toEqual({
         userId: t.owner.userId,
         teamId: null,
         storageAddonKey: "PERSONAL_10_GB",
+        attemptId: attempt.id,
       });
       // A storage custom_id must never be readable as a PLAN checkout.
       expect(paypalPolicy.parsePayPalCustomId(sent.custom_id)).toEqual({
@@ -434,6 +479,63 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
 
       const audit = await waitForAudit({ action: "billing.storage_addon_checkout_paypal_created", userId: t.owner.userId });
       expect(audit).toMatchObject({ resourceId: subscriptionId, outcome: "success" });
+    });
+
+    it("rejects a currency that disagrees with the server offer before creating a subscription", async () => {
+      const t = await payer("PRO");
+      const { result, calls } = await withFakeProviders(
+        () => ({ body: { id: "must-not-be-used" } }),
+        () => call("POST", url, t.owner.token, { ...addonBody, currency: "USD" }),
+      );
+
+      expect(result.statusCode, result.body).toBe(409);
+      expect(json(result)).toMatchObject({
+        code: "STORAGE_ADDON_CURRENCY_MISMATCH",
+        details: { offeredCurrency: "EUR" },
+      });
+      expect(calls).toEqual([]);
+      expect(
+        await prisma.workspaceStorageAddon.count({
+          where: { ownerUserId: t.owner.userId },
+        }),
+      ).toBe(0);
+    });
+
+    it("preserves an existing attempt's currency when a provider event omits pricing", async () => {
+      const t = await payer("PRO");
+      const providerSubId = `I-K7KEEP${randomUUID().slice(0, 6).toUpperCase()}`;
+      const attempt = await prisma.workspaceStorageAddon.create({
+        data: {
+          ownerUserId: t.owner.userId,
+          addonKey: "PERSONAL_10_GB",
+          extraStorageBytes: 10n * 1024n * 1024n * 1024n,
+          billingCycle: "MONTHLY",
+          status: "PENDING",
+          paymentProvider: "PAYPAL",
+          externalSubscriptionId: providerSubId,
+          currency: "USD",
+          amountCents: 311,
+        },
+      });
+      const { upsertWorkspaceStorageAddon } = await import(
+        "../src/services/billing.service.js"
+      );
+
+      await upsertWorkspaceStorageAddon({
+        ownerUserId: t.owner.userId,
+        addonKey: "PERSONAL_10_GB",
+        billingCycle: "MONTHLY",
+        status: "PENDING",
+        paymentProvider: "PAYPAL",
+        externalSubscriptionId: providerSubId,
+      });
+
+      expect(
+        await prisma.workspaceStorageAddon.findUniqueOrThrow({
+          where: { id: attempt.id },
+          select: { currency: true, amountCents: true },
+        }),
+      ).toEqual({ currency: "USD", amountCents: 311 });
     });
 
     it("a configured plan PayPal does not report ACTIVE is the bounded 503 — no subscription is created", async () => {
@@ -450,9 +552,14 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       );
       expect(result.statusCode, result.body).toBe(503);
       expect(json(result).error.code).toBe("PAYMENTS_UNAVAILABLE");
-      expect(result.body).not.toContain("P-K7FAKESTORAGE10USD");
+      expect(result.body).not.toContain("P-K7FAKESTORAGE10EUR");
       expect(calls.some((c) => c.url.endsWith("/v1/billing/subscriptions"))).toBe(false);
-      expect(await prisma.workspaceStorageAddon.count({ where: { ownerUserId: t.owner.userId } })).toBe(0);
+      expect(
+        await prisma.workspaceStorageAddon.findFirst({
+          where: { ownerUserId: t.owner.userId },
+          select: { status: true, externalSubscriptionId: true },
+        }),
+      ).toEqual({ status: "FAILED", externalSubscriptionId: null });
     });
   });
 

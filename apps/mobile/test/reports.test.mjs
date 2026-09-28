@@ -70,8 +70,12 @@ test("the canonical counters are projected in the web's order", () => {
       "Reports failed",
       "Packages ready",
       "Packages pending",
+      "Packages failed",
       "Packages blocked",
+      "Reports not requested",
+      "Packages not requested",
       "Records with artifacts",
+      "Artifact versions",
     ],
   );
   const s = R.parseReportsSummary(envelope());
@@ -178,7 +182,7 @@ test("the cursor is sent only when paging", () => {
 test("the filter list matches the canonical lifecycle vocabulary", () => {
   assert.deepEqual(
     R.REPORTS_FILTERS.map((f) => f.value),
-    ["all", "report_ready", "report_pending", "report_failed", "package_ready", "package_pending", "package_blocked"],
+    ["all", "report_ready", "report_pending", "report_failed", "package_ready", "package_pending", "package_failed", "package_blocked"],
   );
 });
 

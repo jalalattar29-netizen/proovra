@@ -106,6 +106,24 @@ export function CheckoutDrawer({
   const planOffers = projection.planOffers ?? [];
   const wallet = projection.wallet;
 
+  function validatedPayPalApprovalHref(href: string): string {
+    const url = new URL(href);
+    if (
+      url.protocol !== "https:" ||
+      ![
+        "paypal.com",
+        "www.paypal.com",
+        "sandbox.paypal.com",
+        "www.sandbox.paypal.com",
+      ].includes(url.hostname)
+    ) {
+      throw new Error("Unexpected PayPal approval URL");
+    }
+    // Return PayPal's exact string. Parsing is validation only: serializing the
+    // URL again could normalize its opaque approval query.
+    return href;
+  }
+
   async function send(request: () => Promise<unknown>) {
     setBusy(true);
     try {
@@ -121,12 +139,7 @@ export function CheckoutDrawer({
         return;
       }
       if (transition?.approvalUrl) {
-        const url = new URL(transition.approvalUrl);
-        if (url.protocol !== "https:" ||
-            !["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)) {
-          throw new Error("Unexpected PayPal plan-transition approval URL");
-        }
-        window.location.href = url.toString();
+        window.location.href = validatedPayPalApprovalHref(transition.approvalUrl);
         return;
       }
       const stripeUrl = (data as { session?: { url?: string } })?.session?.url;
@@ -146,7 +159,7 @@ export function CheckoutDrawer({
         links?.find((l) => l.rel === "approve") ??
         links?.find((l) => l.rel === "payer-action");
       if (approve?.href) {
-        window.location.href = approve.href;
+        window.location.href = validatedPayPalApprovalHref(approve.href);
         return;
       }
       throw new Error("Checkout did not return an approval destination");
@@ -277,10 +290,15 @@ export function CheckoutDrawer({
         onError("Choose a size", "Select the capacity you want before continuing.");
         return;
       }
+      const selectedOffer = offers.find((offer) => offer.key === selectedAddon);
+      if (!selectedOffer) {
+        onError("Offer changed", "Refresh Billing and choose the storage offer again.");
+        return;
+      }
       const addonBody = JSON.stringify({
         addonKey: selectedAddon,
         billingCycle: "MONTHLY",
-        currency,
+        currency: selectedOffer.currency,
       });
       return provider === "STRIPE"
         ? send(() =>

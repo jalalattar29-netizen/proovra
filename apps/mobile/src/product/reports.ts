@@ -44,7 +44,11 @@ export interface ReportsSummary {
   packagesReady: number | null;
   packagesPending: number | null;
   packagesBlocked: number | null;
+  packagesFailed: number | null;
+  reportsNotRequested: number | null;
+  packagesNotRequested: number | null;
   totalEvidenceWithArtifacts: number | null;
+  totalArtifactVersions: number | null;
 }
 
 /**
@@ -63,8 +67,12 @@ export const REPORTS_METRICS: ReadonlyArray<{
   { key: "reportsFailed", label: "Reports failed", tone: "risk" },
   { key: "packagesReady", label: "Packages ready", tone: "verified" },
   { key: "packagesPending", label: "Packages pending", tone: "pending" },
+  { key: "packagesFailed", label: "Packages failed", tone: "risk" },
   { key: "packagesBlocked", label: "Packages blocked", tone: "risk" },
+  { key: "reportsNotRequested", label: "Reports not requested", tone: "neutral" },
+  { key: "packagesNotRequested", label: "Packages not requested", tone: "neutral" },
   { key: "totalEvidenceWithArtifacts", label: "Records with artifacts", tone: "neutral" },
+  { key: "totalArtifactVersions", label: "Artifact versions", tone: "info" },
 ];
 
 export function parseReportsSummary(payload: unknown): ReportsSummary | null {
@@ -78,8 +86,12 @@ export function parseReportsSummary(payload: unknown): ReportsSummary | null {
     reportsFailed: int(d.reportsFailed),
     packagesReady: int(d.packagesReady),
     packagesPending: int(d.packagesPending),
+    packagesFailed: int(d.packagesFailed),
     packagesBlocked: int(d.packagesBlocked),
+    reportsNotRequested: int(d.reportsNotRequested),
+    packagesNotRequested: int(d.packagesNotRequested),
     totalEvidenceWithArtifacts: int(d.totalEvidenceWithArtifacts),
+    totalArtifactVersions: int(d.totalArtifactVersions),
   };
 }
 
@@ -242,6 +254,7 @@ export type LifecycleFilter =
   | "report_failed"
   | "package_ready"
   | "package_pending"
+  | "package_failed"
   | "package_blocked";
 
 export const REPORTS_SEARCH_MAX = 80;
@@ -254,6 +267,7 @@ export const REPORTS_FILTERS: ReadonlyArray<{ value: LifecycleFilter; label: str
   { value: "report_failed", label: "Report failed" },
   { value: "package_ready", label: "Package ready" },
   { value: "package_pending", label: "Package pending" },
+  { value: "package_failed", label: "Package failed" },
   { value: "package_blocked", label: "Package blocked" },
 ];
 
@@ -265,7 +279,7 @@ export function buildReportsPath(input: {
   /** T-12 — "Search by evidence title" (ReportsIndex.tsx:671-700); 1–80 chars (ArtifactsQuery). */
   search?: string | null;
   /**
-   * `false` sends `summary=0` (ArtifactsQuery): the six workspace counters no
+   * `false` sends `summary=0` (ArtifactsQuery): the workspace counters no
    * filter, search or page can change, so the LIST does not ask for them —
    * they are read once by `buildReportsSummaryPath` (ReportsIndex.tsx:325).
    */
@@ -446,6 +460,7 @@ export function isPackageRetrievable(row: ArtifactRow): boolean {
 /** The web's per-row download failures, by status (ReportsIndex.tsx:950-1010). */
 export function reportDownloadError(status: number | null, safeMessage: string | null): string {
   if (status === 202) return "Report is still generating. Try again in a moment.";
+  if (status === 410) return "The report record exists, but the stored PDF is missing. Use recovery or contact an operator.";
   if (status === 403) return "You don't have permission to download this report.";
   if (status === 409) return safeMessage ?? "Report download blocked by workspace policy.";
   return safeMessage ?? "Could not start download.";
@@ -453,6 +468,7 @@ export function reportDownloadError(status: number | null, safeMessage: string |
 
 export function packageDownloadError(status: number | null, safeMessage: string | null): string {
   if (status === 202) return "Package is still generating. Try again in a moment.";
+  if (status === 410) return "The package record exists, but the stored ZIP is missing. Use recovery or contact an operator.";
   if (status === 403) return "You don't have permission to download this package.";
   if (status === 409) return safeMessage ?? "Package blocked by workspace policy.";
   return safeMessage ?? "Could not start download.";

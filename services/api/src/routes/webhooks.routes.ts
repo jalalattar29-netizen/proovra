@@ -52,6 +52,7 @@ import { auditWebhookSignatureVerification } from "../services/security/webhook-
 // (assertWebhookStorageAddonAllowed, imported above) and imports it from
 // @proovra/shared-billing directly.
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
+import { webhookDuplicateDisposition } from "../services/billing/webhook-delivery-lease.js";
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit grant per purchase
 // is a property of the PRODUCT, read from the canonical catalog, not a literal
@@ -271,11 +272,43 @@ export async function webhooksRoutes(app: FastifyInstance) {
           ? (err as { code?: string }).code
           : undefined;
       if (code === "P2002") {
-        return reply
-          .code(200)
-          .send({ ok: true, deduplicated: true, eventId: event.id });
+        const existing = await prisma.stripeWebhookEvent.findUnique({
+          where: { stripeEventId: event.id },
+          select: { processingStatus: true, receivedAt: true },
+        });
+        const disposition = webhookDuplicateDisposition(existing ?? {});
+        if (disposition === "DEDUPLICATE") {
+          return reply
+            .code(200)
+            .send({ ok: true, deduplicated: true, eventId: event.id });
+        }
+        if (disposition === "RETRY_LATER") {
+          // Do not acknowledge an event whose first handler may still be
+          // running. A non-2xx makes Stripe redeliver; once the lease expires,
+          // one delivery reclaims the row and completes the side effects.
+          return reply.code(503).send({ ok: false, retryable: true });
+        }
+
+        const reclaimedAt = new Date();
+        const reclaimed = await prisma.stripeWebhookEvent.updateMany({
+          where: {
+            stripeEventId: event.id,
+            processingStatus: existing?.processingStatus,
+            receivedAt: existing?.receivedAt,
+          },
+          data: {
+            processingStatus: "RECEIVED",
+            receivedAt: reclaimedAt,
+            processedAt: null,
+            errorReason: null,
+          },
+        });
+        if (reclaimed.count === 0) {
+          return reply.code(503).send({ ok: false, retryable: true });
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     if (event.type === "checkout.session.completed") {
@@ -707,12 +740,10 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
 
     // Phase 10 — payload-hash strengthening. sha256(rawBody) gives a
-    // content-addressed fingerprint so that a true duplicate
-    // delivery (same id, byte-identical body) is recognised as a
-    // dedup hit independent of `processing_status`. A same-id /
-    // different-hash arrival is treated as a replay-after-crash and
-    // allowed through (the per-side-effect writers are themselves
-    // idempotent on their own keys).
+    // content-addressed fingerprint for diagnostics and in-flight replay
+    // detection. The provider event id remains the durable idempotency key:
+    // once an event is PROCESSED, a same-id delivery must never run business
+    // logic again, even if its byte representation differs.
     const payloadHash = createHash("sha256")
       .update(rawBody)
       .digest("hex");
@@ -735,27 +766,25 @@ export async function webhooksRoutes(app: FastifyInstance) {
       if (code === "P2002") {
         const existing = await prisma.paypalWebhookEvent.findUnique({
           where: { paypalEventId },
-          select: { processingStatus: true, payloadHash: true },
+          select: { processingStatus: true, payloadHash: true, receivedAt: true },
         });
 
-        // True dedup hit: identical payload hash AND the prior
-        // attempt processed successfully OR is still in flight with
-        // the same body. Log + 200, do NOT re-run business logic.
+        // PROCESSED is final by provider event id. A hash mismatch is useful
+        // security telemetry, but it must not reopen the event and risk
+        // applying a second payload to a different account.
         const hashMatches =
           existing?.payloadHash != null &&
           existing.payloadHash === payloadHash;
 
-        if (
-          hashMatches &&
-          (existing?.processingStatus === "PROCESSED" ||
-            existing?.processingStatus === "RECEIVED")
-        ) {
+        if (webhookDuplicateDisposition(existing ?? {}) === "DEDUPLICATE") {
           req.log.info(
             {
               provider: "PAYPAL",
               eventId: paypalEventId,
               eventType: event.event_type,
               payloadHash,
+              payloadHashMismatch:
+                existing?.payloadHash != null && !hashMatches,
             },
             "duplicate paypal webhook event, dedup hit"
           );
@@ -764,27 +793,33 @@ export async function webhooksRoutes(app: FastifyInstance) {
             .send({ ok: true, deduplicated: true, eventId: paypalEventId });
         }
 
-        // PROCESSED with no hash on file (legacy row from before the
-        // payload-hash column) → still a dedup hit.
         if (
-          existing?.processingStatus === "PROCESSED" &&
-          existing?.payloadHash == null
+          hashMatches &&
+          webhookDuplicateDisposition(existing ?? {}) === "RETRY_LATER"
         ) {
-          req.log.info(
-            {
-              provider: "PAYPAL",
-              eventId: paypalEventId,
-              eventType: event.event_type,
-              payloadHash,
-            },
-            "duplicate paypal webhook event, dedup hit (legacy row, no hash)"
-          );
-          return reply
-            .code(200)
-            .send({ ok: true, deduplicated: true, eventId: paypalEventId });
+          return reply.code(503).send({ ok: false, retryable: true });
         }
 
-        // else (FAILED, or RECEIVED with hash mismatch): PayPal is
+        const reclaimedAt = new Date();
+        const reclaimed = await prisma.paypalWebhookEvent.updateMany({
+          where: {
+            paypalEventId,
+            processingStatus: existing?.processingStatus,
+            receivedAt: existing?.receivedAt,
+          },
+          data: {
+            processingStatus: "RECEIVED",
+            receivedAt: reclaimedAt,
+            processedAt: null,
+            errorReason: null,
+            payloadHash,
+          },
+        });
+        if (reclaimed.count === 0) {
+          return reply.code(503).send({ ok: false, retryable: true });
+        }
+
+        // FAILED or an expired RECEIVED lease: PayPal is
         // redelivering after a prior crash / replay; we let it
         // through so the side-effects get a chance to land. The
         // wrapping branch logic is idempotent on its own —

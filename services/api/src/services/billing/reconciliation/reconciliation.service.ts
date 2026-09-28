@@ -61,7 +61,6 @@ import {
 import { syncDependentCancellationConditions } from "../dependent-cancellation-conditions.service.js";
 import type { StorageAddonProviderCanceller } from "../storage-addon-cancellation.service.js";
 import {
-  storageAddonStatusFromSubscription,
   syncPlanForSubscription,
 } from "../subscription-lifecycle.handlers.js";
 import type { BillingAccountRef } from "../billing-accounts.service.js";
@@ -72,8 +71,10 @@ import {
   emptySummary,
   resolveOutcome,
   type BillingReconciliationProvider,
+  type ObservationFailure,
   type PaymentObservation,
   type ReconciliationSummary,
+  type StorageAttemptReconciliation,
   type SubscriptionObservation,
 } from "./types.js";
 
@@ -683,12 +684,12 @@ async function reconcileStorageAddons(ctx: {
       // it as one — it would be reported CANCELED by a provider that has never
       // heard of it.
       billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-      externalSubscriptionId: { not: null },
       status: {
         in: [
           prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
           prismaPkg.WorkspaceStorageAddonStatus.PENDING,
           prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+          prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
         ],
       },
     },
@@ -702,107 +703,329 @@ async function reconcileStorageAddons(ctx: {
       paymentProvider: true,
       externalSubscriptionId: true,
       status: true,
+      activatedAtUtc: true,
       currency: true,
       currentPeriodEnd: true,
       providerStateAtUtc: true,
+      createdAt: true,
     },
   });
 
   for (const addon of addons) {
-    const provider = addon.paymentProvider;
-    const ref = addon.externalSubscriptionId;
-    if (!provider || !ref) continue;
-
-    const adapter = ctx.providers[provider];
-    if (!adapter) {
-      ctx.summary.unavailable += 1;
-      continue;
-    }
-
-    ctx.summary.checked += 1;
-    const observation = await adapter.observeSubscription(ref);
-
-    if (observation.state === "UNKNOWN") {
-      ctx.summary.unavailable += 1;
-      continue;
-    }
-    if (!isNotStale(observation.observedAtUtc, addon.providerStateAtUtc)) {
-      continue;
-    }
-
-    const currency = addon.currency === "EUR" ? "EUR" : "USD";
-    ctx.summary.paymentsRecorded += await recordMissingRenewals({
-      observation,
-      userId: addon.ownerUserId,
-      teamId: addon.teamId,
-      expectedCents: getStorageAddonPriceCents({
-        addonKey: addon.addonKey,
-        currency,
+    ctx.summary.storageAttempts.push(
+      await reconcileStorageAddonRow({
+        addon,
+        providers: ctx.providers,
+        summary: ctx.summary,
       }),
-      summary: ctx.summary,
-    });
-
-    const subscriptionStatus = subscriptionStatusFromObservation(observation);
-    if (!subscriptionStatus) continue;
-    const next = storageAddonStatusFromSubscription(subscriptionStatus);
-
-    // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — provider truth
-    // moves the obligation in BOTH directions.
-    //
-    // The provider agreeing the add-on is cancelled is a stronger proof than
-    // our own call having succeeded, so an obligation whose retries never
-    // worked still converges the moment the provider agrees. And an add-on the
-    // provider reports ACTIVE again after we confirmed it — a reinstatement, or
-    // a cancellation that reported success and did not take — must become an
-    // obligation again rather than staying quietly closed.
-    if (observation.observedAtUtc) {
-      if (observation.state === "CANCELED" || observation.cancelAtPeriodEnd) {
-        await confirmObligationFromProviderTruth({
-          addonId: addon.id,
-          observedAtUtc: observation.observedAtUtc,
-        });
-      } else if (observation.state === "SUCCEEDED") {
-        await reopenObligationFromProviderTruth({
-          addonId: addon.id,
-          observedAtUtc: observation.observedAtUtc,
-        });
-      }
-    }
-
-    if (next === addon.status) {
-      await stampAddonProviderState(addon.id, observation.observedAtUtc);
-      continue;
-    }
-
-    await prisma.workspaceStorageAddon.update({
-      where: { id: addon.id },
-      data: {
-        status: next,
-        currentPeriodEnd: observation.currentPeriodEndUtc ?? addon.currentPeriodEnd,
-        ...(next === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
-          ? { canceledAtUtc: observation.observedAtUtc ?? new Date() }
-          : {}),
-        ...(observation.observedAtUtc
-          ? { providerStateAtUtc: observation.observedAtUtc }
-          : {}),
-      },
-    });
-    ctx.summary.subscriptionsUpdated += 1;
-    if (next === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE) {
-      ctx.summary.actionRequired += 1;
-    }
+    );
   }
 }
 
-async function stampAddonProviderState(
-  addonId: string,
-  observedAtUtc: Date | null,
-): Promise<void> {
-  if (!observedAtUtc) return;
-  await prisma.workspaceStorageAddon.update({
-    where: { id: addonId },
-    data: { providerStateAtUtc: observedAtUtc },
+type StorageAddonReconciliationRow = {
+  id: string;
+  ownerUserId: string;
+  teamId: string | null;
+  addonKey: prismaPkg.StorageAddonKey;
+  paymentProvider: prismaPkg.PaymentProvider | null;
+  externalSubscriptionId: string | null;
+  status: prismaPkg.WorkspaceStorageAddonStatus;
+  activatedAtUtc: Date | null;
+  currency: string | null;
+  currentPeriodEnd: Date | null;
+  providerStateAtUtc: Date | null;
+  createdAt: Date;
+};
+
+function storageAttemptFailureOutcome(
+  failure: ObservationFailure | undefined,
+): StorageAttemptReconciliation["outcome"] {
+  switch (failure) {
+    case "NOT_FOUND":
+      return "PROVIDER_REFERENCE_NOT_FOUND";
+    case "REFERENCE_INVALID":
+      return "PROVIDER_REFERENCE_INVALID";
+    case "AUTHORIZATION_FAILED":
+      return "PROVIDER_AUTHORIZATION_FAILED";
+    case "PROVIDER_MALFORMED":
+    case "UNSUPPORTED_STATE":
+      return "PROVIDER_MALFORMED";
+    default:
+      return "PROVIDER_UNAVAILABLE";
+  }
+}
+
+function storageStatusFromObservation(
+  observation: SubscriptionObservation,
+  addon: StorageAddonReconciliationRow,
+): prismaPkg.WorkspaceStorageAddonStatus | null {
+  switch (observation.state) {
+    case "SUCCEEDED":
+      return prismaPkg.WorkspaceStorageAddonStatus.ACTIVE;
+    case "PENDING":
+      return addon.status === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED
+        ? addon.status
+        : prismaPkg.WorkspaceStorageAddonStatus.PENDING;
+    case "FAILED":
+      return addon.activatedAtUtc
+        ? prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+        : prismaPkg.WorkspaceStorageAddonStatus.FAILED;
+    case "CANCELED":
+      return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
+    case "EXPIRED":
+      return prismaPkg.WorkspaceStorageAddonStatus.EXPIRED;
+    default:
+      return null;
+  }
+}
+
+async function reconcileStorageAddonRow(input: {
+  addon: StorageAddonReconciliationRow;
+  providers: ReconciliationProviders;
+  summary: ReconciliationSummary;
+}): Promise<StorageAttemptReconciliation> {
+  const { addon, summary } = input;
+  const base = {
+    attemptId: addon.id,
+    kind: "STORAGE_ADDON" as const,
+    addonKey: addon.addonKey,
+    createdAtUtc: addon.createdAt.toISOString(),
+    provider: addon.paymentProvider,
+    providerBound: Boolean(addon.externalSubscriptionId),
+    previousStatus: addon.status,
+  };
+  summary.checked += 1;
+
+  const provider = addon.paymentProvider;
+  const ref = addon.externalSubscriptionId;
+  if (!provider || !ref) {
+    summary.actionRequired += 1;
+    return {
+      ...base,
+      currentStatus: addon.status,
+      outcome: "NOT_PROVIDER_BOUND",
+    };
+  }
+
+  const adapter = input.providers[provider];
+  if (!adapter) {
+    summary.unavailable += 1;
+    return {
+      ...base,
+      currentStatus: addon.status,
+      outcome: "PROVIDER_UNAVAILABLE",
+    };
+  }
+
+  const observation = await adapter.observeSubscription(ref);
+  if (observation.state === "UNKNOWN") {
+    const outcome = storageAttemptFailureOutcome(observation.failure);
+    if (outcome === "PROVIDER_UNAVAILABLE") summary.unavailable += 1;
+    else summary.actionRequired += 1;
+    return { ...base, currentStatus: addon.status, outcome };
+  }
+  if (!isNotStale(observation.observedAtUtc, addon.providerStateAtUtc)) {
+    return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
+  }
+
+  const currency = addon.currency === "EUR" ? "EUR" : "USD";
+  summary.paymentsRecorded += await recordMissingRenewals({
+    observation,
+    userId: addon.ownerUserId,
+    teamId: addon.teamId,
+    expectedCents: getStorageAddonPriceCents({
+      addonKey: addon.addonKey,
+      currency,
+    }),
+    summary,
   });
+
+  const next = storageStatusFromObservation(observation, addon);
+  if (!next) {
+    summary.actionRequired += 1;
+    return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
+  }
+
+  if (observation.state === "PENDING") summary.pending += 1;
+  if (next === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE) {
+    summary.actionRequired += 1;
+  }
+
+  if (observation.observedAtUtc) {
+    if (observation.state === "CANCELED" || observation.cancelAtPeriodEnd) {
+      await confirmObligationFromProviderTruth({
+        addonId: addon.id,
+        observedAtUtc: observation.observedAtUtc,
+      });
+    } else if (observation.state === "SUCCEEDED") {
+      await reopenObligationFromProviderTruth({
+        addonId: addon.id,
+        observedAtUtc: observation.observedAtUtc,
+      });
+    }
+  }
+
+  const changed =
+    next !== addon.status ||
+    observation.currentPeriodEndUtc?.getTime() !== addon.currentPeriodEnd?.getTime();
+  if (!changed) {
+    const stamped = await stampAddonProviderState({
+      addonId: addon.id,
+      observedAtUtc: observation.observedAtUtc,
+      expectedObservedAtUtc: addon.providerStateAtUtc,
+      expectedStatus: addon.status,
+    });
+    if (!stamped) {
+      return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
+    }
+    return {
+      ...base,
+      currentStatus: addon.status,
+      outcome: observation.state === "PENDING" ? "STILL_PENDING" : "NO_CHANGE",
+      ...(observation.resumeUrl ? { resumeUrl: observation.resumeUrl } : {}),
+    };
+  }
+
+  const updated = await prisma.workspaceStorageAddon.updateMany({
+    where: {
+      id: addon.id,
+      status: addon.status,
+      providerStateAtUtc: addon.providerStateAtUtc,
+    },
+    data: {
+      status: next,
+      currentPeriodEnd: observation.currentPeriodEndUtc ?? addon.currentPeriodEnd,
+      ...(next === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE && !addon.activatedAtUtc
+        ? { activatedAtUtc: observation.observedAtUtc ?? new Date() }
+        : {}),
+      ...(next === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
+        ? { canceledAtUtc: observation.observedAtUtc ?? new Date() }
+        : {}),
+      ...(observation.observedAtUtc
+        ? { providerStateAtUtc: observation.observedAtUtc }
+        : {}),
+    },
+  });
+  if (updated.count === 0) {
+    return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
+  }
+  summary.subscriptionsUpdated += 1;
+  return { ...base, currentStatus: next, outcome: "UPDATED" };
+}
+
+/** Reconcile one storage attempt, using the same authority as account-wide re-check. */
+export async function reconcileStorageAddonAttempt(input: {
+  account: BillingAccountRef;
+  attemptId: string;
+  providers?: ReconciliationProviders;
+}): Promise<StorageAttemptReconciliation> {
+  if (input.account.type !== "PERSONAL") {
+    const err: Error & { statusCode?: number } = new Error("Storage attempt not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  const addon = await prisma.workspaceStorageAddon.findFirst({
+    where: {
+      id: input.attemptId,
+      ownerUserId: input.account.id,
+      teamId: null,
+      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+    },
+    select: {
+      id: true,
+      ownerUserId: true,
+      teamId: true,
+      addonKey: true,
+      paymentProvider: true,
+      externalSubscriptionId: true,
+      status: true,
+      activatedAtUtc: true,
+      currency: true,
+      currentPeriodEnd: true,
+      providerStateAtUtc: true,
+      createdAt: true,
+    },
+  });
+  if (!addon) {
+    const err: Error & { statusCode?: number } = new Error("Storage attempt not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  const summary = emptySummary();
+  return reconcileStorageAddonRow({
+    addon,
+    providers: input.providers ?? defaultReconciliationProviders(),
+    summary,
+  });
+}
+
+export type StorageAttemptAbandonResult =
+  | StorageAttemptReconciliation
+  | {
+      attemptId: string;
+      outcome: "ABANDON_CONFIRMATION_REQUIRED" | "ABANDONED" | "ALREADY_ABANDONED";
+      warning?: string;
+    };
+
+/** Provider-first local disposition for an unverifiable storage attempt. */
+export async function abandonStorageAddonAttempt(input: {
+  account: BillingAccountRef;
+  attemptId: string;
+  confirmed?: boolean;
+  providers?: ReconciliationProviders;
+}): Promise<StorageAttemptAbandonResult> {
+  const checked = await reconcileStorageAddonAttempt(input);
+  if (checked.currentStatus === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED) {
+    return { attemptId: input.attemptId, outcome: "ALREADY_ABANDONED" };
+  }
+  const unverifiable = new Set<StorageAttemptReconciliation["outcome"]>([
+    "NOT_PROVIDER_BOUND",
+    "PROVIDER_UNAVAILABLE",
+    "PROVIDER_REFERENCE_NOT_FOUND",
+    "PROVIDER_REFERENCE_INVALID",
+    "PROVIDER_AUTHORIZATION_FAILED",
+    "PROVIDER_MALFORMED",
+  ]);
+  if (!unverifiable.has(checked.outcome)) return checked;
+  if (!input.confirmed) {
+    return {
+      attemptId: input.attemptId,
+      outcome: "ABANDON_CONFIRMATION_REQUIRED",
+      warning:
+        "The payment provider could not prove how this attempt ended. Abandoning removes only PROOVRA's local checkout blocker; it does not cancel, reverse, or refund anything at the provider.",
+    };
+  }
+  const updated = await prisma.workspaceStorageAddon.updateMany({
+    where: {
+      id: input.attemptId,
+      ownerUserId: input.account.id,
+      teamId: null,
+      status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+    },
+    data: { status: prismaPkg.WorkspaceStorageAddonStatus.ABANDONED },
+  });
+  return {
+    attemptId: input.attemptId,
+    outcome: updated.count > 0 ? "ABANDONED" : "ALREADY_ABANDONED",
+  };
+}
+
+async function stampAddonProviderState(input: {
+  addonId: string;
+  observedAtUtc: Date | null;
+  expectedObservedAtUtc: Date | null;
+  expectedStatus: prismaPkg.WorkspaceStorageAddonStatus;
+}): Promise<boolean> {
+  if (!input.observedAtUtc) return true;
+  const stamped = await prisma.workspaceStorageAddon.updateMany({
+    where: {
+      id: input.addonId,
+      status: input.expectedStatus,
+      providerStateAtUtc: input.expectedObservedAtUtc,
+    },
+    data: { providerStateAtUtc: input.observedAtUtc },
+  });
+  return stamped.count > 0;
 }
 
 /**

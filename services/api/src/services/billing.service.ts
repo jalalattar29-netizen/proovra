@@ -630,6 +630,7 @@ export async function upsertSubscription(params: {
 }
 
 export async function upsertWorkspaceStorageAddon(params: {
+  attemptId?: string | null;
   ownerUserId: string;
   teamId?: string | null;
   addonKey: prismaPkg.StorageAddonKey;
@@ -642,6 +643,7 @@ export async function upsertWorkspaceStorageAddon(params: {
   amountCents?: number | null;
   currentPeriodEnd?: Date | null;
   expiresAtUtc?: Date | null;
+  observedAtUtc?: Date | null;
   metadata?: Record<string, unknown> | null;
 }) {
   /**
@@ -661,6 +663,21 @@ export async function upsertWorkspaceStorageAddon(params: {
    */
   const definition = getStorageAddonDefinition(params.addonKey);
 
+  const existingByAttempt = params.attemptId
+    ? await prisma.workspaceStorageAddon.findUnique({
+        where: { id: params.attemptId },
+      })
+    : null;
+
+  if (
+    existingByAttempt &&
+    (existingByAttempt.ownerUserId !== params.ownerUserId ||
+      existingByAttempt.teamId !== (params.teamId ?? null) ||
+      existingByAttempt.addonKey !== params.addonKey)
+  ) {
+    throw new Error("Storage add-on attempt ownership or product mismatch");
+  }
+
   const existingBySubscription = params.externalSubscriptionId
     ? await prisma.workspaceStorageAddon.findUnique({
         where: {
@@ -678,7 +695,24 @@ export async function upsertWorkspaceStorageAddon(params: {
         })
       : null;
 
-  const existing = existingBySubscription ?? existingByPayment;
+  const existing = existingByAttempt ?? existingBySubscription ?? existingByPayment;
+
+  if (
+    existing?.providerStateAtUtc &&
+    params.observedAtUtc &&
+    params.observedAtUtc.getTime() < existing.providerStateAtUtc.getTime()
+  ) {
+    return existing;
+  }
+
+  const status =
+    existing?.status === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED &&
+    params.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING
+      ? existing.status
+      : params.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE &&
+          !existing?.activatedAtUtc
+        ? prismaPkg.WorkspaceStorageAddonStatus.FAILED
+        : params.status;
 
   const data = {
     ownerUserId: params.ownerUserId,
@@ -688,14 +722,20 @@ export async function upsertWorkspaceStorageAddon(params: {
     // Honour the cycle the caller states. Hardcoding ONE_TIME here silently
     // rewrote a recurring add-on's own identity on every webhook update.
     billingCycle: params.billingCycle,
-    status: params.status,
+    status,
     paymentProvider: params.paymentProvider ?? null,
     externalSubscriptionId: params.externalSubscriptionId ?? null,
     externalPaymentId: params.externalPaymentId ?? null,
-    currency: (params.currency ?? definition.currency).toUpperCase(),
-    amountCents: params.amountCents ?? definition.priceCents,
+    // Provider lifecycle events do not repeat the checkout price. Preserve the
+    // durable attempt's commercial identity instead of silently replacing it
+    // with catalogue defaults during webhook settlement.
+    currency: (
+      params.currency ?? existing?.currency ?? definition.currency
+    ).toUpperCase(),
+    amountCents:
+      params.amountCents ?? existing?.amountCents ?? definition.priceCents,
     activatedAtUtc:
-      params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
+      status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
         ? existing?.activatedAtUtc ?? new Date()
         : existing?.activatedAtUtc ?? null,
     // A recurring add-on HAS a period end; a grandfathered one-time row does
@@ -706,34 +746,48 @@ export async function upsertWorkspaceStorageAddon(params: {
         : null,
     expiresAtUtc: params.expiresAtUtc ?? null,
     canceledAtUtc:
-      params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
+      status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
         ? new Date()
-        : null,
+        : existing?.canceledAtUtc ?? null,
     metadata: toNullableJsonInput(params.metadata),
+    ...(params.observedAtUtc
+      ? { providerStateAtUtc: params.observedAtUtc }
+      : {}),
   };
 
-  const addon = existing
-    ? await prisma.workspaceStorageAddon.update({
-        where: { id: existing.id },
-        data,
-      })
-    : await prisma.workspaceStorageAddon.create({
-        data,
-      });
+  let addon: prismaPkg.WorkspaceStorageAddon;
+  if (existing) {
+    const applied = await prisma.workspaceStorageAddon.updateMany({
+      where: {
+        id: existing.id,
+        status: existing.status,
+        providerStateAtUtc: existing.providerStateAtUtc,
+      },
+      data,
+    });
+    addon = await prisma.workspaceStorageAddon.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+    // A webhook or reconciliation writer advanced the row after our read.
+    // Its state wins; do not emit an event describing a write we did not make.
+    if (applied.count === 0) return addon;
+  } else {
+    addon = await prisma.workspaceStorageAddon.create({ data });
+  }
 
   await trackBillingEvent({
     eventType:
-      params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
+      status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
         ? existing
           ? "billing_storage_addon_updated"
           : "billing_storage_addon_activated"
-        : params.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+        : status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
           ? "billing_storage_addon_past_due"
-          : params.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING
+          : status === prismaPkg.WorkspaceStorageAddonStatus.PENDING
             ? "billing_storage_addon_pending"
-            : params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
+            : status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
               ? "billing_storage_addon_canceled"
-              : params.status === prismaPkg.WorkspaceStorageAddonStatus.EXPIRED
+              : status === prismaPkg.WorkspaceStorageAddonStatus.EXPIRED
                 ? "billing_storage_addon_expired"
                 : "billing_storage_addon_failed",
     userId: params.ownerUserId,

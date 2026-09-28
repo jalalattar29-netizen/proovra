@@ -210,6 +210,7 @@ const ArtifactsQuery = z.object({
       "report_failed",
       "package_ready",
       "package_pending",
+      "package_failed",
       "package_blocked",
     ])
     .optional(),

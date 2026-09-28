@@ -63,6 +63,8 @@ export function StorageAddonsSection({
   onManageStorage,
   onChoosePlan,
   onCancelAddon,
+  onRecheckAddon,
+  onAbandonAddon,
   cancelBusyId,
 }: {
   projection: BillingAccountProjection;
@@ -80,6 +82,8 @@ export function StorageAddonsSection({
    */
   onChoosePlan: () => void;
   onCancelAddon: (addonId: string) => void;
+  onRecheckAddon?: (addonId: string) => void;
+  onAbandonAddon?: (addonId: string) => void;
   cancelBusyId: string | null;
 }) {
   const meter = projection.usage.storage;
@@ -240,6 +244,12 @@ export function StorageAddonsSection({
                         ? `Renews ${renews}`
                         : "Recurring monthly"}
                   </span>
+                  <span className="bill-addon__meta">
+                    Started {formatDate(addon.createdAtUtc)} · {addon.attemptReference}
+                    {addon.paymentProvider
+                      ? ` · ${addon.paymentProvider}${addon.providerReference ? ` ${addon.providerReference}` : " (not linked)"}`
+                      : ""}
+                  </span>
                 </div>
                 <div className="bill-addon__actions">
                   <Badge tone={statusTone(addon.status)} dot>
@@ -259,6 +269,29 @@ export function StorageAddonsSection({
                       data-billing-cancel-addon={addon.id}
                     >
                       Cancel
+                    </Button>
+                  ) : null}
+                  {addon.canRecheck && onRecheckAddon ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRecheckAddon(addon.id)}
+                      loading={cancelBusyId === addon.id}
+                      disabled={cancelBusyId === addon.id}
+                      data-billing-recheck-addon={addon.id}
+                    >
+                      Re-check
+                    </Button>
+                  ) : null}
+                  {addon.canAbandon && onAbandonAddon ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onAbandonAddon(addon.id)}
+                      disabled={cancelBusyId === addon.id}
+                      data-billing-abandon-addon={addon.id}
+                    >
+                      Abandon
                     </Button>
                   ) : null}
                 </div>
@@ -317,6 +350,7 @@ export function BillingHistorySection({
   onAbandonPayment,
   rowBusyId,
   resumeUrls,
+  storageAttempts = [],
 }: {
   entries: BillingHistoryEntry[];
   state: "LOADING" | "READY" | "DENIED" | "ERROR";
@@ -364,6 +398,7 @@ export function BillingHistorySection({
    * long as the answer that produced it is fresh.
    */
   resumeUrls: Record<string, string>;
+  storageAttempts?: NonNullable<BillingAccountProjection["storageAddons"]>["active"];
 }) {
   if (state === "DENIED") {
     return (
@@ -444,13 +479,44 @@ export function BillingHistorySection({
          Billing panels take, applied where it can actually land. */
       style={{ borderColor: "var(--border-strong, rgba(15, 23, 42, 0.14))" }}
     >
+      {storageAttempts.length > 0 ? (
+        <section aria-labelledby="billing-attempts-heading" data-billing-purchase-attempts>
+          <h4 id="billing-attempts-heading" className="bill-section__heading">
+            Purchase attempts
+          </h4>
+          <ul className="bill-addon-list">
+            {storageAttempts.map((attempt) => (
+              <li className="bill-addon" key={attempt.id}>
+                <div className="bill-addon__facts">
+                  <span className="bill-addon__size">
+                    {attempt.storageLabel} storage · {attempt.attemptReference}
+                  </span>
+                  <span className="bill-addon__meta">
+                    Started {formatDate(attempt.createdAtUtc)}
+                    {attempt.paymentProvider
+                      ? ` · ${attempt.paymentProvider}${attempt.providerReference ? ` ${attempt.providerReference}` : " (provider reference not recorded)"}`
+                      : ""}
+                  </span>
+                </div>
+                <Badge tone={statusTone(attempt.status)} dot>
+                  {statusLabel(attempt.status)}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {state === "LOADING" ? (
         <p style={{ margin: 0, color: "var(--silver-ink)" }}>Loading…</p>
       ) : entries.length === 0 ? (
         <EmptyState
           compact
           title="No payments yet"
-          purpose="Payments for this account will appear here."
+          purpose={
+            storageAttempts.length > 0
+              ? "No completed payments are recorded. Outstanding attempts are shown above."
+              : "Payments for this account will appear here."
+          }
         />
       ) : (
         /*

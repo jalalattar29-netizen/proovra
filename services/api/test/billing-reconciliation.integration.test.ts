@@ -570,6 +570,212 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
   // Storage add-ons — legacy immunity and dependency discovery
   // =========================================================================
   describe("storage add-ons", () => {
+    async function seedRecurringAddon(
+      userId: string,
+      over: {
+        ref?: string | null;
+        status?: "PENDING" | "ACTIVE" | "PAST_DUE";
+        activatedAtUtc?: Date | null;
+        providerStateAtUtc?: Date | null;
+      } = {},
+    ) {
+      const ref = over.ref === undefined ? `I-${randomUUID()}` : over.ref;
+      const row = await prisma.workspaceStorageAddon.create({
+        data: {
+          ownerUserId: userId,
+          teamId: null,
+          addonKey: "PERSONAL_50_GB",
+          extraStorageBytes: BigInt(50) * BigInt(1024) ** BigInt(3),
+          billingCycle: "MONTHLY",
+          status: over.status ?? "PENDING",
+          paymentProvider: "PAYPAL",
+          externalSubscriptionId: ref,
+          currency: "EUR",
+          amountCents: 799,
+          activatedAtUtc: over.activatedAtUtc ?? null,
+          providerStateAtUtc: over.providerStateAtUtc ?? null,
+        },
+        select: { id: true, createdAt: true },
+      });
+      return { ...row, ref };
+    }
+
+    const subscriptionObservation = (
+      ref: string,
+      state: SubscriptionObservation["state"],
+      over: Partial<SubscriptionObservation> = {},
+    ): SubscriptionObservation => ({
+      kind: "SUBSCRIPTION",
+      provider: "PAYPAL" as never,
+      providerRef: ref,
+      state,
+      currentPeriodEndUtc: null,
+      cancelAtPeriodEnd: false,
+      observedAtUtc: new Date("2026-09-26T10:00:00.000Z"),
+      recentPayments: [],
+      ...over,
+    });
+
+    it("inspects both same-product pending attempts and reports each truthfully", async () => {
+      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const bound = await seedRecurringAddon(t.owner.userId);
+      const unbound = await seedRecurringAddon(t.owner.userId, { ref: null });
+      const adapter = new FixtureProvider("PAYPAL", {}, {
+        [bound.ref!]: subscriptionObservation(bound.ref!, "PENDING", {
+          resumeUrl: "https://www.sandbox.paypal.com/checkoutnow?token=test",
+        }),
+      });
+
+      const summary = await reconcile({
+        account: accountRef("PERSONAL", t.owner.userId),
+        providers: { PAYPAL: adapter } as never,
+      });
+
+      expect(summary.checked).toBeGreaterThanOrEqual(2);
+      expect(summary.pending).toBe(1);
+      expect(summary.storageAttempts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: bound.id,
+            outcome: "STILL_PENDING",
+            providerBound: true,
+          }),
+          expect.objectContaining({
+            attemptId: unbound.id,
+            outcome: "NOT_PROVIDER_BOUND",
+            providerBound: false,
+          }),
+        ]),
+      );
+      expect(adapter.asked).toContain(bound.ref);
+      expect(
+        await prisma.workspaceStorageAddon.findMany({
+          where: { id: { in: [bound.id, unbound.id] } },
+          select: { status: true, activatedAtUtc: true },
+        }),
+      ).toEqual([
+        { status: "PENDING", activatedAtUtc: null },
+        { status: "PENDING", activatedAtUtc: null },
+      ]);
+    });
+
+    it.each([
+      ["SUCCEEDED", "ACTIVE"],
+      ["CANCELED", "CANCELED"],
+      ["EXPIRED", "EXPIRED"],
+      ["FAILED", "FAILED"],
+    ] as const)("maps provider %s to %s without granting a merely failed attempt", async (state, expected) => {
+      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const addon = await seedRecurringAddon(t.owner.userId);
+      await reconcile({
+        account: accountRef("PERSONAL", t.owner.userId),
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {}, {
+            [addon.ref!]: subscriptionObservation(addon.ref!, state),
+          }),
+        } as never,
+      });
+      const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({
+        where: { id: addon.id },
+        select: { status: true, activatedAtUtc: true },
+      });
+      expect(after.status).toBe(expected);
+      if (state !== "SUCCEEDED") expect(after.activatedAtUtc).toBeNull();
+    });
+
+    it("classifies a missing provider resource separately from genuine pending", async () => {
+      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const addon = await seedRecurringAddon(t.owner.userId);
+      const summary = await reconcile({
+        account: accountRef("PERSONAL", t.owner.userId),
+        providers: { PAYPAL: new FixtureProvider("PAYPAL") } as never,
+      });
+      expect(summary.pending).toBe(0);
+      expect(summary.storageAttempts).toContainEqual(
+        expect.objectContaining({
+          attemptId: addon.id,
+          outcome: "PROVIDER_REFERENCE_NOT_FOUND",
+        }),
+      );
+      expect(summary.outcome).toBe("ACTION_REQUIRED");
+    });
+
+    it("requires confirmation to abandon an unverifiable attempt and enforces account ownership", async () => {
+      const owner = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const other = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const addon = await seedRecurringAddon(owner.owner.userId);
+      const { abandonStorageAddonAttempt } = await import(
+        "../src/services/billing/reconciliation/reconciliation.service.js"
+      );
+      const providers = { PAYPAL: new FixtureProvider("PAYPAL") } as never;
+
+      await expect(
+        abandonStorageAddonAttempt({
+          account: accountRef("PERSONAL", other.owner.userId),
+          attemptId: addon.id,
+          providers,
+        }),
+      ).rejects.toMatchObject({ statusCode: 404 });
+
+      const first = await abandonStorageAddonAttempt({
+        account: accountRef("PERSONAL", owner.owner.userId),
+        attemptId: addon.id,
+        providers,
+      });
+      expect(first.outcome).toBe("ABANDON_CONFIRMATION_REQUIRED");
+      expect(
+        (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).status,
+      ).toBe("PENDING");
+
+      const confirmed = await abandonStorageAddonAttempt({
+        account: accountRef("PERSONAL", owner.owner.userId),
+        attemptId: addon.id,
+        providers,
+        confirmed: true,
+      });
+      expect(confirmed.outcome).toBe("ABANDONED");
+      expect(
+        (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).status,
+      ).toBe("ABANDONED");
+
+      await reconcile({
+        account: accountRef("PERSONAL", owner.owner.userId),
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {}, {
+            [addon.ref!]: subscriptionObservation(addon.ref!, "SUCCEEDED"),
+          }),
+        } as never,
+      });
+      expect(
+        (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).status,
+      ).toBe("ACTIVE");
+    });
+
+    it("does not let an older reconciliation overwrite a newer provider state", async () => {
+      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const addon = await seedRecurringAddon(t.owner.userId, {
+        status: "ACTIVE",
+        activatedAtUtc: new Date("2026-09-26T11:00:00.000Z"),
+        providerStateAtUtc: new Date("2026-09-26T11:00:00.000Z"),
+      });
+      const summary = await reconcile({
+        account: accountRef("PERSONAL", t.owner.userId),
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {}, {
+            [addon.ref!]: subscriptionObservation(addon.ref!, "CANCELED", {
+              observedAtUtc: new Date("2026-09-26T10:00:00.000Z"),
+            }),
+          }),
+        } as never,
+      });
+      expect(summary.storageAttempts).toContainEqual(
+        expect.objectContaining({ attemptId: addon.id, outcome: "STALE_IGNORED" }),
+      );
+      expect(
+        (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).status,
+      ).toBe("ACTIVE");
+    });
+
     async function seedLegacyOneTimeAddon(userId: string) {
       return prisma.workspaceStorageAddon.create({
         data: {

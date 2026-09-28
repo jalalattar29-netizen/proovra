@@ -3638,6 +3638,10 @@ enum WorkspaceStorageAddonStatus {
   CANCELED
   EXPIRED
   FAILED
+  /// The customer stopped pursuing an unapproved checkout locally. This does
+  /// not claim the provider cancelled it; a later provider-proven activation
+  /// is still allowed to move the row to ACTIVE.
+  ABANDONED
 }
 
 // -----------------------------------------------------------------------------

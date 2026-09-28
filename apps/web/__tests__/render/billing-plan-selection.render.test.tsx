@@ -428,8 +428,10 @@ describe("the FREE checkout request", () => {
 
   it("hands the customer to the provider's own page and nowhere else", async () => {
     const user = userEvent.setup();
+    const approvalUrl =
+      "https://www.paypal.com/webapps/billing/subscriptions?ba_token=BA-EXACT%2BVALUE&country.x=DE";
     apiFetch.mockResolvedValue({
-      subscription: { links: [{ rel: "approve", href: "https://paypal.example/approve" }] },
+      subscription: { links: [{ rel: "approve", href: approvalUrl }] },
     });
 
     const assigned: string[] = [];
@@ -452,7 +454,7 @@ describe("the FREE checkout request", () => {
       await user.click(screen.getByRole("radio", { name: /Pro/ }));
       await user.click(screen.getByRole("radio", { name: "PayPal" }));
       await user.click(continueButton());
-      await waitFor(() => expect(assigned).toEqual(["https://paypal.example/approve"]));
+      await waitFor(() => expect(assigned).toEqual([approvalUrl]));
     } finally {
       if (original) Object.defineProperty(window, "location", original);
     }
@@ -572,6 +574,49 @@ describe("the payment-method selector", () => {
     expect((apiFetch.mock.calls[0] as [string])[0]).toBe(
       "/v1/billing/checkout/stripe",
     );
+  });
+
+  it("submits the selected storage offer currency, not the plan currency", async () => {
+    const user = userEvent.setup();
+    const projection = paid("PRO", [MOVE_TEAM], {
+      storageAddons: {
+        offers: [
+          {
+            key: "PERSONAL_50_GB",
+            label: "+50 GB",
+            storageBytes: "53687091200",
+            storageLabel: "50 GB",
+            priceCents: 799,
+            currency: "EUR",
+            billingCycle: "MONTHLY",
+          },
+        ],
+        active: [],
+      },
+    } as never);
+
+    render(
+      <CheckoutDrawer
+        open
+        intent={{ kind: "STORAGE", addonKey: "PERSONAL_50_GB" }}
+        projection={projection}
+        onClose={noop}
+        onCompleted={noop}
+        onError={noop}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: "PayPal" }));
+    await user.click(continueButton());
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    const [path, init] = apiFetch.mock.calls[0] as [string, { body: string }];
+    expect(path).toBe("/v1/billing/storage-addons/checkout/paypal");
+    expect(JSON.parse(init.body)).toEqual({
+      addonKey: "PERSONAL_50_GB",
+      billingCycle: "MONTHLY",
+      currency: "EUR",
+    });
   });
 
   it("keeps the two drawers' groups independent", () => {

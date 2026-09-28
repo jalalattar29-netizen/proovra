@@ -428,6 +428,27 @@ describe("PayPal webhooks — captures", () => {
     expect(state.ledger.size).toBe(1);
   });
 
+  it("a processed event id stays deduplicated when a later payload has different bytes", async () => {
+    creditOrder("ORDER-WH-ID", "APPROVED");
+    captureOrder("ORDER-WH-ID", "COMPLETED");
+
+    const first = await deliver("PAYMENT.CAPTURE.COMPLETED", {
+      id: "CAP-ORDER-WH-ID",
+      status: "COMPLETED",
+      supplementary_data: { related_ids: { order_id: "ORDER-WH-ID" } },
+    }, "WH-IMMUTABLE-ID");
+    const replay = await deliver("PAYMENT.CAPTURE.COMPLETED", {
+      id: "CAP-OTHER",
+      status: "COMPLETED",
+      supplementary_data: { related_ids: { order_id: "ORDER-OTHER" } },
+    }, "WH-IMMUTABLE-ID");
+
+    expect(first.statusCode).toBe(200);
+    expect(replay.json()).toMatchObject({ deduplicated: true });
+    expect(grantEvidenceCredits).toHaveBeenCalledTimes(1);
+    expect(state.ledger.size).toBe(1);
+  });
+
   it("CHECKOUT.ORDER.APPROVED captures server-side (buyer closed the tab) and the later capture event does not grant again", async () => {
     creditOrder("ORDER-WH-3", "APPROVED");
     await deliver("CHECKOUT.ORDER.APPROVED", { id: "ORDER-WH-3", status: "APPROVED" });
@@ -559,6 +580,43 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
 // ===========================================================================
 
 describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
+  it("the sa2 custom_id binds a fast webhook to the durable local attempt", async () => {
+    const attemptId = "44444444-4444-4444-8444-444444444444";
+    const customId = buildPayPalStorageAddonCustomId({
+      userId: USER,
+      addonKey: "PERSONAL_10_GB" as never,
+      attemptId,
+    });
+    expect(customId).toBe(`sa2|${USER}|-|p10|${attemptId}`);
+    expect(customId.length).toBeLessThanOrEqual(PAYPAL_CUSTOM_ID_MAX_LENGTH);
+    expect(parsePayPalStorageAddonCustomId(customId)).toEqual({
+      userId: USER,
+      teamId: null,
+      storageAddonKey: "PERSONAL_10_GB",
+      attemptId,
+    });
+    expect(parsePayPalCustomId(customId)).toEqual({
+      userId: null,
+      plan: null,
+      teamId: null,
+    });
+
+    setSubscription("I-SA-FAST", {
+      status: "ACTIVE",
+      plan_id: "P-S10-USD",
+      custom_id: customId,
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-FAST" });
+    expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attemptId,
+        externalSubscriptionId: "I-SA-FAST",
+        observedAtUtc: new Date("2026-09-25T10:00:00.000Z"),
+        status: "ACTIVE",
+      }),
+    );
+  });
+
   it("the sa1 custom_id fits PayPal's 127-character limit with two UUIDs and round-trips", () => {
     const id = buildPayPalStorageAddonCustomId({ userId: USER, teamId: TEAM, addonKey: "PERSONAL_200_GB" as never });
     expect(id).toBe(`sa1|${USER}|${TEAM}|p200`);

@@ -53,6 +53,8 @@ import {
   recheckPayment,
   cancelPayment,
   abandonPayment,
+  abandonStorageAttempt,
+  recheckStorageAttempt,
   retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
@@ -695,12 +697,19 @@ function BillingPageInner() {
           );
           refresh();
           break;
-        case "PENDING":
+        case "PENDING": {
+          const pendingAttempts =
+            result.summary?.storageAttempts.filter(
+              (attempt) => attempt.outcome === "STILL_PENDING",
+            ).length ?? 0;
           addToast(
-            "Your provider is still settling a payment. Check again in a few minutes — nothing is charged twice.",
+            pendingAttempts > 0
+              ? `${pendingAttempts} storage approval ${pendingAttempts === 1 ? "is" : "are"} still awaiting customer action at the provider.`
+              : "Your provider confirms that a billing item is still pending.",
             "info",
           );
           break;
+        }
         case "ACTION_REQUIRED":
           addToast(
             "Something on this account needs our help. Please contact support.",
@@ -839,6 +848,88 @@ function BillingPageInner() {
       }
     },
     [confirm, addToast, refresh],
+  );
+
+  const handleRecheckAddon = useCallback(
+    async (addonId: string) => {
+      if (!selected || cancelAddonBusy) return;
+      setCancelAddonBusy(addonId);
+      try {
+        const result = await recheckStorageAttempt(selected, addonId);
+        if (result.outcome === "STILL_PENDING" && result.resumeUrl) {
+          const url = new URL(result.resumeUrl);
+          if (
+            url.protocol !== "https:" ||
+            !["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)
+          ) {
+            throw new Error("Unexpected PayPal approval URL");
+          }
+          window.location.href = url.toString();
+          return;
+        }
+        addToast(
+          result.outcome === "UPDATED"
+            ? "The provider confirmed a new state for this storage attempt."
+            : result.outcome === "STILL_PENDING"
+              ? "PayPal still has this approval open, but did not provide a resumable approval link."
+              : "This attempt could not be resolved automatically. Its local status was not guessed.",
+          result.outcome === "UPDATED" ? "success" : "info",
+        );
+        refresh();
+      } catch (err) {
+        captureException(err, { feature: "billing_storage_attempt_recheck" });
+        addToast("We could not verify this storage attempt. Nothing was changed.", "error");
+      } finally {
+        setCancelAddonBusy(null);
+      }
+    },
+    [selected, cancelAddonBusy, addToast, refresh],
+  );
+
+  const handleAbandonAddon = useCallback(
+    async (addonId: string) => {
+      if (!selected || cancelAddonBusy) return;
+      setCancelAddonBusy(addonId);
+      try {
+        const first = await abandonStorageAttempt(selected, addonId);
+        if (first.outcome !== "ABANDON_CONFIRMATION_REQUIRED") {
+          addToast(
+            first.outcome === "STILL_PENDING"
+              ? "The provider still has this approval open, so it was not abandoned locally."
+              : "The provider supplied a definitive state, so PROOVRA recorded that instead.",
+            "info",
+          );
+          refresh();
+          return;
+        }
+        const ok = await confirm({
+          title: "Abandon this storage attempt?",
+          description:
+            (("warning" in first && first.warning) ??
+              "The provider could not verify this attempt.") +
+            " If the provider later confirms activation, PROOVRA will still apply it.",
+          confirmLabel: "Abandon local attempt",
+          cancelLabel: "Keep pending",
+          tone: "warning",
+          testId: "billing-abandon-storage-attempt",
+        });
+        if (!ok) return;
+        const result = await abandonStorageAttempt(selected, addonId, true);
+        addToast(
+          result.outcome === "ABANDONED"
+            ? "The unresolved local attempt is no longer blocking a new checkout. Nothing was changed at the provider."
+            : "This storage attempt was already resolved.",
+          result.outcome === "ABANDONED" ? "success" : "info",
+        );
+        refresh();
+      } catch (err) {
+        captureException(err, { feature: "billing_storage_attempt_abandon" });
+        addToast("We could not abandon this attempt. Nothing was changed.", "error");
+      } finally {
+        setCancelAddonBusy(null);
+      }
+    },
+    [selected, cancelAddonBusy, confirm, addToast, refresh],
   );
 
   /**
@@ -1073,6 +1164,8 @@ function BillingPageInner() {
                 onManageStorage={() => setCheckout({ kind: "STORAGE" })}
                 onChoosePlan={() => openPlanManagement()}
                 onCancelAddon={(id) => void handleCancelAddon(id)}
+                onRecheckAddon={(id) => void handleRecheckAddon(id)}
+                onAbandonAddon={(id) => void handleAbandonAddon(id)}
                 cancelBusyId={cancelAddonBusy}
               />
             </div>
@@ -1095,6 +1188,11 @@ function BillingPageInner() {
               onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
               rowBusyId={paymentBusyId}
               resumeUrls={resumeUrls}
+              storageAttempts={
+                projection.storageAddons?.active.filter(
+                  (addon) => addon.status !== "ACTIVE" && addon.status !== "PAST_DUE",
+                ) ?? []
+              }
               onRecheck={() => void handleAccountRecheck()}
               accessKind={projection.plan.accessKind}
             />

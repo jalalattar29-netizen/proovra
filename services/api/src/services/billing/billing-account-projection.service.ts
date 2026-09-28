@@ -78,6 +78,7 @@ import { listStorageAddonDefinitions } from "../billing.service.js";
 import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
 import {
   getPlanPriceCents,
+  getStorageAddonCurrency,
   getStorageAddonPriceCents,
   resolveCheckoutCurrency,
   type BillingCurrency,
@@ -416,6 +417,12 @@ export type ActiveStorageAddon = {
    * decision in the one place that must not hold them.
    */
   canCancel: boolean;
+  canRecheck: boolean;
+  canAbandon: boolean;
+  attemptReference: string;
+  paymentProvider: string | null;
+  providerReference: string | null;
+  createdAtUtc: string;
   activatedAtUtc: string | null;
   currentPeriodEndUtc: string | null;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
@@ -761,8 +768,11 @@ async function activeAddonsFor(params: {
       status: true,
       activatedAtUtc: true,
       currentPeriodEnd: true,
+      paymentProvider: true,
+      externalSubscriptionId: true,
       amountCents: true,
       currency: true,
+      createdAt: true,
     },
   });
 
@@ -784,6 +794,18 @@ async function activeAddonsFor(params: {
         !legacyOneTime &&
         (r.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
           r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE),
+      canRecheck:
+        params.canPurchaseAddons &&
+        !legacyOneTime &&
+        r.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+      canAbandon:
+        params.canPurchaseAddons &&
+        !legacyOneTime &&
+        r.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+      attemptReference: `SA-${r.id.slice(0, 8).toUpperCase()}`,
+      paymentProvider: r.paymentProvider,
+      providerReference: r.externalSubscriptionId,
+      createdAtUtc: r.createdAt.toISOString(),
       activatedAtUtc: iso(r.activatedAtUtc),
       currentPeriodEndUtc: iso(r.currentPeriodEnd),
       ...(params.showAmounts
@@ -982,25 +1004,27 @@ function describeOffer(
  */
 function offersFor(params: {
   plan: prismaPkg.PlanType;
-  currency: BillingCurrency;
 }): StorageAddonOffer[] {
   return storageAddonOffersForPlan(params.plan)
-    .map((d) => ({
-      key: d.key,
-      label: d.label,
-      storageBytes: d.storageBytes.toString(),
-      storageLabel: formatBytesHuman(d.storageBytes),
-      priceCents: getStorageAddonPriceCents({
-        addonKey: d.key,
-        currency: params.currency,
-      }),
-      currency: params.currency,
-      // Every NEW storage add-on is a recurring monthly subscription. A
-      // one-time payment cannot fund perpetual storage, and the previous
-      // one-time SKU had no expiry writer at all — it granted capacity for
-      // ever, including after the base plan was cancelled.
-      billingCycle: "MONTHLY" as const,
-    }));
+    .map((d) => {
+      const currency = getStorageAddonCurrency({ addonKey: d.key });
+      return {
+        key: d.key,
+        label: d.label,
+        storageBytes: d.storageBytes.toString(),
+        storageLabel: formatBytesHuman(d.storageBytes),
+        priceCents: getStorageAddonPriceCents({
+          addonKey: d.key,
+          currency,
+        }),
+        currency,
+        // Every NEW storage add-on is a recurring monthly subscription. A
+        // one-time payment cannot fund perpetual storage, and the previous
+        // one-time SKU had no expiry writer at all — it granted capacity for
+        // ever, including after the base plan was cancelled.
+        billingCycle: "MONTHLY" as const,
+      };
+    });
 }
 
 // =============================================================================
@@ -1664,7 +1688,6 @@ export async function buildBillingAccountProjection(input: {
             offers: canAddon
               ? offersFor({
                   plan: scope.plan,
-                  currency,
                 })
               : [],
             active: await activeAddonsFor({

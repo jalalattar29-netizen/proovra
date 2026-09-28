@@ -11189,10 +11189,16 @@ limitationsSnapshot: true,
           key: latest.storageKey,
         });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(404).send({ message: "Report not found" });
+          return reply.code(410).send({
+            code: "report_artifact_missing",
+            message: "The stored report record exists, but its file is unavailable.",
+          });
         }
       } catch {
-        return reply.code(404).send({ message: "Report not found" });
+        return reply.code(410).send({
+          code: "report_artifact_missing",
+          message: "The stored report record exists, but its file is unavailable.",
+        });
       }
 
       await appendCustodyEvent({
@@ -11387,10 +11393,16 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           key: row.storageKey,
         });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(404).send({ message: "Report not found" });
+          return reply.code(410).send({
+            code: "report_artifact_missing",
+            message: "The stored report version exists, but its file is unavailable.",
+          });
         }
       } catch {
-        return reply.code(404).send({ message: "Report not found" });
+        return reply.code(410).send({
+          code: "report_artifact_missing",
+          message: "The stored report version exists, but its file is unavailable.",
+        });
       }
 
       await appendCustodyEvent({
@@ -11496,14 +11508,18 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           key: row.storageKey,
         });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply
-            .code(404)
-            .send({ message: "Verification package not found" });
+          return reply.code(410).send({
+            code: "verification_package_artifact_missing",
+            message:
+              "The stored verification package version exists, but its file is unavailable.",
+          });
         }
       } catch {
-        return reply
-          .code(404)
-          .send({ message: "Verification package not found" });
+        return reply.code(410).send({
+          code: "verification_package_artifact_missing",
+          message:
+            "The stored verification package version exists, but its file is unavailable.",
+        });
       }
 
       await appendCustodyEvent({
@@ -12195,14 +12211,18 @@ displayName: resolvedDisplayName,
           key: latest.storageKey,
         });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply
-            .code(404)
-            .send({ message: "Verification package not found" });
+          return reply.code(410).send({
+            code: "verification_package_artifact_missing",
+            message:
+              "The stored verification package record exists, but its file is unavailable.",
+          });
         }
       } catch {
-        return reply
-          .code(404)
-          .send({ message: "Verification package not found" });
+        return reply.code(410).send({
+          code: "verification_package_artifact_missing",
+          message:
+            "The stored verification package record exists, but its file is unavailable.",
+        });
       }
 
       const url = await presignGetObject({

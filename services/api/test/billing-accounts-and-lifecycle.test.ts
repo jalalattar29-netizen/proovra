@@ -299,13 +299,16 @@ describe("cancellation never claims more than the provider confirmed", () => {
     // rather than the bare update. The property is unchanged and the
     // assertion is now stronger: no branch anywhere in the service may write
     // the terminal status.
-    const updateBlock = src.slice(src.indexOf("tx.subscription.update"));
+    const updateBlock = src.slice(
+      src.indexOf("tx.subscription.update"),
+      src.indexOf("export async function terminalizePendingPlanCheckout"),
+    );
     // The terminal transition is the provider's own statement and arrives by
     // webhook. Writing it here recreates the disagreement.
     expect(updateBlock).not.toMatch(
       /status:\s*prismaPkg\.SubscriptionStatus\.CANCELED/,
     );
-    expect(src).not.toMatch(
+    expect(updateBlock).not.toMatch(
       /data:\s*\{[^}]*status:\s*prismaPkg\.SubscriptionStatus\.CANCELED/,
     );
     // Stripe's confirmed period-end schedule is still recorded.
@@ -364,6 +367,13 @@ describe("storage add-ons are recurring monthly, legacy purchases preserved", ()
     expect(fn).toMatch(/price_data\]\[recurring\]\[interval\]/);
   });
 
+  it("the pricing API publishes the same monthly cycle the checkout sells", async () => {
+    const src = await readSource("../src/services/billing-pricing.service.ts");
+    const storageProjection = src.slice(src.indexOf("storageAddons:"));
+    expect(storageProjection).toMatch(/billingCycle: "MONTHLY"/);
+    expect(storageProjection).not.toMatch(/billingCycle: "ONE_TIME"/);
+  });
+
   it("PayPal add-ons subscribe to the configured recurring plans", async () => {
     const map = await readSource("../src/services/paypal-plan-map.service.ts");
     // Twelve PAYPAL_PLAN_STORAGE_* ids were configured and read by no code.
@@ -407,22 +417,22 @@ describe("storage add-ons are recurring monthly, legacy purchases preserved", ()
     );
     expect(handlers).toMatch(/function storageAddonStatusFromSubscription/);
 
-    // Neither consumer may define its own.
-    for (const consumer of [
-      "../src/routes/webhooks.routes.ts",
+    const webhook = await readSource("../src/routes/webhooks.routes.ts");
+    expect(webhook).toMatch(/storageAddonStatusFromSubscription/);
+
+    // Reconciliation needs one extra historical fact the webhook mapping does
+    // not: whether this add-on was ever active. A provider FAILED observation
+    // means PAST_DUE only after activation; a never-active attempt is FAILED
+    // and must never grant grace capacity.
+    const reconciliation = await readSource(
       "../src/services/billing/reconciliation/reconciliation.service.ts",
-    ]) {
-      const src = await readSource(consumer);
-      expect(
-        src,
-        `${consumer} must IMPORT the shared mapping, never redefine it`,
-      ).not.toMatch(/function storageAddonStatusFromSubscription/);
-      expect(src).toMatch(/storageAddonStatusFromSubscription/);
-    }
+    );
+    expect(reconciliation).toMatch(/function storageStatusFromObservation/);
+    expect(reconciliation).toMatch(/addon\.activatedAtUtc/);
+    expect(reconciliation).toMatch(/WorkspaceStorageAddonStatus\.FAILED/);
 
     // Both branches previously logged "unsupported" and dropped the event, so a
     // cancelled add-on kept granting capacity.
-    const webhook = await readSource("../src/routes/webhooks.routes.ts");
     expect(webhook).not.toMatch(
       /unsupported\.storage_addon_subscription_event_ignored/,
     );

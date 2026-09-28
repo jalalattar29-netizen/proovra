@@ -37,6 +37,7 @@ const AGGREGATOR = read(
   "services/api/src/services/reports/reports-aggregator.service.ts",
 );
 const USER_ROUTE = read("services/api/src/routes/reports.routes.ts");
+const EVIDENCE_ROUTE = read("services/api/src/routes/evidence.routes.ts");
 
 // ---------------------------------------------------------------------------
 // The title
@@ -223,8 +224,10 @@ test("filters keep their canonical chip component and every state", () => {
     "all",
     "report_ready",
     "report_pending",
+    "report_failed",
     "package_ready",
     "package_pending",
+    "package_failed",
     "package_blocked",
   ]) {
     assert.match(
@@ -258,10 +261,35 @@ test("the user-scoped fallback fires ONLY on the unfiltered view", () => {
   );
 });
 
+test("the user-scoped fallback stays in the selected workspace and rows keep their authority", () => {
+  assert.match(INDEX, /`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}`/);
+  assert.match(INDEX, /teamId:\s*row\.teamId \?\? null/);
+  assert.match(INDEX, /teamId=\{row\.teamId\}/);
+});
+
+test("stored rows with missing objects return an explicit unavailable-artifact contract", () => {
+  for (const codeValue of [
+    "report_artifact_missing",
+    "verification_package_artifact_missing",
+  ]) {
+    assert.match(
+      EVIDENCE_ROUTE,
+      new RegExp(`reply\\.code\\(410\\)\\.send\\(\\{[\\s\\S]{0,120}code: "${codeValue}"`),
+    );
+    assert.match(INDEX, new RegExp(codeValue));
+  }
+});
+
+test("a historical package is disclosed without making the latest report package-ready", () => {
+  assert.match(INDEX, /Historical package ready/);
+  assert.match(INDEX, /row\.outputs\?\.verificationPackage\.latestAvailableVersion/);
+  assert.match(INDEX, /latest\s*\n?\s*report \{row\.report\.version \? `v\$\{row\.report\.version\}`/);
+});
+
 test("the summary is fetched independently of the list", () => {
   // Stronger than merging it out of the list response: the counters have their
   // OWN request and their OWN state, so a list query cannot blank them and a
-  // list refresh cannot delay them. Six workspace aggregations that no filter,
+  // list refresh cannot delay them. Workspace aggregations that no filter,
   // search or page can change are no longer recomputed per keystroke — which
   // is what made changing a filter feel like a page load.
   assert.match(INDEX, /const loadSummary = useCallback/);
@@ -311,7 +339,7 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
   // relation or JSON test the query actually sends.
   const block = AGGREGATOR.slice(AGGREGATOR.indexOf("function lifecycleWhere"));
   const cases: Array<[string, string]> = [
-    ["report_ready", "{ reports: { some: {} } }"],
+    ["report_ready", "{ id: { in: (await classified()).reportReady } }"],
     /*
      * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — `report_pending` is
      * no longer "no report row".
@@ -337,8 +365,9 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
      * services/api/test/reports-summary-filter-parity.integration.test.ts.
      */
     ["report_pending", "{ id: { in: (await classified()).reportPending } }"],
-    ["package_ready", "{ verificationPackages: { some: {} } }"],
+    ["package_ready", "{ id: { in: (await classified()).packageReady } }"],
     ["package_pending", "{ id: { in: (await classified()).packagePending } }"],
+    ["package_failed", "{ id: { in: (await classified()).packageFailed } }"],
   ];
   for (const [key, predicate] of cases) {
     assert.match(block, new RegExp(`case "${key}":`), `${key} has no branch`);
@@ -366,7 +395,9 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
   assert.ok(classifier.includes("projectReportRequestState"));
   assert.ok(classifier.includes("deriveEvidenceOutputState"));
   assert.ok(
-    classifier.includes('state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE"'),
+    classifier.includes(
+      'reportState === "RETRYABLE_FAILURE" || reportState === "TERMINAL_FAILURE"',
+    ),
     "failed = retryable or terminal failure",
   );
   assert.ok(
@@ -388,14 +419,14 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
   const blocked = block.slice(block.indexOf('case "package_blocked":'));
   assert.ok(
     pending.includes("packagePending") &&
-      classifier.includes("row._count.verificationPackages === 0") &&
-      classifier.includes("!readPackageBlocked(row.verificationPackageMetadata).blocked"),
+      classifier.includes('packageState === "QUEUED" || packageState === "GENERATING"') &&
+      classifier.includes("packageBlocked ? \"BLOCKED\" : rawPackageGeneration"),
     "package_pending must EXCLUDE the blocked ones",
   );
   assert.ok(
-    blocked.includes("verificationPackages: { none: {} }") &&
-      blocked.includes('verificationPackageMetadata: { path: ["blocked"]'),
-    "package_blocked must select on the blocked flag",
+    blocked.includes("(await classified()).packageBlocked") &&
+      classifier.includes('packageState === "BLOCKED"'),
+    "package_blocked must select the canonical blocked state",
   );
 
   // `all` widens to no predicate rather than filtering to nothing…
@@ -552,17 +583,18 @@ test("every filter maps to a predicate over the full dataset", () => {
   );
   const cases: Array<[string, RegExp]> = [
     ["all", /case "all":\s*\n\s*return null;/],
-    ["report_ready", /reports: \{ some: \{\} \}/],
+    ["report_ready", /case "report_ready":[\s\S]{0,200}reportReady/],
     ["report_pending", /case "report_pending":[\s\S]{0,200}reportPending/],
-    ["package_ready", /verificationPackages: \{ some: \{\} \}/],
-    ["package_blocked", /verificationPackageMetadata: \{ path: \["blocked"\], equals: true \}/],
+    ["package_ready", /case "package_ready":[\s\S]{0,200}packageReady/],
+    ["package_failed", /case "package_failed":[\s\S]{0,200}packageFailed/],
+    ["package_blocked", /case "package_blocked":[\s\S]{0,200}packageBlocked/],
   ];
   for (const [key, re] of cases) {
     assert.match(block, re, `${key} has no full-dataset predicate`);
   }
   // Pending is "no package AND not blocked" — the two are disjoint. The
   // classifier walks the WHOLE workspace in id-ordered batches, never a sample.
-  assert.match(AGGREGATOR, /!readPackageBlocked\(row\.verificationPackageMetadata\)\.blocked/);
+  assert.match(AGGREGATOR, /packageBlocked \? "BLOCKED" : rawPackageGeneration/);
   assert.match(AGGREGATOR, /id: \{ gt: after \}/);
 });
 

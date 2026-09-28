@@ -677,6 +677,7 @@ export async function applyPayPalSubscriptionState(params: {
     }
 
     await upsertWorkspaceStorageAddon({
+      attemptId: addon.attemptId,
       ownerUserId: addon.userId,
       teamId: addon.teamId,
       addonKey: addon.storageAddonKey,
@@ -685,6 +686,7 @@ export async function applyPayPalSubscriptionState(params: {
       paymentProvider: PROVIDER,
       externalSubscriptionId: subscriptionId,
       currentPeriodEnd,
+      observedAtUtc,
       metadata: { source: params.source },
     });
 

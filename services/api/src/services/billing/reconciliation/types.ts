@@ -148,6 +148,8 @@ export type SubscriptionObservation = {
    * service never asks for "all".
    */
   recentPayments: PaymentObservation[];
+  /** Fresh provider approval URL, only while customer action is still valid. */
+  resumeUrl?: string | null;
   failure?: ObservationFailure;
 };
 
@@ -209,6 +211,31 @@ export type ReconciliationOutcome =
   | "ACTION_REQUIRED"
   | "PROVIDER_UNAVAILABLE";
 
+export type StorageAttemptOutcome =
+  | "NOT_PROVIDER_BOUND"
+  | "STILL_PENDING"
+  | "UPDATED"
+  | "NO_CHANGE"
+  | "STALE_IGNORED"
+  | "PROVIDER_UNAVAILABLE"
+  | "PROVIDER_REFERENCE_NOT_FOUND"
+  | "PROVIDER_REFERENCE_INVALID"
+  | "PROVIDER_AUTHORIZATION_FAILED"
+  | "PROVIDER_MALFORMED";
+
+export type StorageAttemptReconciliation = {
+  attemptId: string;
+  kind: "STORAGE_ADDON";
+  addonKey: prismaPkg.StorageAddonKey;
+  createdAtUtc: string;
+  provider: prismaPkg.PaymentProvider | null;
+  providerBound: boolean;
+  previousStatus: prismaPkg.WorkspaceStorageAddonStatus;
+  currentStatus: prismaPkg.WorkspaceStorageAddonStatus;
+  outcome: StorageAttemptOutcome;
+  resumeUrl?: string | null;
+};
+
 /**
  * What a reconciliation run did, in categories a customer can read.
  *
@@ -241,6 +268,8 @@ export type ReconciliationSummary = {
    * did not match the server catalog. Counted, never described to the client.
    */
   discrepancies: number;
+  /** Safe per-attempt outcomes. Provider resource ids never leave the API. */
+  storageAttempts: StorageAttemptReconciliation[];
 };
 
 export function emptySummary(): ReconciliationSummary {
@@ -254,6 +283,7 @@ export function emptySummary(): ReconciliationSummary {
     actionRequired: 0,
     unavailable: 0,
     discrepancies: 0,
+    storageAttempts: [],
   };
 }
 

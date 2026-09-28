@@ -113,11 +113,25 @@ export function getStorageAddonPriceCents(params: {
 }
 
 export function getStorageAddonCurrency(params: {
+  addonKey: prismaPkg.StorageAddonKey;
   requestedCurrency?: string | null;
 }): BillingCurrency {
-  return resolveCheckoutCurrency({
-    requestedCurrency: params.requestedCurrency,
-  });
+  const definition = listStorageAddonDefinitions().find(
+    (item) => item.key === params.addonKey,
+  );
+  const configured = String(definition?.currency ?? "").trim().toUpperCase();
+  if (configured !== "USD" && configured !== "EUR") {
+    throw new Error(`Storage add-on ${params.addonKey} has no supported currency`);
+  }
+
+  const requested = params.requestedCurrency?.trim().toUpperCase();
+  if (requested && requested !== configured) {
+    throw new Error(
+      `Storage add-on currency mismatch: offered ${configured}, requested ${requested}`,
+    );
+  }
+
+  return configured;
 }
 
 export function getStripeStorageAddonPriceId(params: {
@@ -314,17 +328,20 @@ export function buildPricingCatalogResponse(params: {
         "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
       enterpriseFeatures: enterpriseCaps.enterpriseFeatures,
     },
-    storageAddons: listStorageAddonDefinitions().map((item) => ({
-      key: item.key,
-      billingShape: item.billingShape,
-      label: item.label,
-      storageBytes: Number(item.storageBytes),
-      priceCents: getStorageAddonPriceCents({
-        addonKey: item.key,
-        currency,
-      }),
-      currency,
-      billingCycle: "ONE_TIME" as const,
-    })),
+    storageAddons: listStorageAddonDefinitions().map((item) => {
+      const offerCurrency = getStorageAddonCurrency({ addonKey: item.key });
+      return {
+        key: item.key,
+        billingShape: item.billingShape,
+        label: item.label,
+        storageBytes: Number(item.storageBytes),
+        priceCents: getStorageAddonPriceCents({
+          addonKey: item.key,
+          currency: offerCurrency,
+        }),
+        currency: offerCurrency,
+        billingCycle: "MONTHLY" as const,
+      };
+    }),
   };
 }

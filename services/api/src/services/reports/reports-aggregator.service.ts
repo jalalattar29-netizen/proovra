@@ -86,6 +86,8 @@ export type TemplateProvenance = {
 
 export type ArtifactRow = {
   evidenceId: string;
+  /** The record's actual workspace binding; null for unresolved legacy rows. */
+  teamId: string | null;
   /**
    * The record's stored title, VERBATIM — `null` when there is none.
    *
@@ -212,8 +214,16 @@ export type ReportsArtifactsEnvelope = {
         packagesPending: number;
         /** Records with no package whose package generation is gate-blocked. */
         packagesBlocked: number;
+        /** Records whose latest-report package generation failed. */
+        packagesFailed: number;
+        /** Eligible records for which report generation has never been requested. */
+        reportsNotRequested: number;
+        /** Eligible records for which package generation has never been requested. */
+        packagesNotRequested: number;
         /** Records with at least one real artifact (report or package). */
         totalEvidenceWithArtifacts: number;
+        /** Stored report plus package version rows, including history. */
+        totalArtifactVersions: number;
       } | null;
     };
     artifacts: {
@@ -243,6 +253,7 @@ export type ReportLifecycleFilter =
   | "report_failed"
   | "package_ready"
   | "package_pending"
+  | "package_failed"
   | "package_blocked";
 
 // ---------------------------------------------------------------------------
@@ -404,10 +415,10 @@ export async function listWorkspaceArtifacts(input: {
   //
   // SKIPPABLE, and that is the performance fix.
   //
-  // These are WORKSPACE totals: six aggregate counts over the whole
+  // These are WORKSPACE totals: aggregate counts over the whole
   // population, unaffected by the page, the search or the lifecycle filter.
   // They were recomputed on EVERY list request, so each filter click and each
-  // debounced keystroke paid for six aggregations it could not change — which
+  // debounced keystroke paid for aggregations it could not change — which
   // is what made changing a filter feel like a page load.
   //
   // The caller fetches them once per workspace and asks for
@@ -450,11 +461,15 @@ export async function listWorkspaceArtifacts(input: {
       reportsReady,
       packagesReady,
       packagesBlocked,
+      packagesFailed,
       totalEvidenceWithArtifacts,
+      reportVersionCount,
+      packageVersionCount,
     ] = await Promise.all([
       countWhere("report_ready"),
       countWhere("package_ready"),
       countWhere("package_blocked"),
+      countWhere("package_failed"),
       prisma.evidence.count({
         where: {
           AND: [
@@ -468,6 +483,8 @@ export async function listWorkspaceArtifacts(input: {
           ],
         },
       }),
+      prisma.report.count({ where: { evidence: finalized } }),
+      prisma.verificationPackage.count({ where: { evidence: finalized } }),
     ]);
     summary = {
       status: "ok",
@@ -478,7 +495,11 @@ export async function listWorkspaceArtifacts(input: {
         packagesReady,
         packagesPending: classified.packagePending.length,
         packagesBlocked,
+        packagesFailed,
+        reportsNotRequested: classified.reportNotRequested.length,
+        packagesNotRequested: classified.packageNotRequested.length,
         totalEvidenceWithArtifacts,
+        totalArtifactVersions: reportVersionCount + packageVersionCount,
       },
     };
   } catch {
@@ -803,6 +824,7 @@ export async function listWorkspaceArtifacts(input: {
         const packageState = toPackageLifecycle(packageCanonicalState, blocked);
         return {
           evidenceId: r.id,
+          teamId: r.teamId ?? null,
           title: r.title ?? null,
           displayFileName: r.displayFileName ?? null,
           originalFileName: r.originalFileName ?? null,
@@ -926,31 +948,42 @@ function finalizedPopulation(scope: WorkspaceEvidenceScope): Prisma.EvidenceWher
  * volume into this one's result and silently truncated a large workspace.
  */
 export type ClassifiedWorkspaceOutputs = {
+  reportReady: string[];
   reportPending: string[];
   reportFailed: string[];
+  reportNotRequested: string[];
+  packageReady: string[];
   packagePending: string[];
+  packageFailed: string[];
+  packageBlocked: string[];
+  packageNotRequested: string[];
 };
 
 const CLASSIFY_BATCH = 1000;
 
 /**
- * Classifies every finalized record in the workspace that is MISSING an
- * artifact, through the same `deriveEvidenceOutputState` the list rows use.
+ * Classifies every finalized record in the workspace through the same
+ * `deriveEvidenceOutputState` the list rows use.
  *
  * Bounded in memory: records are read in id-ordered batches, each batch costs
- * one evidence read, one latest-request read and (only for records whose
- * latest request failed) one eligibility read. Only matching ids are kept.
- * Records that already hold both artifacts are never read — they cannot be
- * pending, failed or blocked, because READY wins the derivation.
+ * one evidence read plus batched report, package, request and eligibility
+ * reads. Only matching ids are kept. Every record must be classified because
+ * an historical package is not READY for a newer report version.
  */
 export async function classifyWorkspaceOutputs(input: {
   finalized: Prisma.EvidenceWhereInput;
   teamId: string;
 }): Promise<ClassifiedWorkspaceOutputs> {
   const out: ClassifiedWorkspaceOutputs = {
+    reportReady: [],
     reportPending: [],
     reportFailed: [],
+    reportNotRequested: [],
+    packageReady: [],
     packagePending: [],
+    packageFailed: [],
+    packageBlocked: [],
+    packageNotRequested: [],
   };
   let after: string | null = null;
   for (;;) {
@@ -958,19 +991,9 @@ export async function classifyWorkspaceOutputs(input: {
       id: string;
       status: string;
       verificationPackageMetadata: Prisma.JsonValue;
-      _count: { reports: number; verificationPackages: number };
     }> = await prisma.evidence.findMany({
       where: {
-        AND: [
-          input.finalized,
-          {
-            OR: [
-              { reports: { none: {} } },
-              { verificationPackages: { none: {} } },
-            ],
-          },
-          ...(after ? [{ id: { gt: after } }] : []),
-        ],
+        AND: [input.finalized, ...(after ? [{ id: { gt: after } }] : [])],
       },
       orderBy: { id: "asc" },
       take: CLASSIFY_BATCH,
@@ -978,74 +1001,93 @@ export async function classifyWorkspaceOutputs(input: {
         id: true,
         status: true,
         verificationPackageMetadata: true,
-        _count: { select: { reports: true, verificationPackages: true } },
       },
     });
     if (batch.length === 0) break;
     after = batch[batch.length - 1].id;
 
     const ids = batch.map((r) => r.id);
-    const requests = await prisma.reportGenerationRequest.findMany({
-      where: { evidenceId: { in: ids } },
-      orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
-      distinct: ["evidenceId"],
-      select: { evidenceId: true, state: true },
-    });
-    const generationById = new Map<string, OutputGenerationState>(
-      requests.map((q) => [
-        q.evidenceId,
-        projectReportRequestState(q.state as PersistedReportRequestState),
-      ]),
-    );
-
-    // Eligibility decides whether a failure reads "failed" or "not included",
-    // so it is resolved — once per batch — for the records that failed.
-    const failedIds = ids.filter((id) => {
-      const g = generationById.get(id);
-      return g === "RETRYABLE_FAILURE" || g === "TERMINAL_FAILURE";
-    });
-    const eligibility =
-      failedIds.length > 0
-        ? await resolveEvidenceOutputEligibilityMany({
-            evidenceIds: failedIds,
-            teamId: input.teamId,
-          })
-        : new Map<string, never>();
+    const [reports, packages, reportRequests, anyRequests, eligibility] =
+      await Promise.all([
+        prisma.report.findMany({
+          where: { evidenceId: { in: ids } },
+          orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
+          distinct: ["evidenceId"],
+          select: { evidenceId: true, version: true },
+        }),
+        prisma.verificationPackage.findMany({
+          where: { evidenceId: { in: ids } },
+          select: { evidenceId: true, version: true },
+        }),
+        prisma.reportGenerationRequest.findMany({
+          where: { evidenceId: { in: ids }, artifactType: "REPORT" },
+          orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+          distinct: ["evidenceId"],
+          select: { evidenceId: true, state: true },
+        }),
+        prisma.reportGenerationRequest.findMany({
+          where: { evidenceId: { in: ids } },
+          orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+          distinct: ["evidenceId"],
+          select: { evidenceId: true, state: true },
+        }),
+        resolveEvidenceOutputEligibilityMany({
+          evidenceIds: ids,
+          teamId: input.teamId,
+        }),
+      ]);
+    const latestReportById = new Map(reports.map((r) => [r.evidenceId, r.version]));
+    const packageVersionsById = new Map<string, Set<number>>();
+    for (const pkg of packages) {
+      const versions = packageVersionsById.get(pkg.evidenceId) ?? new Set<number>();
+      versions.add(pkg.version);
+      packageVersionsById.set(pkg.evidenceId, versions);
+    }
+    const generationMap = (rows: Array<{ evidenceId: string; state: string }>) =>
+      new Map<string, OutputGenerationState>(
+        rows.map((q) => [
+          q.evidenceId,
+          projectReportRequestState(q.state as PersistedReportRequestState),
+        ]),
+      );
+    const reportGenerationById = generationMap(reportRequests);
+    const packageGenerationById = generationMap(anyRequests);
 
     for (const row of batch) {
-      const generation = generationById.get(row.id) ?? "NOT_REQUESTED";
-      if (generation === "NOT_REQUESTED" || generation === "BLOCKED") continue;
       const record = resolveOutputRecordApplicability(row.status);
       const elig = eligibility.get(row.id) ?? null;
+      const latestReportVersion = latestReportById.get(row.id) ?? null;
+      const packageVersions = packageVersionsById.get(row.id);
+      const packageAtLatest = latestReportVersion != null
+        ? Boolean(packageVersions?.has(latestReportVersion))
+        : Boolean(packageVersions?.size);
+      const reportGeneration = reportGenerationById.get(row.id) ?? "NOT_REQUESTED";
+      const rawPackageGeneration = packageGenerationById.get(row.id) ?? "NOT_REQUESTED";
+      const packageBlocked = readPackageBlocked(row.verificationPackageMetadata).blocked;
 
-      if (row._count.reports === 0) {
-        const state = deriveEvidenceOutputState({
-          eligibility: elig?.reportEligibility ?? "ELIGIBLE",
-          generation,
-          availability: "NO_ARTIFACT",
-          record,
-        });
-        if (state === "QUEUED" || state === "GENERATING") {
-          out.reportPending.push(row.id);
-        } else if (state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE") {
-          out.reportFailed.push(row.id);
-        }
-      }
+      const reportState = deriveEvidenceOutputState({
+        eligibility: elig?.reportEligibility ?? "ELIGIBLE",
+        generation: reportGeneration,
+        availability: latestReportVersion != null ? "READY" : "NO_ARTIFACT",
+        record,
+      });
+      const packageState = deriveEvidenceOutputState({
+        eligibility: elig?.packageEligibility ?? "ELIGIBLE",
+        generation: packageBlocked ? "BLOCKED" : rawPackageGeneration,
+        availability: packageAtLatest ? "READY" : "NO_ARTIFACT",
+        record,
+      });
 
-      if (
-        row._count.verificationPackages === 0 &&
-        !readPackageBlocked(row.verificationPackageMetadata).blocked
-      ) {
-        const state = deriveEvidenceOutputState({
-          eligibility: elig?.packageEligibility ?? "ELIGIBLE",
-          generation,
-          availability: "NO_ARTIFACT",
-          record,
-        });
-        if (state === "QUEUED" || state === "GENERATING") {
-          out.packagePending.push(row.id);
-        }
-      }
+      if (reportState === "READY") out.reportReady.push(row.id);
+      else if (reportState === "QUEUED" || reportState === "GENERATING") out.reportPending.push(row.id);
+      else if (reportState === "RETRYABLE_FAILURE" || reportState === "TERMINAL_FAILURE") out.reportFailed.push(row.id);
+      else if (reportState === "ELIGIBLE_NOT_GENERATED") out.reportNotRequested.push(row.id);
+
+      if (packageState === "READY") out.packageReady.push(row.id);
+      else if (packageState === "QUEUED" || packageState === "GENERATING") out.packagePending.push(row.id);
+      else if (packageState === "RETRYABLE_FAILURE" || packageState === "TERMINAL_FAILURE") out.packageFailed.push(row.id);
+      else if (packageState === "BLOCKED") out.packageBlocked.push(row.id);
+      else if (packageState === "ELIGIBLE_NOT_GENERATED") out.packageNotRequested.push(row.id);
     }
 
     if (batch.length < CLASSIFY_BATCH) break;
@@ -1080,7 +1122,7 @@ async function lifecycleWhere(
     case "all":
       return null;
     case "report_ready":
-      return { reports: { some: {} } };
+      return { id: { in: (await classified()).reportReady } };
     case "report_pending":
       // Queued or running, with no report yet. A Free record that was never
       // entitled to a report has no request and is not pending.
@@ -1088,13 +1130,12 @@ async function lifecycleWhere(
     case "report_failed":
       return { id: { in: (await classified()).reportFailed } };
     case "package_ready":
-      return { verificationPackages: { some: {} } };
+      return { id: { in: (await classified()).packageReady } };
     case "package_pending":
       return { id: { in: (await classified()).packagePending } };
+    case "package_failed":
+      return { id: { in: (await classified()).packageFailed } };
     case "package_blocked":
-      return {
-        verificationPackages: { none: {} },
-        verificationPackageMetadata: { path: ["blocked"], equals: true },
-      };
+      return { id: { in: (await classified()).packageBlocked } };
   }
 }

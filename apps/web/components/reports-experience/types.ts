@@ -36,6 +36,8 @@ export type PackageLifecycle =
 
 export type ArtifactRow = {
   evidenceId: string;
+  /** Actual record workspace, not merely the workspace selected in the shell. */
+  teamId: string | null;
   /**
    * The stored title, VERBATIM — `null` when the record has none.
    *
@@ -127,7 +129,11 @@ export type ReportsSummary = {
   packagesReady: number;
   packagesPending: number;
   packagesBlocked: number;
+  packagesFailed?: number;
+  reportsNotRequested?: number;
+  packagesNotRequested?: number;
   totalEvidenceWithArtifacts: number;
+  totalArtifactVersions?: number;
 };
 
 export type ReportsArtifactsEnvelope = {
@@ -158,4 +164,5 @@ export type LifecycleFilter =
   | "report_failed"
   | "package_ready"
   | "package_pending"
+  | "package_failed"
   | "package_blocked";

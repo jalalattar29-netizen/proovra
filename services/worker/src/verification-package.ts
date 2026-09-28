@@ -3,7 +3,7 @@ import path from "node:path";
 // Phase 4B — lifecycle + exchange manifests integration.
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 void buildLifecycleAndExchangeManifests; // tree-shake guard
-import { createHash, sign as cryptoSign } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readFileSync, createWriteStream } from "node:fs";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -54,9 +54,9 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
-import { assertNotCommittedFixture } from "@proovra/shared-runtime";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import { assertWorkerSignerUsable } from "./signing/signer-control-guard.js";
+import { signPackageManifestDigest } from "./signing/package-signer.js";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -719,65 +719,6 @@ function sha256Hex(bufferOrText: Buffer | string): string {
   return createHash("sha256").update(bufferOrText).digest("hex");
 }
 
-function readPackageSigningPrivateKeyPem(): string {
-  const privateKeyPath =
-    process.env.PACKAGE_SIGNING_PRIVATE_KEY_PATH?.trim() ||
-    process.env.SIGNING_PRIVATE_KEY_PATH?.trim();
-
-  if (!privateKeyPath) {
-    throw new Error("PACKAGE_SIGNING_PRIVATE_KEY_PATH or SIGNING_PRIVATE_KEY_PATH is not set");
-  }
-
-  const resolvedPath = path.isAbsolute(privateKeyPath)
-    ? privateKeyPath
-    : path.resolve(process.cwd(), privateKeyPath);
-
-  // A verification package is the artifact a third party checks. Signing one
-  // with the repository's committed fixture would produce something that looks
-  // exactly like evidence and proves nothing, so the refusal sits here, on the
-  // path that actually reads the key.
-  assertNotCommittedFixture({ privateKeyPath: resolvedPath });
-
-  return readFileSync(resolvedPath, "utf8");
-}
-
-function readPackageSigningPublicKeyPem(): string {
-  const publicKeyPath =
-    process.env.PACKAGE_SIGNING_PUBLIC_KEY_PATH?.trim() ||
-    process.env.SIGNING_PUBLIC_KEY_PATH?.trim();
-
-  if (!publicKeyPath) {
-    throw new Error("PACKAGE_SIGNING_PUBLIC_KEY_PATH or SIGNING_PUBLIC_KEY_PATH is not set");
-  }
-
-  const resolvedPath = path.isAbsolute(publicKeyPath)
-    ? publicKeyPath
-    : path.resolve(process.cwd(), publicKeyPath);
-
-  return readFileSync(resolvedPath, "utf8");
-}
-
-function signPackageManifestDigest(digestHex: string) {
-  if (!/^[a-f0-9]{64}$/i.test(digestHex)) {
-    throw new Error("Package manifest digest must be a SHA-256 hex digest");
-  }
-
-const privateKeyPem = readPackageSigningPrivateKeyPem();
-  const signature = cryptoSign(null, Buffer.from(digestHex, "hex"), privateKeyPem);
-
-  return {
-    signatureBase64: signature.toString("base64"),
-    signingKeyId:
-      process.env.PACKAGE_SIGNING_KEY_ID?.trim() ||
-      process.env.SIGNING_KEY_ID?.trim() ||
-      "dw_ed25519",
-    signingKeyVersion:
-      process.env.PACKAGE_SIGNING_KEY_VERSION?.trim() ||
-      process.env.SIGNING_KEY_VERSION?.trim() ||
-      "1",
-  };
-}
-
 function jsonBuffer(value: unknown): Buffer {
   return Buffer.from(JSON.stringify(value, null, 2), "utf8");
 }
@@ -1024,32 +965,39 @@ function buildPackageChecksums(entries: PackageEntry[]) {
   };
 }
 
-function buildSignedManifest(params: {
+async function buildSignedManifest(params: {
   manifestBuffer: Buffer;
   signingKeyId?: string | null;
   signingKeyVersion?: number | null;
 }) {
   const manifestSha256 = sha256Hex(params.manifestBuffer);
-  const signature = signPackageManifestDigest(manifestSha256);
+  const signature = await signPackageManifestDigest(manifestSha256);
 
   return {
-    schema: "PROOVRA_SIGNED_PACKAGE_MANIFEST",
-    version: 2,
-    generatedAtUtc: new Date().toISOString(),
-    signatureAlgorithm: "ED25519",
-    digestAlgorithm: "SHA-256",
-    signingKeyId: signature.signingKeyId ?? params.signingKeyId ?? null,
-    signingKeyVersion:
-      signature.signingKeyVersion ??
-      (params.signingKeyVersion != null ? String(params.signingKeyVersion) : null),
-    manifestFile: "package-manifest.json",
-    manifestSha256,
-    publicKeyFile: "package-manifest-public-key.pem",
-    signatureBase64: signature.signatureBase64,
-    signatureInput:
-      "SHA-256 digest bytes of package-manifest.json signed with Ed25519 private key",
-    note:
-      "This is a private-key Ed25519 cryptographic signature over the SHA-256 digest of package-manifest.json.",
+    publicKeyPem: signature.publicKeyPem,
+    manifest: {
+      schema: "PROOVRA_SIGNED_PACKAGE_MANIFEST",
+      version: 2,
+      generatedAtUtc: new Date().toISOString(),
+      signatureAlgorithm:
+        signature.provider === "aws-kms" ? "ED25519_SHA_512" : "ED25519",
+      digestAlgorithm: "SHA-256",
+      signingKeyId: signature.signingKeyId ?? params.signingKeyId ?? null,
+      signingKeyVersion:
+        signature.signingKeyVersion ??
+        (params.signingKeyVersion != null
+          ? String(params.signingKeyVersion)
+          : null),
+      manifestFile: "package-manifest.json",
+      manifestSha256,
+      publicKeyFile: "package-manifest-public-key.pem",
+      signerProvider: signature.provider,
+      signatureBase64: signature.signatureBase64,
+      signatureInput:
+        "SHA-256 digest bytes of package-manifest.json signed by the identified Ed25519 signer",
+      note:
+        "This is an Ed25519 cryptographic signature over the SHA-256 digest of package-manifest.json.",
+    },
   };
 }
 
@@ -2831,25 +2779,25 @@ export async function createVerificationPackage(data: {
       "application/json"
     );
 
+    const signed = await buildSignedManifest({
+      manifestBuffer: packageManifestBuffer,
+      signingKeyId: data.signingKeyId ?? null,
+      signingKeyVersion: data.signingKeyVersion ?? null,
+    });
+
     appendPackageEntry(
-  archive,
-  packageEntries,
-  "package-manifest-public-key.pem",
-  textBuffer(readPackageSigningPublicKeyPem()),
-  "application/x-pem-file"
-);
+      archive,
+      packageEntries,
+      "package-manifest-public-key.pem",
+      textBuffer(signed.publicKeyPem),
+      "application/x-pem-file"
+    );
 
 appendPackageEntry(
   archive,
   packageEntries,
   "package-manifest.sig",
-  jsonBuffer(
-    buildSignedManifest({
-      manifestBuffer: packageManifestBuffer,
-      signingKeyId: data.signingKeyId ?? null,
-      signingKeyVersion: data.signingKeyVersion ?? null,
-    })
-  ),
+  jsonBuffer(signed.manifest),
   "application/json"
 );
     artifactPresence.signedManifestPresent = true;
