@@ -53,6 +53,7 @@ import {
   parsePayPalStorageAddonCustomId,
 } from "../paypal-checkout-policy.service.js";
 import {
+  currencyForPayPalBasePlanId,
   isPayPalStorageAddonPlanId,
   resolvePlanFromPayPalPlanId,
 } from "../paypal-plan-map.service.js";
@@ -838,6 +839,12 @@ export async function applyPayPalSubscriptionState(params: {
     plan = stored.plan;
   }
 
+  // What PayPal bills: the configured plan's currency, and the amount of the
+  // last payment PayPal reports (absent before the first charge).
+  const lastPayment = rec(rec(billingInfo?.last_payment)?.amount);
+  const billedCurrency =
+    currencyForPayPalBasePlanId(planId) ?? str(lastPayment?.currency_code)?.toUpperCase() ?? null;
+  const lastPaymentCents = centsFromValue(lastPayment?.value);
   await syncPlanForSubscription({
     userId: parsed.userId,
     plan,
@@ -847,6 +854,12 @@ export async function applyPayPalSubscriptionState(params: {
     status,
     currentPeriodEnd,
     observedAtUtc,
+    billedCurrency,
+    billedUnitAmountCents:
+      lastPaymentCents !== null &&
+      str(lastPayment?.currency_code)?.toUpperCase() === billedCurrency
+        ? lastPaymentCents
+        : null,
   });
 
   await recordPlanAttemptOutcome({

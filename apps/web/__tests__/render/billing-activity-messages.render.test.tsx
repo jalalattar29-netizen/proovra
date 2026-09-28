@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeAttemptRecheck,
   describeReconciliation,
+  safeCheckoutResumeUrl,
   safePayPalResumeUrl,
 } from "../../app/(app)/billing/_sections/billingMessages";
 import type {
@@ -153,5 +154,35 @@ describe("resume links", () => {
     expect(safePayPalResumeUrl("https://paypal.com.evil.example/x")).toBeNull();
     expect(safePayPalResumeUrl("javascript:alert(1)")).toBeNull();
     expect(safePayPalResumeUrl(null)).toBeNull();
+  });
+});
+
+describe("card (Stripe) attempts", () => {
+  it.each([
+    "PROVIDER_REFERENCE_NOT_FOUND",
+    "NOT_PROVIDER_BOUND",
+    "PROVIDER_UNAVAILABLE",
+    "PROVIDER_AUTHORIZATION_FAILED",
+    "STILL_PENDING",
+    "UPDATED",
+  ] as const)("%s never mentions PayPal", (outcome) => {
+    const n = describeAttemptRecheck(attempt(outcome, { provider: "STRIPE" }));
+    expect(n.message).toMatch(/Stripe/);
+    expect(n.message).not.toMatch(/PayPal/);
+  });
+
+  it("an open Stripe page offers to continue checkout only with a resume link", () => {
+    expect(
+      describeAttemptRecheck(attempt("STILL_PENDING", { provider: "STRIPE", resumeUrl: "https://checkout.stripe.com/c/pay/cs_1" })).message,
+    ).toMatch(/continue checkout/);
+  });
+
+  it("only Stripe's hosted checkout (or PayPal) is followed as a checkout link", () => {
+    expect(safeCheckoutResumeUrl("https://checkout.stripe.com/c/pay/cs_test_1")).not.toBeNull();
+    expect(safeCheckoutResumeUrl("https://www.paypal.com/checkoutnow?token=X")).not.toBeNull();
+    expect(safeCheckoutResumeUrl("https://checkout.stripe.com.evil.example/x")).toBeNull();
+    expect(safeCheckoutResumeUrl("http://checkout.stripe.com/x")).toBeNull();
+    expect(safeCheckoutResumeUrl("https://dashboard.stripe.com/x")).toBeNull();
+    expect(safePayPalResumeUrl("https://checkout.stripe.com/c/pay/cs_1")).toBeNull();
   });
 });

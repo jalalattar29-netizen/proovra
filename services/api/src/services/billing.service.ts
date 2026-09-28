@@ -473,7 +473,19 @@ export async function upsertSubscription(params: {
   currentPeriodEnd?: Date | null;
   teamId?: string | null;
   observedAtUtc?: Date | null;
+  /**
+   * BILLING (2026-09-28) — what the PROVIDER bills, when this fact carries
+   * it. Absent leaves the recorded value; it is never guessed.
+   */
+  billedCurrency?: string | null;
+  billedUnitAmountCents?: number | null;
 }) {
+  const billed = {
+    ...(params.billedCurrency ? { billedCurrency: params.billedCurrency.toUpperCase() } : {}),
+    ...(typeof params.billedUnitAmountCents === "number" && params.billedUnitAmountCents >= 0
+      ? { billedUnitAmountCents: params.billedUnitAmountCents }
+      : {}),
+  };
   const existing = await prisma.subscription.findUnique({
     where: {
       provider_providerSubId: {
@@ -565,6 +577,7 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
@@ -598,6 +611,7 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),

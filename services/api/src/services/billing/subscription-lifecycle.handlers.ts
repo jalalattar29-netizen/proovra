@@ -72,6 +72,9 @@ export async function syncPlanForSubscription(params: {
   status: prismaPkg.SubscriptionStatus;
   currentPeriodEnd?: Date | null;
   observedAtUtc?: Date | null;
+  /** Provider-billed currency / unit amount, when this fact carries them. */
+  billedCurrency?: string | null;
+  billedUnitAmountCents?: number | null;
 }) {
   // BILLING CHECKOUT ATTEMPTS (2026-09-28) — what this subscription was
   // BEFORE this fact, so a cancellation can tell whether it ever carried the
@@ -95,6 +98,8 @@ export async function syncPlanForSubscription(params: {
     currentPeriodEnd: params.currentPeriodEnd ?? null,
     teamId: params.teamId ?? null,
     observedAtUtc: params.observedAtUtc ?? null,
+    billedCurrency: params.billedCurrency ?? null,
+    billedUnitAmountCents: params.billedUnitAmountCents ?? null,
   });
 
   // ===========================================================================

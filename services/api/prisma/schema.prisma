@@ -2326,6 +2326,13 @@ model Subscription {
   /// customer has already paid the current period for. Both columns are set
   /// only after the provider accepts the schedule, and are cleared by the
   /// webhook that applies it.
+  /// BILLING CHECKOUT ATTEMPTS (2026-09-28) — what the PROVIDER bills this
+  /// subscription in, recorded from provider facts (Stripe `currency` and
+  /// price `unit_amount`; PayPal `plan_id` currency and last payment). NULL =
+  /// never observed (legacy rows); the Billing page then shows no price rather
+  /// than a guessed one.
+  billedCurrency            String?            @map("billed_currency") @db.VarChar(8)
+  billedUnitAmountCents     Int?               @map("billed_unit_amount_cents")
   pendingPlan               PlanType?          @map("pending_plan")
   pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
   createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -3653,6 +3660,9 @@ model BillingCheckoutAttempt {
   provider           PaymentProvider
   /// PLAN attempts only: the tier being bought.
   planKey            PlanType?                    @map("plan_key")
+  /// STORAGE_ADDON attempts only (Stripe): the SKU being bought. PayPal
+  /// storage attempts keep using their own `workspace_storage_addons` rows.
+  storageAddonKey    StorageAddonKey?             @map("storage_addon_key")
   /// Server price at creation. Never a client value.
   amountCents        Int                          @map("amount_cents")
   currency           String                       @db.VarChar(8)
@@ -3685,6 +3695,8 @@ model BillingCheckoutAttempt {
 enum BillingCheckoutProduct {
   PLAN
   EVIDENCE_CREDIT
+  /// Stripe storage add-on checkouts (2026-09-28).
+  STORAGE_ADDON
 }
 
 enum BillingCheckoutAttemptStatus {

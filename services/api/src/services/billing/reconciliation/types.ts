@@ -209,7 +209,7 @@ export type PaymentCancellationResult =
   /** It had already settled or already ended. Nothing to stop. */
   | { outcome: "ALREADY_TERMINAL"; state: ObservedState }
   /** Unreachable or malformed. Nothing was written anywhere. */
-  | { outcome: "PROVIDER_UNAVAILABLE" };
+  | { outcome: "PROVIDER_UNAVAILABLE"; failure?: ObservationFailure };
 
 /** A safe, user-facing reconciliation outcome. Contains no provider data. */
 export type ReconciliationOutcome =

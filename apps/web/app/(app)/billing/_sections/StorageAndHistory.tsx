@@ -762,7 +762,7 @@ export function BillingActivityList({
                     rel="noopener noreferrer"
                     data-billing-activity-resume={item.id}
                   >
-                    Continue at PayPal
+                    {item.providerLabel === "PayPal" ? "Continue at PayPal" : "Continue checkout"}
                   </a>
                 ) : null}
                 {item.actions.canRecheck && onRecheck ? (

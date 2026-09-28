@@ -31,12 +31,12 @@ import {
   getStorageAddonDefinition,
   setPersonalPlan,
 } from "../services/billing.service.js";
+import { createPayPalStorageAddonCheckout } from "../services/billing-checkout.service.js";
 import {
-  createStripeCheckoutSession,
-  createStripeEvidenceCreditCheckout,
-  createStripeStorageAddonCheckoutSession,
-  createPayPalStorageAddonCheckout,
-} from "../services/billing-checkout.service.js";
+  startStripeCreditCheckout,
+  startStripePlanCheckout,
+  startStripeStorageCheckout,
+} from "../services/billing/stripe-checkout-start.service.js";
 import { prisma } from "../db.js";
 // PAYPAL END-TO-END (2026-09-25) — the return routes settle through the SAME
 // service the verified webhook uses; neither trusts the browser's success flag.
@@ -76,7 +76,10 @@ import {
   readBillingActivityForAccount,
   recheckBillingAttempt,
 } from "../services/billing/billing-activity.service.js";
-import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
+import {
+  requestSubscriptionCancellation,
+  requestSubscriptionResume,
+} from "../services/billing/subscription-cancellation.service.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE authority that
 // decides what a requested plan change IS. No route compares plans itself.
 import {
@@ -1005,6 +1008,50 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   /**
+   * BILLING RESTART (2026-09-28) — undo a cancellation that is SCHEDULED for
+   * period end. Stripe only: a PayPal cancellation is immediate and final at
+   * PayPal, and the service refuses it with that explanation. The provider is
+   * asked first; nothing local changes unless it confirms.
+   */
+  app.post(
+    "/v1/billing/subscription/resume",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      CancelSubscriptionBody.parse(req.body ?? {});
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+      const subscription = await findLivePersonalSubscription(userId);
+      if (!subscription) {
+        return reply.code(404).send({
+          error: {
+            code: "SUBSCRIPTION_NOT_FOUND",
+            message: "There is no subscription to restart.",
+          },
+        });
+      }
+      const outcome = await requestSubscriptionResume({ subscriptionId: subscription.id });
+      auditBillingAction(req, {
+        userId,
+        action: "billing.subscription_resume",
+        outcome: "success",
+        resourceId: subscription.id,
+        providerEventId: subscription.providerSubId,
+        metadata: {
+          result: outcome.result,
+          provider: outcome.provider,
+          dependentAddonsStillEnding: outcome.dependentAddonsStillEnding,
+        },
+      });
+      return reply.code(200).send({ resume: outcome });
+    }
+  );
+
+  /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — cancel a RECURRING storage
    * add-on.
    *
@@ -1669,12 +1716,21 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_MANAGE",
       });
 
-      const result = await createStripeCheckoutSession({
+      // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a durable attempt first,
+      // then the session under that attempt's Idempotency-Key.
+      const started = await startStripePlanCheckout({
         userId,
-        plan: body.plan,
+        plan: body.plan as "PRO" | "TEAM",
         currency: body.currency,
         teamId: body.teamId ?? null,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,
@@ -1900,10 +1956,17 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_ADDON_PURCHASE",
       });
 
-      const result = await createStripeEvidenceCreditCheckout({
+      const started = await startStripeCreditCheckout({
         userId,
         currency: body.currency,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,
@@ -2150,14 +2213,20 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
-      const result = await createStripeStorageAddonCheckoutSession({
+      const started = await startStripeStorageCheckout({
         userId,
         addonKey: body.addonKey,
-        billingCycle: body.billingCycle,
         currency: offerCurrency,
         teamId: body.teamId ?? null,
         workspacePlan: scope.plan,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,

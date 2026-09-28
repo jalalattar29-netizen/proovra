@@ -3184,6 +3184,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='billing_checkout_attempts'\"",
       "evidence": "BILLING CHECKOUT ATTEMPTS (2026-09-28). Creates one table (billing_checkout_attempts) and two enums (BillingCheckoutProduct, BillingCheckoutAttemptStatus); nothing existing is altered, dropped or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the table, and code built after it needs the table to exist before it serves PayPal plan or evidence-credit checkouts, so apply before deploying the API. Pre-existing TRIALING PayPal subscriptions keep working without a row (read as legacy attempts)."
+    },
+    "20280710000000_billing_stripe_attempts_billed_currency": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='subscriptions' AND column_name='billed_currency'\"",
+      "evidence": "BILLING STRIPE ATTEMPTS + BILLED CURRENCY (2026-09-28). Adds the enum value STORAGE_ADDON to BillingCheckoutProduct (ADD VALUE IF NOT EXISTS), a nullable billing_checkout_attempts.storage_addon_key, and nullable subscriptions.billed_currency / billed_unit_amount_cents. No row is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW. Rolling-deploy caveat: once a Stripe storage checkout records a STORAGE_ADDON attempt, an API instance built from an older Prisma client cannot deserialize that row, so older instances must be drained before the new image serves Stripe storage checkouts. Legacy subscriptions keep billed_currency NULL until a provider event or re-check observes it; Billing then shows no price rather than a guessed one."
     }
   }
 }

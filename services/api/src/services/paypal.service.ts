@@ -752,8 +752,10 @@ export async function cancelPayPalSubscription(
   );
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal cancel subscription error: ${text}`);
+    // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a classified error (status,
+    // PayPal error name), so a caller can tell "PayPal refuses to cancel a
+    // subscription in this state" (422) from an outage. Still an `Error`.
+    await readPayPalError(res, "PayPal cancel subscription error:");
   }
 
   return true;

@@ -157,7 +157,9 @@ const NOT_APPLIED = "It has not produced a payment, so it is not in your payment
 export function activityCopy(
   state: BillingActivityState,
   product: CheckoutAttemptProduct,
+  provider: prismaPkg.PaymentProvider | null = prismaPkg.PaymentProvider.PAYPAL,
 ): { statusLabel: string; explanation: string } {
+  if (provider === prismaPkg.PaymentProvider.STRIPE) return stripeActivityCopy(state, product);
   const grants =
     product === "PLAN"
       ? "the plan"
@@ -221,6 +223,70 @@ export function activityCopy(
       return {
         statusLabel: "Abandoned",
         explanation: "You stopped this attempt in PROOVRA. That did not cancel anything at PayPal; if PayPal ever confirms a payment for it, PROOVRA will still apply it.",
+      };
+  }
+}
+
+/** The same states, told truthfully for a Stripe (card) Checkout Session. */
+function stripeActivityCopy(
+  state: BillingActivityState,
+  product: CheckoutAttemptProduct,
+): { statusLabel: string; explanation: string } {
+  const grants = product === "PLAN" ? "The plan" : product === "STORAGE" ? "The storage" : "The credit";
+  switch (state) {
+    case "STARTING":
+      return { statusLabel: "Starting", explanation: "This card checkout is being opened with Stripe." };
+    case "AWAITING_APPROVAL":
+      return {
+        statusLabel: "Waiting for payment",
+        explanation: `The Stripe payment page is open and unpaid. Nothing is charged unless you complete it. ${NOT_APPLIED}`,
+      };
+    case "NOT_CONFIRMED_BY_PROVIDER":
+      return {
+        statusLabel: "Not confirmed",
+        explanation: `Stripe never confirmed that this checkout was created, so there is nothing to pay from PROOVRA. ${NOT_APPLIED}`,
+      };
+    case "PROVIDER_NO_RECORD":
+      return {
+        statusLabel: "No record at Stripe",
+        explanation: `Stripe no longer has a record of this checkout. ${NOT_APPLIED}`,
+      };
+    case "PROVIDER_UNREACHABLE":
+      return {
+        statusLabel: "Status unknown",
+        explanation: `Stripe could not be reached the last time this was checked. Its status is unknown, not pending. ${NOT_APPLIED}`,
+      };
+    case "PROVIDER_UNVERIFIED":
+      return {
+        statusLabel: "Status unknown",
+        explanation: `Stripe could not confirm this checkout the last time it was checked. ${NOT_APPLIED}`,
+      };
+    case "PROCESSING":
+      return {
+        statusLabel: "Processing",
+        explanation: `You completed checkout and your payment method is still settling. ${grants} is added when Stripe reports the payment.`,
+      };
+    case "NEEDS_REVIEW":
+      return {
+        statusLabel: "Being reviewed",
+        explanation: "Stripe's amount for this purchase did not match our price, so nothing was added automatically. Support will review it; contact us if you were charged.",
+      };
+    case "FAILED":
+      return { statusLabel: "Failed", explanation: "Stripe did not complete this purchase. Nothing was added." };
+    case "CANCELED":
+      return {
+        statusLabel: "Canceled",
+        explanation: "This checkout page was closed at Stripe before any payment. Nothing was charged or added.",
+      };
+    case "EXPIRED":
+      return {
+        statusLabel: "Expired",
+        explanation: "The Stripe payment page expired before it was paid. Nothing was charged or added.",
+      };
+    case "ABANDONED":
+      return {
+        statusLabel: "Abandoned",
+        explanation: "You stopped this attempt in PROOVRA. If Stripe ever confirms a payment for it, PROOVRA will still apply it.",
       };
   }
 }
@@ -314,7 +380,8 @@ export async function readBillingActivityForAccount(input: {
   );
 
   for (const a of attempts) {
-    const product: CheckoutAttemptProduct = a.product === "PLAN" ? "PLAN" : "EVIDENCE_CREDIT";
+    const product: CheckoutAttemptProduct =
+      a.product === "PLAN" ? "PLAN" : a.product === "STORAGE_ADDON" ? "STORAGE" : "EVIDENCE_CREDIT";
     const check = lastCheck(a.metadata);
     const state = activityStateFor({
       status: a.status,
@@ -323,7 +390,7 @@ export async function readBillingActivityForAccount(input: {
       lastCheckOutcome: check.outcome,
       ageMs: now.getTime() - a.createdAt.getTime(),
     });
-    const copy = activityCopy(state, product);
+    const copy = activityCopy(state, product, a.provider);
     const credits = EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase;
     items.push({
       id: a.id,
@@ -331,14 +398,16 @@ export async function readBillingActivityForAccount(input: {
       description:
         product === "PLAN"
           ? `${getPlanCapabilities(a.planKey ?? prismaPkg.PlanType.PRO).displayName} plan`
-          : credits === 1
+          : product === "STORAGE"
+            ? `${listStorageAddonDefinitions().find((d) => d.key === a.storageAddonKey)?.label ?? "Storage"} storage add-on`
+            : credits === 1
             ? "Evidence credit"
             : `${credits} evidence credits`,
       providerLabel: providerLabel(a.provider),
       createdAtUtc: a.createdAt.toISOString(),
       state,
       ...copy,
-      recurring: product === "PLAN",
+      recurring: product === "PLAN" || product === "STORAGE",
       lastCheckedAtUtc: check.atUtc,
       ...(showAmounts ? { amountCents: a.amountCents, currency: a.currency } : {}),
       actions: actionsFor(account, product, state),
@@ -355,7 +424,7 @@ export async function readBillingActivityForAccount(input: {
       providerLabel: providerLabel(sub.provider),
       createdAtUtc: sub.createdAt.toISOString(),
       state,
-      ...activityCopy(state, "PLAN"),
+      ...activityCopy(state, "PLAN", sub.provider),
       recurring: true,
       lastCheckedAtUtc: null,
       actions: actionsFor(account, "PLAN", state),
@@ -382,7 +451,7 @@ export async function readBillingActivityForAccount(input: {
       providerLabel: providerLabel(row.paymentProvider),
       createdAtUtc: row.createdAt.toISOString(),
       state,
-      ...activityCopy(state, "STORAGE"),
+      ...activityCopy(state, "STORAGE", row.paymentProvider),
       recurring: true,
       lastCheckedAtUtc: check.atUtc,
       ...(showAmounts && row.amountCents !== null && row.currency
@@ -451,7 +520,15 @@ async function resolveOwnedAttempt(
     select: { product: true },
   });
   if (attempt) {
-    return { product: attempt.product === "PLAN" ? "PLAN" : "EVIDENCE_CREDIT", storage: false };
+    return {
+      product:
+        attempt.product === "PLAN"
+          ? "PLAN"
+          : attempt.product === "STORAGE_ADDON"
+            ? "STORAGE"
+            : "EVIDENCE_CREDIT",
+      storage: false,
+    };
   }
   const legacy = await prisma.subscription.findFirst({
     where: { id: attemptId, userId: account.id, status: prismaPkg.SubscriptionStatus.TRIALING },
@@ -539,10 +616,16 @@ export type BillingAttemptAbandonResult = {
     | "ALREADY_ABANDONED"
     | "ALREADY_RESOLVED"
     | "ABANDON_NOT_ALLOWED"
+    | "PROVIDER_CANCEL_FAILED"
     | "PROVIDER_STATE_RECORDED";
   warning?: string;
-  /** Abandonment is local only. It never cancels anything at the provider. */
-  cancelsAtProvider: false;
+  /**
+   * True ONLY when the provider confirmed it stopped the checkout (Stripe
+   * expired the session; PayPal cancelled the unapproved subscription), or —
+   * on a confirmation request — when PROOVRA will ask it to. Otherwise the
+   * abandonment is local only.
+   */
+  cancelsAtProvider: boolean;
   currentStatus?: string;
 };
 
@@ -556,11 +639,12 @@ function normalizeAbandon(
     case "ALREADY_ABANDONED":
     case "ALREADY_RESOLVED":
     case "ABANDON_NOT_ALLOWED":
+    case "PROVIDER_CANCEL_FAILED":
       return {
         attemptId,
         outcome: r.outcome,
         ...("warning" in r && r.warning ? { warning: r.warning } : {}),
-        cancelsAtProvider: false,
+        cancelsAtProvider: "cancelsAtProvider" in r ? r.cancelsAtProvider === true : false,
       };
     case "UPDATED":
       return {

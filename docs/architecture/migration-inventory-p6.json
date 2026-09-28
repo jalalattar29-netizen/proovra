@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 281,
-    "classifiedMigrations": 281,
+    "filesystemMigrations": 282,
+    "classifiedMigrations": 282,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 281,
+    "productionSnapshotUnknown": 282,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 281,
-    "classifiedMigrations": 281,
+    "filesystemMigrations": 282,
+    "classifiedMigrations": 282,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 281,
+    "productionSnapshotUnknown": 282,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 59,
+      "EXPAND": 60,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 70,
+      "SAFE_TO_APPLY_NOW": 71,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 281
+    "ProductionMigrationStateUnknown": 282
   },
   "gateFailures": [],
   "migrations": [
@@ -21721,7 +21721,7 @@
       "checksumSha256": "63501d4631d128af2ec865a81def921822c8e12902c570c5d7137b3732617852",
       "checksumSha256Raw": "63501d4631d128af2ec865a81def921822c8e12902c570c5d7137b3732617852",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -21789,8 +21789,77 @@
       "evidence": "BILLING CHECKOUT ATTEMPTS (2026-09-28). Creates one table (billing_checkout_attempts) and two enums (BillingCheckoutProduct, BillingCheckoutAttemptStatus); nothing existing is altered, dropped or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the table, and code built after it needs the table to exist before it serves PayPal plan or evidence-credit checkouts, so apply before deploying the API. Pre-existing TRIALING PayPal subscriptions keep working without a row (read as legacy attempts)."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280710000000_billing_stripe_attempts_billed_currency",
       "order": 280,
+      "sqlPresent": true,
+      "byteLength": 610,
+      "checksumSha256": "71f97926bcd77ac5ecf60ae7741ae30ab64efd75c56236bf9a7e9861e7cd30a0",
+      "checksumSha256Raw": "71f97926bcd77ac5ecf60ae7741ae30ab64efd75c56236bf9a7e9861e7cd30a0",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:3 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "billing_checkout_attempts",
+          "subscriptions"
+        ],
+        "addedColumns": [
+          "billed_currency",
+          "billed_unit_amount_cents",
+          "storage_addon_key"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "billingcheckoutproduct"
+        ],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20280700000000_billing_checkout_attempts"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='subscriptions' AND column_name='billed_currency'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BILLING STRIPE ATTEMPTS + BILLED CURRENCY (2026-09-28). Adds the enum value STORAGE_ADDON to BillingCheckoutProduct (ADD VALUE IF NOT EXISTS), a nullable billing_checkout_attempts.storage_addon_key, and nullable subscriptions.billed_currency / billed_unit_amount_cents. No row is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW. Rolling-deploy caveat: once a Stripe storage checkout records a STORAGE_ADDON attempt, an API instance built from an older Prisma client cannot deserialize that row, so older instances must be drained before the new image serves Stripe storage checkouts. Legacy subscriptions keep billed_currency NULL until a provider event or re-check observes it; Billing then shows no price rather than a guessed one."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 281,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

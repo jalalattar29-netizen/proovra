@@ -93,21 +93,21 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:228",
+      "site": "services/api/src/services/stripe.service.ts:240",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:87",
+      "site": "services/api/src/services/stripe.service.ts:98",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:108",
+      "site": "services/api/src/services/stripe.service.ts:120",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
@@ -212,14 +212,14 @@
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:771",
+      "site": "services/api/src/services/paypal.service.ts:773",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/notifications/verify-webhook-signature. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:811",
+      "site": "services/api/src/services/paypal.service.ts:813",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v2/checkout/orders/:id/capture with PayPal-Request-Id proovra-capture-{orderId}. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",

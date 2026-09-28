@@ -48,6 +48,7 @@ import {
   readBillingAccount,
   readBillingHistory,
   requestCancellation,
+  requestResume,
   changePlan,
   reconcileAccount,
   recheckPayment,
@@ -83,7 +84,7 @@ import { formatDate } from "./_sections/format";
 import {
   describeAttemptRecheck,
   describeReconciliation,
-  safePayPalResumeUrl,
+  safeCheckoutResumeUrl,
 } from "./_sections/billingMessages";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
@@ -352,6 +353,45 @@ function BillingPageInner() {
   }, [selected, addonRetryBusy, addToast, refresh]);
 
   // ---- Cancellation ------------------------------------------------------
+  /*
+   * BILLING RESTART (2026-09-28) — undo a scheduled cancellation. The server
+   * asks the provider first; a PayPal subscription is refused with the reason.
+   */
+  const handleResume = useCallback(async () => {
+    if (!selected || !projection || cancelBusy) return;
+    const ok = await confirm({
+      title: `Restart ${projection.plan.displayName}?`,
+      description:
+        "Your subscription will renew as normal at the end of the current period, and you will be charged then. Storage add-ons already set to end are not restarted.",
+      confirmLabel: "Restart subscription",
+      cancelLabel: "Keep it cancelling",
+      tone: "neutral",
+      testId: "billing-resume-subscription",
+    });
+    if (!ok) return;
+    setCancelBusy(true);
+    try {
+      const result = await requestResume();
+      addToast(
+        result.result === "RESUMED"
+          ? result.dependentAddonsStillEnding > 0
+            ? "Subscription restarted. Storage add-ons that were set to end will still end."
+            : "Subscription restarted. It will renew as normal."
+          : "This subscription was not set to end; nothing changed.",
+        "success",
+      );
+      await refresh();
+    } catch (err) {
+      captureException(err, { feature: "billing_resume_subscription" });
+      const safe = toSafeUserError(err, {
+        message: "We could not restart this subscription. Nothing has changed; it is still set to end.",
+      });
+      addToast(safe.message, "error");
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [selected, projection, cancelBusy, confirm, addToast, refresh]);
+
   const handleCancel = useCallback(async () => {
     if (!selected || !projection) return;
 
@@ -848,7 +888,7 @@ function BillingPageInner() {
       setAttemptBusyId(item.id);
       try {
         const result = await recheckCheckoutAttempt(selected, item.id);
-        const resume = result.outcome === "STILL_PENDING" ? safePayPalResumeUrl(result.resumeUrl) : null;
+        const resume = result.outcome === "STILL_PENDING" ? safeCheckoutResumeUrl(result.resumeUrl) : null;
         const notice = describeAttemptRecheck({ ...result, resumeUrl: resume });
         addToast(notice.message, notice.tone);
         await loadHistory(selected);
@@ -879,19 +919,28 @@ function BillingPageInner() {
             description:
               first.warning ??
               "Abandoning only removes this from PROOVRA's open purchases. It does not cancel anything at the payment provider.",
-            confirmLabel: "Abandon in PROOVRA",
+            confirmLabel: first.cancelsAtProvider ? "Close checkout" : "Abandon in PROOVRA",
             cancelLabel: "Keep it",
             tone: "warning",
             testId: "billing-abandon-attempt",
           });
           if (!ok) return;
           const confirmed = await abandonCheckoutAttempt(selected, item.id, true);
-          addToast(
-            confirmed.outcome === "ABANDONED"
-              ? "Abandoned in PROOVRA. Nothing was cancelled or charged at the payment provider."
-              : "This purchase had already been resolved; nothing was changed.",
-            confirmed.outcome === "ABANDONED" ? "success" : "info",
-          );
+          if (confirmed.outcome === "PROVIDER_CANCEL_FAILED") {
+            addToast(
+              confirmed.warning ?? "The payment provider could not confirm this was closed, so it is still shown as open.",
+              "error",
+            );
+          } else {
+            addToast(
+              confirmed.outcome !== "ABANDONED"
+                ? "This purchase had already been resolved; nothing was changed."
+                : confirmed.cancelsAtProvider
+                  ? "Closed at the payment provider. Nothing was charged."
+                  : "Abandoned in PROOVRA. Nothing was cancelled or charged at the payment provider.",
+              confirmed.outcome === "ABANDONED" ? "success" : "info",
+            );
+          }
         } else if (first.outcome === "ABANDON_NOT_ALLOWED") {
           addToast(first.warning ?? "This purchase is being processed and cannot be abandoned.", "info");
         } else if (first.outcome === "PROVIDER_STATE_RECORDED") {
@@ -1239,6 +1288,7 @@ function BillingPageInner() {
             onClose={() => setManagePlanOpen(false)}
             onChangePlan={(offer) => void handleChangePlan(offer)}
             onCancel={() => void handleCancel()}
+            onResume={() => void handleResume()}
             changeBusyPlan={changeBusyPlan}
             cancelBusy={cancelBusy}
           />

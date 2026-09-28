@@ -102,6 +102,7 @@ export type CheckoutProductKey = "PLAN" | "EVIDENCE_CREDIT";
 export async function createStripeEvidenceCreditCheckout(params: {
   userId: string;
   currency?: string | null;
+  attemptId?: string | null;
 }) {
   return createStripeCheckoutSession({
     userId: params.userId,
@@ -109,6 +110,7 @@ export async function createStripeEvidenceCreditCheckout(params: {
     currency: params.currency,
     teamId: null,
     productKey: "EVIDENCE_CREDIT",
+    attemptId: params.attemptId ?? null,
   });
 }
 
@@ -145,6 +147,8 @@ export async function createStripeCheckoutSession(params: {
    * recurring path is unchanged.
    */
   productKey?: CheckoutProductKey;
+  /** Durable local checkout attempt (Idempotency-Key + metadata). */
+  attemptId?: string | null;
 }) {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
@@ -167,6 +171,10 @@ export async function createStripeCheckoutSession(params: {
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
   searchParams.append("payment_method_types[]", "card");
+  if (params.attemptId) {
+    searchParams.append("metadata[attemptId]", params.attemptId);
+    searchParams.append("client_reference_id", params.attemptId);
+  }
 
   if (params.teamId) {
     searchParams.append("metadata[teamId]", params.teamId);
@@ -211,7 +219,9 @@ export async function createStripeCheckoutSession(params: {
     }
   }
 
-  const session = await stripeRequest("/checkout/sessions", searchParams);
+  const session = await stripeRequest("/checkout/sessions", searchParams, {
+    idempotencyKey: params.attemptId ? `proovra-checkout-${params.attemptId}` : null,
+  });
 
   return {
     mode,
@@ -228,6 +238,8 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   currency?: string | null;
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
+  /** Durable local checkout attempt (Idempotency-Key + metadata). */
+  attemptId?: string | null;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
@@ -293,6 +305,10 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("metadata[workspacePlan]", params.workspacePlan);
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
+  if (params.attemptId) {
+    searchParams.append("metadata[attemptId]", params.attemptId);
+    searchParams.append("client_reference_id", params.attemptId);
+  }
 
   if (params.teamId) {
     searchParams.append("metadata[teamId]", params.teamId);
@@ -327,7 +343,9 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     searchParams.append("line_items[0][quantity]", "1");
   }
 
-  const session = await stripeRequest("/checkout/sessions", searchParams);
+  const session = await stripeRequest("/checkout/sessions", searchParams, {
+    idempotencyKey: params.attemptId ? `proovra-checkout-${params.attemptId}` : null,
+  });
 
   return {
     mode,
@@ -437,6 +455,7 @@ export async function createPayPalCheckout(params: {
       status: prismaPkg.SubscriptionStatus.TRIALING,
       currentPeriodEnd: null,
       teamId: params.teamId ?? null,
+      billedCurrency: currency,
     });
   }
 

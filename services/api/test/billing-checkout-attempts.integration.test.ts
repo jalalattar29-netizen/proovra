@@ -106,6 +106,15 @@ class FakePayPal {
       const sub = this.subs.get(id);
       if (!sub) return { status: 404, body: { name: "RESOURCE_NOT_FOUND" } };
       if (subMatch[2]?.startsWith("/transactions")) return { status: 200, body: { transactions: [] } };
+      if (subMatch[2] === "/cancel" && method === "POST") {
+        // PayPal cancels only ACTIVE or SUSPENDED subscriptions.
+        if (sub.status !== "ACTIVE" && sub.status !== "SUSPENDED") {
+          return { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "SUBSCRIPTION_STATUS_INVALID" }] } };
+        }
+        sub.status = "CANCELLED";
+        sub.update_time = this.now();
+        return { status: 200, body: {} };
+      }
       if (subMatch[2] === "/revise" && method === "POST") {
         const parsed = JSON.parse(body ?? "{}") as { plan_id: string };
         return { status: 200, body: { plan_id: parsed.plan_id, links: [] } };
@@ -526,13 +535,19 @@ describe("Billing checkout attempts + activity (live PostgreSQL 16)", () => {
 
         const first = await call("POST", `${base}/abandon`, t.owner.token, {});
         expect(json(first)).toMatchObject({ outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: false });
-        expect(json(first).warning).toMatch(/does not cancel/);
+        expect(json(first).warning).toMatch(/ask PayPal to cancel/);
+        expect(json(first).warning).toMatch(/cannot charge you without your approval/);
         expect((await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status).toBe("PENDING");
-
-        const confirmed = await call("POST", `${base}/abandon`, t.owner.token, { confirmed: true });
-        expect(json(confirmed).outcome).toBe("ABANDONED");
-        expect((await prisma.subscription.findFirstOrThrow({ where: { providerSubId: subId } })).status).toBe("CANCELED");
         expect(fake.calls.some((c) => c.url.endsWith("/cancel"))).toBe(false);
+
+        // PayPal is ASKED to cancel; it refuses an APPROVAL_PENDING
+        // subscription (422), so the answer says nothing changed at PayPal.
+        const confirmed = await call("POST", `${base}/abandon`, t.owner.token, { confirmed: true });
+        expect(json(confirmed)).toMatchObject({ outcome: "ABANDONED", cancelsAtProvider: false });
+        expect(fake.calls.filter((c) => c.url.endsWith(`/${subId}/cancel`))).toHaveLength(1);
+        expect(fake.subs.get(subId)!.status).toBe("APPROVAL_PENDING");
+        expect((await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status).toBe("ABANDONED");
+        expect((await prisma.subscription.findFirstOrThrow({ where: { providerSubId: subId } })).status).toBe("CANCELED");
 
         // The customer can start again.
         const again = await call("POST", "/v1/billing/checkout/paypal", t.owner.token, { plan: "PRO", currency: "USD" });

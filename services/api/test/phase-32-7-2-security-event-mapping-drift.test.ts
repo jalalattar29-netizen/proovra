@@ -1338,6 +1338,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Billing checkout attempts (2026-09-28): one new table + two enums
       // for durable PayPal plan / evidence-credit checkout attempts. EXPAND.
       "20280700000000_billing_checkout_attempts",
+      "20280710000000_billing_stripe_attempts_billed_currency",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

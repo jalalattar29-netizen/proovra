@@ -616,6 +616,26 @@ export async function requestCancellation(): Promise<CancellationResult> {
   return res.cancellation;
 }
 
+/**
+ * BILLING RESTART (2026-09-28) — undo a cancellation scheduled for period end.
+ * Only a provider that schedules cancellations (Stripe) can; the server
+ * refuses PayPal with an explanation (409 PROVIDER_CANNOT_RESTART).
+ */
+export type ResumeResult = {
+  result: "RESUMED" | "NOT_SCHEDULED_TO_END";
+  provider: string;
+  currentPeriodEnd: string | null;
+  dependentAddonsStillEnding: number;
+};
+
+export async function requestResume(): Promise<ResumeResult> {
+  const res = (await apiFetch("/v1/billing/subscription/resume", {
+    method: "POST",
+    body: JSON.stringify({}),
+  })) as { resume: ResumeResult };
+  return res.resume;
+}
+
 /** What the server did about a requested plan change. */
 export type PlanChangeResult = {
   outcome:
@@ -711,10 +731,14 @@ export type CheckoutAttemptAbandonResult = {
     | "ALREADY_ABANDONED"
     | "ALREADY_RESOLVED"
     | "ABANDON_NOT_ALLOWED"
+    | "PROVIDER_CANCEL_FAILED"
     | "PROVIDER_STATE_RECORDED";
   warning?: string;
-  /** Always false: abandoning never cancels anything at the provider. */
-  cancelsAtProvider: false;
+  /**
+   * True only when the provider confirmed it stopped the checkout (a Stripe
+   * session expired), or — on a confirmation request — will be asked to.
+   */
+  cancelsAtProvider: boolean;
 };
 
 /** Ask the provider about ONE attempt. Creates nothing, charges nothing new. */

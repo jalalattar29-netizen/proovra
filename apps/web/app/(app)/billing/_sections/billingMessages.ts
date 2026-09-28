@@ -85,6 +85,7 @@ export function describeReconciliation(result: ReconciliationResult): BillingNot
 
 /** ONE attempt's "Check status" result. */
 export function describeAttemptRecheck(result: CheckoutAttemptResult): BillingNotice {
+  if (result.provider === "STRIPE") return describeStripeAttemptRecheck(result);
   switch (result.outcome) {
     case "UPDATED":
       return { message: "The provider confirmed a new status for this purchase. Billing is updated.", tone: "success" };
@@ -118,6 +119,58 @@ export function describeAttemptRecheck(result: CheckoutAttemptResult): BillingNo
         message: "PayPal could not confirm this checkout. Nothing was changed. If this continues, contact support.",
         tone: "error",
       };
+  }
+}
+
+/** The same answers for a card (Stripe) checkout — never worded as PayPal. */
+function describeStripeAttemptRecheck(result: CheckoutAttemptResult): BillingNotice {
+  switch (result.outcome) {
+    case "UPDATED":
+      return { message: "Stripe confirmed a new status for this purchase. Billing is updated.", tone: "success" };
+    case "STILL_PENDING":
+      return {
+        message: result.resumeUrl
+          ? "The Stripe payment page is still open and unpaid. You can continue checkout, or abandon it."
+          : "Stripe shows this payment as still settling. Nothing more is needed from you right now.",
+        tone: "info",
+      };
+    case "NO_CHANGE":
+    case "STALE_IGNORED":
+      return { message: "Stripe confirmed nothing has changed for this purchase.", tone: "info" };
+    case "NOT_PROVIDER_BOUND":
+      return {
+        message: "Stripe never confirmed this checkout was created, so there is nothing to pay. You can abandon it.",
+        tone: "info",
+      };
+    case "PROVIDER_REFERENCE_NOT_FOUND":
+      return { message: "Stripe has no record of this checkout any more. You can abandon it.", tone: "info" };
+    case "PROVIDER_UNAVAILABLE":
+      return {
+        message: "Stripe could not be reached, so this purchase's status is unknown. Nothing was changed — try again later.",
+        tone: "error",
+      };
+    default:
+      return {
+        message: "Stripe could not confirm this checkout. Nothing was changed. If this continues, contact support.",
+        tone: "error",
+      };
+  }
+}
+
+const STRIPE_CHECKOUT_HOSTS = ["checkout.stripe.com"];
+
+/**
+ * A checkout resume link is followed only when it is the provider's own HTTPS
+ * payment page: PayPal's approval page, or Stripe's hosted checkout.
+ */
+export function safeCheckoutResumeUrl(href: string | null | undefined): string | null {
+  if (!href) return null;
+  if (safePayPalResumeUrl(href)) return href;
+  try {
+    const url = new URL(href);
+    return url.protocol === "https:" && STRIPE_CHECKOUT_HOSTS.includes(url.hostname.toLowerCase()) ? href : null;
+  } catch {
+    return null;
   }
 }
 

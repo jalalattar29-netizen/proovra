@@ -37,6 +37,7 @@ import { prisma } from "../../db.js";
 import type { BillingAccountRef } from "./billing-accounts.service.js";
 import {
   markCheckoutAttemptAbandoned,
+  markCheckoutAttemptProviderCanceled,
   noteCheckoutAttemptCheck,
 } from "./checkout-attempts.service.js";
 import {
@@ -45,6 +46,16 @@ import {
 } from "./paypal-settlement.service.js";
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
 import { terminalizePendingPlanCheckout } from "./subscription-cancellation.service.js";
+import {
+  settleStripeCheckoutSession,
+  type StripeCheckoutSession,
+} from "./stripe-settlement.service.js";
+import { cancelPayPalSubscription } from "../paypal.service.js";
+import { stripeGet } from "../stripe.service.js";
+import {
+  classifyStripeFailure,
+  isStripeHostedCheckoutUrl,
+} from "./reconciliation/stripe.provider.js";
 import {
   withoutProviderStatus,
   type BillingReconciliationProvider,
@@ -61,7 +72,21 @@ export type CheckoutRecoveryDeps = {
   /** Injected by tests; production uses the canonical settlement writers. */
   applySubscription?: typeof applyPayPalSubscriptionState;
   settleOrder?: typeof settlePayPalEvidenceCreditOrder;
+  /** Stripe: read ONE Checkout Session (throws StripeHttpError). */
+  readStripeSession?: (sessionId: string) => Promise<StripeCheckoutSession & { url?: string | null }>;
+  /** Stripe: canonical session settlement (webhook's writer). */
+  settleStripeSession?: typeof settleStripeCheckoutSession;
+  /** PayPal: ask PayPal to cancel an unapproved subscription. */
+  cancelPayPalPlan?: (subscriptionId: string) => Promise<unknown>;
 };
+
+async function defaultReadStripeSession(
+  sessionId: string,
+): Promise<StripeCheckoutSession & { url?: string | null }> {
+  return (await stripeGet(
+    `/checkout/sessions/${encodeURIComponent(sessionId)}`,
+  )) as StripeCheckoutSession & { url?: string | null };
+}
 
 /** How many attempts one account-wide pass examines. Bounded, always. */
 export const MAX_ATTEMPTS_PER_RUN = 25;
@@ -193,7 +218,12 @@ async function currentStatusOf(attempt: LoadedAttempt): Promise<string> {
 function baseResult(attempt: LoadedAttempt): Omit<CheckoutAttemptReconciliation, "currentStatus" | "outcome"> {
   return {
     attemptId: attempt.id,
-    product: attempt.product === "EVIDENCE_CREDIT" ? "EVIDENCE_CREDIT" : "PLAN",
+    product:
+      attempt.product === "EVIDENCE_CREDIT"
+        ? "EVIDENCE_CREDIT"
+        : attempt.product === "STORAGE_ADDON"
+          ? "STORAGE"
+          : "PLAN",
     createdAtUtc: attempt.createdAt.toISOString(),
     provider: attempt.provider,
     providerBound: Boolean(attempt.providerResourceId),
@@ -236,6 +266,51 @@ async function checkAttempt(
   if (!adapter) return finish("PROVIDER_UNAVAILABLE");
 
   const before = attempt.status;
+
+  if (attempt.provider === prismaPkg.PaymentProvider.STRIPE) {
+    // Every Stripe attempt is bound to ONE Checkout Session, whatever the
+    // product. The session is read live and applied through the same writer
+    // the checkout.session.* webhooks use.
+    let session: StripeCheckoutSession & { url?: string | null };
+    try {
+      session = await (deps.readStripeSession ?? defaultReadStripeSession)(ref);
+    } catch (err) {
+      return finish(failureOutcome(classifyStripeFailure(err)));
+    }
+    if (!session || session.id !== ref) return finish("PROVIDER_MALFORMED");
+    let settled: Awaited<ReturnType<typeof settleStripeCheckoutSession>>;
+    try {
+      settled = await (deps.settleStripeSession ?? settleStripeCheckoutSession)({
+        session,
+        expectedUserId: account.id,
+        applyPlanSubscription: true,
+      });
+    } catch {
+      return finish("PROVIDER_UNAVAILABLE");
+    }
+    if (settled.outcome === "REJECTED" && settled.reason === "NOT_OWNED") {
+      return finish("PROVIDER_MALFORMED");
+    }
+    const open = (session.status ?? "").toLowerCase() === "open";
+    const unsettled =
+      (session.status ?? "").toLowerCase() === "complete" &&
+      (session.payment_status ?? "").toLowerCase() !== "paid";
+    const after = await currentStatusOf(attempt);
+    const outcome: StorageAttemptOutcome =
+      after !== before ? "UPDATED" : settled.outcome === "PENDING" ? "STILL_PENDING" : "NO_CHANGE";
+    return finish(outcome, {
+      resumeUrl: open && isStripeHostedCheckoutUrl(session.url) ? session.url ?? null : null,
+      // `CAPTURE_PENDING`: the customer paid by a method still settling —
+      // never abandonable. `OPEN`: the payment page is still usable.
+      providerStatus: unsettled ? "CAPTURE_PENDING" : open ? "OPEN" : (session.status ?? null),
+    });
+  }
+
+  if (attempt.product === "STORAGE_ADDON") {
+    // PayPal storage checkouts are tracked on the storage add-on row itself,
+    // never as an attempt; nothing else can create one.
+    return finish("PROVIDER_MALFORMED");
+  }
 
   if (attempt.product === "PLAN") {
     const observation = await adapter.observeSubscription(ref);
@@ -307,10 +382,16 @@ export type CheckoutAttemptAbandonResult =
         | "ABANDON_CONFIRMATION_REQUIRED"
         | "ABANDONED"
         | "ALREADY_RESOLVED"
-        | "ABANDON_NOT_ALLOWED";
+        | "ABANDON_NOT_ALLOWED"
+        /** The provider could not confirm the stop; nothing was written. */
+        | "PROVIDER_CANCEL_FAILED";
       warning?: string;
-      /** Whether this action changes anything at the provider. Always false. */
-      cancelsAtProvider: false;
+      /**
+       * Whether the PROVIDER confirmed it stopped the checkout (Stripe
+       * expired the session / PayPal cancelled the subscription). On a
+       * confirmation request: whether PROOVRA will ask it to.
+       */
+      cancelsAtProvider: boolean;
     };
 
 /**
@@ -325,11 +406,26 @@ const IN_FLIGHT_PROVIDER_STATUSES = new Set([
   "COMPLETED",
 ]);
 
+function providerName(provider: prismaPkg.PaymentProvider | null | undefined): string {
+  return provider === prismaPkg.PaymentProvider.STRIPE ? "Stripe" : "PayPal";
+}
+
 export function abandonWarning(check: {
   outcome: StorageAttemptOutcome;
+  provider?: prismaPkg.PaymentProvider | null;
+  product?: string;
 }): string {
+  if (check.provider === prismaPkg.PaymentProvider.STRIPE) {
+    const tail =
+      " If Stripe later confirms a payment for it, PROOVRA will still apply that payment.";
+    return check.outcome === "STILL_PENDING"
+      ? "Stripe still shows this checkout page as open and unpaid. Abandoning asks Stripe to close it, so it can no longer be paid. Nothing has been charged." + tail
+      : "Stripe could not confirm how this checkout ended. Abandoning only removes it from PROOVRA's open purchases so you can start again; it does not refund anything." + tail;
+  }
   const tail =
-    " Abandoning only removes it from PROOVRA's open purchases so you can start again. It does not cancel, reverse or refund anything at PayPal. If PayPal later confirms a payment for it, PROOVRA will still apply that payment.";
+    check.outcome === "STILL_PENDING" && check.product === "PLAN"
+      ? " PROOVRA will also ask PayPal to cancel the unapproved subscription; PayPal may keep an unapproved one on its side until it expires, but it cannot charge you without your approval. If PayPal later confirms a payment for it, PROOVRA will still apply that payment."
+      : " Abandoning only removes it from PROOVRA's open purchases so you can start again. It does not cancel, reverse or refund anything at PayPal. If PayPal later confirms a payment for it, PROOVRA will still apply that payment.";
   switch (check.outcome) {
     case "STILL_PENDING":
       return "PayPal still shows this checkout as waiting for your approval. Nothing is charged unless you approve it at PayPal." + tail;
@@ -382,8 +478,7 @@ export async function abandonCheckoutAttempt(input: {
     return {
       attemptId: attempt.id,
       outcome: "ABANDON_NOT_ALLOWED",
-      warning:
-        "PayPal shows this purchase as approved and being processed, so it cannot be abandoned. PROOVRA will apply it as soon as PayPal completes it.",
+      warning: `${providerName(attempt.provider)} shows this purchase as approved and being processed, so it cannot be abandoned. PROOVRA will apply it as soon as ${providerName(attempt.provider)} completes it.`,
       cancelsAtProvider: false,
     };
   }
@@ -393,17 +488,103 @@ export async function abandonCheckoutAttempt(input: {
     return { attemptId: attempt.id, outcome: "ALREADY_RESOLVED", cancelsAtProvider: false };
   }
 
+  // Ask the provider to STOP it when the provider can: an open Stripe
+  // Checkout Session can be expired; a PayPal subscription that is still
+  // APPROVAL_PENDING may be cancellable. An unverifiable attempt (unbound, not
+  // found, unauthorized, outage) cannot be stopped, only abandoned locally.
+  const stopAtProvider =
+    check.outcome === "STILL_PENDING" &&
+    Boolean(attempt.providerResourceId) &&
+    (attempt.provider === prismaPkg.PaymentProvider.STRIPE ||
+      (attempt.provider === prismaPkg.PaymentProvider.PAYPAL && attempt.product === "PLAN"));
+
   if (!input.confirmed) {
     return {
       attemptId: attempt.id,
       outcome: "ABANDON_CONFIRMATION_REQUIRED",
-      warning: abandonWarning(check),
-      cancelsAtProvider: false,
+      warning: abandonWarning({ ...check, provider: attempt.provider, product: attempt.product }),
+      // Promised only where the provider reliably honours it: Stripe expires
+      // an open session. PayPal usually refuses to cancel an unapproved
+      // subscription, so nothing is promised for it.
+      cancelsAtProvider: stopAtProvider && attempt.provider === prismaPkg.PaymentProvider.STRIPE,
     };
   }
 
+  let cancelsAtProvider = false;
+  if (stopAtProvider && attempt.providerResourceId) {
+    if (attempt.provider === prismaPkg.PaymentProvider.STRIPE) {
+      const adapter = input.deps.providers[attempt.provider];
+      const stopped = adapter?.cancelPayment
+        ? await adapter.cancelPayment(attempt.providerResourceId)
+        : ({ outcome: "UNSUPPORTED" } as const);
+      if (stopped.outcome === "ALREADY_TERMINAL") {
+        // It ended (paid, or expired) between the check and the stop: apply
+        // what Stripe says instead of hiding it.
+        const again = await checkAttempt(attempt, input.account, input.deps);
+        return again.outcome === "UPDATED"
+          ? again
+          : { attemptId: attempt.id, outcome: "ALREADY_RESOLVED", cancelsAtProvider: false };
+      }
+      if (stopped.outcome !== "STOPPED") {
+        // A Stripe payment page that may still be payable is never hidden.
+        return {
+          attemptId: attempt.id,
+          outcome: "PROVIDER_CANCEL_FAILED",
+          warning:
+            "Stripe could not confirm that this checkout page was closed, so it is still shown as open. Try again in a moment.",
+          cancelsAtProvider: false,
+        };
+      }
+      const changed =
+        attempt.source === "ATTEMPT" &&
+        (await markCheckoutAttemptProviderCanceled({
+          attemptId: attempt.id,
+          userId: input.account.id,
+          observedAtUtc: stopped.observedAtUtc,
+        }));
+      return {
+        attemptId: attempt.id,
+        outcome: changed ? "ABANDONED" : "ALREADY_RESOLVED",
+        cancelsAtProvider: true,
+      };
+    }
+
+    // PayPal plan: an APPROVAL_PENDING subscription. PayPal documents cancel
+    // for ACTIVE/SUSPENDED subscriptions and answers 422 for others, so a
+    // refusal is expected and is NOT a failure: the buyer never approved it
+    // and PayPal cannot bill it. Only a confirmed 2xx is reported as a stop.
+    try {
+      await (input.deps.cancelPayPalPlan ??
+        ((id: string) => cancelPayPalSubscription(id, "Checkout abandoned by customer")))(
+        attempt.providerResourceId,
+      );
+      cancelsAtProvider = true;
+    } catch {
+      // 422 (not cancellable in this state), or unreachable: the attempt is
+      // abandoned locally only, and the customer is told exactly that.
+      cancelsAtProvider = false;
+    }
+  }
+
   let changed = false;
-  if (attempt.source === "ATTEMPT") {
+  if (cancelsAtProvider && attempt.source === "ATTEMPT") {
+    changed = await markCheckoutAttemptProviderCanceled({
+      attemptId: attempt.id,
+      userId: input.account.id,
+    });
+    if (attempt.product === "PLAN" && attempt.providerResourceId) {
+      const sub = await prisma.subscription.findFirst({
+        where: {
+          provider: attempt.provider,
+          providerSubId: attempt.providerResourceId,
+          userId: input.account.id,
+          status: prismaPkg.SubscriptionStatus.TRIALING,
+        },
+        select: { id: true },
+      });
+      if (sub) await terminalizePendingPlanCheckout({ subscriptionId: sub.id });
+    }
+  } else if (attempt.source === "ATTEMPT") {
     changed = await markCheckoutAttemptAbandoned({ attemptId: attempt.id, userId: input.account.id });
     if (attempt.product === "PLAN" && attempt.providerResourceId) {
       const sub = await prisma.subscription.findFirst({
@@ -424,7 +605,7 @@ export async function abandonCheckoutAttempt(input: {
   return {
     attemptId: attempt.id,
     outcome: changed ? "ABANDONED" : "ALREADY_RESOLVED",
-    cancelsAtProvider: false,
+    cancelsAtProvider,
   };
 }
 

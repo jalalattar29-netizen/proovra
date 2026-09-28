@@ -180,6 +180,39 @@ vi.mock("../src/services/billing/paypal-checkout-start.service.js", () => ({
   }),
 }));
 
+// BILLING CHECKOUT ATTEMPTS (2026-09-28) — Stripe checkouts now start through
+// a durable attempt too (proved against PostgreSQL in
+// billing-checkout-attempts.integration.test.ts). The same seam as PayPal.
+vi.mock("../src/services/billing/stripe-checkout-start.service.js", () => ({
+  startStripePlanCheckout: async () => {
+    H.calls.push("stripeCheckout");
+    return {
+      kind: "CREATED",
+      attemptId: "00000000-0000-4000-8000-000000000003",
+      mode: "subscription",
+      session: { id: "cs_1", url: "https://checkout.stripe.com/c/pay/cs_1" },
+      currency: "EUR",
+      amountCents: 1900,
+    };
+  },
+  startStripeCreditCheckout: async () => ({
+    kind: "CREATED",
+    attemptId: "00000000-0000-4000-8000-000000000004",
+    mode: "payment",
+    session: { id: "cs_c" },
+    currency: "EUR",
+    amountCents: 500,
+  }),
+  startStripeStorageCheckout: async () => ({
+    kind: "CREATED",
+    attemptId: "00000000-0000-4000-8000-000000000005",
+    mode: "subscription",
+    session: { id: "cs_s" },
+    currency: "EUR",
+    amountCents: 299,
+  }),
+}));
+
 vi.mock("../src/services/billing-checkout.service.js", () => ({
   createStripeCheckoutSession: async () => {
     H.calls.push("stripeCheckout");

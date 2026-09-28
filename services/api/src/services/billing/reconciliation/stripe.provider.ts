@@ -185,6 +185,17 @@ function sessionQuantity(session: Record<string, unknown>): number | null {
   return total > 0 ? total : null;
 }
 
+/** Only Stripe's own hosted checkout host may be offered as a resume link. */
+export function isStripeHostedCheckoutUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && u.hostname === "checkout.stripe.com";
+  } catch {
+    return false;
+  }
+}
+
 export class StripeBillingReconciliationProvider
   implements BillingReconciliationProvider
 {
@@ -240,8 +251,8 @@ export class StripeBillingReconciliationProvider
       // moment the session completes or expires. Passing it through ONLY in
       // the PENDING state means a resume link cannot outlive what it resumes.
       resumeUrl:
-        state === "PENDING" && typeof url === "string" && url.startsWith("https://")
-          ? url
+        state === "PENDING" && isStripeHostedCheckoutUrl(url)
+          ? (url as string)
           : null,
     };
   }
@@ -275,10 +286,10 @@ export class StripeBillingReconciliationProvider
         `/checkout/sessions/${encodeURIComponent(providerRef)}/expire`,
         "POST",
       );
-    } catch {
+    } catch (err) {
       // Deliberately no local write. A cancellation the provider did not
       // confirm is not a cancellation.
-      return { outcome: "PROVIDER_UNAVAILABLE" };
+      return { outcome: "PROVIDER_UNAVAILABLE", failure: classifyStripeFailure(err) };
     }
 
     const session = asRecord(body);
@@ -305,7 +316,7 @@ export class StripeBillingReconciliationProvider
     let body: unknown;
     try {
       body = await stripeGet(`/subscriptions/${encodeURIComponent(providerRef)}`);
-    } catch {
+    } catch (err) {
       return {
         kind: "SUBSCRIPTION",
         provider: PROVIDER,
@@ -315,7 +326,9 @@ export class StripeBillingReconciliationProvider
         cancelAtPeriodEnd: false,
         observedAtUtc: null,
         recentPayments: [],
-        failure: "PROVIDER_UNAVAILABLE",
+        // A 401 (rotated key) or 404 (unknown id) is not an outage; saying
+        // "try again later" for either would be untrue.
+        failure: classifyStripeFailure(err),
       };
     }
 

@@ -476,6 +476,19 @@ function validateCreditPurchase(
 // Plan subscriptions
 // ===========================================================================
 
+/**
+ * The rows a PERSONAL account's re-check may read and apply: ones this person
+ * PAID for (`userId` / `ownerUserId`) with no workspace, or with a legacy
+ * workspace this person still OWNS. Never another payer's row.
+ */
+export function payerOwnedSubscriptionScope(userId: string): prismaPkg.Prisma.SubscriptionWhereInput {
+  return { userId, OR: [{ teamId: null }, { team: { ownerUserId: userId } }] };
+}
+
+export function payerOwnedStorageScope(userId: string): prismaPkg.Prisma.WorkspaceStorageAddonWhereInput {
+  return { ownerUserId: userId, OR: [{ teamId: null }, { team: { ownerUserId: userId } }] };
+}
+
 async function reconcileSubscriptions(ctx: {
   account: BillingAccountRef;
   providers: ReconciliationProviders;
@@ -485,10 +498,16 @@ async function reconcileSubscriptions(ctx: {
   // owns its `teamId: null` subscriptions; a workspace owns its own.
   // Self-service subscriptions belong to the PERSONAL subject. An
   // ORGANIZATION reconciles its contract, never a plan checkout.
+  //
+  // BILLING LEGACY ROWS (2026-09-28) — a subscription bought under the old
+  // workspace-shaped TEAM model still carries a `teamId`. It is the PAYER's
+  // base subscription (`findLivePersonalBaseSubscription` already treats it
+  // so), and excluding it here left it unchecked forever. It is included when
+  // this person paid for it (`userId`) AND still owns that workspace; a row
+  // for a workspace someone else now owns is left to Operations rather than
+  // being reconciled into the wrong account.
   const where =
-    ctx.account.type === "PERSONAL"
-      ? { userId: ctx.account.id, teamId: null }
-      : null;
+    ctx.account.type === "PERSONAL" ? payerOwnedSubscriptionScope(ctx.account.id) : null;
   // An ORGANIZATION account is contract-managed and has no self-service
   // provider subscription to reconcile.
   if (!where) return;
@@ -686,10 +705,9 @@ async function reconcileStorageAddons(ctx: {
   providers: ReconciliationProviders;
   summary: ReconciliationSummary;
 }): Promise<void> {
+  // Legacy workspace-scoped recurring add-ons: same payer-owned rule as plans.
   const where =
-    ctx.account.type === "PERSONAL"
-      ? { ownerUserId: ctx.account.id, teamId: null }
-      : null;
+    ctx.account.type === "PERSONAL" ? payerOwnedStorageScope(ctx.account.id) : null;
   if (!where) return;
 
   const addons = await prisma.workspaceStorageAddon.findMany({

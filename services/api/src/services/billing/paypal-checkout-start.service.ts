@@ -73,7 +73,23 @@ function blockedPlanBody(input: {
   requestedPlan: prismaPkg.PlanType;
   pendingPlan: prismaPkg.PlanType | null;
   providerBound: boolean;
+  /** The provider holding the open plan checkout (plans block across providers). */
+  blockingProvider?: prismaPkg.PaymentProvider;
 }): { message: string; code: string; details: Record<string, unknown> } {
+  if (input.blockingProvider && input.blockingProvider !== PAYPAL) {
+    return {
+      message:
+        "A card (Stripe) checkout for a plan is already open. Finish it, or resolve it under Billing activity before starting a PayPal checkout.",
+      code: "PLAN_CHECKOUT_ALREADY_OPEN",
+      details: {
+        provider: input.blockingProvider,
+        pendingPlan: input.pendingPlan,
+        requestedPlan: input.requestedPlan,
+        providerBound: input.providerBound,
+        retry: "RESOLVE_PENDING_CHECKOUT",
+      },
+    };
+  }
   const same = !input.pendingPlan || input.pendingPlan === input.requestedPlan;
   return same
     ? {
@@ -220,6 +236,7 @@ export async function startPayPalPlanCheckout(input: {
         requestedPlan: input.plan,
         pendingPlan: gate.attempt.planKey,
         providerBound: gate.attempt.providerBound,
+        blockingProvider: gate.attempt.provider,
       }),
     };
   }

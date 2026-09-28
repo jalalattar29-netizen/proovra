@@ -192,10 +192,16 @@ currency rejection; exact approval-link handoff; ABANDONED enum as additive.
 
 1. Snapshot the two rows (`a2cc1107-…`, `b5c641a3-…`) with the read-only
    queries in the incident audit.
-2. Apply `20280690000000_billing_storage_attempt_abandoned` and
-   `20280700000000_billing_checkout_attempts` (both additive).
+   Or run the read-only verifier (follow-up §11 R7):
+   `pnpm --filter proovra-api ops:verify-historical-billing-attempts [--provider]`
+   — SELECTs and at most one PayPal GET per subscription; it refuses
+   `--apply`/`--abandon`/`--cancel` and writes nothing.
+2. Apply `20280690000000_billing_storage_attempt_abandoned`,
+   `20280700000000_billing_checkout_attempts` and
+   `20280710000000_billing_stripe_attempts_billed_currency` (all additive).
 3. Deploy the API; **drain every older API instance** before any abandonment
-   (older Prisma clients cannot read `ABANDONED`).
+   (older Prisma clients cannot read `ABANDONED`) and before the first Stripe
+   storage checkout (older clients cannot read a `STORAGE_ADDON` attempt).
 4. Confirm `POST /v1/billing/accounts/PERSONAL/x/checkout-attempts/<uuid>/recheck`
    answers 401 unauthenticated (not 404). Then deploy the web.
 5. As the account holder, open Billing: Billing activity should list two
@@ -226,24 +232,15 @@ catalogue currency.
 | Transaction Search API `403 NOT_AUTHORIZED` | Enable the permission on the live app, or keep Activity-page checks |
 | Full sandbox proof | Sandbox client id/secret, webhook id + reachable endpoint, EUR (and USD) plans for PRO, TEAM and each storage SKU, a sandbox buyer; then run plan purchase/change, storage, credit (approve+capture, capture pending, decline), return-before/after-webhook, duplicate webhook, lost response |
 
-## 9. Known gaps NOT fixed
+## 9. Known gaps (updated by the follow-up in §11)
 
-* **G1 Stripe** plan/storage/credit checkouts still create the session before
-  any durable attempt and without an idempotency key; open Stripe sessions do
-  not appear in Billing activity.
-* **G2** Restart/resubscribe after a scheduled cancellation is not
-  implemented; the copy "Restart it first" is still shown.
-* **G3** Legacy `teamId`-bound billing rows are still excluded from Personal
-  reconciliation; needs a production inventory first.
-* **G4** An abandoned PayPal approval that the buyer later approves at PayPal
-  while a newer subscription is live results in two live subscriptions; PROOVRA
-  applies the provider truth but cannot prevent the approval.
-* **G5** A webhook handler exceeding the 5-minute lease can be reclaimed while
-  still running.
-* **G6** The plan card shows the subscriber's price in the display currency
-  (USD default) and catalogue price, not the billed currency.
-* **G7** Organization accounts show no activity (none is possible: no
-  self-service checkout).
+* **G1 Stripe durable attempts** — implemented and tested in the follow-up (§11 R1). Not Stripe-test-mode verified.
+* **G2 Restart** — implemented for Stripe (period-end cancellations); PayPal is refused truthfully (§11 R2).
+* **G3 Legacy `teamId` rows** — payer-owned rows are now reconciled (§11 R3); rows for a workspace someone else now owns are deliberately left to Operations.
+* **G4 Duplicate live subscriptions** — now DETECTED and shown as a CRITICAL action-required banner; never auto-cancelled (§11 R4). Still cannot be prevented at PayPal.
+* **G5** A webhook handler exceeding the 5-minute lease can be reclaimed while still running. **Unchanged.**
+* **G6 Billed currency** — implemented (§11 R5); legacy rows show no price until observed.
+* **G7** Organization accounts show no activity (none is possible: no self-service checkout).
 
 ## 10. Files, migrations, compatibility, tests
 

@@ -83,6 +83,8 @@ export type OpenCheckoutAttemptGate =
         planKey: prismaPkg.PlanType | null;
         providerBound: boolean;
         createdAt: Date;
+        /** Which provider holds the blocking attempt (plans block across providers). */
+        provider?: prismaPkg.PaymentProvider;
       };
     }
   | {
@@ -115,6 +117,8 @@ export async function openCheckoutAttempt(input: {
   product: prismaPkg.BillingCheckoutProduct;
   provider: prismaPkg.PaymentProvider;
   planKey?: prismaPkg.PlanType | null;
+  /** STORAGE_ADDON attempts: the SKU. */
+  storageAddonKey?: prismaPkg.StorageAddonKey | null;
   amountCents: number;
   currency: string;
   now?: Date;
@@ -123,25 +127,36 @@ export async function openCheckoutAttempt(input: {
   ) => Promise<OpenCheckoutAttemptGate | null>;
 }): Promise<OpenCheckoutAttemptGate> {
   const now = input.now ?? new Date();
+  // A base PLAN is one per Personal account whichever provider sells it, so
+  // plan attempts share ONE lock and block across providers: an open Stripe
+  // plan checkout and an open PayPal one could otherwise both complete and
+  // bill the same person twice. Credits and storage are independent per
+  // provider purchase and keep a per-provider lock.
+  const isPlan = input.product === prismaPkg.BillingCheckoutProduct.PLAN;
+  const lockKey = isPlan
+    ? `billing-checkout-attempt:ANY:PLAN:${input.userId}`
+    : `billing-checkout-attempt:${input.provider}:${input.product}:${input.userId}`;
   return prisma.$transaction(async (tx) => {
     await (tx as LockClient).$executeRaw`
-      SELECT pg_advisory_xact_lock(hashtext(${`billing-checkout-attempt:${input.provider}:${input.product}:${input.userId}`}))
+      SELECT pg_advisory_xact_lock(hashtext(${lockKey}))
     `;
 
     const pending = await tx.billingCheckoutAttempt.findFirst({
       where: {
         userId: input.userId,
         product: input.product,
-        provider: input.provider,
+        ...(isPlan ? {} : { provider: input.provider }),
         status: S.PENDING,
-        ...(input.product === prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT
-          ? { createdAt: { gte: new Date(now.getTime() - CHECKOUT_REUSE_WINDOW_MS) } }
-          : {}),
+        ...(isPlan
+          ? {}
+          : { createdAt: { gte: new Date(now.getTime() - CHECKOUT_REUSE_WINDOW_MS) } }),
       },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         planKey: true,
+        storageAddonKey: true,
+        provider: true,
         providerResourceId: true,
         checkoutState: true,
         createdAt: true,
@@ -150,7 +165,10 @@ export async function openCheckoutAttempt(input: {
 
     if (pending) {
       const fresh = now.getTime() - pending.createdAt.getTime() < CHECKOUT_REUSE_WINDOW_MS;
-      const samePlan = (pending.planKey ?? null) === (input.planKey ?? null);
+      const samePlan =
+        pending.provider === input.provider &&
+        (pending.planKey ?? null) === (input.planKey ?? null) &&
+        (pending.storageAddonKey ?? null) === (input.storageAddonKey ?? null);
       if (
         fresh &&
         samePlan &&
@@ -181,6 +199,7 @@ export async function openCheckoutAttempt(input: {
             planKey: pending.planKey,
             providerBound: Boolean(pending.providerResourceId),
             createdAt: pending.createdAt,
+            provider: pending.provider,
           },
         };
       }
@@ -198,6 +217,7 @@ export async function openCheckoutAttempt(input: {
         product: input.product,
         provider: input.provider,
         planKey: input.planKey ?? null,
+        storageAddonKey: input.storageAddonKey ?? null,
         amountCents: input.amountCents,
         currency: input.currency.toUpperCase(),
         status: S.PENDING,
@@ -406,6 +426,26 @@ export async function markCheckoutAttemptAbandoned(input: {
   const updated = await prisma.billingCheckoutAttempt.updateMany({
     where: { id: input.attemptId, userId: input.userId, status: S.PENDING },
     data: { status: S.ABANDONED, checkoutState: "LOCALLY_ABANDONED" },
+  });
+  return updated.count > 0;
+}
+
+/**
+ * The provider CONFIRMED it stopped this attempt at the customer's request
+ * (Stripe expired the session, PayPal cancelled the subscription). Final.
+ */
+export async function markCheckoutAttemptProviderCanceled(input: {
+  attemptId: string;
+  userId: string;
+  observedAtUtc?: Date | null;
+}): Promise<boolean> {
+  const updated = await prisma.billingCheckoutAttempt.updateMany({
+    where: { id: input.attemptId, userId: input.userId, status: { in: [S.PENDING, S.ABANDONED] } },
+    data: {
+      status: S.CANCELED,
+      checkoutState: "PROVIDER_CANCELED",
+      providerStateAtUtc: input.observedAtUtc ?? new Date(),
+    },
   });
   return updated.count > 0;
 }

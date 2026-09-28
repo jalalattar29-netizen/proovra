@@ -364,7 +364,9 @@ export async function applyPersonalPlanChange(input: {
       httpStatus: 409,
       publicCode: "SUBSCRIPTION_CANCELLING",
       publicMessage:
-        "Your subscription is already set to end. Restart it first, then change the plan.",
+        subscription.provider === prismaPkg.PaymentProvider.STRIPE
+          ? "Your subscription is already set to end. Restart it on Billing first, then change the plan."
+          : "Your subscription is already set to end and cannot be changed. You can subscribe again after it ends.",
       reportability: "EXPECTED_DENIAL",
       severity: "info",
     });
@@ -512,6 +514,7 @@ async function applyStripePlanChange(args: {
       currentPeriodEnd: updated.current_period_end
         ? new Date(updated.current_period_end * 1000)
         : subscription.currentPeriodEnd,
+      billedCurrency: currency,
     });
 
     await clearPendingPlan(subscription.id);
