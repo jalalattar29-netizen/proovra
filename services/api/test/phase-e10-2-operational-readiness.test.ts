@@ -421,8 +421,17 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // could leak in. Both now read one workspace-scoped classification
       // (`classifyWorkspaceOutputs`) through `lifecycleWhere`. Sanctioned,
       // audited growth — the pin moves so it keeps catching UNAUDITED drift.
+      // Rebaselined 2026-09-28 (REPORT ARTIFACT LIFECYCLES, e9efd55): 39,740 →
+      // 45,508. Audited diff: the summary gained the `packagesFailed`,
+      // `reportsNotRequested`, `packagesNotRequested` and
+      // `totalArtifactVersions` tiles, each counted by the same workspace
+      // classification the filters read (one extra batched read of report,
+      // package and request rows per page); each row now carries its OWN
+      // `teamId` so an action targets the record's workspace rather than the
+      // selected one. No new authority, no platform-wide scan. Sanctioned,
+      // audited growth — the pin moves so it keeps catching UNAUDITED drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 39740,
+        expected: 45508,
       },
     ];
     for (const { rel, expected } of PINS) {

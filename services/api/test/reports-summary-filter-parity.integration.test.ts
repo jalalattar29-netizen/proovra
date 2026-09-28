@@ -250,7 +250,7 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     expect(s.totalEvidenceWithArtifacts).toBe(3);
     expect(s.totalArtifactVersions).toBe(8);
 
-    const failedRow = (await walk(A.teamId, "package_failed", 100)).rows[0];
+    const failedRow = (await walk(harness.fixtures.teamA.teamId, "package_failed", 100)).rows[0];
     expect(failedRow?.evidenceId).toBe(ids.latestPackageFailed);
     expect(failedRow?.report.version).toBe(7);
     expect(failedRow?.package.version).toBeNull();

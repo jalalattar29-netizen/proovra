@@ -32,11 +32,22 @@ describe("read-only scan scope", () => {
     );
     expect(src).toMatch(/if \(!isReadOnlyScan\(\)\) emitTenantAudit\(\{\s*action: "billing\.enterprise_contract_legacy_fallback"/);
     // The ONLY consumer: no authorization or action audit may depend on it.
-    const { execSync } = await import("node:child_process");
-    const users = execSync("grep -rl isReadOnlyScan src", { cwd: new URL("..", import.meta.url).pathname })
-      .toString()
-      .trim()
-      .split("\n")
+    //
+    // A portable walk, not `grep -rl` in a shell: on Windows `URL.pathname` is
+    // `/D:/…` (not a directory) and there is no `grep`, so the spawn failed
+    // with `cmd.exe ENOENT` before the assertion ever ran.
+    const { readdirSync } = await import("node:fs");
+    const { join, relative, sep } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const apiRoot = fileURLToPath(new URL("..", import.meta.url));
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = join(dir, entry.name);
+        return entry.isDirectory() ? walk(full) : [full];
+      });
+    const users = walk(join(apiRoot, "src"))
+      .filter((file) => readFileSync(file, "utf8").includes("isReadOnlyScan"))
+      .map((file) => relative(apiRoot, file).split(sep).join("/"))
       .sort();
     expect(users).toEqual(["src/lib/read-only-scan.ts", "src/services/organization/enterprise-contract.service.ts"]);
   });
