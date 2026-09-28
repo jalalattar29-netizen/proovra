@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "c695da0430f94686346a1628d1a414fd3430a4ab76bb0a4c54307891251e8976",
+  "capabilityRouteInventoryHash": "f123688b619efe66ed274a6830630d994c591c578e1164efde6fc9500775e375",
   "totals": {
-    "routes": 1168,
+    "routes": 1166,
     "routesWithAnyTestCaller": 40,
     "testOnlyRoutes": 3,
     "testCallSites": 70,
@@ -4057,18 +4057,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "POST /v1/billing/accounts/:type/:id/storage-attempts/:attemptId/abandon",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "POST /v1/billing/accounts/:type/:id/storage-attempts/:attemptId/recheck",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "POST /v1/billing/checkout/paypal",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7107,5 +7095,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "4a97694202d93025d42d843a3c1ea3ad36a06b100821933083eab6c1d6b0c25d"
+  "contentHash": "66a72ee3d4bcb1637c47d88a8fbc6c0754f07c7f75cae522f3c9d827394f49ea"
 }

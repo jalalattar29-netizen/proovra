@@ -93,11 +93,7 @@ import {
   startPayPalCreditCheckout,
   startPayPalPlanCheckout,
 } from "../services/billing/paypal-checkout-start.service.js";
-import {
-  abandonStorageAddonAttempt,
-  reconcileBillingAccount,
-  reconcileStorageAddonAttempt,
-} from "../services/billing/reconciliation/reconciliation.service.js";
+import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
 import {
   abandonPendingPayment,
   cancelPendingPayment,
@@ -1410,71 +1406,12 @@ export async function billingRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post(
-    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/recheck",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const params = z.object({
-        type: z.enum(["PERSONAL", "ORGANIZATION"]),
-        id: z.string().min(1).max(200),
-        attemptId: z.string().uuid(),
-      }).parse(req.params);
-      const account = await assertBillingCapability({
-        viewerUserId: userId,
-        type: params.type,
-        id: params.id,
-        capability: "BILLING_MANAGE",
-      });
-      const result = await reconcileStorageAddonAttempt({
-        account,
-        attemptId: params.attemptId,
-      });
-      const safe = withoutProviderStatus(result);
-      auditBillingAction(req, {
-        userId,
-        action: "billing.checkout_attempt_rechecked",
-        resourceId: params.attemptId,
-        outcome: "success",
-        metadata: { accountType: account.type, product: "STORAGE", result: safe.outcome },
-      });
-      return reply.code(200).send(safe);
-    },
-  );
-
-  app.post(
-    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/abandon",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const params = z.object({
-        type: z.enum(["PERSONAL", "ORGANIZATION"]),
-        id: z.string().min(1).max(200),
-        attemptId: z.string().uuid(),
-      }).parse(req.params);
-      const body = z.object({ confirmed: z.boolean().optional() }).parse(req.body ?? {});
-      const account = await assertBillingCapability({
-        viewerUserId: userId,
-        type: params.type,
-        id: params.id,
-        capability: "BILLING_MANAGE",
-      });
-      const result = await abandonStorageAddonAttempt({
-        account,
-        attemptId: params.attemptId,
-        confirmed: body.confirmed,
-      });
-      auditBillingAction(req, {
-        userId,
-        action: "billing.checkout_attempt_abandoned",
-        resourceId: params.attemptId,
-        outcome: "success",
-        metadata: { accountType: account.type, product: "STORAGE", result: result.outcome },
-      });
-      const safe = "providerStatus" in result ? withoutProviderStatus(result) : result;
-      return reply.code(200).send(safe);
-    },
-  );
+  // BILLING ACTIVITY (2026-09-28) — the storage-only
+  // `/storage-attempts/:attemptId/recheck|abandon` routes (added in e9efd55,
+  // never deployed) were REMOVED. The checkout-attempt routes above serve
+  // storage, plan and credit attempts through the same provider-first
+  // services, and a second path to the same action is a second place for the
+  // rules to drift.
 
   /**
    * BILLING SURFACE CORRECTION (2026-08-29) — ONE pending payment, re-checked.
