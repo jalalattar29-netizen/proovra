@@ -363,3 +363,15 @@ references, and (with `--provider`) one PayPal GET result. It refuses
 steps 5–8, after deployment. Historical facts are not rewritten.
 
 ### Follow-up gates (Linux, this branch)
+
+| Gate | Result |
+|---|---|
+| API typecheck, lint (changed files) | clean |
+| API unit, full suite | 25,270 tests: 25,258 passed, 11 failed in 3 files during a run that overlapped the mobile suite, an audit regeneration and an uncommitted report edit; all 3 files (`phase-0-audit-self-reference`, `phase-13-mfa-orchestrator-boundary`, `uc1-safe-migrate-workspace-resolution`) pass 27/27 when rerun alone on the clean tree |
+| Billing integration (11 files, freshly migrated PostgreSQL 16 + pgvector) | 201 / 201 (on the reused test DB one plan-selection test hit a leftover `provider_sub_id=''` row from an earlier run) |
+| `pnpm audit:architecture --engine-check` / `--closure-check` | PASS / PASS |
+| Web typecheck, lint (billing) | clean |
+| Web render suite | 95 files, 1,553 / 1,553 |
+| Mobile | 1,827 / 1,827 (a run overlapping the API suite had 2 timing failures) |
+| Web production build, browser (`billing-layout`) | not rerun in the follow-up |
+| PayPal Sandbox / Stripe test mode | not run |
