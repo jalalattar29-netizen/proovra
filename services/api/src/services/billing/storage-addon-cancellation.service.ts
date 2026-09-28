@@ -34,7 +34,8 @@
 import * as prismaPkg from "@prisma/client";
 
 import { stripeRequest } from "../stripe.service.js";
-import { cancelPayPalSubscription } from "../paypal.service.js";
+import { PayPalHttpError, cancelPayPalSubscription } from "../paypal.service.js";
+import { payPalSubscriptionEnded } from "./base-subscription-supersession.service.js";
 
 /**
  * What a provider cancellation is asking for.
@@ -111,6 +112,8 @@ export async function cancelStorageAddonAtProvider(input: {
   provider: prismaPkg.PaymentProvider;
   providerRef: string | null;
   cancelAtProvider?: StorageAddonProviderCanceller;
+  /** Shown to the buyer by PayPal; never customer data. */
+  reason?: string;
 }): Promise<AddonCancellationOutcome> {
   const mode = addonCancellationModeForProvider(input.provider);
 
@@ -152,8 +155,19 @@ export async function cancelStorageAddonAtProvider(input: {
 
   if (input.provider === prismaPkg.PaymentProvider.PAYPAL) {
     try {
-      await cancelPayPalSubscription(providerRef, "Base subscription canceled");
-    } catch {
+      await cancelPayPalSubscription(providerRef, input.reason ?? "Storage add-on canceled");
+    } catch (err) {
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — PayPal answers 422 for a
+      // subscription that is ALREADY cancelled or expired (the customer
+      // stopped it in their PayPal account, or an earlier success response
+      // was lost). That is the goal reached, not an outage: read the
+      // subscription and report its actual state. Only a subscription PayPal
+      // still shows as billable remains a failure.
+      const ended = await payPalSubscriptionEnded(providerRef);
+      if (ended?.canceled) return { ok: true, mode, terminal: true };
+      if (err instanceof PayPalHttpError && err.status >= 400 && err.status < 500) {
+        return { ok: false, mode, reasonCode: "PROVIDER_REJECTED" };
+      }
       return { ok: false, mode, reasonCode: "PROVIDER_UNAVAILABLE" };
     }
     // PayPal's cancel is terminal by definition. There is no period-end flag

@@ -234,10 +234,16 @@ export function CheckoutDrawer({
       }
 
       if (result.outcome === "STILL_PENDING") {
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — the server's own reason
+        // (e.g. "approved and being processed, so it cannot be abandoned").
+        // The old sentence told the customer to "wait for it to expire" — an
+        // expiry nothing observed. An unapproved one is now closed
+        // automatically after 24 hours, and a processing one completes.
         setPendingPayPal({
           plan,
           warning:
-            "PayPal still reports that approval as open. Finish that approval or wait for it to expire before starting another checkout.",
+            result.warning ??
+            "PayPal shows that checkout as approved and being processed. PROOVRA applies it as soon as PayPal completes it — there is nothing to pay again.",
           confirmationRequired: false,
         });
         return;

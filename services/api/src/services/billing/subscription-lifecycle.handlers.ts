@@ -33,6 +33,11 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
+import { recordBillingReviewItem } from "./billing-review.service.js";
+import {
+  cancelSupersededSubscriptionAtProvider,
+  type SupersededCanceller,
+} from "./base-subscription-supersession.service.js";
 
 /**
  * The add-on status a provider subscription status implies.
@@ -56,12 +61,38 @@ export function storageAddonStatusFromSubscription(
   }
 }
 
+export type SyncPlanOutcome =
+  /** The fact was recorded; the entitlement follows it (or needed no change). */
+  | { outcome: "APPLIED"; subscriptionId: string; status: prismaPkg.SubscriptionStatus }
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — this subscription became ACTIVE
+   * while ANOTHER base subscription was already live for the same payer (an
+   * approval the buyer completed after abandoning it, next to a plan bought
+   * since). It is recorded as the provider states it, it grants nothing, and
+   * PROOVRA asks the provider to cancel it; the charge is recorded for refund
+   * review. Whichever wrote last no longer decides the customer's plan.
+   */
+  | {
+      outcome: "SUPERSEDED";
+      subscriptionId: string;
+      keptSubscriptionId: string;
+      canceledAtProvider: boolean;
+    };
+
+type ActivationClient = prismaPkg.Prisma.TransactionClient;
+
 /**
  * Apply ONE established subscription fact to the canonical plan state.
  *
- * Moved verbatim from `webhooks.routes.ts` so the verified and the polled path
- * share one implementation. Provider observations carry their own timestamp
- * when one exists; `upsertSubscription` owns the monotonic stale-event guard.
+ * Shared by every path that learns a subscription fact (verified webhooks,
+ * authenticated return routes, per-attempt re-check, account re-check and the
+ * sweep), so none of them can mean something different by ACTIVE.
+ * `upsertSubscription` owns the monotonic ordering rules.
+ *
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — a NEW activation is decided under a
+ * per-payer advisory lock: two activations racing (a late PayPal approval and
+ * a card checkout) are serialised, so exactly one becomes the entitlement and
+ * the other is superseded rather than "last writer wins".
  */
 export async function syncPlanForSubscription(params: {
   userId: string;
@@ -75,7 +106,90 @@ export async function syncPlanForSubscription(params: {
   /** Provider-billed currency / unit amount, when this fact carries them. */
   billedCurrency?: string | null;
   billedUnitAmountCents?: number | null;
-}) {
+  /** Injected by tests; production cancels through the real provider client. */
+  cancelSupersededAtProvider?: SupersededCanceller;
+}): Promise<SyncPlanOutcome> {
+  const write = (client: ActivationClient | typeof prisma = prisma) =>
+    upsertSubscription(
+      {
+        userId: params.userId,
+        provider: params.provider,
+        providerSubId: params.providerSubId,
+        status: params.status,
+        plan: params.plan,
+        currentPeriodEnd: params.currentPeriodEnd ?? null,
+        teamId: params.teamId ?? null,
+        observedAtUtc: params.observedAtUtc ?? null,
+        billedCurrency: params.billedCurrency ?? null,
+        billedUnitAmountCents: params.billedUnitAmountCents ?? null,
+      },
+      client,
+    );
+
+  if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
+    const decided = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`billing-base-activation:${params.userId}`}))
+      `;
+      const before = await tx.subscription.findUnique({
+        where: {
+          provider_providerSubId: { provider: params.provider, providerSubId: params.providerSubId },
+        },
+        select: { id: true, status: true },
+      });
+      const wasLive =
+        before?.status === prismaPkg.SubscriptionStatus.ACTIVE ||
+        before?.status === prismaPkg.SubscriptionStatus.PAST_DUE;
+      const otherLive = wasLive
+        ? null
+        : await tx.subscription.findFirst({
+            where: {
+              userId: params.userId,
+              plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
+              providerSubId: { not: "" },
+              NOT: [
+                { provider: params.provider, providerSubId: params.providerSubId },
+                // A provider-confirmed IMMEDIATE cancellation (PayPal) whose
+                // webhook has not landed yet is already over; it is not a
+                // live entitlement that could make this one a duplicate.
+                { canceledAtUtc: { not: null }, cancelAtPeriodEnd: false },
+              ],
+              status: {
+                in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE],
+              },
+            },
+            orderBy: { createdAt: "asc" },
+            select: { id: true },
+          });
+      const subscription = await write(tx);
+      return { subscription, otherLive };
+    });
+
+    const { subscription, otherLive } = decided;
+    if (subscription.status !== prismaPkg.SubscriptionStatus.ACTIVE) {
+      // The ordering rules refused the fact (older than what is recorded).
+      return { outcome: "APPLIED", subscriptionId: subscription.id, status: subscription.status };
+    }
+    if (otherLive) {
+      const canceledAtProvider = await supersede({
+        userId: params.userId,
+        provider: params.provider,
+        providerSubId: params.providerSubId,
+        plan: params.plan,
+        keptSubscriptionId: otherLive.id,
+        cancel: params.cancelSupersededAtProvider ?? cancelSupersededSubscriptionAtProvider,
+      });
+      return {
+        outcome: "SUPERSEDED",
+        subscriptionId: subscription.id,
+        keptSubscriptionId: otherLive.id,
+        canceledAtProvider,
+      };
+    }
+    await setPersonalPlan(params.userId, subscription.plan);
+    return { outcome: "APPLIED", subscriptionId: subscription.id, status: subscription.status };
+  }
+
   // BILLING CHECKOUT ATTEMPTS (2026-09-28) — what this subscription was
   // BEFORE this fact, so a cancellation can tell whether it ever carried the
   // entitlement it would take away.
@@ -86,52 +200,20 @@ export async function syncPlanForSubscription(params: {
         providerSubId: params.providerSubId,
       },
     },
-    select: { status: true },
+    select: { status: true, activatedAtUtc: true },
   });
 
-  const subscription = await upsertSubscription({
-    userId: params.userId,
-    provider: params.provider,
-    providerSubId: params.providerSubId,
-    status: params.status,
-    plan: params.plan,
-    currentPeriodEnd: params.currentPeriodEnd ?? null,
-    teamId: params.teamId ?? null,
-    observedAtUtc: params.observedAtUtc ?? null,
-    billedCurrency: params.billedCurrency ?? null,
-    billedUnitAmountCents: params.billedUnitAmountCents ?? null,
-  });
+  const subscription = await write();
+  const applied = { outcome: "APPLIED" as const, subscriptionId: subscription.id, status: subscription.status };
 
-  // ===========================================================================
-  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — TEAM is a PERSONAL tier.
-  // ===========================================================================
-  //
-  // A whole branch stood here that treated a TEAM subscription as the
-  // commercial state of a WORKSPACE: it called `activateTeamPlan` /
-  // `cancelTeamPlan` against `params.teamId`, refusing to do anything at all
-  // when there was no team id. That is the obsolete model at the point where
-  // provider truth enters the system — a TEAM subscription that belonged to a
-  // person could not be applied, because the handler had nowhere to put it.
-  //
-  // TEAM is now the higher tier of the same Personal Workspace, so PRO and
-  // TEAM take exactly the same path below and differ only in which plan value
-  // is written. There is no workspace to activate.
-  //
-  // A LEGACY row still carrying a `teamId` — written under the obsolete model,
-  // for a workspace the customer really did pay for — is still applied to its
-  // owner's personal entitlement rather than dropped. The paid right survives
-  // the model change; only where it is recorded moves.
+  // TEAM is a PERSONAL tier (BILLING PERSONAL/ORGANIZATION MODEL, 2026-08-28):
+  // PRO and TEAM take the same path and differ only in the plan value. A
+  // legacy row still carrying a `teamId` is applied to its owner's personal
+  // entitlement rather than dropped.
 
   if (subscription.status === prismaPkg.SubscriptionStatus.CANCELED) {
     /*
-     * BILLING CHECKOUT ATTEMPTS (2026-09-28) — a cancellation removes only
-     * the entitlement THIS subscription granted.
-     *
-     * This wrote FREE unconditionally. A PayPal approval the customer never
-     * completed (TRIALING, never ACTIVE) that PayPal later cancels or expires
-     * therefore downgraded a customer who had since bought a plan another way
-     * — or who holds a granted tier with no subscription at all — to FREE.
-     * Nothing about that customer's paid access had changed.
+     * A cancellation removes only the entitlement THIS subscription granted:
      *
      *   * never activated (no prior row, or the prior row was TRIALING):
      *     it granted nothing, so it takes nothing away;
@@ -141,8 +223,10 @@ export async function syncPlanForSubscription(params: {
      */
     const everCarriedEntitlement =
       before !== null &&
-      before.status !== prismaPkg.SubscriptionStatus.TRIALING;
-    if (!everCarriedEntitlement) return;
+      (before.activatedAtUtc !== null ||
+        before.status === prismaPkg.SubscriptionStatus.ACTIVE ||
+        before.status === prismaPkg.SubscriptionStatus.PAST_DUE);
+    if (!everCarriedEntitlement) return applied;
 
     const otherLive = await prisma.subscription.findFirst({
       where: {
@@ -157,19 +241,74 @@ export async function syncPlanForSubscription(params: {
         },
       },
       orderBy: { updatedAt: "desc" },
-      select: { id: true },
+      select: { id: true, plan: true },
     });
-    if (otherLive) return;
+    if (otherLive) {
+      // The surviving subscription is the entitlement. Only when the plan in
+      // force was THIS subscription's does it move to the survivor's; a granted
+      // or differently-sourced plan is left exactly as it is.
+      if (otherLive.plan !== subscription.plan) {
+        const entitlement = await prisma.entitlement.findFirst({
+          where: { userId: params.userId, active: true },
+          orderBy: { createdAt: 'desc' },
+          select: { plan: true },
+        });
+        if (entitlement?.plan === subscription.plan) {
+          await setPersonalPlan(params.userId, otherLive.plan);
+        }
+      }
+      return applied;
+    }
 
     await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
-    return;
   }
 
-  if (subscription.status === prismaPkg.SubscriptionStatus.TRIALING) {
-    return;
-  }
+  return applied;
+}
 
-  if (subscription.status === prismaPkg.SubscriptionStatus.ACTIVE) {
-    await setPersonalPlan(params.userId, subscription.plan);
+/**
+ * Cancel a superseded base subscription at its provider and record the case.
+ * Returns whether the provider confirmed the cancellation. Never throws: a
+ * provider failure is recorded (CANCEL_FAILED) and surfaced for review, and
+ * the entitlement is still not granted from the duplicate.
+ */
+async function supersede(input: {
+  userId: string;
+  provider: prismaPkg.PaymentProvider;
+  providerSubId: string;
+  plan: prismaPkg.PlanType;
+  keptSubscriptionId: string;
+  cancel: SupersededCanceller;
+}): Promise<boolean> {
+  let result: Awaited<ReturnType<SupersededCanceller>>;
+  try {
+    result = await input.cancel(input.provider, input.providerSubId);
+  } catch {
+    result = { canceled: false, observedAtUtc: null };
   }
+  if (result.canceled) {
+    await upsertSubscription({
+      userId: input.userId,
+      provider: input.provider,
+      providerSubId: input.providerSubId,
+      status: prismaPkg.SubscriptionStatus.CANCELED,
+      plan: input.plan,
+      observedAtUtc: result.observedAtUtc,
+    }).catch(() => undefined);
+  }
+  await recordBillingReviewItem({
+    userId: input.userId,
+    provider: input.provider,
+    providerResourceId: input.providerSubId,
+    product: "PLAN",
+    reason: "DUPLICATE_BASE_SUBSCRIPTION",
+    providerAction: result.canceled ? "CANCELED_AT_PROVIDER" : "CANCEL_FAILED",
+    // The provider charged the first period when it activated the duplicate.
+    refundReviewRequired: true,
+    detail: {
+      keptSubscriptionId: input.keptSubscriptionId,
+      supersededPlan: input.plan,
+    },
+  });
+  return result.canceled;
 }

@@ -95,6 +95,10 @@ function settledCredit(
     currency: "USD",
     quantity: 1,
     observedAtUtc: new Date("2026-08-20T10:00:00.000Z"),
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — the provider object names what
+    // was bought (PROOVRA's own custom_id / session metadata). Recovery grants
+    // only on EVIDENCE_CREDIT, never on an amount.
+    productKey: "EVIDENCE_CREDIT",
     ...over,
   };
 }
@@ -306,10 +310,17 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
         const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
         await seedLostCreditPurchase(t.owner.userId, provider);
 
-        // The default fixture answers UNKNOWN for anything it was not given.
+        const ref = (await prisma.payment.findFirstOrThrow({ where: { userId: t.owner.userId } })).providerPaymentId;
+        // The provider cannot be reached (a transport failure, not a 404: a
+        // historic reference the provider does not know is classified, not
+        // reported as an outage).
         const summary = await reconcile({
           account: accountRef("PERSONAL", t.owner.userId),
-          providers: { [provider]: new FixtureProvider(provider) } as never,
+          providers: {
+            [provider]: new FixtureProvider(provider, {
+              [ref]: { ...settledCredit(provider, ref), state: "UNKNOWN", failure: "PROVIDER_UNAVAILABLE" },
+            }),
+          } as never,
         });
 
         expect(summary.outcome).toBe("PROVIDER_UNAVAILABLE");
@@ -613,7 +624,21 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       cancelAtPeriodEnd: false,
       observedAtUtc: new Date("2026-09-26T10:00:00.000Z"),
       recentPayments: [],
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a first activation observed by
+      // reconciliation is checked like every other path: the subscription must
+      // bill this SKU's configured plan.
+      planId: STORAGE_50_EUR_PLAN,
       ...over,
+    });
+
+    const STORAGE_50_EUR_PLAN = "P-RECON-STORAGE-50-EUR";
+    const previousPlanEnv = process.env.PAYPAL_PLAN_STORAGE_PERSONAL_50_GB_EUR;
+    beforeAll(() => {
+      process.env.PAYPAL_PLAN_STORAGE_PERSONAL_50_GB_EUR = STORAGE_50_EUR_PLAN;
+    });
+    afterAll(() => {
+      if (previousPlanEnv === undefined) delete process.env.PAYPAL_PLAN_STORAGE_PERSONAL_50_GB_EUR;
+      else process.env.PAYPAL_PLAN_STORAGE_PERSONAL_50_GB_EUR = previousPlanEnv;
     });
 
     it("inspects both same-product pending attempts and reports each truthfully", async () => {
@@ -1417,6 +1442,7 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
         status: "SUCCEEDED" as never,
         teamId: null,
         observedAtUtc: new Date("2026-09-01T00:00:00.000Z"),
+        product: "EVIDENCE_CREDIT",
       });
 
       expect(await statusOf(id)).toBe("SUCCEEDED");
@@ -1443,6 +1469,7 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
         currency: "USD",
         status: "PENDING" as never,
         teamId: null,
+        product: "EVIDENCE_CREDIT",
       });
 
       // PENDING proves nothing, so it cannot reopen a row the customer closed.

@@ -236,6 +236,7 @@ export async function clearAllRateLimitBuckets(): Promise<{
 }> {
   const memoryCleared = memoryStore.size;
   memoryStore.clear();
+  memoryLeases.clear();
 
   let redisCleared = 0;
   const client = getRedis();
@@ -268,4 +269,86 @@ export async function clearAllRateLimitBuckets(): Promise<{
   }
 
   return { memoryCleared, redisCleared };
+}
+// ===========================================================================
+// BILLING PAYPAL INTEGRITY (2026-09-28) — a real LEASE, not a rate limit.
+// ===========================================================================
+//
+// The billing "lease" used to be `enforceRateLimit({ max: 1, windowSec: 60 })`:
+// a fixed window that was never released, so a second request made after the
+// first had FINISHED was still refused for the rest of the minute — and the
+// route then answered as though a check had run. A lease is held while work
+// runs and released when it ends; its TTL only bounds a crashed holder.
+//
+// Redis `SET NX PX` with a per-holder token (release deletes only its own
+// token), in the same keyspace as the limiter so the test reset clears both.
+// Without Redis it falls back to this process's memory, exactly as the limiter
+// does — the writers behind every lease are idempotent and compare-and-set, so
+// the lease prevents wasted provider calls, not double effects.
+
+type MemoryLease = { token: string; expiresAtMs: number };
+const memoryLeases = new Map<string, MemoryLease>();
+
+export type Lease = { acquired: boolean; release: () => Promise<void> };
+
+function leaseToken(): string {
+  return `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
+
+function acquireMemoryLease(key: string, ttlMs: number): Lease {
+  const now = Date.now();
+  const held = memoryLeases.get(key);
+  if (held && held.expiresAtMs > now) {
+    return { acquired: false, release: async () => undefined };
+  }
+  const token = leaseToken();
+  memoryLeases.set(key, { token, expiresAtMs: now + ttlMs });
+  return {
+    acquired: true,
+    release: async () => {
+      if (memoryLeases.get(key)?.token === token) memoryLeases.delete(key);
+    },
+  };
+}
+
+const RELEASE_LUA =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
+export async function acquireLease(rawKey: string, ttlMs: number): Promise<Lease> {
+  const key = normalizeKey(rawKey);
+  const ttl = clampPositiveInt(ttlMs, 60_000);
+  const client = getRedis();
+  if (!client) return acquireMemoryLease(key, ttl);
+  const redisKey = `${REDIS_KEY_PREFIX}lease:${key}`;
+  const token = leaseToken();
+  try {
+    if (client.status === "wait") await client.connect();
+    const ok = await client.set(redisKey, token, "PX", ttl, "NX");
+    if (ok !== "OK") return { acquired: false, release: async () => undefined };
+    return {
+      acquired: true,
+      release: async () => {
+        await client.eval(RELEASE_LUA, 1, redisKey, token).catch(() => undefined);
+      },
+    };
+  } catch {
+    markRedisUnavailable();
+    return acquireMemoryLease(key, ttl);
+  }
+}
+
+/** Run `fn` holding the lease; `onBusy` answers when another holder has it. */
+export async function withLease<T>(
+  key: string,
+  ttlMs: number,
+  fn: () => Promise<T>,
+  onBusy: () => T | Promise<T>,
+): Promise<T> {
+  const lease = await acquireLease(key, ttlMs);
+  if (!lease.acquired) return onBusy();
+  try {
+    return await fn();
+  } finally {
+    await lease.release();
+  }
 }

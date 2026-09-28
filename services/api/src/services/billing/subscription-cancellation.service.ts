@@ -44,6 +44,7 @@ import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeRequest } from "../stripe.service.js";
 import { cancelPayPalSubscription } from "../paypal.service.js";
+import { payPalSubscriptionEnded } from "./base-subscription-supersession.service.js";
 import {
   cancelDependentRecurringAddons,
   recordDependentCancellationIntent,
@@ -254,7 +255,16 @@ export async function requestSubscriptionCancellation(input: {
       // reported a cancelled subscription PayPal was still billing. There is
       // no fallback. The subscription stays active and the customer is told
       // the truth.
-      throw Object.assign(providerFailure(subscription.provider), { cause });
+      //
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — except when PayPal's refusal
+      // is because the subscription has ALREADY ended (cancelled in the
+      // customer's PayPal account, or an earlier success response was lost):
+      // the subscription is read, and an ended one is the cancellation
+      // confirmed, not an outage.
+      const ended = await payPalSubscriptionEnded(subscription.providerSubId);
+      if (!ended?.canceled) {
+        throw Object.assign(providerFailure(subscription.provider), { cause });
+      }
     }
   } else {
     throw new DomainError("Unsupported payment provider", {
@@ -370,6 +380,7 @@ export async function requestSubscriptionCancellation(input: {
  */
 export async function terminalizePendingPlanCheckout(params: {
   subscriptionId: string;
+  /** The PROVIDER's own time, only when the provider confirmed the stop. */
   observedAtUtc?: Date | null;
 }) {
   await prisma.subscription.updateMany({
@@ -379,7 +390,41 @@ export async function terminalizePendingPlanCheckout(params: {
     },
     data: {
       status: prismaPkg.SubscriptionStatus.CANCELED,
-      providerStateAtUtc: params.observedAtUtc ?? new Date(),
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a LOCAL abandonment is
+      // recorded as local. It used to stamp `providerStateAtUtc = now`, the
+      // column that orders PROVIDER facts: a buyer who approved at PayPal a
+      // moment before that stamp (or on a server clock ahead of PayPal's)
+      // was then charged every month while the ACTIVE observation was
+      // discarded as "older" and the account stayed Free. Only a provider-
+      // confirmed stop carries a provider time.
+      locallyTerminatedAtUtc: new Date(),
+      ...(params.observedAtUtc ? { providerStateAtUtc: params.observedAtUtc } : {}),
     },
+  });
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — repair a row the OLD abandonment
+ * code terminalized with LOCAL time in `providerStateAtUtc`.
+ *
+ * Called only by the PayPal settlement on a LIVE provider read of ACTIVE for a
+ * CANCELED row that never activated and carries no provider period or
+ * provider-confirmed cancellation — the signature of a local terminalization.
+ * PayPal never re-activates a subscription it cancelled, so the local stamp is
+ * moved to `locallyTerminatedAtUtc`, where it cannot outrank provider facts.
+ */
+export async function reclassifyLegacyLocalTermination(input: {
+  subscriptionId: string;
+  localStampUtc: Date;
+}): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: {
+      id: input.subscriptionId,
+      status: prismaPkg.SubscriptionStatus.CANCELED,
+      activatedAtUtc: null,
+      canceledAtUtc: null,
+      locallyTerminatedAtUtc: null,
+    },
+    data: { locallyTerminatedAtUtc: input.localStampUtc, providerStateAtUtc: null },
   });
 }

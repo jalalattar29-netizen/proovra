@@ -144,6 +144,12 @@ export type PlanSummary = {
       planKey: string;
       displayName: string;
       effectiveAtUtc: string | null;
+      /**
+       * The provider has not been authorised by the buyer yet (a PayPal
+       * revision awaiting approval). NOT a confirmed change: choosing the plan
+       * again re-issues the approval, and it lapses if never approved.
+       */
+      awaitingApproval?: boolean;
     };
     providerTransition?: {
       state: "IN_PROGRESS";
@@ -212,6 +218,8 @@ export type ActiveStorageAddon = {
   status: string;
   billingCycle: string;
   legacyOneTime: boolean;
+  /** Cancelling the base plan also cancels this add-on (its SKU needs a paid plan). */
+  endsWithPlan?: boolean;
   canCancel: boolean;
   canRecheck: boolean;
   canAbandon: boolean;
@@ -675,10 +683,20 @@ export type ReconciliationOutcome =
   | "UPDATED"
   | "PENDING"
   | "ACTION_REQUIRED"
-  | "PROVIDER_UNAVAILABLE";
+  | "PROVIDER_UNAVAILABLE"
+  /** BILLING PAYPAL INTEGRITY (2026-09-28) — a check is already running; nothing was checked. */
+  | "BUSY"
+  /** Re-checked too often just now; nothing was checked. */
+  | "RATE_LIMITED";
 
 export type ReconciliationResult = {
   outcome: ReconciliationOutcome;
+  /**
+   * Whether the provider was actually asked. False for BUSY / RATE_LIMITED:
+   * the page must never describe a refused request as a completed check.
+   * Absent from an older API, where a summary means a check ran.
+   */
+  checked?: boolean;
   summary: {
     checked: number;
     creditsRestored: number;
@@ -721,6 +739,12 @@ export type CheckoutAttemptResult = {
     | "PROVIDER_MALFORMED";
   locallyAbandoned: boolean;
   resumeUrl?: string | null;
+  /**
+   * For a STILL_PENDING attempt, what it waits for: the buyer's APPROVAL, a
+   * subscription's ACTIVATION after approval, a payment still PROCESSING, or
+   * an open Stripe PAYMENT_PAGE.
+   */
+  waitingFor?: "APPROVAL" | "ACTIVATION" | "PAYMENT_PROCESSING" | "PAYMENT_PAGE";
 };
 
 export type CheckoutAttemptAbandonResult = {
@@ -784,8 +808,36 @@ export async function abandonCheckoutAttempt(
 export async function reconcileAccount(
   account: BillingAccountRef,
 ): Promise<ReconciliationResult> {
-  return (await apiFetch(
-    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/reconcile`,
-    { method: "POST", body: "{}" },
-  )) as ReconciliationResult;
+  try {
+    const result = (await apiFetch(
+      `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/reconcile`,
+      { method: "POST", body: "{}" },
+    )) as ReconciliationResult;
+    return { ...result, checked: result.checked !== false && result.summary !== null };
+  } catch (err) {
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — a refused re-check is an ANSWER
+    // ("nothing was checked"), not a failure and never a completed check.
+    const status = (err as { statusCode?: number }).statusCode;
+    if (status === 409) return { outcome: "BUSY", checked: false, summary: null };
+    if (status === 429) return { outcome: "RATE_LIMITED", checked: false, summary: null };
+    throw err;
+  }
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — the buyer pressed "Cancel and
+ * return" at PayPal. The server closes that checkout (provider-first) so it
+ * does not keep blocking a new one.
+ */
+export async function reportPayPalReturnCanceled(input: {
+  subscriptionId?: string | null;
+  orderId?: string | null;
+}): Promise<{ outcome: string }> {
+  return (await apiFetch("/v1/billing/checkout/paypal/returns/canceled", {
+    method: "POST",
+    body: JSON.stringify({
+      ...(input.subscriptionId ? { subscriptionId: input.subscriptionId } : {}),
+      ...(input.orderId ? { orderId: input.orderId } : {}),
+    }),
+  })) as { outcome: string };
 }

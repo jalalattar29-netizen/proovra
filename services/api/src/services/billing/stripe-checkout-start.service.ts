@@ -39,6 +39,8 @@ import {
   type OpenCheckoutAttemptGate,
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
+import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { defaultReconciliationProviders } from "./reconciliation/reconciliation.service.js";
 
 const STRIPE = prismaPkg.PaymentProvider.STRIPE;
 
@@ -169,6 +171,12 @@ export async function startStripePlanCheckout(input: {
 }): Promise<StripeCheckoutStart> {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(input.plan, currency);
+  // Plan attempts block across providers: an expired PayPal approval must not
+  // block a card purchase either (see startPayPalPlanCheckout).
+  await expireStalePlanAttempts({
+    userId: input.userId,
+    deps: { providers: defaultReconciliationProviders() },
+  }).catch(() => 0);
   const gate = await openCheckoutAttempt({
     userId: input.userId,
     product: prismaPkg.BillingCheckoutProduct.PLAN,

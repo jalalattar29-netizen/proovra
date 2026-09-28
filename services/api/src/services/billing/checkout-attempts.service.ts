@@ -35,6 +35,8 @@ export type CheckoutState =
   | "PROVIDER_CREATE_IN_PROGRESS"
   | "PROVIDER_OUTCOME_UNKNOWN"
   | "AWAITING_CUSTOMER_APPROVAL"
+  /** PayPal APPROVED: the buyer consented; PayPal has not activated it yet. */
+  | "APPROVED_AWAITING_ACTIVATION"
   | "CAPTURE_PENDING"
   | "PROVIDER_REJECTED"
   | "NEEDS_REVIEW"
@@ -42,7 +44,11 @@ export type CheckoutState =
   | "PROVIDER_CANCELED"
   | "PROVIDER_EXPIRED"
   | "PAYMENT_DECLINED"
-  | "LOCALLY_ABANDONED";
+  | "LOCALLY_ABANDONED"
+  /** Never approved within the approval window; closed by PROOVRA, provider-first. */
+  | "LOCALLY_EXPIRED"
+  /** An unbound attempt (no provider resource ever confirmed) replaced by a new checkout. */
+  | "SUPERSEDED_UNBOUND";
 
 /** How long a just-created attempt is treated as a duplicate click. */
 export const CHECKOUT_REUSE_WINDOW_MS = 2 * 60 * 1000;
@@ -140,6 +146,25 @@ export async function openCheckoutAttempt(input: {
     await (tx as LockClient).$executeRaw`
       SELECT pg_advisory_xact_lock(hashtext(${lockKey}))
     `;
+
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — an attempt the provider never
+    // bound (no resource id came back: a lost create response, or a create
+    // that failed ambiguously) and that is older than the duplicate-click
+    // window gave the buyer NO approval page, so nothing can be completed
+    // from it. It no longer blocks a new checkout: it is closed locally as
+    // superseded. If the provider later reports a resource for it, the
+    // canonical writers still bind it and provider truth still wins.
+    await tx.billingCheckoutAttempt.updateMany({
+      where: {
+        userId: input.userId,
+        product: input.product,
+        ...(isPlan ? {} : { provider: input.provider }),
+        status: S.PENDING,
+        providerResourceId: null,
+        createdAt: { lt: new Date(now.getTime() - CHECKOUT_REUSE_WINDOW_MS) },
+      },
+      data: { status: S.ABANDONED, checkoutState: "SUPERSEDED_UNBOUND" },
+    });
 
     const pending = await tx.billingCheckoutAttempt.findFirst({
       where: {

@@ -68,7 +68,10 @@ export async function requestSubscriptionResume(input: {
       httpStatus: 409,
       publicCode: "PROVIDER_CANNOT_RESTART",
       publicMessage:
-        "PayPal ends a subscription as soon as it is cancelled, so it cannot be restarted. You keep your plan until the end of the period you paid for; after that you can subscribe again.",
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — the old sentence promised the
+        // plan "until the end of the period you paid for". PayPal's cancel is
+        // immediate: its CANCELLED event ends the paid plan when it arrives.
+        "PayPal ends a subscription as soon as it is cancelled, so it cannot be restarted. The paid plan ends when PayPal confirms the cancellation. You can subscribe again at any time.",
       reportability: "EXPECTED_DENIAL",
       severity: "info",
       metadata: { provider: String(subscription.provider) },

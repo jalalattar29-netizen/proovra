@@ -186,3 +186,46 @@ describe("card (Stripe) attempts", () => {
     expect(safePayPalResumeUrl("https://checkout.stripe.com/c/pay/cs_1")).toBeNull();
   });
 });
+
+// BILLING PAYPAL INTEGRITY (2026-09-28) — a refused re-check checked nothing,
+// and a pending attempt is described by what it actually waits for.
+describe("account re-check — truthful about what was checked and what waits", () => {
+  it("a busy or rate-limited re-check never claims a check ran, and never says 'settling'", () => {
+    for (const outcome of ["BUSY", "RATE_LIMITED"] as const) {
+      const notice = describeReconciliation({ outcome, checked: false, summary: null });
+      expect(notice.message).toMatch(/Nothing new was checked/);
+      expect(notice.message).not.toMatch(/was checked\. Nothing was changed|settling/i);
+    }
+  });
+
+  it("an approved activation, a processing payment and a Stripe page are not 'waiting for your approval at PayPal'", () => {
+    const notice = describeReconciliation(
+      summary({
+        checked: 3,
+        pending: 3,
+        attempts: [
+          attempt("STILL_PENDING", { product: "PLAN", waitingFor: "ACTIVATION" }),
+          attempt("STILL_PENDING", { product: "EVIDENCE_CREDIT", waitingFor: "PAYMENT_PROCESSING" }),
+          attempt("STILL_PENDING", { provider: "STRIPE", waitingFor: "PAYMENT_PAGE" }),
+        ],
+      }),
+    );
+    expect(notice.message).not.toMatch(/waiting for your approval/);
+    expect(notice.message).toMatch(/PayPal is activating/);
+    expect(notice.message).toMatch(/still processing/);
+    expect(notice.message).toMatch(/card payment page is still open/);
+  });
+
+  it("only a PayPal attempt that waits for the buyer is called 'waiting for your approval'", () => {
+    const notice = describeReconciliation(
+      summary({ checked: 1, pending: 1, attempts: [attempt("STILL_PENDING", { waitingFor: "APPROVAL" })] }),
+    );
+    expect(notice.message).toMatch(/1 purchase is still waiting for your approval at PayPal/);
+  });
+
+  it("an approved plan still activating is told as such on 'Check status'", () => {
+    expect(describeAttemptRecheck(attempt("STILL_PENDING", { product: "PLAN", waitingFor: "ACTIVATION" })).message).toMatch(
+      /PayPal is activating it/,
+    );
+  });
+});

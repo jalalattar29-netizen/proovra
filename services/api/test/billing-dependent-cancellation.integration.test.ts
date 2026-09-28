@@ -83,7 +83,8 @@ describe("BILLING — dependent storage cancellation orchestration (live Postgre
   async function seedBase(
     userId: string,
     provider: "STRIPE" | "PAYPAL",
-    plan: "PRO" | "TEAM" = "PRO",
+    // TEAM: the plan whose catalogue sells the dependent (TEAM_*) SKUs.
+    plan: "PRO" | "TEAM" = "TEAM",
     teamId: string | null = null,
   ) {
     return prisma.subscription.create({
@@ -111,7 +112,11 @@ describe("BILLING — dependent storage cancellation orchestration (live Postgre
       data: {
         ownerUserId: input.ownerUserId,
         teamId: input.teamId ?? null,
-        addonKey: "PERSONAL_10_GB",
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — a DEPENDENT add-on: a SKU
+        // only a paid plan offers. A SKU a Free account may hold (the
+        // PERSONAL_* catalogue) is never cascaded by a plan cancellation;
+        // that is proven in billing-paypal-integrity.integration.test.ts.
+        addonKey: "TEAM_100_GB",
         extraStorageBytes: BigInt(input.gb ?? 10) * GB,
         billingCycle: cycle,
         status: "ACTIVE",
@@ -426,8 +431,12 @@ describe("BILLING — dependent storage cancellation orchestration (live Postgre
           provider: "STRIPE",
           providerSubId: `sub-${randomUUID()}`,
           status: "CANCELED",
-          plan: "PRO",
+          plan: "TEAM",
           teamId: null,
+          // A base that CARRIED the paid entitlement (it was active). A row
+          // that never activated obliges nothing (billing-paypal-integrity).
+          activatedAtUtc: new Date("2026-08-01T00:00:00.000Z"),
+          currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
         },
       });
       const orphan = await seedAddon({ ownerUserId: t.owner.userId });
@@ -466,8 +475,12 @@ describe("BILLING — dependent storage cancellation orchestration (live Postgre
           // TERMINAL — the state that used to remove the base from every
           // reconciliation query and make the orphan permanent.
           status: "CANCELED",
-          plan: "PRO",
+          plan: "TEAM",
           teamId: null,
+          // A base that CARRIED the paid entitlement (it was active). A row
+          // that never activated obliges nothing (billing-paypal-integrity).
+          activatedAtUtc: new Date("2026-08-01T00:00:00.000Z"),
+          currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
         },
       });
       const orphan = await seedAddon({ ownerUserId: t.owner.userId });

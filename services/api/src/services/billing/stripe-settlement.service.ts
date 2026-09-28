@@ -25,11 +25,7 @@
 import * as prismaPkg from "@prisma/client";
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 
-import {
-  ensureEntitlement,
-  recordPayment,
-  upsertWorkspaceStorageAddon,
-} from "../billing.service.js";
+import { ensureEntitlement, recordPayment } from "../billing.service.js";
 import { getEvidenceCreditPriceCents } from "../billing-pricing.service.js";
 import { stripeGet } from "../stripe.service.js";
 import {
@@ -37,7 +33,8 @@ import {
   type CheckoutState,
 } from "./checkout-attempts.service.js";
 import { grantEvidenceCredits } from "./evidence-credits.service.js";
-import { assertWebhookStorageAddonAllowed } from "./paypal-settlement.service.js";
+import { applyStorageSubscriptionObservation } from "./storage-activation.service.js";
+import { prisma } from "../../db.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 
 const STRIPE = prismaPkg.PaymentProvider.STRIPE;
@@ -108,6 +105,34 @@ export type StripeSessionSettlement = {
 function attemptIdOf(session: StripeCheckoutSession): string | null {
   const id = session.metadata?.attemptId ?? session.client_reference_id ?? null;
   return id && UUID_RE.test(id) ? id : null;
+}
+
+function attemptIdFrom(value: string | null | undefined): string | null {
+  return value && UUID_RE.test(value) ? value : null;
+}
+
+/** The immutable price of the credit attempt, or the catalogue for a pre-attempt session. */
+async function expectedStripeCreditPrice(
+  userId: string,
+  attemptId: string | null,
+  currency: string,
+): Promise<{ amountCents: number; currency: string }> {
+  if (attemptId) {
+    const attempt = await prisma.billingCheckoutAttempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true, product: true, provider: true, amountCents: true, currency: true },
+    });
+    if (
+      attempt &&
+      attempt.userId === userId &&
+      attempt.product === prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT &&
+      attempt.provider === STRIPE
+    ) {
+      return { amountCents: attempt.amountCents, currency: attempt.currency.toUpperCase() };
+    }
+  }
+  const c = currency === "EUR" ? "EUR" : "USD";
+  return { amountCents: getEvidenceCreditPriceCents(c), currency: c };
 }
 
 /** Record what a session means for the durable attempt that started it. */
@@ -200,10 +225,20 @@ export async function settleStripeCheckoutSession(input: {
       currency,
       status: prismaPkg.PaymentStatus.SUCCEEDED,
       teamId: null,
+      product: "EVIDENCE_CREDIT",
+      checkoutAttemptId: attemptIdFrom(meta.attemptId),
+      providerResourceId: session.id,
     });
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — compared with the price of THIS
+    // purchase (its immutable attempt), not a catalogue price that may have
+    // changed while the payment settled. Only a session from before attempts
+    // existed falls back to the current catalogue, and a mismatch goes to
+    // review, never granted.
+    const expected = await expectedStripeCreditPrice(userId, attemptIdFrom(meta.attemptId), currency);
     const priceMatches =
       (currency === "USD" || currency === "EUR") &&
-      amountCents === getEvidenceCreditPriceCents(currency);
+      currency === expected.currency &&
+      amountCents === expected.amountCents;
     if (!priceMatches) {
       input.log?.warn({ provider: "STRIPE", sessionId: session.id }, "stripe.credit_amount_mismatch");
       await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.PENDING, checkoutState: "NEEDS_REVIEW" });
@@ -221,11 +256,9 @@ export async function settleStripeCheckoutSession(input: {
 
   if (product === "STORAGE_ADDON" && storageAddonKey) {
     const teamId = meta.teamId ?? null;
-    try {
-      await assertWebhookStorageAddonAllowed({ userId, addonKey: storageAddonKey, teamId });
-    } catch (err) {
-      input.log?.warn({ err, provider: "STRIPE", sessionId: session.id }, "stripe.storage_addon_checkout_ignored");
-      return { product, outcome: "REJECTED", reason: "STORAGE_ADDON_NOT_ALLOWED" };
+    if (!session.subscription) {
+      input.log?.warn({ provider: "STRIPE", sessionId: session.id }, "stripe.storage_addon_checkout_without_subscription_ignored");
+      return { product, outcome: "IGNORED", reason: "NO_SUBSCRIPTION" };
     }
     await recordPayment({
       userId,
@@ -235,25 +268,28 @@ export async function settleStripeCheckoutSession(input: {
       currency,
       status: prismaPkg.PaymentStatus.SUCCEEDED,
       teamId,
+      product: "STORAGE_ADDON",
+      checkoutAttemptId: attemptIdFrom(meta.attemptId),
+      providerResourceId: String(session.subscription),
     });
-    if (!session.subscription) {
-      input.log?.warn({ provider: "STRIPE", sessionId: session.id }, "stripe.storage_addon_checkout_without_subscription_ignored");
-      return { product, outcome: "IGNORED", reason: "NO_SUBSCRIPTION" };
-    }
-    await upsertWorkspaceStorageAddon({
-      ownerUserId: userId,
-      teamId,
-      addonKey: storageAddonKey,
-      billingCycle:
-        parseStorageAddonBillingCycle(meta.billingCycle) ?? prismaPkg.StorageAddonBillingCycle.MONTHLY,
-      status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-      paymentProvider: STRIPE,
-      externalSubscriptionId: String(session.subscription),
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — the ONE storage activation
+    // decision, shared with the PayPal webhook, return, re-check and sweep.
+    const applied = await applyStorageSubscriptionObservation({
+      provider: STRIPE,
+      subscriptionId: String(session.subscription),
+      status: prismaPkg.SubscriptionStatus.ACTIVE,
+      planId: null,
+      claimed: { userId, teamId, addonKey: storageAddonKey, attemptId: null },
+      currentPeriodEnd: null,
+      observedAtUtc: null,
+      source: "stripe.checkout.session.completed",
       externalPaymentId: session.id,
-      amountCents,
-      currency,
-      metadata: { source: "stripe.checkout.session.completed", mode: session.mode ?? null },
     });
+    if (applied.outcome === "REFUSED" || applied.outcome === "IGNORED") {
+      input.log?.warn({ provider: "STRIPE", sessionId: session.id, outcome: applied.outcome }, "stripe.storage_addon_checkout_refused");
+      await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.FAILED, checkoutState: "PAYMENT_DECLINED" });
+      return { product, outcome: "REJECTED", reason: "STORAGE_ADDON_NOT_ALLOWED" };
+    }
     await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.COMPLETED, checkoutState: "SETTLED" });
     return { product, outcome: "APPLIED" };
   }

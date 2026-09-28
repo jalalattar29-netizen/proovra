@@ -69,6 +69,8 @@ export interface ActiveAddonModel {
   storageLabel: string;
   status: string;
   legacyOneTime: boolean;
+  /** Cancelling the base plan also cancels this add-on (its SKU needs a paid plan). */
+  endsWithPlan: boolean;
   canCancel: boolean;
   currentPeriodEndUtc: string | null;
   priceCents: number | null;
@@ -89,7 +91,7 @@ export interface BillingProjection {
     cancelAtPeriodEnd: boolean;
     paymentProviderLabel: string | null;
     graceEndsAtUtc: string | null;
-    scheduledChange: { displayName: string; effectiveAtUtc: string | null } | null;
+    scheduledChange: { displayName: string; effectiveAtUtc: string | null; awaitingApproval: boolean } | null;
     providerTransition: { displayName: string; providerLabel: string | null; effectiveAtUtc: string | null } | null;
   };
   usage: { evidence: UsageMeter; storage: StorageMeter; ai: UsageMeter };
@@ -200,7 +202,13 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
       cancelAtPeriodEnd: plan.cancelAtPeriodEnd === true,
       paymentProviderLabel: str(plan.paymentProviderLabel),
       graceEndsAtUtc: str(plan.graceEndsAtUtc),
-      scheduledChange: sched ? { displayName: str(sched.displayName) ?? str(sched.planKey) ?? "", effectiveAtUtc: str(sched.effectiveAtUtc) } : null,
+      scheduledChange: sched
+        ? {
+            displayName: str(sched.displayName) ?? str(sched.planKey) ?? "",
+            effectiveAtUtc: str(sched.effectiveAtUtc),
+            awaitingApproval: sched.awaitingApproval === true,
+          }
+        : null,
       providerTransition: trans
         ? { displayName: str(trans.displayName) ?? str(trans.targetPlanKey) ?? "", providerLabel: str(trans.providerLabel), effectiveAtUtc: str(trans.effectiveAtUtc) }
         : null,
@@ -274,6 +282,8 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
                 storageLabel: str(a.storageLabel) ?? str(a.label) ?? "Storage add-on",
                 status: str(a.status) ?? "",
                 legacyOneTime: a.legacyOneTime === true,
+                // An older API omits it: then every recurring add-on was cascaded.
+                endsWithPlan: a.endsWithPlan !== false,
                 canCancel: a.canCancel === true,
                 currentPeriodEndUtc: str(a.currentPeriodEndUtc),
                 priceCents: num(a.priceCents),
@@ -641,14 +651,27 @@ export function reconcileMessage(result: unknown): { message: string; tone: "suc
   const s = obj(obj(result).summary);
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   if (!obj(result).summary) {
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — a refused re-check checked
+    // nothing and says so; it never claims a check ran.
+    if (outcome === "BUSY") {
+      return { message: "A check is already running for this account. Nothing new was checked — wait a moment, then look again.", tone: "info", refresh: false };
+    }
+    if (outcome === "RATE_LIMITED") {
+      return { message: "Billing was re-checked several times just now. Nothing new was checked — please try again in a few minutes.", tone: "info", refresh: false };
+    }
     return outcome === "PROVIDER_UNAVAILABLE"
       ? { message: "We could not reach your payment provider. Nothing was changed.", tone: "error", refresh: false }
-      : { message: "Billing was checked. Nothing was changed.", tone: "info", refresh: false };
+      : { message: "The check did not run. Nothing was changed — please try again.", tone: "info", refresh: false };
   }
   const attempts = (Array.isArray(s.attempts) ? s.attempts : [])
     .map(obj)
     .filter((a) => a.locallyAbandoned !== true);
-  const awaiting = attempts.filter((a) => str(a.outcome) === "STILL_PENDING").length;
+  const stillPending = attempts.filter((a) => str(a.outcome) === "STILL_PENDING");
+  // "Waiting for your approval at PayPal" only for what waits for the buyer.
+  const awaiting = stillPending.filter(
+    (a) => str(a.provider) === "PAYPAL" && (str(a.waitingFor) ?? "APPROVAL") === "APPROVAL",
+  ).length;
+  const inProgress = stillPending.length - awaiting;
   const unverified = attempts.filter((a) => UNVERIFIED_ATTEMPT.has(str(a.outcome) ?? "")).length;
   const unreachable = num(s.unavailable);
   const credits = num(s.creditsRestored);
@@ -660,6 +683,7 @@ export function reconcileMessage(result: unknown): { message: string; tone: "suc
   if (changed > 0) parts.push(`${count(changed, "record was", "records were")} updated from what the provider confirmed.`);
   if (credits > 0) parts.push(`${count(credits, "evidence credit was", "evidence credits were")} added.`);
   if (awaiting > 0) parts.push(`${count(awaiting, "purchase is", "purchases are")} still waiting for your approval at PayPal.`);
+  if (inProgress > 0) parts.push(`${count(inProgress, "purchase is", "purchases are")} approved and still being completed by the provider; PROOVRA keeps checking.`);
   if (unverified > 0) parts.push(`${count(unverified, "purchase", "purchases")} could not be confirmed by the provider — see Billing activity on the web.`);
   if (unreachable > 0) parts.push(`The provider could not be reached for ${count(unreachable, "item", "items")}; those were left unchanged.`);
   if (discrepancies > 0) parts.push("Something the provider reported did not match our prices, so nothing was applied for it. Please contact support.");
@@ -699,17 +723,26 @@ export function abandonConfirmation(result: unknown): string {
 
 /** page.tsx `handleCancel` confirmation — the whole consequence, not just the plan's. */
 export function subscriptionCancelConsequence(p: BillingProjection, paidUntil: string | null): string[] {
-  const recurring = (p.storageAddons?.active ?? []).filter((a) => !a.legacyOneTime && a.status === "ACTIVE");
+  // Only add-ons whose SKU needs a paid plan end with it (storage a Free
+  // account may hold is kept); PayPal ends a subscription immediately.
+  const recurring = (p.storageAddons?.active ?? []).filter((a) => !a.legacyOneTime && a.status === "ACTIVE" && a.endsWithPlan);
+  const kept = (p.storageAddons?.active ?? []).filter((a) => !a.legacyOneTime && a.status === "ACTIVE" && !a.endsWithPlan);
+  const paypal = p.plan.paymentProviderLabel === "PayPal";
   return [
     `We will ask your payment provider to stop renewing it. ${
-      paidUntil
+      paypal
+        ? `PayPal ends a subscription immediately: ${p.plan.displayName} ends when PayPal confirms the cancellation, and it cannot be restarted.`
+        : paidUntil
         ? `You have paid through ${paidUntil}; where the provider supports it you keep ${p.plan.displayName} until then, and we will confirm the exact date after they answer.`
         : "Where the provider supports it you keep your current plan until the end of the period you have already paid for, and we will confirm the exact date after they answer."
     } Nothing is charged again.`,
     "Your evidence is not deleted. Records, custody history, hashes, signatures and verification packages all stay exactly as they are.",
     recurring.length > 0
       ? `${recurring.length} recurring storage add-on${recurring.length === 1 ? "" : "s"} will be cancelled with it, so that extra capacity ends too.`
-      : "You have no recurring storage add-ons, so nothing else is cancelled.",
+      : "No storage add-on depends on this plan, so no storage is cancelled.",
+    ...(kept.length > 0
+      ? [`${kept.length} storage add-on${kept.length === 1 ? "" : "s"} you can keep on Free ${kept.length === 1 ? "stays" : "stay"} active and keep${kept.length === 1 ? "s" : ""} renewing. Cancel ${kept.length === 1 ? "it" : "them"} separately if you no longer want the capacity.`]
+      : []),
     "Your account moves to Free. You can subscribe again at any time.",
   ];
 }

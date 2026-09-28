@@ -132,11 +132,16 @@ export function BillingOverviewCard({
   }
   if (plan.scheduledChange) {
     const on = billingDate(plan.scheduledChange.effectiveAtUtc);
-    notes.push(
-      on
-        ? `Moving to ${plan.scheduledChange.displayName} on ${on}. You keep everything you have now until then.`
-        : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`,
-    );
+    if (plan.scheduledChange.awaitingApproval) {
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — an unapproved PayPal revision is not a scheduled change.
+      notes.push(`Your change to ${plan.scheduledChange.displayName} is waiting for your approval at PayPal. Nothing changes until you approve it; choose the plan again for a new approval link. An unapproved change lapses after 3 days.`);
+    } else {
+      notes.push(
+        on
+          ? `Moving to ${plan.scheduledChange.displayName} on ${on}. You keep everything you have now until then.`
+          : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`,
+      );
+    }
   }
   if (lifecycle.detail && plan.lifecycle !== "PAST_DUE") notes.push(lifecycle.detail);
 

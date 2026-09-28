@@ -131,11 +131,17 @@ export function ManagePlanDrawer({
                 changes what every one of them means. */}
             {plan.scheduledChange ? (
               <p className="bill-summary__note" data-billing-manage-scheduled>
-                {plan.scheduledChange.effectiveAtUtc
-                  ? `Moving to ${plan.scheduledChange.displayName} on ${formatDate(
-                      plan.scheduledChange.effectiveAtUtc,
-                    )}. You keep everything you have now until then.`
-                  : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
+                {/* BILLING PAYPAL INTEGRITY (2026-09-28) — a PayPal revision
+                    the buyer has not approved is NOT a scheduled change. It
+                    used to read "Moving to Team on …" for ever, and hid the
+                    offers below, so the approval could never be issued again. */}
+                {plan.scheduledChange.awaitingApproval
+                  ? `Your change to ${plan.scheduledChange.displayName} is waiting for your approval at PayPal. Nothing changes until you approve it. Choose it again below for a new approval link; an unapproved change lapses after 3 days.`
+                  : plan.scheduledChange.effectiveAtUtc
+                    ? `Moving to ${plan.scheduledChange.displayName} on ${formatDate(
+                        plan.scheduledChange.effectiveAtUtc,
+                      )}. You keep everything you have now until then.`
+                    : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
               </p>
             ) : null}
           </div>
@@ -176,7 +182,7 @@ export function ManagePlanDrawer({
             behind it, so a tier move here would be a purchase dressed as a
             change, and the matrix says access information only. -------- */}
         {offers.length > 0 &&
-        !plan.scheduledChange &&
+        (!plan.scheduledChange || plan.scheduledChange.awaitingApproval) &&
         !plan.providerTransition &&
         plan.accessKind === "SUBSCRIPTION" ? (
           <section>

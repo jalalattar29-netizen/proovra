@@ -57,6 +57,57 @@ export function observedStateFromSubscriptionStatus(
   }
 }
 
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — THE status-write decision for
+ * `upsertSubscription`, on the statuses themselves.
+ *
+ * `decideSubscriptionTransition` (below) reasons over OBSERVED states, where a
+ * PAST_DUE write maps to FAILED and FAILED maps back to CANCELED. A PAST_DUE
+ * arriving for a CANCELED row therefore looked like "ALREADY_THAT_STATUS",
+ * skipped the ordering check, and was written — reopening a terminated
+ * subscription as live. This decision compares real statuses:
+ *
+ *   * an observation OLDER than the recorded provider time never writes;
+ *   * CANCELED is reopened only by ACTIVE, and only with a provider time that
+ *     is newer than the recorded one (or when no provider time was ever
+ *     recorded — a LOCAL abandonment writes none, see
+ *     `terminalizePendingPlanCheckout`); PAST_DUE and TRIALING never reopen it;
+ *   * TRIALING never demotes ACTIVE or PAST_DUE.
+ *
+ * `apply: true` with the same status means "refresh the other fields".
+ */
+export function decideSubscriptionStatusWrite(input: {
+  current: prismaPkg.SubscriptionStatus;
+  currentObservedAtUtc: Date | null;
+  next: prismaPkg.SubscriptionStatus;
+  observedAtUtc: Date | null;
+}): SubscriptionTransition {
+  const { current, next } = input;
+  const incoming = input.observedAtUtc?.getTime() ?? null;
+  const recorded = input.currentObservedAtUtc?.getTime() ?? null;
+
+  if (incoming !== null && recorded !== null && incoming < recorded) {
+    return { apply: false, reason: "OBSERVATION_IS_OLDER" };
+  }
+  if (next === current) return { apply: true, status: next };
+  if (incoming !== null && recorded !== null && incoming === recorded) {
+    return { apply: false, reason: "OBSERVATION_IS_NOT_NEWER" };
+  }
+
+  if (current === S.CANCELED) {
+    if (next === S.ACTIVE && incoming !== null && (recorded === null || incoming > recorded)) {
+      return { apply: true, status: next };
+    }
+    return { apply: false, reason: "TERMINAL_NOT_REGRESSED" };
+  }
+
+  if (next === S.TRIALING && (current === S.ACTIVE || current === S.PAST_DUE)) {
+    return { apply: false, reason: "AUTHORITATIVE_NOT_REGRESSED" };
+  }
+
+  return { apply: true, status: next };
+}
+
 export function decideSubscriptionTransition(
   input: SubscriptionTransitionInput,
 ): SubscriptionTransition {

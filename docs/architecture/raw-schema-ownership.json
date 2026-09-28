@@ -1937,7 +1937,17 @@
       "createdBy": "20271227000000_billing_commercial_correctness",
       "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([provider, providerRef])` would reject every CONSUMPTION row, which legitimately carries neither value.",
       "prismaExpressible": false,
-      "purpose": "THE durable idempotency guard on credit grants. One provider payment may grant credits exactly once: the webhook and the reconciliation path both write a PURCHASE row keyed to (provider, providerRef), and the database — not an in-memory lock and not a prior read — is what makes the second writer lose. The predicate scopes it to PURCHASE rows because CONSUMPTION rows carry no provider reference and would otherwise all collide on (NULL, NULL) under a total unique index."
+      "purpose": "THE durable idempotency guard on credit grants. One provider payment may grant credits exactly once: the webhook and the reconciliation path both write a PURCHASE row keyed to (provider, providerRef), and the database — not an in-memory lock and not a prior read — is what makes the second writer lose. The predicate scopes it to PURCHASE rows because CONSUMPTION rows carry no provider reference and would otherwise all collide on (NULL, NULL) under a total unique index.",
+      "sameDiffLineAlsoCovers": [
+        {
+          "whyOneEntry": "raw-schema-verify keys divergences by (table, sign, diff text). `prisma migrate diff` prints a second partial unique index on the same columns with the IDENTICAL line, so it cannot be registered as a separate object (it would collapse into this key). It is named here instead, positively, so its ownership is still explicit.",
+          "indexName": "evidence_credit_ledger_refund_reversal_provider_ref_key",
+          "predicate": "entry_type = 'REVERSAL' AND evidence_id IS NULL AND provider IS NOT NULL AND provider_ref IS NOT NULL",
+          "createdBy": "20280720000000_billing_paypal_integrity",
+          "mayBeModifiedBy": "a forward migration only; the datamodel must never declare it.",
+          "purpose": "THE durable idempotency guard on credit refund reversals: a provider refund or reversal of an evidence-credit purchase removes the granted credits exactly once, whichever of webhook, replay or reconciliation writes first."
+        }
+      ]
     },
     {
       "table": "evidence_credit_ledger_entries",

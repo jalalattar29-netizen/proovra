@@ -296,6 +296,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // the page loaded. Both carry a customer sentence the page shows as given.
   PAYPAL_STORAGE_APPROVAL_PENDING: { disposition: "customer", where: "global" },
   STORAGE_ADDON_CURRENCY_MISMATCH: { disposition: "customer", where: "global" },
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — a re-check refused because one is
+  // already running for the account.
+  RECONCILE_IN_PROGRESS: {
+    disposition: "internal",
+    why: "reconcileAccount (lib/api/billing-accounts.ts) maps this 409 to outcome BUSY and the page shows its own sentence (\"Nothing new was checked\"); the code itself is never rendered.",
+  },
   LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE: {
     disposition: "customer",
     where: "global",

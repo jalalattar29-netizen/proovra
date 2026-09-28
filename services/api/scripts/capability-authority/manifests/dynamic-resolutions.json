@@ -190,13 +190,13 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:334",
+      "site": "apps/mobile/app/(stack)/billing.tsx:349",
       "class": "INTERNAL_API_ROUTE_TABLE",
       "evidence": "apiFetch(request.path, { method: \"POST\", body }) where request = checkoutRequest(purchase, provider, currency) (apps/mobile/src/product/billing-purchase.ts). The path is chosen from a CLOSED table in checkoutRequest — never a runtime string — and every route it can name is listed in consumer-resolutions.json for this site. Private-distribution checkout only (externalCheckoutEnabled()).",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:341",
+      "site": "apps/mobile/app/(stack)/billing.tsx:362",
       "class": "INTERNAL_API_ROUTE_TABLE",
       "evidence": "apiFetch(fresh.path, …) where fresh = checkoutRequest({ ...purchase, transition: false }, provider, currency): the CHECKOUT_REQUIRED fallback of a plan transition, so the table can only yield POST /v1/billing/checkout/{stripe,paypal}; listed in consumer-resolutions.json for this site.",
       "reviewedAtUtc": "2026-09-25"
@@ -206,6 +206,12 @@
       "class": "PROP_CALLBACK",
       "evidence": "openSubmissions(detailsItem.id) — a LOCAL UI handler (intake-links.tsx:213) passed as the onOpenSubmissions prop of IntakeLinkDetails; its argument is an intake-link id, not a path. The request it leads to is loadSubmissions -> apiFetch(buildIntakeSubmissionsPath(linkId)) at intake-links.tsx:206, which the analyzer resolves and counts there.",
       "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/billing.tsx:300",
+      "class": "INTERNAL_API_ROUTE_TABLE",
+      "evidence": "apiFetch(confirmation.path, { method: \"POST\", body: \"{}\" }) where confirmation = payPalReturnConfirmation(response, provider) (apps/mobile/src/product/billing-purchase.ts). The path is chosen from a CLOSED table — ORDER_CAPTURE → /v1/billing/credits/checkout/paypal/{orderId}/capture, SUBSCRIPTION_CONFIRM → /v1/billing/checkout/paypal/subscriptions/{subscriptionId}/confirm — with the id validated against a strict pattern and URL-encoded; both routes are listed in consumer-resolutions.json for this site. Private-distribution PayPal checkout only.",
+      "reviewedAtUtc": "2026-09-28"
     }
   ]
 }

@@ -375,3 +375,58 @@ steps 5–8, after deployment. Historical facts are not rewritten.
 | Mobile | 1,827 / 1,827 (a run overlapping the API suite had 2 timing failures) |
 | Web production build, browser (`billing-layout`) | not rerun in the follow-up |
 | PayPal Sandbox / Stripe test mode | not run |
+
+## 12. PayPal integrity pass — findings A–S (2026-09-28, base `1c00764f`)
+
+Scope: the read-only PayPal billing audit's findings A–S, repaired in the
+isolated worktree `D:\pv-paypal` (branch `fix/paypal-billing-closure`). No
+Reports, package, TSA or OTS code was changed. **No PayPal Sandbox run was
+possible** (no sandbox credentials, plans or webhook in this environment):
+every provider behaviour below is proven against in-process fakes of PayPal's
+documented responses, on disposable PostgreSQL 16 + Redis.
+
+### 12.1 Disposition
+
+| F | Defect (short) | Disposition |
+|---|---|---|
+| A | Any cancelled base row made every live add-on "dependent" and cancelled it | FIXED — `storage-addon-rules.ts`: Free-eligible SKUs never depend; paid-only SKUs depend on `dependsOnSubscriptionId` (recorded at activation) or, for legacy rows, an ended base that carried entitlement, offered the SKU and has the same subject. Unsupported obligations are withdrawn (`OBLIGATION_WITHDRAWN_NOT_DEPENDENT`); unknown ones stand. |
+| B | Local abandonment wrote the provider ordering column; a late activation silently created a second live base | FIXED — `locallyTerminatedAtUtc` kept apart; activation decided under a per-user advisory lock; a second live base is cancelled at the provider, written CANCELED on confirmation, and recorded as a `DUPLICATE_BASE_SUBSCRIPTION` review item with refund review. Legacy local terminations are repaired on a live ACTIVE read. |
+| C | Four storage activation paths disagreed | FIXED — one `applyStorageSubscriptionObservation` (webhook, return, re-check, sweep, Stripe). Ungrantable ACTIVE storage is cancelled at the provider, the row FAILED, an obligation + review item recorded. |
+| D | Pre-create failures looked like "outcome unknown"; stale unbound attempts blocked checkout | FIXED — token/plan-lookup/price failures are `PAYMENTS_UNAVAILABLE` before create (attempt FAILED); unbound PENDING attempts older than 2 min are `SUPERSEDED_UNBOUND`. |
+| E | A renewal matching the credit price could be granted as credits | FIXED — `payments.product / checkout_attempt_id / provider_resource_id`; recovery grants only `EVIDENCE_CREDIT` (or unclassified rows the provider positively reports as credit orders), priced from the attempt. |
+| F | Sweep missed open attempts / pending credit payments; lost capture was terminal | FIXED — round-robin five-queue candidate selection; unknown capture error → `CAPTURE_PENDING`, re-read later. |
+| G | Refunds, reversals, disputes ignored | FIXED — `PAYMENT.CAPTURE.REFUNDED/REVERSED`, `PAYMENT.SALE.REFUNDED/REVERSED`, `CUSTOMER.DISPUTE.*`; credit refunds write one REVERSAL (partial unique index) clamped to available credits; shortfall, partial refunds, disputes and subscription reversals become review items. |
+| H | Workspace storage checkout; TEAM catalogue refused | FIXED — any `teamId` is 400 `CHECKOUT_TARGET_NOT_SUPPORTED`; eligibility from the offer catalogue (TEAM buys TEAM_* on the personal subject). |
+| I | Unapproved PayPal revision shown as a scheduled change | FIXED — `pendingPlanAwaitingApproval`; re-issuable; lapses after 72 h; approval observed marks it approved. |
+| J | PayPal plan price never verified | FIXED — one REGULAR monthly cycle, no trial, no setup fee, amount+currency = catalogue, else 503 `plan_price_mismatch`; wallet shows the catalogue credit price. |
+| K | Credit capture compared to today's price | FIXED — compared to the attempt's `amountCents`; mismatch → review item, no grant. |
+| L | Storage sale attributed via guesswork | FIXED — resolved through the storage row (`resolveSubjectFromProviderSubscription`). |
+| M | Team delete orphaned storage; deleted-team subject mismatch; orphan storage subs | FIXED — delete blocked while live storage/obligations exist; SetNull tolerated; orphan ACTIVE storage → FAILED record + review. |
+| N | Buyer cancel left attempts open; stale approvals forever | FIXED — `POST /v1/billing/checkout/paypal/returns/canceled`; 24 h approval expiry (`LOCALLY_EXPIRED`); `APPROVED_AWAITING_ACTIVATION` distinct from pending. |
+| O | Re-check "rate limit" never released and said "settling" | FIXED — real lease; 409 `BUSY`/`RECONCILE_IN_PROGRESS` and 429 both `checked:false`; clients say "Nothing new was checked". |
+| P | PAST_DUE/stale events reopened CANCELED | FIXED — `decideSubscriptionStatusWrite`: older observations never write; only a newer ACTIVE reopens CANCELED. |
+| Q | Mobile never confirmed/captured; silently converted a purchase into a plan change | FIXED — confirm/capture after the browser closes; `SUBSCRIPTION_ALREADY_ACTIVE` points to Manage plan. |
+| R | Misleading copy (cancel consequence, PayPal immediacy, refusal) | FIXED — web + mobile. |
+| S | DB transaction held across HTTP; 422 cancel treated as failure | FIXED — Redis lease (`withLease`); a failed cancel reads live state, ended = success. |
+
+### 12.2 Product decisions this pass makes
+
+* Cancelling a plan no longer cancels storage a Free account may hold (PERSONAL_* SKUs). Only TEAM_* depends on a plan.
+* Workspace (`teamId`) storage checkout is refused; storage is bought on the personal subject.
+* A duplicate base subscription is cancelled at the provider automatically and sent to review (refund decision stays human).
+* Approval expiry: 24 h for a checkout approval, 72 h for an unapproved PayPal plan revision.
+
+### 12.3 Migration `20280720000000_billing_paypal_integrity`
+
+EXPAND, additive, no enum changes; apply BEFORE the API image. Registered in the
+inventory, deployment plan, security-event allowlist, safety gate and raw-schema
+ownership (`sameDiffLineAlsoCovers` on the credit-ledger partial unique entry).
+Verified on a fresh PostgreSQL 16 database: full chain applies, `raw-schema-verify`
+OK (881 objects, 0 unregistered divergences).
+
+### 12.4 Limitations (not fixed, not verified)
+
+* No PayPal Sandbox run: `PayPal-Request-Id` retention, revise/approval behaviour and webhook event subscription are unverified against PayPal.
+* The production webhook must subscribe to the new event types; production PayPal plans must bill exactly the catalogue price or checkout answers 503.
+* Downgrades do not cancel TEAM_* add-ons automatically (obligation path covers cancellation only).
+* With Redis down the lease is per-instance (memory fallback).

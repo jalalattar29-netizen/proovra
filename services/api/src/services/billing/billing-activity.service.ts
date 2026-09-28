@@ -25,6 +25,7 @@ import * as prismaPkg from "@prisma/client";
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
+import { withLease } from "../rate-limit.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import type { BillingAccountRef, BillingCapability } from "./billing-accounts.service.js";
@@ -60,7 +61,15 @@ export type BillingActivityState =
   | "PROVIDER_UNREACHABLE"
   | "PROVIDER_UNVERIFIED"
   | "PROCESSING"
+  /** PayPal: the buyer approved a subscription; PayPal has not activated it yet. */
+  | "ACTIVATING"
   | "NEEDS_REVIEW"
+  /** The provider activated it, but it could not be granted; PROOVRA stopped it and a review is open. */
+  | "REFUSED"
+  /** Never approved within the approval window; closed by PROOVRA. */
+  | "EXPIRED_UNAPPROVED"
+  /** The provider never confirmed it was created; replaced by a newer checkout. */
+  | "SUPERSEDED"
   | "FAILED"
   | "CANCELED"
   | "EXPIRED"
@@ -121,7 +130,16 @@ export function activityStateFor(input: {
   providerBound: boolean;
   lastCheckOutcome: string | null;
   ageMs: number;
+  /** A storage activation the provider completed but PROOVRA refused. */
+  refused?: boolean;
 }): BillingActivityState {
+  if (input.refused) return "REFUSED";
+  if (input.status === "ABANDONED" && input.checkoutState === "LOCALLY_EXPIRED") {
+    return "EXPIRED_UNAPPROVED";
+  }
+  if (input.status === "ABANDONED" && input.checkoutState === "SUPERSEDED_UNBOUND") {
+    return "SUPERSEDED";
+  }
   switch (input.status) {
     case "FAILED":
       return "FAILED";
@@ -133,6 +151,7 @@ export function activityStateFor(input: {
       return "ABANDONED";
   }
   if (input.checkoutState === "CAPTURE_PENDING") return "PROCESSING";
+  if (input.checkoutState === "APPROVED_AWAITING_ACTIVATION") return "ACTIVATING";
   if (input.checkoutState === "NEEDS_REVIEW") return "NEEDS_REVIEW";
   if (!input.providerBound) {
     return input.checkoutState === "PROVIDER_CREATE_IN_PROGRESS" && input.ageMs < 2 * 60 * 1000
@@ -197,7 +216,29 @@ export function activityCopy(
     case "PROCESSING":
       return {
         statusLabel: "Processing",
-        explanation: `You approved this at PayPal and PayPal is still processing the payment. ${grants.charAt(0).toUpperCase()}${grants.slice(1)} is added when PayPal reports it completed.`,
+        explanation: `You approved this at PayPal and PayPal is still processing the payment. ${grants.charAt(0).toUpperCase()}${grants.slice(1)} is added when PayPal reports it completed. PROOVRA keeps checking automatically.`,
+      };
+    case "ACTIVATING":
+      return {
+        statusLabel: "Activating",
+        explanation: `You approved this at PayPal and PayPal has not activated it yet. ${grants.charAt(0).toUpperCase()}${grants.slice(1)} is added when PayPal activates it. PROOVRA keeps checking automatically.`,
+      };
+    case "REFUSED":
+      return {
+        statusLabel: "Stopped for review",
+        explanation:
+          "PayPal activated this purchase, but it could not be added to this account, so PROOVRA cancelled it at PayPal. Support reviews the charge; contact us to hear the outcome.",
+      };
+    case "EXPIRED_UNAPPROVED":
+      return {
+        statusLabel: "Not approved in time",
+        explanation:
+          "This was not approved at PayPal within 24 hours, so PROOVRA closed it. Nothing was charged. If PayPal ever confirms a payment for it, PROOVRA will still apply it.",
+      };
+    case "SUPERSEDED":
+      return {
+        statusLabel: "Closed",
+        explanation: `PayPal never confirmed this checkout was created, and you started a newer one. Nothing can be charged from it. ${NOT_APPLIED}`,
       };
     case "NEEDS_REVIEW":
       return {
@@ -262,9 +303,26 @@ function stripeActivityCopy(
         explanation: `Stripe could not confirm this checkout the last time it was checked. ${NOT_APPLIED}`,
       };
     case "PROCESSING":
+    case "ACTIVATING":
       return {
         statusLabel: "Processing",
         explanation: `You completed checkout and your payment method is still settling. ${grants} is added when Stripe reports the payment.`,
+      };
+    case "REFUSED":
+      return {
+        statusLabel: "Stopped for review",
+        explanation:
+          "Stripe completed this purchase, but it could not be added to this account, so PROOVRA cancelled it at Stripe. Support reviews the charge.",
+      };
+    case "EXPIRED_UNAPPROVED":
+      return {
+        statusLabel: "Expired",
+        explanation: "The Stripe payment page was not completed. Nothing was charged or added.",
+      };
+    case "SUPERSEDED":
+      return {
+        statusLabel: "Closed",
+        explanation: `Stripe never confirmed this checkout was created, and you started a newer one. ${NOT_APPLIED}`,
       };
     case "NEEDS_REVIEW":
       return {
@@ -301,7 +359,15 @@ function actionsFor(
   state: BillingActivityState,
 ): BillingActivityItem["actions"] {
   const may = account.capabilities.includes(requiredCapability(product));
-  const open = !["FAILED", "CANCELED", "EXPIRED", "ABANDONED"].includes(state);
+  const open = ![
+    "FAILED",
+    "CANCELED",
+    "EXPIRED",
+    "ABANDONED",
+    "REFUSED",
+    "EXPIRED_UNAPPROVED",
+    "SUPERSEDED",
+  ].includes(state);
   return {
     canRecheck: may && open && state !== "STARTING",
     canAbandon:
@@ -309,6 +375,7 @@ function actionsFor(
       open &&
       state !== "STARTING" &&
       state !== "PROCESSING" &&
+      state !== "ACTIVATING" &&
       state !== "NEEDS_REVIEW",
   };
 }
@@ -442,6 +509,7 @@ export async function readBillingActivityForAccount(input: {
       providerBound: Boolean(row.externalSubscriptionId),
       lastCheckOutcome: check.outcome,
       ageMs: now.getTime() - row.createdAt.getTime(),
+      refused: typeof meta.activationRefused === "string",
     });
     const label = defs.find((d) => d.key === row.addonKey)?.label ?? "Storage";
     items.push({
@@ -480,22 +548,23 @@ export class BillingAttemptBusyError extends Error {
 
 /**
  * ONE action per attempt at a time. A double click (or a second tab) gets 409
- * instead of a second provider read-and-apply racing the first; the lock is
+ * instead of a second provider read-and-apply racing the first; the lease is
  * released the moment the action finishes, so "Check status" followed by
- * "Abandon" is never refused. Transaction-scoped PostgreSQL advisory lock:
- * nothing to clean up after a crash.
+ * "Abandon" is never refused.
+ *
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — a LEASE, not a database
+ * transaction. This used to hold an interactive PostgreSQL transaction open
+ * for up to 60 seconds across the PayPal HTTP calls — a pooled connection
+ * pinned to a slow provider, per click. The lease's TTL bounds a crashed
+ * holder; every writer behind it is compare-and-set, so the lease prevents
+ * duplicate provider traffic rather than guarding correctness.
  */
+export const ATTEMPT_ACTION_LEASE_MS = 90_000;
+
 export async function withBillingAttemptLock<T>(attemptId: string, fn: () => Promise<T>): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ locked: boolean }>>`
-        SELECT pg_try_advisory_xact_lock(hashtext(${`billing-attempt-action:${attemptId}`})) AS locked
-      `;
-      if (!rows[0]?.locked) throw new BillingAttemptBusyError();
-      return fn();
-    },
-    { maxWait: 5_000, timeout: 60_000 },
-  );
+  return withLease(`billing-attempt-action:${attemptId}`, ATTEMPT_ACTION_LEASE_MS, fn, () => {
+    throw new BillingAttemptBusyError();
+  });
 }
 
 type OwnedAttempt = { product: CheckoutAttemptProduct; storage: boolean };
@@ -684,4 +753,41 @@ export async function abandonBillingAttempt(input: {
         deps: { providers, ...(input.deps ?? {}) },
       }));
   return normalizeAbandon(input.attemptId, result);
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — the attempt THIS payer started for a
+ * PayPal resource (order, plan subscription or storage subscription), for the
+ * buyer-cancel return. Another payer's resource is indistinguishable from an
+ * unknown one (null).
+ */
+export async function resolveAttemptIdForPayPalResource(input: {
+  userId: string;
+  providerResourceId: string;
+}): Promise<string | null> {
+  const PAYPAL = prismaPkg.PaymentProvider.PAYPAL;
+  const attempt = await prisma.billingCheckoutAttempt.findFirst({
+    where: { provider: PAYPAL, providerResourceId: input.providerResourceId, userId: input.userId },
+    select: { id: true },
+  });
+  if (attempt) return attempt.id;
+  const storage = await prisma.workspaceStorageAddon.findFirst({
+    where: {
+      externalSubscriptionId: input.providerResourceId,
+      ownerUserId: input.userId,
+      teamId: null,
+    },
+    select: { id: true },
+  });
+  if (storage) return storage.id;
+  const legacy = await prisma.subscription.findFirst({
+    where: {
+      provider: PAYPAL,
+      providerSubId: input.providerResourceId,
+      userId: input.userId,
+      status: prismaPkg.SubscriptionStatus.TRIALING,
+    },
+    select: { id: true },
+  });
+  return legacy?.id ?? null;
 }

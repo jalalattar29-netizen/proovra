@@ -1339,6 +1339,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // for durable PayPal plan / evidence-credit checkout attempts. EXPAND.
       "20280700000000_billing_checkout_attempts",
       "20280710000000_billing_stripe_attempts_billed_currency",
+      // Billing PayPal integrity (2026-09-28): nullable payment identity
+      // columns, subscription approval/activation columns, storage dependency
+      // column, billing_review_items table, one partial unique index. EXPAND;
+      // no `security_events` object is touched.
+      "20280720000000_billing_paypal_integrity",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -970,6 +970,7 @@ model User {
   legalAcceptances                  UserLegalAcceptance[]
   storageAddons                     WorkspaceStorageAddon[]
   billingCheckoutAttempts           BillingCheckoutAttempt[]
+  billingReviewItems                BillingReviewItem[]
   evidenceAiCategorizations         EvidenceAiCategorization[]
   evidenceAnnotations               EvidenceAnnotation[]
   evidenceLegalNotes                EvidenceLegalNote[]
@@ -1895,6 +1896,11 @@ model WorkspaceStorageAddon {
   dependentCancellationTriggeredBySubscriptionId String?                     @map("dependent_cancellation_triggered_by_subscription_id") @db.Uuid
   /// The durable lease that stops two workers retrying one add-on at once.
   dependentCancellationLeaseUntilUtc             DateTime?                   @map("dependent_cancellation_lease_until_utc") @db.Timestamptz(6)
+  /// BILLING PAYPAL INTEGRITY (2026-09-28) — the base subscription whose paid
+  /// entitlement this add-on REQUIRES, recorded at activation. NULL = the SKU
+  /// does not need a paid plan (a Free account may hold it), or a legacy row,
+  /// which the dependency rule decides from its SKU.
+  dependsOnSubscriptionId                        String?                     @map("depends_on_subscription_id") @db.Uuid
   metadata                                       Json?
   createdAt                                      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                                      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2335,6 +2341,21 @@ model Subscription {
   billedUnitAmountCents     Int?               @map("billed_unit_amount_cents")
   pendingPlan               PlanType?          @map("pending_plan")
   pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
+  /// BILLING PAYPAL INTEGRITY (2026-09-28) — the scheduled change was asked of
+  /// the provider but the buyer has not approved it yet (a PayPal `revise`
+  /// that returned an approval link). Such a change is not yet the plan the
+  /// account is moving to: it may be re-issued, and it expires if never
+  /// approved.
+  pendingPlanAwaitingApproval Boolean          @default(false) @map("pending_plan_awaiting_approval")
+  /// When the pending change was requested of the provider.
+  pendingPlanRequestedAtUtc DateTime?          @map("pending_plan_requested_at_utc") @db.Timestamptz(6)
+  /// When this subscription was first observed ACTIVE (provider-confirmed).
+  /// NULL on rows that never activated and on legacy rows written before it.
+  activatedAtUtc            DateTime?          @map("activated_at_utc") @db.Timestamptz(6)
+  /// When PROOVRA ended an unapproved checkout LOCALLY (abandonment). A local
+  /// fact, deliberately never written into providerStateAtUtc, which orders
+  /// PROVIDER observations only.
+  locallyTerminatedAtUtc    DateTime?          @map("locally_terminated_at_utc") @db.Timestamptz(6)
   createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   teamId                    String?            @map("team_id") @db.Uuid
@@ -2366,11 +2387,23 @@ model Payment {
   /// that arrives out of order cannot move a settled payment backwards.
   /// NULL = nothing recorded yet (accept).
   providerStateAtUtc DateTime?       @map("provider_state_at_utc") @db.Timestamptz(6)
+  /// BILLING PAYPAL INTEGRITY (2026-09-28) — WHAT this payment paid for:
+  /// PLAN, STORAGE_ADDON, EVIDENCE_CREDIT or STORAGE_ADDON_ONE_TIME; for a
+  /// historic row classified later, SUBSCRIPTION_UNSPECIFIED or UNCLASSIFIED.
+  /// NULL = written before this column existed and not classified yet. Credit
+  /// recovery reads EVIDENCE_CREDIT rows only; an amount never decides it.
+  product            String?         @db.VarChar(32)
+  /// The durable checkout attempt that produced this payment, when known.
+  checkoutAttemptId  String?         @map("checkout_attempt_id") @db.Uuid
+  /// The provider resource the payment belongs to (PayPal order or
+  /// subscription id; Stripe session or subscription id).
+  providerResourceId String?         @map("provider_resource_id") @db.VarChar(128)
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@unique([provider, providerPaymentId])
+  @@index([userId, product, status])
   @@index([userId])
   @@index([teamId, createdAt])
   @@map("payments")
@@ -3690,6 +3723,40 @@ model BillingCheckoutAttempt {
   @@unique([provider, providerResourceId])
   @@index([userId, status, createdAt])
   @@map("billing_checkout_attempts")
+}
+
+/// BILLING PAYPAL INTEGRITY (2026-09-28) — a provider charge or subscription
+/// PROOVRA could not (or must not) turn into an entitlement by itself: a
+/// superseded duplicate base subscription, a storage subscription the provider
+/// activated that cannot be granted, a refund of credits already consumed, a
+/// dispute. The durable, auditable record of what the provider did, what
+/// PROOVRA did at the provider, and whether a refund review is owed. Never
+/// deleted; an operator resolves it.
+model BillingReviewItem {
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String          @map("user_id") @db.Uuid
+  provider             PaymentProvider
+  /// Subscription, order or capture id at the provider.
+  providerResourceId   String          @map("provider_resource_id") @db.VarChar(128)
+  /// PLAN / STORAGE_ADDON / EVIDENCE_CREDIT.
+  product              String          @db.VarChar(32)
+  /// Closed vocabulary; see billing-review.service.ts.
+  reason               String          @db.VarChar(64)
+  /// What PROOVRA did at the provider: NONE, CANCELED_AT_PROVIDER, CANCEL_FAILED.
+  providerAction       String          @default("NONE") @map("provider_action") @db.VarChar(48)
+  refundReviewRequired Boolean         @default(false) @map("refund_review_required")
+  /// OPEN or RESOLVED.
+  status               String          @default("OPEN") @db.VarChar(24)
+  /// Safe facts only (ids, amounts, states). Never a provider payload.
+  detail               Json?
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerResourceId, reason])
+  @@index([userId, status])
+  @@map("billing_review_items")
 }
 
 enum BillingCheckoutProduct {

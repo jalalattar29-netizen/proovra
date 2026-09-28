@@ -39,11 +39,7 @@ import {
 } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
-import {
-  ensureEntitlement,
-  recordPayment,
-  upsertWorkspaceStorageAddon,
-} from "../billing.service.js";
+import { ensureEntitlement, recordPayment } from "../billing.service.js";
 import {
   getEvidenceCreditPriceCents,
   normalizeBillingCurrency,
@@ -54,7 +50,6 @@ import {
 } from "../paypal-checkout-policy.service.js";
 import {
   currencyForPayPalBasePlanId,
-  isPayPalStorageAddonPlanId,
   resolvePlanFromPayPalPlanId,
 } from "../paypal-plan-map.service.js";
 import {
@@ -62,16 +57,18 @@ import {
   capturePayPalOrder,
   getPayPalOrder,
   getPayPalSubscription,
+  paypalGet,
 } from "../paypal.service.js";
-import { grantEvidenceCredits } from "./evidence-credits.service.js";
+import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
+import { recordBillingReviewItem } from "./billing-review.service.js";
+import { applyStorageSubscriptionObservation } from "./storage-activation.service.js";
 import {
   recordCheckoutAttemptProviderOutcome,
   type CheckoutState,
 } from "./checkout-attempts.service.js";
-import {
-  storageAddonStatusFromSubscription,
-  syncPlanForSubscription,
-} from "./subscription-lifecycle.handlers.js";
+import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
+import { expireUnapprovedPlanChange, markPlanChangeApproved } from "./plan-transition.service.js";
+import { reclassifyLegacyLocalTermination } from "./subscription-cancellation.service.js";
 
 const PROVIDER = prismaPkg.PaymentProvider.PAYPAL;
 
@@ -247,7 +244,15 @@ type CreditPurchase = {
   attemptId: string | null;
   amountCents: number;
   currency: "USD" | "EUR";
-  /** The server price for this currency matches what PayPal holds. */
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the price THIS purchase was sold
+   * at: the immutable amount on its checkout attempt. Only an order from
+   * before attempts existed (no attempt in custom_id) is compared with the
+   * current catalogue — and a mismatch there is sent to review, never
+   * guessed.
+   */
+  expected: { amountCents: number; currency: string };
+  /** The order holds exactly the expected amount and currency. */
   priceMatches: boolean;
 };
 
@@ -255,29 +260,46 @@ type CreditPurchase = {
  * Identify an evidence-credit purchase from what PROOVRA itself wrote into the
  * order (`custom_id`, amount) — read back from PayPal, never from the browser.
  */
-function readCreditPurchase(unit: Json | null): CreditPurchase | null {
+async function readCreditPurchase(unit: Json | null): Promise<CreditPurchase | null> {
   const parsed = parsePayPalCustomId(str(unit?.custom_id));
   if (!parsed.userId || parsed.plan !== prismaPkg.PlanType.PAYG) return null;
 
   const amount = rec(unit?.amount);
   const rawCurrency = str(amount?.currency_code)?.toUpperCase() ?? "";
   const cents = centsFromValue(amount?.value);
-  if ((rawCurrency !== "USD" && rawCurrency !== "EUR") || cents === null) {
-    return {
-      userId: parsed.userId,
-      attemptId: parsed.attemptId ?? null,
-      amountCents: cents ?? 0,
-      currency: normalizeBillingCurrency(rawCurrency),
-      priceMatches: false,
-    };
+  const attemptId = parsed.attemptId ?? null;
+
+  let expected: { amountCents: number; currency: string } | null = null;
+  if (attemptId) {
+    const attempt = await prisma.billingCheckoutAttempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true, product: true, provider: true, amountCents: true, currency: true },
+    });
+    if (
+      attempt &&
+      attempt.userId === parsed.userId &&
+      attempt.product === prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT &&
+      attempt.provider === PROVIDER
+    ) {
+      expected = { amountCents: attempt.amountCents, currency: attempt.currency.toUpperCase() };
+    }
   }
-  const currency = normalizeBillingCurrency(rawCurrency);
+  if (!expected) {
+    const currency = normalizeBillingCurrency(rawCurrency);
+    expected = { amountCents: getEvidenceCreditPriceCents(currency), currency };
+  }
+
   return {
     userId: parsed.userId,
-    attemptId: parsed.attemptId ?? null,
-    amountCents: cents,
-    currency,
-    priceMatches: cents === getEvidenceCreditPriceCents(currency),
+    attemptId,
+    amountCents: cents ?? 0,
+    currency: normalizeBillingCurrency(rawCurrency),
+    expected,
+    priceMatches:
+      (rawCurrency === "USD" || rawCurrency === "EUR") &&
+      cents !== null &&
+      cents === expected.amountCents &&
+      rawCurrency === expected.currency,
   };
 }
 
@@ -296,7 +318,7 @@ function firstUnit(order: Json | null): Json | null {
 /**
  * Apply ONE capture's provider state to the wallet and payment history.
  * Credits are granted only for a COMPLETED capture whose amount and currency
- * are exactly the server price of the product.
+ * are exactly the price of the purchase attempt.
  */
 async function applyCreditCapture(params: {
   orderId: string;
@@ -323,9 +345,11 @@ async function applyCreditCapture(params: {
       ? prismaPkg.PaymentStatus.SUCCEEDED
       : status === "PENDING"
         ? prismaPkg.PaymentStatus.PENDING
-        : status === "REFUNDED" || status === "PARTIALLY_REFUNDED"
+        : status === "REFUNDED"
           ? prismaPkg.PaymentStatus.REFUNDED
-          : prismaPkg.PaymentStatus.FAILED;
+          : status === "PARTIALLY_REFUNDED"
+            ? prismaPkg.PaymentStatus.SUCCEEDED
+            : prismaPkg.PaymentStatus.FAILED;
 
   await ensureEntitlement(purchase.userId);
   await recordPayment({
@@ -337,29 +361,50 @@ async function applyCreditCapture(params: {
     status: paymentStatus,
     teamId: null,
     observedAtUtc,
+    product: "EVIDENCE_CREDIT",
+    checkoutAttemptId: purchase.attemptId,
+    providerResourceId: orderId || null,
   });
 
   if (status === "PENDING") {
     return { outcome: "PENDING", orderId, reason: "CAPTURE_PENDING", captureId };
   }
-  if (status !== "COMPLETED") {
+  if (status === "REFUNDED") {
+    // A refund of a capture that may already have granted: undo it.
+    await applyCreditRefund({ userId: purchase.userId, captureId, kind: "REFUNDED" });
+    return { outcome: "FAILED", orderId, reason: "CAPTURE_REFUNDED", providerIssue: status, captureId };
+  }
+  if (status !== "COMPLETED" && status !== "PARTIALLY_REFUNDED") {
     return {
       outcome: "FAILED",
       orderId,
-      reason:
-        paymentStatus === prismaPkg.PaymentStatus.REFUNDED
-          ? "CAPTURE_REFUNDED"
-          : "CAPTURE_DECLINED",
+      reason: "CAPTURE_DECLINED",
       providerIssue: status || null,
       captureId,
     };
   }
 
-  const captureMatchesOrder =
-    captureCents === purchase.amountCents && captureCurrency === purchase.currency;
-  if (!purchase.priceMatches || !captureMatchesOrder) {
-    // Money moved but not the product's price: record the payment (above),
-    // grant nothing, and leave it for an operator rather than guess.
+  const captureMatchesPurchase =
+    captureCents === purchase.expected.amountCents &&
+    captureCurrency === purchase.expected.currency;
+  if (!purchase.priceMatches || !captureMatchesPurchase) {
+    // Money moved but not at this purchase's price: record the payment
+    // (above), grant nothing, and send it to review — a refund may be owed.
+    await recordBillingReviewItem({
+      userId: purchase.userId,
+      provider: PROVIDER,
+      providerResourceId: captureId,
+      product: "EVIDENCE_CREDIT",
+      reason: "AMOUNT_MISMATCH",
+      refundReviewRequired: true,
+      detail: {
+        orderId,
+        capturedCents: captureCents,
+        capturedCurrency: captureCurrency,
+        expectedCents: purchase.expected.amountCents,
+        expectedCurrency: purchase.expected.currency,
+      },
+    });
     return { outcome: "REJECTED", orderId, reason: "AMOUNT_MISMATCH" };
   }
 
@@ -370,6 +415,19 @@ async function applyCreditCapture(params: {
     provider: PROVIDER,
     providerRef: captureId,
   });
+
+  if (status === "PARTIALLY_REFUNDED") {
+    // The credit is indivisible: a partial refund is sent to review rather
+    // than guessed into a fraction of a credit.
+    await recordBillingReviewItem({
+      userId: purchase.userId,
+      provider: PROVIDER,
+      providerResourceId: captureId,
+      product: "EVIDENCE_CREDIT",
+      reason: "PARTIAL_REFUND",
+      detail: { orderId },
+    });
+  }
 
   return {
     outcome: grant.granted ? "GRANTED" : "ALREADY_GRANTED",
@@ -383,11 +441,11 @@ async function applyCreditCapture(params: {
 /**
  * Settle an evidence-credit order from PayPal's server-side state.
  *
- * `capture: true` (the authenticated return route and the
- * CHECKOUT.ORDER.APPROVED webhook) captures an APPROVED order; `false` (the
- * capture webhooks) only observes. `expectedUserId` binds the order to the
- * authenticated caller — an order whose custom_id names someone else is
- * refused before anything is captured.
+ * `capture: true` (the authenticated return route, the CHECKOUT.ORDER.APPROVED
+ * webhook, the per-attempt re-check and the sweep) captures an APPROVED
+ * order; `false` (the capture webhooks) only observes. `expectedUserId` binds
+ * the order to the authenticated caller — an order whose custom_id names
+ * someone else is refused before anything is captured.
  */
 export async function settlePayPalEvidenceCreditOrder(params: {
   orderId: string;
@@ -396,11 +454,35 @@ export async function settlePayPalEvidenceCreditOrder(params: {
   /** The capture a webhook is about, when it names one. */
   captureId?: string | null;
 }): Promise<PayPalCreditSettlement> {
-  const sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null } = {
+  const sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null; captureAttempted?: boolean } = {
     purchase: null,
     observedAtUtc: null,
+    captureAttempted: false,
   };
-  const result = await settleCreditOrder(params, sink);
+  let result: PayPalCreditSettlement;
+  try {
+    result = await settleCreditOrder(params, sink);
+  } catch (err) {
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — the capture (or the read after
+    // it) failed in a way that does NOT prove nothing was captured: a
+    // timeout, a dropped connection, a 5xx. The buyer approved; money may
+    // have moved. The attempt is marked CAPTURE_PENDING — "processing", never
+    // abandonable — so the hourly sweep settles it through this same function
+    // (PayPal's capture idempotency key makes the retry return the original
+    // capture) and the credit is granted exactly once.
+    if (sink.purchase && sink.captureAttempted) {
+      await recordCheckoutAttemptProviderOutcome({
+        provider: PROVIDER,
+        userId: sink.purchase.userId,
+        product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
+        providerResourceId: params.orderId,
+        attemptId: sink.purchase.attemptId,
+        status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
+        checkoutState: "CAPTURE_PENDING",
+      }).catch(() => false);
+    }
+    throw err;
+  }
   if (sink.purchase) {
     await recordCreditAttemptOutcome({
       orderId: params.orderId,
@@ -415,8 +497,8 @@ export async function settlePayPalEvidenceCreditOrder(params: {
 /**
  * BILLING CHECKOUT ATTEMPTS (2026-09-28) — what a credit settlement means for
  * the durable attempt that started the order. Every path that settles an
- * order (return route, both webhooks, re-check) passes through here, so the
- * attempt converges however the answer arrived.
+ * order (return route, both webhooks, re-check, sweep) passes through here, so
+ * the attempt converges however the answer arrived.
  */
 async function recordCreditAttemptOutcome(input: {
   orderId: string;
@@ -454,7 +536,8 @@ async function recordCreditAttemptOutcome(input: {
       break;
     case "REJECTED":
       // Only an amount mismatch on a genuine credit order is the attempt's
-      // business: money or approval exists that the catalog does not match.
+      // business: money or approval exists that the attempt's price does not
+      // match.
       if (result.reason !== "AMOUNT_MISMATCH") return;
       status = A.PENDING;
       checkoutState = "NEEDS_REVIEW";
@@ -480,7 +563,7 @@ async function settleCreditOrder(
     capture: boolean;
     captureId?: string | null;
   },
-  sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null },
+  sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null; captureAttempted?: boolean },
 ): Promise<PayPalCreditSettlement> {
   const { orderId } = params;
   let order = rec(await getPayPalOrder(orderId));
@@ -488,7 +571,7 @@ async function settleCreditOrder(
     return { outcome: "REJECTED", orderId, reason: "MALFORMED" };
   }
 
-  const purchase = readCreditPurchase(firstUnit(order));
+  const purchase = await readCreditPurchase(firstUnit(order));
   if (!purchase) {
     return { outcome: "REJECTED", orderId, reason: "NOT_EVIDENCE_CREDIT" };
   }
@@ -517,7 +600,7 @@ async function settleCreditOrder(
 
   if (status === "APPROVED") {
     if (!purchase.priceMatches) {
-      // Never take money for an amount the server does not sell.
+      // Never take money for an amount this purchase was not sold at.
       return { outcome: "REJECTED", orderId, reason: "AMOUNT_MISMATCH" };
     }
     if (!params.capture) {
@@ -528,6 +611,7 @@ async function settleCreditOrder(
         captureId: null,
       };
     }
+    sink.captureAttempted = true;
     try {
       const captured = rec(await capturePayPalOrder(orderId));
       // The capture response carries the capture; if PayPal returned a
@@ -538,7 +622,7 @@ async function settleCreditOrder(
         err instanceof PayPalHttpError &&
         err.primaryIssue === "ORDER_ALREADY_CAPTURED"
       ) {
-        // A concurrent capture (webhook or second tab) won; read its result.
+        // A concurrent capture (webhook, sweep or second tab) won; read its result.
         order = rec(await getPayPalOrder(orderId));
       } else if (err instanceof PayPalHttpError && err.status === 422) {
         // e.g. INSTRUMENT_DECLINED / PAYER_ACTION_REQUIRED: nothing captured.
@@ -580,9 +664,9 @@ async function settleCreditOrder(
 }
 
 /**
- * A PAYMENT.CAPTURE.* webhook. The resource is a CAPTURE: it carries no
- * `purchase_units`, and `custom_id` only when PayPal chooses to copy it. The
- * purchase is recovered from the related order
+ * A PAYMENT.CAPTURE.{COMPLETED,PENDING,DENIED,DECLINED} webhook. The resource
+ * is a CAPTURE: it carries no `purchase_units`, and `custom_id` only when
+ * PayPal chooses to copy it. The purchase is recovered from the related order
  * (`supplementary_data.related_ids.order_id`), read live from PayPal, so the
  * grant is decided on the order's current state — which also makes an
  * out-of-order PENDING delivery after COMPLETED harmless.
@@ -614,13 +698,292 @@ export async function handlePayPalCaptureWebhook(
 
   // No related order id: fall back to the capture's own custom_id and amount
   // (the event body is signature-verified by the caller).
-  const purchase = readCreditPurchase(capture);
+  const purchase = await readCreditPurchase(capture);
   if (!purchase || !captureId) return null;
   return applyCreditCapture({
     orderId: "",
     purchase,
     capture,
   });
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — historic credit recovery by
+ * POSITIVE PROOF.
+ *
+ * A `payments` row written before product identity existed is only treated
+ * as a credit purchase when PayPal proves it: the id is a CAPTURE whose order
+ * carries PROOVRA's PAYG custom_id. Then the ONE settlement path records and
+ * grants it. A plan or storage renewal SALE is not a capture and is reported
+ * as NOT_A_CREDIT — never "provider unavailable", never granted by amount.
+ */
+export async function recoverPayPalCreditFromPayment(input: {
+  captureId: string;
+  expectedUserId: string;
+}): Promise<
+  | { outcome: "SETTLED"; settlement: PayPalCreditSettlement }
+  | { outcome: "NOT_A_CREDIT" }
+  | { outcome: "UNKNOWN" }
+> {
+  let capture: Json | null;
+  try {
+    capture = rec(await paypalGet(`/v2/payments/captures/${encodeURIComponent(input.captureId)}`));
+  } catch (err) {
+    if (err instanceof PayPalHttpError && (err.status === 404 || err.status === 400 || err.status === 422)) {
+      return { outcome: "NOT_A_CREDIT" };
+    }
+    return { outcome: "UNKNOWN" };
+  }
+  const orderId = str(rec(rec(capture?.supplementary_data)?.related_ids)?.order_id);
+  if (!capture || str(capture.id) !== input.captureId || !orderId || !isPayPalResourceId(orderId)) {
+    return { outcome: "NOT_A_CREDIT" };
+  }
+  try {
+    const settlement = await settlePayPalEvidenceCreditOrder({
+      orderId,
+      expectedUserId: input.expectedUserId,
+      capture: false,
+      captureId: input.captureId,
+    });
+    if (settlement.outcome === "REJECTED" && settlement.reason !== "AMOUNT_MISMATCH") {
+      return { outcome: "NOT_A_CREDIT" };
+    }
+    return { outcome: "SETTLED", settlement };
+  } catch {
+    return { outcome: "UNKNOWN" };
+  }
+}
+
+// ===========================================================================
+// Refunds, reversals, disputes
+// ===========================================================================
+
+/**
+ * Undo a refunded/reversed CREDIT capture: the payment row reads REFUNDED and
+ * the credits it granted leave the wallet (see `reverseEvidenceCreditPurchase`
+ * for the policy). A shortfall — credits already spent — is sent to review.
+ */
+async function applyCreditRefund(input: {
+  userId: string;
+  captureId: string;
+  kind: "REFUNDED" | "REVERSED";
+}): Promise<{ reversed: boolean; shortfall: number }> {
+  const reversal = await reverseEvidenceCreditPurchase({
+    userId: input.userId,
+    provider: PROVIDER,
+    providerRef: input.captureId,
+  });
+  if (reversal.reversed && reversal.shortfall > 0) {
+    await recordBillingReviewItem({
+      userId: input.userId,
+      provider: PROVIDER,
+      providerResourceId: input.captureId,
+      product: "EVIDENCE_CREDIT",
+      reason: "CREDIT_REFUND_AFTER_CONSUMPTION",
+      detail: { kind: input.kind, creditsNotRecovered: reversal.shortfall },
+    });
+  }
+  return { reversed: reversal.reversed, shortfall: reversal.shortfall };
+}
+
+/** The capture a refund / reversal resource is about. */
+function captureIdFromRefundResource(resource: Json | null): string | null {
+  const links = Array.isArray(resource?.links) ? resource.links : [];
+  for (const raw of links) {
+    const link = rec(raw);
+    const href = str(link?.href);
+    if (str(link?.rel) === "up" && href) {
+      const m = href.match(/\/v2\/payments\/captures\/([A-Za-z0-9-]+)/);
+      if (m) return m[1]!;
+    }
+  }
+  // PAYMENT.CAPTURE.REVERSED carries the capture itself.
+  const status = str(resource?.status)?.toUpperCase();
+  if (status === "REVERSED" || status === "REFUNDED") return str(resource?.id);
+  return null;
+}
+
+/** The sale a PAYMENT.SALE.REFUNDED / REVERSED resource is about. */
+function saleIdFromRefundResource(resource: Json | null): string | null {
+  const saleId = str(resource?.sale_id);
+  if (saleId) return saleId;
+  const state = (str(resource?.state) ?? str(resource?.status))?.toLowerCase();
+  if (state === "reversed" || state === "refunded") return str(resource?.id);
+  return null;
+}
+
+export type PayPalAdverseOutcome = {
+  outcome: "APPLIED" | "UNATTRIBUTED";
+  product: string | null;
+};
+
+/**
+ * PAYMENT.CAPTURE.REFUNDED / PAYMENT.CAPTURE.REVERSED /
+ * PAYMENT.SALE.REFUNDED / PAYMENT.SALE.REVERSED.
+ *
+ * POLICY
+ *   * a CREDIT purchase: the payment reads REFUNDED and its credits are
+ *     reversed out of the wallet (auditable REVERSAL, never deleted);
+ *   * a PLAN or STORAGE payment: the payment reads REFUNDED and the case is
+ *     recorded for review. Access follows the SUBSCRIPTION's own state (a
+ *     merchant who refunds and cancels sends the CANCELLED event, which ends
+ *     it); a refund of one renewal does not by itself end a subscription the
+ *     provider still bills.
+ *
+ * Correlated through the stored payment row (provider + payment id), whose
+ * owner is authoritative; an unknown payment is reported, never guessed.
+ */
+export async function applyPayPalRefundOrReversal(input: {
+  eventType: string;
+  resource: unknown;
+}): Promise<PayPalAdverseOutcome> {
+  const resource = rec(input.resource);
+  const sale = input.eventType.startsWith("PAYMENT.SALE.");
+  const reversed = input.eventType.endsWith(".REVERSED");
+  const paymentRef = sale ? saleIdFromRefundResource(resource) : captureIdFromRefundResource(resource);
+  if (!paymentRef) return { outcome: "UNATTRIBUTED", product: null };
+
+  let payment = await prisma.payment.findUnique({
+    where: { provider_providerPaymentId: { provider: PROVIDER, providerPaymentId: paymentRef } },
+    select: { id: true, userId: true, product: true, amountCents: true, currency: true, providerResourceId: true },
+  });
+
+  if (!payment && !sale) {
+    // A refund of a credit capture this server never recorded (its webhook
+    // was lost): settle the order first, then the refund below applies.
+    const owner = await recoverOwnerOfCapture(paymentRef);
+    if (owner) {
+      await recoverPayPalCreditFromPayment({ captureId: paymentRef, expectedUserId: owner });
+      payment = await prisma.payment.findUnique({
+        where: { provider_providerPaymentId: { provider: PROVIDER, providerPaymentId: paymentRef } },
+        select: { id: true, userId: true, product: true, amountCents: true, currency: true, providerResourceId: true },
+      });
+    }
+  }
+  if (!payment) return { outcome: "UNATTRIBUTED", product: null };
+
+  const isCredit =
+    payment.product === "EVIDENCE_CREDIT" ||
+    ((!payment.product || payment.product === "UNCLASSIFIED") &&
+      (await prisma.evidenceCreditLedgerEntry.count({
+        where: {
+          entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+          provider: PROVIDER,
+          providerRef: paymentRef,
+        },
+      })) > 0);
+
+  const partial =
+    !reversed &&
+    (str(rec(resource?.amount)?.value) !== null || str(rec(resource?.amount)?.total) !== null) &&
+    centsFromValue(rec(resource?.amount)?.value ?? rec(resource?.amount)?.total) !== null &&
+    (centsFromValue(rec(resource?.amount)?.value ?? rec(resource?.amount)?.total) ?? 0) < payment.amountCents;
+
+  if (partial) {
+    await recordBillingReviewItem({
+      userId: payment.userId,
+      provider: PROVIDER,
+      providerResourceId: paymentRef,
+      product: isCredit ? "EVIDENCE_CREDIT" : payment.product === "STORAGE_ADDON" ? "STORAGE_ADDON" : "PLAN",
+      reason: "PARTIAL_REFUND",
+      detail: { eventType: input.eventType },
+    });
+    return { outcome: "APPLIED", product: payment.product };
+  }
+
+  await prisma.payment.updateMany({
+    where: { id: payment.id, status: prismaPkg.PaymentStatus.SUCCEEDED },
+    data: { status: prismaPkg.PaymentStatus.REFUNDED },
+  });
+
+  if (isCredit) {
+    await applyCreditRefund({
+      userId: payment.userId,
+      captureId: paymentRef,
+      kind: reversed ? "REVERSED" : "REFUNDED",
+    });
+    return { outcome: "APPLIED", product: "EVIDENCE_CREDIT" };
+  }
+
+  await recordBillingReviewItem({
+    userId: payment.userId,
+    provider: PROVIDER,
+    providerResourceId: paymentRef,
+    product: payment.product === "STORAGE_ADDON" ? "STORAGE_ADDON" : "PLAN",
+    reason: "SUBSCRIPTION_PAYMENT_REVERSED",
+    // A chargeback is money the merchant did not choose to return.
+    refundReviewRequired: false,
+    detail: { eventType: input.eventType, subscriptionId: payment.providerResourceId },
+  });
+  if (payment.providerResourceId && isPayPalResourceId(payment.providerResourceId)) {
+    // The subscription decides access; read it now so a merchant-side
+    // cancellation that accompanied the refund is applied.
+    await applyPayPalSubscriptionState({
+      subscriptionId: payment.providerResourceId,
+      source: input.eventType,
+    }).catch(() => undefined);
+  }
+  return { outcome: "APPLIED", product: payment.product };
+}
+
+async function recoverOwnerOfCapture(captureId: string): Promise<string | null> {
+  try {
+    const capture = rec(await paypalGet(`/v2/payments/captures/${encodeURIComponent(captureId)}`));
+    const orderId = str(rec(rec(capture?.supplementary_data)?.related_ids)?.order_id);
+    if (!orderId) return null;
+    const order = rec(await getPayPalOrder(orderId));
+    const parsed = parsePayPalCustomId(str(firstUnit(order)?.custom_id));
+    return parsed.plan === prismaPkg.PlanType.PAYG ? parsed.userId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CUSTOMER.DISPUTE.CREATED / UPDATED / RESOLVED. A dispute changes no
+ * entitlement by itself (a lost dispute arrives as a REVERSAL, which does);
+ * it is recorded for review against the disputed payment.
+ */
+export async function applyPayPalDispute(input: {
+  eventType: string;
+  resource: unknown;
+}): Promise<PayPalAdverseOutcome> {
+  const resource = rec(input.resource);
+  const disputed = Array.isArray(resource?.disputed_transactions)
+    ? (resource!.disputed_transactions as unknown[]).map(rec)
+    : [];
+  let applied = false;
+  let product: string | null = null;
+  for (const tx of disputed) {
+    const ref = str(tx?.seller_transaction_id);
+    if (!ref) continue;
+    const payment = await prisma.payment.findUnique({
+      where: { provider_providerPaymentId: { provider: PROVIDER, providerPaymentId: ref } },
+      select: { userId: true, product: true },
+    });
+    if (!payment) continue;
+    product = payment.product;
+    await recordBillingReviewItem({
+      userId: payment.userId,
+      provider: PROVIDER,
+      providerResourceId: ref,
+      product:
+        payment.product === "EVIDENCE_CREDIT"
+          ? "EVIDENCE_CREDIT"
+          : payment.product === "STORAGE_ADDON"
+            ? "STORAGE_ADDON"
+            : "PLAN",
+      reason: "PAYMENT_DISPUTED",
+      detail: {
+        eventType: input.eventType,
+        disputeId: str(resource?.dispute_id),
+        disputeStatus: str(resource?.status),
+        disputeOutcome: str(rec(resource?.dispute_outcome)?.outcome_code),
+      },
+    });
+    applied = true;
+  }
+  return { outcome: applied ? "APPLIED" : "UNATTRIBUTED", product };
 }
 
 // ===========================================================================
@@ -655,21 +1018,27 @@ export function parsePayPalSubscriptionStatus(
 /**
  * What the buyer is told on return. Derived here, beside the status mapping,
  * so the route layer names no subscription status.
+ *
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — APPROVED ("you approved, PayPal is
+ * activating") is not APPROVAL_PENDING ("you have not approved"): the return
+ * page and Billing activity now say which.
  */
 export type PayPalSubscriptionReturnOutcome =
   | "ACTIVE"
   | "PENDING"
+  | "AWAITING_APPROVAL"
   | "PAYMENT_PROBLEM"
   | "ENDED";
 
 function returnOutcomeFor(
   status: prismaPkg.SubscriptionStatus,
+  rawStatus: string | null,
 ): PayPalSubscriptionReturnOutcome {
   switch (status) {
     case prismaPkg.SubscriptionStatus.ACTIVE:
       return "ACTIVE";
     case prismaPkg.SubscriptionStatus.TRIALING:
-      return "PENDING";
+      return (rawStatus ?? "").toUpperCase() === "APPROVED" ? "PENDING" : "AWAITING_APPROVAL";
     case prismaPkg.SubscriptionStatus.PAST_DUE:
       return "PAYMENT_PROBLEM";
     case prismaPkg.SubscriptionStatus.CANCELED:
@@ -686,6 +1055,8 @@ export type PayPalSubscriptionSettlement =
       returnOutcome: PayPalSubscriptionReturnOutcome;
       plan: prismaPkg.PlanType | null;
       storageAddonKey: prismaPkg.StorageAddonKey | null;
+      /** A plan subscription that activated as a DUPLICATE and was stopped. */
+      superseded?: boolean;
     }
   | {
       outcome: "REJECTED";
@@ -694,7 +1065,9 @@ export type PayPalSubscriptionSettlement =
         | "NOT_OWNED"
         | "UNATTRIBUTABLE"
         | "PLAN_ID_MISMATCH"
-        | "STORAGE_ADDON_NOT_ALLOWED";
+        | "STORAGE_ADDON_NOT_ALLOWED"
+        /** PayPal activated storage PROOVRA cannot grant; it was cancelled and sent to review. */
+        | "STORAGE_ADDON_REFUSED";
     };
 
 /**
@@ -717,11 +1090,13 @@ export async function applyPayPalSubscriptionState(params: {
   const { subscriptionId } = params;
 
   let sub: Json | null = null;
+  let liveRead = true;
   try {
     sub = rec(await getPayPalSubscription(subscriptionId));
   } catch (err) {
     if (!params.fallbackResource) throw err;
     sub = rec(params.fallbackResource);
+    liveRead = false;
   }
   if (!sub || (str(sub.id) && str(sub.id) !== subscriptionId)) {
     return { outcome: "REJECTED", subscriptionId, reason: "UNATTRIBUTABLE" };
@@ -729,7 +1104,8 @@ export async function applyPayPalSubscriptionState(params: {
 
   const customId = str(sub.custom_id);
   const planId = str(sub.plan_id);
-  const status = parsePayPalSubscriptionStatus(str(sub.status));
+  const rawStatus = str(sub.status);
+  const status = parsePayPalSubscriptionStatus(rawStatus);
   const billingInfo = rec(sub.billing_info);
   const currentPeriodEnd = dateFromIso(billingInfo?.next_billing_time);
   const observedAtUtc = dateFromIso(
@@ -742,57 +1118,41 @@ export async function applyPayPalSubscriptionState(params: {
     if (params.expectedUserId && addon.userId !== params.expectedUserId) {
       return { outcome: "REJECTED", subscriptionId, reason: "NOT_OWNED" };
     }
-    if (status === prismaPkg.SubscriptionStatus.ACTIVE) {
-      // Capacity is granted only for the configured plan of THIS add-on
-      // (its server price) and only to a workspace the payer may extend.
-      if (
-        !isPayPalStorageAddonPlanId({ planId, addonKey: addon.storageAddonKey })
-      ) {
-        params.log?.warn(
-          { provider: "PAYPAL", subscriptionId, storageAddonKey: addon.storageAddonKey },
-          "paypal.storage_addon_plan_id_mismatch",
-        );
-        return { outcome: "REJECTED", subscriptionId, reason: "PLAN_ID_MISMATCH" };
-      }
-      try {
-        await assertWebhookStorageAddonAllowed({
-          userId: addon.userId,
-          addonKey: addon.storageAddonKey,
-          teamId: addon.teamId,
-        });
-      } catch (err) {
-        params.log?.warn(
-          { err, provider: "PAYPAL", subscriptionId, storageAddonKey: addon.storageAddonKey },
-          "paypal.storage_addon_activation_refused",
-        );
-        return {
-          outcome: "REJECTED",
-          subscriptionId,
-          reason: "STORAGE_ADDON_NOT_ALLOWED",
-        };
-      }
-    }
-
-    await upsertWorkspaceStorageAddon({
-      attemptId: addon.attemptId,
-      ownerUserId: addon.userId,
-      teamId: addon.teamId,
-      addonKey: addon.storageAddonKey,
-      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-      status: storageAddonStatusFromSubscription(status),
-      paymentProvider: PROVIDER,
-      externalSubscriptionId: subscriptionId,
+    const applied = await applyStorageSubscriptionObservation({
+      provider: PROVIDER,
+      subscriptionId,
+      status,
+      planId,
+      claimed: {
+        userId: addon.userId,
+        teamId: addon.teamId,
+        addonKey: addon.storageAddonKey,
+        attemptId: addon.attemptId ?? null,
+      },
       currentPeriodEnd,
       observedAtUtc,
-      metadata: { source: params.source },
+      source: params.source,
     });
-
+    if (applied.outcome === "REFUSED") {
+      params.log?.warn(
+        { provider: "PAYPAL", subscriptionId, reason: applied.reason, canceledAtProvider: applied.canceledAtProvider },
+        "paypal.storage_addon_activation_refused",
+      );
+      return { outcome: "REJECTED", subscriptionId, reason: "STORAGE_ADDON_REFUSED" };
+    }
+    if (applied.outcome === "IGNORED") {
+      return {
+        outcome: "REJECTED",
+        subscriptionId,
+        reason: applied.reason === "IDENTITY_MISMATCH" ? "NOT_OWNED" : "UNATTRIBUTABLE",
+      };
+    }
     return {
       outcome: "APPLIED",
       kind: "STORAGE_ADDON",
       subscriptionId,
       status,
-      returnOutcome: returnOutcomeFor(status),
+      returnOutcome: returnOutcomeFor(status, rawStatus),
       plan: null,
       storageAddonKey: addon.storageAddonKey,
     };
@@ -820,15 +1180,38 @@ export async function applyPayPalSubscriptionState(params: {
     return { outcome: "REJECTED", subscriptionId, reason: "UNATTRIBUTABLE" };
   }
 
-  // A provider-confirmed SCHEDULED change (plan-transition.service records it
-  // as pendingPlan) takes effect at its date, not the moment PayPal swaps the
-  // plan id: the current period is paid for at the current plan.
   const stored = await prisma.subscription.findUnique({
     where: {
       provider_providerSubId: { provider: PROVIDER, providerSubId: subscriptionId },
     },
-    select: { plan: true, pendingPlan: true, pendingPlanEffectiveAtUtc: true },
+    select: {
+      id: true,
+      status: true,
+      plan: true,
+      pendingPlan: true,
+      pendingPlanEffectiveAtUtc: true,
+      pendingPlanAwaitingApproval: true,
+      activatedAtUtc: true,
+      currentPeriodEnd: true,
+      canceledAtUtc: true,
+      locallyTerminatedAtUtc: true,
+      providerStateAtUtc: true,
+    },
   });
+
+  if (stored?.pendingPlan) {
+    if (stored.pendingPlanAwaitingApproval && planFromPlanId === stored.pendingPlan) {
+      // The buyer approved the revision: it is now a provider-confirmed
+      // scheduled change.
+      await markPlanChangeApproved(stored.id);
+    } else if (stored.pendingPlanAwaitingApproval) {
+      await expireUnapprovedPlanChange(stored.id);
+    }
+  }
+
+  // A provider-confirmed SCHEDULED change (plan-transition.service records it
+  // as pendingPlan) takes effect at its date, not the moment PayPal swaps the
+  // plan id: the current period is paid for at the current plan.
   if (
     stored &&
     stored.pendingPlan === plan &&
@@ -839,13 +1222,37 @@ export async function applyPayPalSubscriptionState(params: {
     plan = stored.plan;
   }
 
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — a checkout abandoned in PROOVRA
+  // by the OLD code stamped local time into `providerStateAtUtc`, so a
+  // buyer's later approval read as "older" and was discarded while PayPal
+  // billed. A LIVE read of ACTIVE on such a row (CANCELED, never activated,
+  // no provider period, no provider-confirmed cancellation) is PayPal's
+  // current truth — PayPal never re-activates a subscription it cancelled —
+  // so the local stamp is moved to where it belongs.
+  if (
+    liveRead &&
+    status === prismaPkg.SubscriptionStatus.ACTIVE &&
+    stored &&
+    stored.status === prismaPkg.SubscriptionStatus.CANCELED &&
+    !stored.activatedAtUtc &&
+    !stored.currentPeriodEnd &&
+    !stored.canceledAtUtc &&
+    !stored.locallyTerminatedAtUtc &&
+    stored.providerStateAtUtc
+  ) {
+    await reclassifyLegacyLocalTermination({
+      subscriptionId: stored.id,
+      localStampUtc: stored.providerStateAtUtc,
+    });
+  }
+
   // What PayPal bills: the configured plan's currency, and the amount of the
   // last payment PayPal reports (absent before the first charge).
   const lastPayment = rec(rec(billingInfo?.last_payment)?.amount);
   const billedCurrency =
     currencyForPayPalBasePlanId(planId) ?? str(lastPayment?.currency_code)?.toUpperCase() ?? null;
   const lastPaymentCents = centsFromValue(lastPayment?.value);
-  await syncPlanForSubscription({
+  const synced = await syncPlanForSubscription({
     userId: parsed.userId,
     plan,
     teamId: parsed.teamId,
@@ -867,7 +1274,7 @@ export async function applyPayPalSubscriptionState(params: {
     subscriptionId,
     attemptId: parsed.attemptId ?? null,
     status,
-    rawStatus: str(sub.status),
+    rawStatus,
     observedAtUtc,
   });
 
@@ -876,9 +1283,10 @@ export async function applyPayPalSubscriptionState(params: {
     kind: "PLAN",
     subscriptionId,
     status,
-    returnOutcome: returnOutcomeFor(status),
+    returnOutcome: returnOutcomeFor(status, rawStatus),
     plan,
     storageAddonKey: null,
+    ...(synced.outcome === "SUPERSEDED" ? { superseded: true } : {}),
   };
 }
 
@@ -886,10 +1294,12 @@ export async function applyPayPalSubscriptionState(params: {
  * BILLING CHECKOUT ATTEMPTS (2026-09-28) — a base-plan subscription's state,
  * as it concerns the checkout attempt that created it.
  *
- * Only the ATTEMPT is described here: ACTIVE completes it; approval states
- * keep it awaiting the customer; CANCELLED/EXPIRED before activation end it.
- * A later cancellation of an already-completed attempt is subscription
- * lifecycle, not checkout, and the monotonic transition rule ignores it.
+ * Only the ATTEMPT is described here: ACTIVE completes it; APPROVAL_PENDING
+ * keeps it awaiting the customer; APPROVED (buyer consented, PayPal
+ * activating) is recorded as such — it is not abandonable; CANCELLED/EXPIRED
+ * before activation end it. A later cancellation of an already-completed
+ * attempt is subscription lifecycle, not checkout, and the monotonic
+ * transition rule ignores it.
  */
 async function recordPlanAttemptOutcome(input: {
   userId: string;
@@ -910,7 +1320,7 @@ async function recordPlanAttemptOutcome(input: {
       break;
     case prismaPkg.SubscriptionStatus.TRIALING:
       status = A.PENDING;
-      checkoutState = "AWAITING_CUSTOMER_APPROVAL";
+      checkoutState = raw === "APPROVED" ? "APPROVED_AWAITING_ACTIVATION" : "AWAITING_CUSTOMER_APPROVAL";
       break;
     case prismaPkg.SubscriptionStatus.PAST_DUE:
       status = A.FAILED;

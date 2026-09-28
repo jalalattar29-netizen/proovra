@@ -1292,6 +1292,56 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
 
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a workspace-bound storage
+      // add-on is a LIVE provider subscription. Its row is deleted with the
+      // workspace (ON DELETE CASCADE), and with it the only local record of a
+      // provider obligation that keeps billing. Deletion waits until every
+      // such subscription has ended at the provider.
+      const liveStorageSubscription = await prisma.workspaceStorageAddon.findFirst({
+        where: {
+          teamId,
+          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+          externalSubscriptionId: { not: null },
+          OR: [
+            {
+              status: {
+                in: [
+                  prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+                  prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+                  prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+                ],
+              },
+            },
+            {
+              dependentCancellationState: {
+                in: [
+                  prismaPkg.DependentCancellationState.PENDING,
+                  prismaPkg.DependentCancellationState.RETRY_SCHEDULED,
+                  prismaPkg.DependentCancellationState.ACTION_REQUIRED,
+                  prismaPkg.DependentCancellationState.MANUAL_INTERVENTION,
+                ],
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (liveStorageSubscription) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "active_storage_subscription_exists" },
+        });
+
+        return reply.code(409).send({
+          message: "Cancel this workspace's storage add-on subscription before deleting it",
+        });
+      }
+
       const linkedEvidenceCount = await prisma.evidence.count({
         where: { AND: [await workspaceEvidenceWhere(teamId, prisma)] },
       });

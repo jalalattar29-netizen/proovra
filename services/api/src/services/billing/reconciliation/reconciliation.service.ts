@@ -48,7 +48,7 @@ import * as prismaPkg from "@prisma/client";
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 
 import { prisma } from "../../../db.js";
-import { recordPayment } from "../../billing.service.js";
+import { recordPayment, type PaymentProduct } from "../../billing.service.js";
 import { getPlanPriceCents, getStorageAddonPriceCents } from "../../billing-pricing.service.js";
 import { grantEvidenceCredits } from "../evidence-credits.service.js";
 import {
@@ -64,11 +64,14 @@ import {
   syncPlanForSubscription,
 } from "../subscription-lifecycle.handlers.js";
 import type { BillingAccountRef } from "../billing-accounts.service.js";
+import { applyStorageSubscriptionObservation } from "../storage-activation.service.js";
+import { parsePayPalStorageAddonCustomId } from "../../paypal-checkout-policy.service.js";
 import { StripeBillingReconciliationProvider } from "./stripe.provider.js";
 import { PayPalBillingReconciliationProvider } from "./paypal.provider.js";
 import { decidePaymentTransition } from "./payment-status.js";
 import {
   abandonWarning,
+  APPROVAL_EXPIRY_MS,
   countAttemptOutcome,
   reconcileCheckoutAttempts,
   UNVERIFIABLE_OUTCOMES,
@@ -251,33 +254,18 @@ async function convergeDependentCancellations(ctx: {
   // dependent add-on is still live and carries NO obligation is exactly the
   // shape of "the process died between the base provider call and the local
   // transaction". The intent was real; only the record is missing.
-  const cancelledBases = await prisma.subscription.findMany({
-    where: {
-      ...(scope.teamId
-        ? { teamId: scope.teamId }
-        : { userId: scope.ownerUserId, teamId: null }),
-      OR: [
-        { status: prismaPkg.SubscriptionStatus.CANCELED },
-        { cancelAtPeriodEnd: true },
-      ],
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 5,
-    select: { id: true },
-  });
-
-  if (cancelledBases.length > 0) {
-    const created = await recordDependentCancellationObligations(
-      {
-        ownerUserId: scope.ownerUserId,
-        teamId: scope.teamId,
-        triggeredBySubscriptionId: cancelledBases[0]!.id,
-      },
-      prisma,
-    );
-    if (created.created > 0) {
-      ctx.summary.subscriptionsUpdated += created.created;
-    }
+  //
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — the question is asked PER ADD-ON
+  // by the one dependency rule (`owedDependentCancellationTrigger`). It used
+  // to be "does ANY cancelled subscription row exist?", which made an
+  // abandoned PayPal approval, or a plan cancelled before the customer
+  // resubscribed, cancel every live storage add-on at the provider.
+  const created = await recordDependentCancellationObligations(
+    { ownerUserId: scope.ownerUserId, teamId: scope.teamId },
+    prisma,
+  );
+  if (created.created > 0) {
+    ctx.summary.subscriptionsUpdated += created.created;
   }
 
   // ---- 2. Attempt every unresolved obligation ------------------------------
@@ -324,6 +312,18 @@ async function reconcileEvidenceCredits(ctx: {
 }): Promise<void> {
   if (ctx.account.type !== "PERSONAL") return;
 
+  /*
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — CREDIT PURCHASES ONLY.
+   *
+   * This read every SUCCEEDED/PENDING personal payment without a ledger row —
+   * which is every PayPal plan and storage RENEWAL (they never have one). Each
+   * re-check then asked PayPal's capture and order endpoints about a sale id,
+   * counted the 404 as "provider could not be reached" forever, and — had a
+   * renewal price ever equalled the credit price — would have GRANTED a
+   * credit for a subscription payment. Rows now carry their product; a
+   * historic row (product NULL) is examined once and classified from what the
+   * provider object itself says, never from its amount.
+   */
   const candidates = await prisma.payment.findMany({
     where: {
       userId: ctx.account.id,
@@ -331,6 +331,7 @@ async function reconcileEvidenceCredits(ctx: {
       status: {
         in: [prismaPkg.PaymentStatus.SUCCEEDED, prismaPkg.PaymentStatus.PENDING],
       },
+      OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }],
     },
     orderBy: { createdAt: "desc" },
     take: MAX_BINDINGS_PER_RUN,
@@ -342,8 +343,13 @@ async function reconcileEvidenceCredits(ctx: {
       currency: true,
       status: true,
       providerStateAtUtc: true,
+      product: true,
+      checkoutAttemptId: true,
     },
   });
+
+  const classify = (id: string, product: PaymentProduct) =>
+    prisma.payment.updateMany({ where: { id, product: null }, data: { product } });
 
   for (const binding of candidates) {
     // Already granted? The durable PURCHASE row is the authority, and it is
@@ -357,7 +363,20 @@ async function reconcileEvidenceCredits(ctx: {
       },
       select: { id: true },
     });
-    if (alreadyGranted) continue;
+    if (alreadyGranted) {
+      if (!binding.product) await classify(binding.id, "EVIDENCE_CREDIT");
+      continue;
+    }
+
+    // A Stripe INVOICE is a subscription payment, never a credit purchase.
+    if (
+      !binding.product &&
+      binding.provider === prismaPkg.PaymentProvider.STRIPE &&
+      binding.providerPaymentId.startsWith("in_")
+    ) {
+      await classify(binding.id, "SUBSCRIPTION_UNSPECIFIED");
+      continue;
+    }
 
     const adapter = ctx.providers[binding.provider];
     if (!adapter) {
@@ -369,22 +388,39 @@ async function reconcileEvidenceCredits(ctx: {
     const observation = await adapter.observePayment(binding.providerPaymentId);
 
     if (observation.state === "UNKNOWN") {
+      if (
+        !binding.product &&
+        (observation.failure === "NOT_FOUND" || observation.failure === "REFERENCE_INVALID")
+      ) {
+        // Neither a capture nor an order the provider knows: a historic
+        // subscription sale, not a credit purchase. Recorded as such, so it
+        // is not asked about — or reported as an outage — again.
+        await classify(binding.id, "UNCLASSIFIED");
+        ctx.summary.checked -= 1;
+        continue;
+      }
       ctx.summary.unavailable += 1;
       continue;
     }
 
+    if (observation.productKey !== "EVIDENCE_CREDIT") {
+      if (!binding.product) {
+        await classify(
+          binding.id,
+          observation.productKey === "PLAN" || observation.productKey === "STORAGE_ADDON" || observation.productKey === "STORAGE_ADDON_ONE_TIME"
+            ? observation.productKey
+            : "UNCLASSIFIED",
+        );
+      }
+      ctx.summary.checked -= 1;
+      continue;
+    }
+    if (!binding.product) await classify(binding.id, "EVIDENCE_CREDIT");
+
     /*
      * BILLING SURFACE CORRECTION (2026-08-29) — record WHAT WAS OBSERVED about
-     * the payment itself, not only what it entitles.
-     *
-     * This loop existed to repair missing credit grants and deliberately left
-     * `status` to the webhook path. For the one customer this whole mechanism
-     * is for — the one whose webhook never arrived — that meant the row stayed
-     * PENDING for ever even after the provider had told us, right here, that
-     * the session expired months ago.
-     *
-     * The transition rules are the shared ones, so a stale poll still cannot
-     * overwrite a newer webhook.
+     * the payment itself, not only what it entitles. The transition rules are
+     * the shared ones, so a stale poll still cannot overwrite a newer webhook.
      */
     const transition = decidePaymentTransition({
       current: binding.status,
@@ -409,12 +445,12 @@ async function reconcileEvidenceCredits(ctx: {
       continue;
     }
     if (observation.state !== "SUCCEEDED") {
-      // FAILED / CANCELED / REFUNDED grant nothing. The local payment row is
-      // left to the webhook path, which owns status transitions.
+      // FAILED / CANCELED / REFUNDED grant nothing.
       continue;
     }
 
-    if (!validateCreditPurchase(observation, ctx.summary)) continue;
+    const attemptId = binding.checkoutAttemptId ?? observation.attemptId ?? null;
+    if (!(await validateCreditPurchase(observation, ctx.account.id, attemptId, ctx.summary))) continue;
 
     // The canonical quantity, never the provider's. The provider's quantity is
     // checked above; what is GRANTED comes from the catalog.
@@ -435,25 +471,41 @@ async function reconcileEvidenceCredits(ctx: {
 /**
  * Everything a settled credit purchase must satisfy before it grants.
  *
- * A mismatch is NOT an error to the customer: it is a discrepancy an operator
- * has to look at, because it means the provider and the catalog disagree about
- * what was sold. Granting on a mismatched amount would be the product paying
- * for the disagreement.
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — the price is THIS purchase's: the
+ * immutable amount on its checkout attempt. Only a purchase from before
+ * attempts existed is compared with the current catalogue. A mismatch is a
+ * discrepancy an operator reviews, never a grant.
  */
-function validateCreditPurchase(
+async function validateCreditPurchase(
   observation: PaymentObservation,
+  userId: string,
+  attemptId: string | null,
   summary: ReconciliationSummary,
-): boolean {
+): Promise<boolean> {
   if (!currencyMatches(observation.currency, SUPPORTED_CURRENCIES)) {
     summary.discrepancies += 1;
     return false;
   }
 
-  const expected = getPlanPriceCents(
-    prismaPkg.PlanType.PAYG,
-    observation.currency === "EUR" ? "EUR" : "USD",
-  );
-  if (observation.amountCents !== expected) {
+  let expected: { amountCents: number; currency: string } | null = null;
+  if (attemptId) {
+    const attempt = await prisma.billingCheckoutAttempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true, product: true, amountCents: true, currency: true },
+    });
+    if (
+      attempt &&
+      attempt.userId === userId &&
+      attempt.product === prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT
+    ) {
+      expected = { amountCents: attempt.amountCents, currency: attempt.currency.toUpperCase() };
+    }
+  }
+  if (!expected) {
+    const currency = observation.currency === "EUR" ? "EUR" : "USD";
+    expected = { amountCents: getPlanPriceCents(prismaPkg.PlanType.PAYG, currency), currency };
+  }
+  if (observation.amountCents !== expected.amountCents || observation.currency !== expected.currency) {
     summary.discrepancies += 1;
     return false;
   }
@@ -573,6 +625,8 @@ async function reconcileSubscriptions(ctx: {
         observation.recentPayments[0]?.currency === "EUR" ? "EUR" : "USD",
       ),
       summary: ctx.summary,
+      product: "PLAN",
+      providerResourceId: binding.providerSubId,
     });
 
     const status = subscriptionStatusFromObservation(observation);
@@ -608,16 +662,10 @@ async function reconcileSubscriptions(ctx: {
     await stampProviderState(binding.id, observation.observedAtUtc);
     ctx.summary.subscriptionsUpdated += 1;
 
-    // A base subscription the customer cancelled AT THE PROVIDER means its
-    // dependent recurring add-ons are still charging until something stops
-    // them. Never assume the provider cancelled them too.
-    if (status === prismaPkg.SubscriptionStatus.CANCELED) {
-      const dependents = await countActiveDependentAddons({
-        ownerUserId: binding.userId,
-        teamId: binding.teamId,
-      });
-      if (dependents > 0) ctx.summary.actionRequired += dependents;
-    }
+    // A base subscription the customer cancelled AT THE PROVIDER may leave
+    // dependent add-ons charging. Which ones are OWED a cancellation is the
+    // dependency rule's decision, made (and acted on, and counted as still
+    // owed) by `convergeDependentCancellations` at the end of this run.
   }
 }
 
@@ -646,6 +694,9 @@ async function recordMissingRenewals(input: {
   teamId: string | null;
   expectedCents: number;
   summary: ReconciliationSummary;
+  /** What these renewals paid for, and the provider subscription they belong to. */
+  product: "PLAN" | "STORAGE_ADDON";
+  providerResourceId: string;
 }): Promise<number> {
   let recorded = 0;
 
@@ -689,6 +740,9 @@ async function recordMissingRenewals(input: {
           ? prismaPkg.PaymentStatus.SUCCEEDED
           : prismaPkg.PaymentStatus.FAILED,
       teamId: input.teamId,
+      product: input.product,
+      providerResourceId: input.providerResourceId,
+      observedAtUtc: payment.observedAtUtc,
     });
     recorded += 1;
   }
@@ -766,6 +820,7 @@ async function reconcileStorageAddons(ctx: {
         outcome: result.outcome,
         locallyAbandoned: result.previousStatus === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
         ...(result.resumeUrl ? { resumeUrl: result.resumeUrl } : {}),
+        ...(result.waitingFor ? { waitingFor: result.waitingFor } : {}),
       });
     }
   }
@@ -884,12 +939,83 @@ async function reconcileStorageAddonRow(input: {
       currency,
     }),
     summary,
+    product: "STORAGE_ADDON",
+    providerResourceId: ref,
   });
+
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — a FIRST activation is decided by
+  // the ONE storage activation authority, with the same plan-id, identity and
+  // eligibility checks the webhook and the return route apply. This pass used
+  // to grant it with no check at all.
+  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc) {
+    const claimed = provider === prismaPkg.PaymentProvider.PAYPAL
+      ? parsePayPalStorageAddonCustomId(observation.customId ?? null)
+      : null;
+    const applied = await applyStorageSubscriptionObservation({
+      provider,
+      subscriptionId: ref,
+      status: prismaPkg.SubscriptionStatus.ACTIVE,
+      planId: observation.planId ?? null,
+      claimed: claimed
+        ? {
+            userId: claimed.userId,
+            teamId: claimed.teamId,
+            addonKey: claimed.storageAddonKey,
+            attemptId: claimed.attemptId ?? null,
+          }
+        : null,
+      currentPeriodEnd: observation.currentPeriodEndUtc,
+      observedAtUtc: observation.observedAtUtc,
+      source: "billing_reconciliation",
+    });
+    if (applied.outcome === "IGNORED") {
+      return unresolved("PROVIDER_MALFORMED");
+    }
+    const current = await prisma.workspaceStorageAddon.findUnique({
+      where: { id: addon.id },
+      select: { status: true },
+    });
+    summary.subscriptionsUpdated += 1;
+    await noteStorageAttemptCheck(addon.id, "UPDATED");
+    return { ...base, currentStatus: current?.status ?? addon.status, outcome: "UPDATED" };
+  }
 
   const next = storageStatusFromObservation(observation, addon);
   if (!next) {
     summary.actionRequired += 1;
     return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
+  }
+
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — an approval nobody finished within
+  // the approval window is closed (provider-first: PayPal itself still reports
+  // it as NOT approved). It no longer sits "waiting" forever; a later
+  // provider-proven activation still wins over the local close.
+  if (
+    observation.state === "PENDING" &&
+    (observation.providerStatus ?? "").toUpperCase() === "APPROVAL_PENDING" &&
+    addon.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING &&
+    Date.now() - addon.createdAt.getTime() > APPROVAL_EXPIRY_MS
+  ) {
+    const row = await prisma.workspaceStorageAddon.findUnique({
+      where: { id: addon.id },
+      select: { metadata: true },
+    });
+    const meta =
+      row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+    const closed = await prisma.workspaceStorageAddon.updateMany({
+      where: { id: addon.id, status: prismaPkg.WorkspaceStorageAddonStatus.PENDING },
+      data: {
+        status: prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
+        metadata: { ...meta, checkoutState: "LOCALLY_EXPIRED" } as prismaPkg.Prisma.InputJsonObject,
+      },
+    });
+    if (closed.count > 0) {
+      summary.attemptsUpdated += 1;
+      await noteStorageAttemptCheck(addon.id, "UPDATED");
+      return { ...base, currentStatus: prismaPkg.WorkspaceStorageAddonStatus.ABANDONED, outcome: "UPDATED" };
+    }
   }
 
   if (observation.state === "PENDING" && !locallyAbandoned) summary.pending += 1;
@@ -930,6 +1056,14 @@ async function reconcileStorageAddonRow(input: {
       ...base,
       currentStatus: addon.status,
       outcome,
+      ...(outcome === "STILL_PENDING"
+        ? {
+            waitingFor:
+              (observation.providerStatus ?? "").toUpperCase() === "APPROVED"
+                ? ("ACTIVATION" as const)
+                : ("APPROVAL" as const),
+          }
+        : {}),
       ...(observation.resumeUrl ? { resumeUrl: observation.resumeUrl } : {}),
       providerStatus: observation.providerStatus ?? null,
     };
@@ -1133,34 +1267,4 @@ async function stampAddonProviderState(input: {
     data: { providerStateAtUtc: input.observedAtUtc },
   });
   return stamped.count > 0;
-}
-
-/**
- * Recurring add-ons that are still live under a base subscription that is not.
- *
- * Counted rather than cancelled here: this function runs inside an
- * OBSERVATION pass, and cancelling at the provider is a mutation that belongs
- * to the cancellation service, which asks the provider first and refuses to
- * record anything it did not confirm.
- */
-export async function countActiveDependentAddons(input: {
-  ownerUserId: string;
-  teamId: string | null;
-}): Promise<number> {
-  return prisma.workspaceStorageAddon.count({
-    where: {
-      ...(input.teamId
-        ? { teamId: input.teamId }
-        : { ownerUserId: input.ownerUserId, teamId: null }),
-      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-      externalSubscriptionId: { not: null },
-      status: {
-        in: [
-          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          prismaPkg.WorkspaceStorageAddonStatus.PENDING,
-          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-        ],
-      },
-    },
-  });
 }

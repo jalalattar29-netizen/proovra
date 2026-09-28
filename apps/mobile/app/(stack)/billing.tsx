@@ -24,7 +24,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
-import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
+import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
 import { ProovraSheet } from "../../src/ui/patterns";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
@@ -128,6 +128,7 @@ export default function BillingScreen() {
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const pendingPurchase = useRef<PurchaseIntent | null>(null);
   const pendingBrowserUrl = useRef<string | null>(null);
+  const pendingReturn = useRef<ReturnType<typeof payPalReturnConfirmation>>(null);
   const checkoutInFlight = useRef(false);
   const privateCheckout = externalCheckoutEnabled();
   const [manageOpen, setManageOpen] = useState(false);
@@ -286,11 +287,25 @@ export default function BillingScreen() {
 
     pendingBrowserUrl.current = null;
 
+    const confirmation = pendingReturn.current;
+    pendingReturn.current = null;
     void WebBrowser.openBrowserAsync(url)
-      .then(() => {
-        setNotice(
-          "Payment may still be pending. Refresh billing to check its confirmed status."
-        );
+      .then(async () => {
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — the browser closed (returned,
+        // cancelled or simply dismissed). Ask the server, which reads PayPal:
+        // an approved credit order is captured, a subscription is applied,
+        // an unapproved one grants nothing and says so.
+        if (confirmation) {
+          try {
+            const response = await apiFetch(confirmation.path, { method: "POST", body: "{}" });
+            setNotice(payPalReturnNotice(confirmation.kind, response));
+          } catch (err) {
+            const e = err as { code?: unknown; statusCode?: unknown };
+            setNotice(payPalReturnNotice(confirmation.kind, null, { code: e.code, statusCode: e.statusCode }));
+          }
+        } else {
+          setNotice("Payment may still be pending. PROOVRA confirms it with your provider automatically; refresh Billing in a few minutes.");
+        }
         refresh();
       })
       .catch((err) => {
@@ -335,7 +350,13 @@ export default function BillingScreen() {
       } catch (err) {
         const code = (err as { code?: string }).code;
         if (purchase.kind === "PLAN" && !purchase.transition && code === "SUBSCRIPTION_ALREADY_ACTIVE") {
-          response = await apiFetch("/v1/billing/subscription/plan", { method: "POST", body: JSON.stringify({ plan: purchase.plan, ...(request.body.currency ? { currency: request.body.currency } : {}) }) });
+          // BILLING PAYPAL INTEGRITY (2026-09-28) — a refused purchase is not
+          // permission to change the existing subscription. A plan change has
+          // its own confirmation (timing, provider approval); it is never
+          // substituted silently.
+          setPurchaseError("You already have a subscription. Use Manage plan to change it instead of buying a second one.");
+          refresh();
+          return;
         } else if (purchase.kind === "PLAN" && purchase.transition && code === "CHECKOUT_REQUIRED") {
           const fresh = checkoutRequest({ ...purchase, transition: false }, provider, catalogue?.currency);
           response = await apiFetch(fresh.path, { method: "POST", body: JSON.stringify(fresh.body) });
@@ -349,6 +370,7 @@ export default function BillingScreen() {
         : checkoutApprovalUrl(response, provider);
       if (url) {
         pendingBrowserUrl.current = url;
+        pendingReturn.current = payPalReturnConfirmation(response, provider);
         setPurchase(null);
       } else {
         // A provider may have created a pending attempt; never silently retry it.
@@ -425,6 +447,11 @@ export default function BillingScreen() {
       setHistoryNotice(result.message);
       if (result.refresh) refresh();
     } catch (err) {
+      const status = (err as { statusCode?: unknown }).statusCode;
+      if (status === 409 || status === 429) {
+        setHistoryNotice(reconcileMessage({ outcome: status === 409 ? "BUSY" : "RATE_LIMITED", summary: null }).message);
+        return;
+      }
       setHistoryNotice(
         toSafeUserError(err, { message: "We could not check with your payment provider. Your billing records are unchanged — try again in a moment." }).message,
       );
@@ -568,7 +595,7 @@ export default function BillingScreen() {
                     offer => offer.planKey.toUpperCase() === "TEAM"
                   ) &&
                   projection.actions.planManagement.enabled &&
-                  !projection.plan.providerTransition && !projection.plan.scheduledChange
+                  !projection.plan.providerTransition && (!projection.plan.scheduledChange || projection.plan.scheduledChange.awaitingApproval)
                     ? () => choosePlan("TEAM") : undefined
                 }
               />

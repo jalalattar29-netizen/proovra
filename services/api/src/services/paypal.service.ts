@@ -151,6 +151,12 @@ type PayPalPlanDetails = {
   status?: string;
   product_id?: string;
   name?: string;
+  billing_cycles?: Array<{
+    tenure_type?: string;
+    frequency?: { interval_unit?: string; interval_count?: number };
+    pricing_scheme?: { fixed_price?: { value?: string; currency_code?: string } };
+  }>;
+  payment_preferences?: { setup_fee?: { value?: string; currency_code?: string } };
 };
 
 function extractPayPalDebugId(res: Response) {
@@ -386,9 +392,11 @@ export async function paypalRequest(
       httpStatus: number;
       debugId: string | null;
     }) => void;
+    /** A token obtained in the caller's pre-create step. */
+    accessToken?: string;
   } = {},
 ) {
-  const token = await getPayPalAccessToken();
+  const token = options.accessToken ?? (await getPayPalAccessToken());
 
   const res = await fetch(`${apiBase()}${path}`, {
     method,
@@ -412,8 +420,8 @@ export async function paypalRequest(
   return (await res.json()) as Record<string, unknown>;
 }
 
-export async function paypalGet(path: string) {
-  const token = await getPayPalAccessToken();
+export async function paypalGet(path: string, accessToken?: string) {
+  const token = accessToken ?? (await getPayPalAccessToken());
 
   const res = await fetch(`${apiBase()}${path}`, {
     method: "GET",
@@ -434,8 +442,54 @@ export async function getPayPalPlan(planId: string) {
   return (await paypalGet(`/v1/billing/plans/${planId}`)) as PayPalPlanDetails;
 }
 
-async function assertPayPalPlanIsActive(planId: string) {
-  const plan = await getPayPalPlan(planId);
+/** The price a PayPal plan must bill for the product it is sold as. */
+export type ExpectedPlanPrice = { amountCents: number; currency: string };
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — what a configured PayPal plan
+ * actually bills, read from its REGULAR billing cycle.
+ *
+ * Returns a reason string when the plan cannot be sold as `expected`: another
+ * currency or amount, a non-monthly interval, a trial or setup fee the
+ * catalogue does not show. The check existed only as "status is ACTIVE", so a
+ * plan configured in USD 7.99 was sold on a page that said EUR 7.99.
+ */
+export function payPalPlanPriceMismatch(
+  plan: PayPalPlanDetails,
+  expected: ExpectedPlanPrice,
+): string | null {
+  const cycles = Array.isArray(plan.billing_cycles) ? plan.billing_cycles : [];
+  const regular = cycles.filter((c) => String(c?.tenure_type ?? "").toUpperCase() === "REGULAR");
+  if (regular.length !== 1) return "regular_cycle_missing";
+  if (cycles.some((c) => String(c?.tenure_type ?? "").toUpperCase() === "TRIAL")) {
+    return "trial_cycle_present";
+  }
+  const cycle = regular[0]!;
+  const unit = String(cycle.frequency?.interval_unit ?? "").toUpperCase();
+  const count = Number(cycle.frequency?.interval_count ?? 1);
+  if (unit !== "MONTH" || count !== 1) return "interval_not_monthly";
+  const price = cycle.pricing_scheme?.fixed_price;
+  const currency = String(price?.currency_code ?? "").toUpperCase();
+  const cents = centsFromDecimal(price?.value);
+  if (currency !== expected.currency.toUpperCase()) return "currency_mismatch";
+  if (cents === null || cents !== expected.amountCents) return "amount_mismatch";
+  const setupFee = centsFromDecimal(plan.payment_preferences?.setup_fee?.value);
+  if (setupFee !== null && setupFee > 0) return "setup_fee_present";
+  return null;
+}
+
+function centsFromDecimal(value: unknown): number | null {
+  const s = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  return Math.round(Number(s) * 100);
+}
+
+async function assertPayPalPlanIsActive(
+  planId: string,
+  expected: ExpectedPlanPrice,
+  accessToken?: string,
+) {
+  const plan = (await paypalGet(`/v1/billing/plans/${planId}`, accessToken)) as PayPalPlanDetails;
   const status = String(plan.status ?? "")
     .trim()
     .toUpperCase();
@@ -452,7 +506,50 @@ async function assertPayPalPlanIsActive(planId: string) {
     );
   }
 
+  const mismatch = payPalPlanPriceMismatch(plan, expected);
+  if (mismatch) {
+    throw paymentsUnavailable(
+      "paypal",
+      `PayPal plan ${planId} (${mismatch}; expected ${expected.amountCents} ${expected.currency})`,
+      "plan_price_mismatch",
+    );
+  }
+
   return plan;
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — everything that happens BEFORE the
+ * create request is sent (OAuth token, plan lookup, price verification).
+ *
+ * A failure here proves PayPal created nothing, so it is raised as the bounded
+ * 503 PAYMENTS_UNAVAILABLE, which the attempt layer records as a certain
+ * refusal. It used to escape as a bare PayPalHttpError / network error and was
+ * recorded as PROVIDER_OUTCOME_UNKNOWN — an indefinite checkout blocker for a
+ * request that never left the building.
+ */
+/**
+ * The pre-create verification of ONE plan, for callers outside this module
+ * (a plan change revises an agreement onto `planId`; the plan must bill the
+ * catalogue price the customer was shown). Raises PAYMENTS_UNAVAILABLE.
+ */
+export async function assertPayPalPlanSellable(
+  planId: string,
+  expected: ExpectedPlanPrice,
+): Promise<void> {
+  const accessToken = await beforeCreate("oauth_token", getPayPalAccessToken);
+  await beforeCreate(`plan_lookup ${planId}`, () =>
+    assertPayPalPlanIsActive(planId, expected, accessToken),
+  );
+}
+
+async function beforeCreate<T>(step: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof DomainError && err.publicCode === "PAYMENTS_UNAVAILABLE") throw err;
+    throw paymentsUnavailable("paypal", step, "provider_unreachable_before_create");
+  }
 }
 
 export async function getPayPalSubscription(subscriptionId: string) {
@@ -545,6 +642,8 @@ export async function createPayPalOrder(params: {
       ? `PROOVRA ${plan} ${params.teamId}`
       : `PROOVRA ${plan}`;
 
+  const accessToken = await beforeCreate("oauth_token", getPayPalAccessToken);
+
   return withCheckoutDiagnostics("order_create", () =>
     paypalRequest("/v2/checkout/orders", {
       intent: "CAPTURE",
@@ -573,6 +672,7 @@ export async function createPayPalOrder(params: {
     }, "POST", {
       requestId: params.requestId ?? undefined,
       onResponseDiagnostics: params.onResponseDiagnostics,
+      accessToken,
     }),
   );
 }
@@ -586,13 +686,22 @@ export async function createPayPalSubscription(params: {
   cancelUrl: string;
   /** Durable local attempt id: `PayPal-Request-Id` and `custom_id` suffix. */
   requestId?: string | null;
+  /** The catalogue price this checkout is sold at; the PayPal plan must bill it. */
+  expectedAmountCents: number;
 }): Promise<Record<string, unknown> & { __diagnostics?: PayPalCreateDiagnostics }> {
   const planId = resolvePayPalPlanId({
     plan: params.plan,
     currency: params.currency,
   });
 
-  await assertPayPalPlanIsActive(planId);
+  const accessToken = await beforeCreate("oauth_token", getPayPalAccessToken);
+  await beforeCreate(`plan_lookup ${planId}`, () =>
+    assertPayPalPlanIsActive(
+      planId,
+      { amountCents: params.expectedAmountCents, currency: normalizePayPalCurrency(params.currency) },
+      accessToken,
+    ),
+  );
 
   let response = { httpStatus: 0, debugId: null as string | null };
   const subscription = await withCheckoutDiagnostics("subscription_create", () =>
@@ -619,6 +728,7 @@ export async function createPayPalSubscription(params: {
         onResponseDiagnostics: (value) => {
           response = value;
         },
+        accessToken,
       },
     ),
   );
@@ -678,7 +788,14 @@ export async function createPayPalStorageAddonCheckout(params: {
     currency: normalizedCurrency,
   });
 
-  await assertPayPalPlanIsActive(planId);
+  const accessToken = await beforeCreate("oauth_token", getPayPalAccessToken);
+  await beforeCreate(`plan_lookup ${planId}`, () =>
+    assertPayPalPlanIsActive(
+      planId,
+      { amountCents: Math.round(Number(params.amount) * 100), currency: normalizedCurrency },
+      accessToken,
+    ),
+  );
 
   let responseDiagnostics: { httpStatus: number; debugId: string | null } = {
     httpStatus: 0,
@@ -710,6 +827,7 @@ export async function createPayPalStorageAddonCheckout(params: {
           onResponseDiagnostics: (value) => {
             responseDiagnostics = value;
           },
+          accessToken,
         },
       ),
   );

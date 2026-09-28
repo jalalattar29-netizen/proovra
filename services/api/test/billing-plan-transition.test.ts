@@ -159,6 +159,12 @@ vi.mock("../src/services/stripe.service.js", () => ({
 }));
 
 vi.mock("../src/services/paypal.service.js", () => ({
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — the target plan's price is
+  // verified before a revise (a mismatch refuses with PAYMENTS_UNAVAILABLE).
+  assertPayPalPlanSellable: async (planId: string) => {
+    H.providerCalls.push(`paypalGet /v1/billing/plans/${planId}`);
+    if (H.providerFails) throw new Error("paypal unavailable");
+  },
   // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a change reads the live
   // subscription's billed plan first, so it stays in that currency.
   getPayPalSubscription: async (id: string) => {
@@ -185,6 +191,7 @@ vi.mock("../src/services/billing-pricing.service.js", () => ({
   getStripePlanPriceId: (plan: string) =>
     plan === "NOPRICE" ? null : `price_${plan}`,
   resolveCheckoutCurrency: () => "EUR",
+  getPlanPriceCents: (plan: string) => (plan === "TEAM" ? 7900 : 1900),
 }));
 
 vi.mock("../src/services/paypal-plan-map.service.js", () => ({
@@ -690,10 +697,15 @@ describe("applyPersonalPlanChange — PayPal", () => {
 
   it("revises the existing agreement — never a second one", async () => {
     await paypal("UPGRADE");
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — the target plan's configured
+    // price is verified (a read) before the one revise; still no second
+    // subscription is ever created.
     expect(H.providerCalls).toEqual([
       "paypalGet /v1/billing/subscriptions/sub_ext_1",
+      expect.stringMatching(/^paypalGet \/v1\/billing\/plans\//),
       "paypalPost /v1/billing/subscriptions/sub_ext_1/revise",
     ]);
+    expect(H.providerCalls.filter((c) => c.startsWith("paypalPost"))).toHaveLength(1);
   });
 
   it("an approval link means the buyer has NOT agreed — nothing is claimed as done", async () => {

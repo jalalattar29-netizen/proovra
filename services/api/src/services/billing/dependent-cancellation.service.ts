@@ -44,6 +44,12 @@ import {
   type AddonCancellationReasonCode,
   type StorageAddonProviderCanceller,
 } from "./storage-addon-cancellation.service.js";
+import {
+  owedDependentCancellationTrigger,
+  storageAddonEligibleForPlan,
+  storageAddonRequiresPaidPlan,
+} from "./storage-addon-rules.js";
+import { loadDependencyContext } from "./base-subscription.service.js";
 
 const S = prismaPkg.DependentCancellationState;
 
@@ -86,13 +92,21 @@ function nextRetryAt(attemptCount: number, from: Date): Date {
 }
 
 /**
- * The add-ons a base cancellation obliges us to stop.
+ * The add-ons a base cancellation COULD oblige us to stop: live recurring
+ * add-ons of ONE billing subject with a provider binding.
  *
  * Scoped to ONE billing subject: a personal account owns its `teamId: null`
  * add-ons, a workspace owns its own. `MONTHLY` + a provider binding is what
  * makes an add-on a subscription — a legacy ONE_TIME row has neither and is
  * never returned, so it never receives an obligation, never receives a
  * provider call, and never leaves `NONE`.
+ *
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — PENDING is no longer included: an
+ * add-on the provider never activated depends on nothing (dependency is
+ * recorded at activation), and PayPal refuses to cancel an unapproved
+ * subscription, which escalated such rows to "contact support" for nothing.
+ * Which of these are actually OWED a cancellation is decided per add-on by
+ * `owedDependentCancellationTrigger`.
  */
 export function dependentAddonWhere(input: {
   ownerUserId: string;
@@ -107,58 +121,81 @@ export function dependentAddonWhere(input: {
     status: {
       in: [
         prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-        prismaPkg.WorkspaceStorageAddonStatus.PENDING,
         prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
       ],
     },
   };
 }
 
+type DependencyClient = Pick<
+  prismaPkg.Prisma.TransactionClient,
+  "workspaceStorageAddon" | "subscription"
+>;
+
+/** The obligation reason an ungrantable provider-active add-on carries. */
+export const UNGRANTABLE_PROVIDER_ACTIVE = "UNGRANTABLE_PROVIDER_ACTIVE";
+
 /**
- * Persist the obligation for every live dependent add-on, atomically.
+ * Persist the obligation for every add-on a base cancellation actually owes,
+ * atomically.
  *
  * CALLED INSIDE THE CALLER'S TRANSACTION, together with the base cancellation
  * result. That is the crash-safety boundary: if the process dies between the
  * base provider call and this write, reconciliation observes a cancelled base
  * with no obligations and creates them; if it dies after this write, the
- * worker resumes them. There is no window in which the base is cancelled and
- * the intent to stop its dependants exists nowhere.
+ * worker resumes them.
+ *
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — only add-ons OWED a cancellation
+ * (`owedDependentCancellationTrigger`) receive one. This used to take every
+ * live add-on of the subject, so any cancelled subscription row — an
+ * abandoned PayPal approval, a plan cancelled before the customer resubscribed
+ * — cancelled valid storage at the provider.
  *
  * Idempotent: an add-on that already carries an unresolved obligation is left
- * exactly as it is, so a repeated request neither duplicates the obligation nor
- * resets its attempt count.
+ * exactly as it is.
  */
 export async function recordDependentCancellationObligations(
   input: {
     ownerUserId: string;
     teamId: string | null;
-    triggeredBySubscriptionId: string;
+    /** Bases being cancelled by the caller right now. */
+    endingBaseIds?: string[];
     now?: Date;
   },
-  client: Pick<prismaPkg.Prisma.TransactionClient, "workspaceStorageAddon">,
+  client: DependencyClient,
 ): Promise<{ created: number; alreadyOpen: number }> {
   const now = input.now ?? new Date();
 
   const live = await client.workspaceStorageAddon.findMany({
     where: dependentAddonWhere(input),
-    select: { id: true, dependentCancellationState: true },
+    select: {
+      id: true,
+      addonKey: true,
+      teamId: true,
+      dependsOnSubscriptionId: true,
+      dependentCancellationState: true,
+    },
   });
+  const context = await loadDependencyContext(client, input);
 
-  const fresh = live.filter((a) => a.dependentCancellationState === S.NONE);
-  const alreadyOpen = live.filter(
-    (a) =>
-      a.dependentCancellationState !== S.NONE &&
-      a.dependentCancellationState !== S.CONFIRMED,
+  const owed = live
+    .map((addon) => ({ addon, trigger: owedDependentCancellationTrigger({ addon, ...context }) }))
+    .filter((x) => x.trigger !== null);
+
+  const fresh = owed.filter((x) => x.addon.dependentCancellationState === S.NONE);
+  const alreadyOpen = owed.filter(
+    (x) =>
+      x.addon.dependentCancellationState !== S.NONE &&
+      x.addon.dependentCancellationState !== S.CONFIRMED,
   );
 
-  if (fresh.length > 0) {
+  for (const { addon, trigger } of fresh) {
     await client.workspaceStorageAddon.updateMany({
-      where: { id: { in: fresh.map((a) => a.id) } },
+      where: { id: addon.id, dependentCancellationState: S.NONE },
       data: {
         dependentCancellationState: S.PENDING,
         dependentCancellationRequestedAtUtc: now,
-        dependentCancellationTriggeredBySubscriptionId:
-          input.triggeredBySubscriptionId,
+        dependentCancellationTriggeredBySubscriptionId: trigger!.id,
         // Due immediately: the request itself makes the first attempt, and if
         // the process dies before it does, the worker picks it up at once.
         dependentCancellationNextRetryAtUtc: now,
@@ -170,6 +207,73 @@ export async function recordDependentCancellationObligations(
   return { created: fresh.length, alreadyOpen: alreadyOpen.length };
 }
 
+/**
+ * Withdraw obligations that the dependency rule no longer supports.
+ *
+ * Obligations recorded before the rule existed (any cancelled row cancelled
+ * every add-on), or whose base was restarted or replaced by a live plan that
+ * still offers the SKU, must NOT keep executing against the provider. They
+ * return to NONE with a reason an operator can read. An obligation owed
+ * because the provider activated an add-on that could not be granted is
+ * always kept.
+ */
+export async function withdrawUnsupportedObligations(input: {
+  ownerUserId: string;
+  teamId: string | null;
+}): Promise<number> {
+  const open = await prisma.workspaceStorageAddon.findMany({
+    where: {
+      ...(input.teamId
+        ? { teamId: input.teamId }
+        : { ownerUserId: input.ownerUserId, teamId: null }),
+      dependentCancellationState: { in: [...UNRESOLVED_STATES] },
+    },
+    select: {
+      id: true,
+      addonKey: true,
+      teamId: true,
+      status: true,
+      dependsOnSubscriptionId: true,
+      dependentCancellationReasonCode: true,
+      dependentCancellationState: true,
+    },
+  });
+  if (open.length === 0) return 0;
+  const context = await loadDependencyContext(prisma, input);
+  let withdrawn = 0;
+  for (const addon of open) {
+    if (addon.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE) continue;
+    const live =
+      addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+      addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
+    // Withdraw only what is DEMONSTRABLY not owed: storage that is no longer
+    // live, a SKU a Free account may hold, or a SKU a live plan still offers.
+    // A paid-plan SKU with no satisfying plan and no identifiable ended base is
+    // unknown, not unrelated — its obligation stands.
+    const satisfied =
+      context.satisfyingBase !== null &&
+      storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey);
+    const unsupported =
+      !live ||
+      !storageAddonRequiresPaidPlan(addon.addonKey) ||
+      satisfied ||
+      (owedDependentCancellationTrigger({ addon, ...context }) === null &&
+        addon.dependsOnSubscriptionId !== null &&
+        !context.endedBases.some((b) => b.id === addon.dependsOnSubscriptionId));
+    if (!unsupported) continue;
+    const res = await prisma.workspaceStorageAddon.updateMany({
+      where: { id: addon.id, dependentCancellationState: addon.dependentCancellationState },
+      data: {
+        dependentCancellationState: S.NONE,
+        dependentCancellationNextRetryAtUtc: null,
+        dependentCancellationLeaseUntilUtc: null,
+        dependentCancellationReasonCode: "OBLIGATION_WITHDRAWN_NOT_DEPENDENT",
+      },
+    });
+    withdrawn += res.count;
+  }
+  return withdrawn;
+}
 export type ObligationAttemptResult = {
   attempted: number;
   confirmed: number;
@@ -196,6 +300,16 @@ export async function attemptDependentCancellations(input: {
 }): Promise<ObligationAttemptResult> {
   const now = input.now ?? new Date();
 
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — never execute an obligation the
+  // dependency rule no longer supports (recorded under the old any-cancelled-
+  // row predicate, or satisfied again by a live plan). Every caller — the
+  // cancellation request, the customer's retry, the worker and reconciliation
+  // — passes through here, so one re-validation covers all of them.
+  await withdrawUnsupportedObligations({
+    ownerUserId: input.ownerUserId,
+    teamId: input.teamId,
+  });
+
   const candidates = await prisma.workspaceStorageAddon.findMany({
     where: {
       ...(input.teamId
@@ -213,6 +327,7 @@ export async function attemptDependentCancellations(input: {
       paymentProvider: true,
       externalSubscriptionId: true,
       dependentCancellationAttemptCount: true,
+      status: true,
     },
   });
 
@@ -268,7 +383,9 @@ export async function attemptDependentCancellations(input: {
           // schedule leaves the add-on ACTIVE, because the customer has paid
           // for this month and the terminal transition is the provider's to
           // make, by webhook or by reconciliation.
-          ...(outcome.terminal
+          // A refused (FAILED) activation keeps its FAILED status: it never
+          // granted anything, and the cancellation only stops the charge.
+          ...(outcome.terminal && addon.status !== prismaPkg.WorkspaceStorageAddonStatus.FAILED
             ? { status: prismaPkg.WorkspaceStorageAddonStatus.CANCELED }
             : {}),
         },

@@ -408,9 +408,15 @@ function BillingPageInner() {
     // the capacity goes. And the fear this dialog actually raises is not about
     // the add-ons at all — it is whether the evidence survives. It does, and
     // saying so is the difference between a decision and a gamble.
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — only add-ons whose SKU needs a
+    // paid plan end with it. Storage a Free account may hold is kept.
     const recurringAddons = (projection.storageAddons?.active ?? []).filter(
-      (addon) => !addon.legacyOneTime && addon.status === "ACTIVE",
+      (addon) => !addon.legacyOneTime && addon.status === "ACTIVE" && addon.endsWithPlan !== false,
     );
+    const keptAddons = (projection.storageAddons?.active ?? []).filter(
+      (addon) => !addon.legacyOneTime && addon.status === "ACTIVE" && addon.endsWithPlan === false,
+    );
+    const paypal = projection.plan.paymentProviderLabel === "PayPal";
     const paidUntil = formatDate(projection.plan.currentPeriodEndUtc);
 
     const ok = await confirm({
@@ -419,9 +425,11 @@ function BillingPageInner() {
         <div style={{ display: "grid", gap: 10 }} data-billing-cancel-consequences>
           <p style={{ margin: 0 }}>
             We will ask your payment provider to stop renewing it.{" "}
-            {paidUntil
-              ? `You have paid through ${paidUntil}; where the provider supports it you keep ${projection.plan.displayName} until then, and we will confirm the exact date after they answer.`
-              : "Where the provider supports it you keep your current plan until the end of the period you have already paid for, and we will confirm the exact date after they answer."}{" "}
+            {paypal
+              ? `PayPal ends a subscription immediately: ${projection.plan.displayName} ends when PayPal confirms the cancellation, and it cannot be restarted.`
+              : paidUntil
+                ? `You have paid through ${paidUntil}; where the provider supports it you keep ${projection.plan.displayName} until then, and we will confirm the exact date after they answer.`
+                : "Where the provider supports it you keep your current plan until the end of the period you have already paid for, and we will confirm the exact date after they answer."}{" "}
             Nothing is charged again.
           </p>
           <ul style={{ margin: 0, paddingInlineStart: 20, display: "grid", gap: 6 }}>
@@ -434,8 +442,13 @@ function BillingPageInner() {
                 ? `${recurringAddons.length} recurring storage add-on${
                     recurringAddons.length === 1 ? "" : "s"
                   } will be cancelled with it, so that extra capacity ends too.`
-                : "You have no recurring storage add-ons, so nothing else is cancelled."}
+                : "No storage add-on depends on this plan, so no storage is cancelled."}
             </li>
+            {keptAddons.length > 0 ? (
+              <li>
+                {`${keptAddons.length} storage add-on${keptAddons.length === 1 ? "" : "s"} you can keep on Free ${keptAddons.length === 1 ? "stays" : "stay"} active and keep${keptAddons.length === 1 ? "s" : ""} renewing. Cancel ${keptAddons.length === 1 ? "it" : "them"} separately if you no longer want the capacity.`}
+              </li>
+            ) : null}
             <li>
               Your account moves to Free. You can subscribe again at any time.
             </li>
@@ -750,7 +763,8 @@ function BillingPageInner() {
       // customer. "Pending" only when the provider itself said so.
       const notice = describeReconciliation(result);
       addToast(notice.message, notice.tone);
-      refresh();
+      // Nothing was checked when the request was refused (busy / too soon).
+      if (result.checked) refresh();
     } catch (err) {
       captureException(err, { feature: "billing_restore" });
       const safe = toSafeUserError(err, {

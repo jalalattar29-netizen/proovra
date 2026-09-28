@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 282,
-    "classifiedMigrations": 282,
+    "filesystemMigrations": 283,
+    "classifiedMigrations": 283,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 282,
+    "productionSnapshotUnknown": 283,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 282,
-    "classifiedMigrations": 282,
+    "filesystemMigrations": 283,
+    "classifiedMigrations": 283,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 282,
+    "productionSnapshotUnknown": 283,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 60,
+      "EXPAND": 61,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 71,
+      "SAFE_TO_APPLY_NOW": 72,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 282
+    "ProductionMigrationStateUnknown": 283
   },
   "gateFailures": [],
   "migrations": [
@@ -21589,7 +21589,7 @@
       "checksumSha256Raw": "ac2cd207155942eae426622dc7c5481c18bfc243f0a5a1dfd735027f4c79b161",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "56da87a91b5e46c7c4fc47bcc1ebbd0e591996e4",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -21663,7 +21663,7 @@
       "checksumSha256Raw": "54969dc8a48c796a0c234a5c19962b0e51778c2bfad04e0a137f83a3e0e9a999",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "e9efd5570b40f37d769374dcbe812828f79eecc7",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "REPAIR",
@@ -21722,7 +21722,7 @@
       "checksumSha256Raw": "63501d4631d128af2ec865a81def921822c8e12902c570c5d7137b3732617852",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "d8a15a7e67638871b6bc9f0071978631a27c81af",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "BACKFILL",
@@ -21797,7 +21797,7 @@
       "checksumSha256Raw": "71f97926bcd77ac5ecf60ae7741ae30ab64efd75c56236bf9a7e9861e7cd30a0",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "d584e146763d013257d64cd6df7c3edfe5be5853",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -21858,8 +21858,95 @@
       "evidence": "BILLING STRIPE ATTEMPTS + BILLED CURRENCY (2026-09-28). Adds the enum value STORAGE_ADDON to BillingCheckoutProduct (ADD VALUE IF NOT EXISTS), a nullable billing_checkout_attempts.storage_addon_key, and nullable subscriptions.billed_currency / billed_unit_amount_cents. No row is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW. Rolling-deploy caveat: once a Stripe storage checkout records a STORAGE_ADDON attempt, an API instance built from an older Prisma client cannot deserialize that row, so older instances must be drained before the new image serves Stripe storage checkouts. Legacy subscriptions keep billed_currency NULL until a provider event or re-check observes it; Billing then shows no price rather than a guessed one."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280720000000_billing_paypal_integrity",
       "order": 281,
+      "sqlPresent": true,
+      "byteLength": 3618,
+      "checksumSha256": "71276be32a5446bec7b887bacb3dee6cb88fe32ffc0fc33e2de8972f346a5222",
+      "checksumSha256Raw": "71276be32a5446bec7b887bacb3dee6cb88fe32ffc0fc33e2de8972f346a5222",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "1cf9bfdd8e330da6571e5dad48133c00be236889",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "billing_review_items"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "billing_review_items",
+          "payments",
+          "subscriptions",
+          "workspace_storage_addons"
+        ],
+        "addedColumns": [
+          "activated_at_utc",
+          "checkout_attempt_id",
+          "depends_on_subscription_id",
+          "locally_terminated_at_utc",
+          "pending_plan_awaiting_approval",
+          "pending_plan_requested_at_utc",
+          "product",
+          "provider_resource_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "billing_review_items_provider_provider_resource_id_reason_key",
+          "billing_review_items_user_id_status_idx",
+          "evidence_credit_ledger_refund_reversal_provider_ref_key",
+          "payments_user_id_product_status_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "billing_review_items_user_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='billing_review_items'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BILLING PAYPAL INTEGRITY (2026-09-28). Adds nullable payments.product / checkout_attempt_id / provider_resource_id (+ index), subscriptions.pending_plan_awaiting_approval (NOT NULL DEFAULT false) / pending_plan_requested_at_utc / activated_at_utc / locally_terminated_at_utc, workspace_storage_addons.depends_on_subscription_id, one new table billing_review_items (FK users, DO-guarded), and one partial unique index on evidence_credit_ledger_entries (REVERSAL rows with no evidence). No enum, constraint or existing column is changed; nothing is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it ignores every new column (product is VARCHAR, not an enum), and code built after it needs the columns and table, so apply before deploying the API. Historic payments keep product NULL; reconciliation classifies them lazily and only EVIDENCE_CREDIT/NULL rows are ever eligible for credit recovery."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 282,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

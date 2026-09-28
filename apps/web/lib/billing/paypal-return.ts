@@ -31,7 +31,13 @@ export type PayPalReturn =
       subscriptionId: string;
       product: Exclude<PayPalReturnProduct, "credits">;
     }
-  | { kind: "BUYER_CANCELED"; product: PayPalReturnProduct };
+  | {
+      kind: "BUYER_CANCELED";
+      product: PayPalReturnProduct;
+      /** The PayPal resource PayPal names on the cancel return, when it does. */
+      subscriptionId: string | null;
+      orderId: string | null;
+    };
 
 /** Every query parameter the PayPal round trip adds; removed after handling. */
 export const PAYPAL_RETURN_PARAMS = [
@@ -60,7 +66,14 @@ export function parsePayPalReturn(params: ParamReader): PayPalReturn | null {
   const prod = product(params);
 
   if (params.get("canceled") === "1") {
-    return { kind: "BUYER_CANCELED", product: prod };
+    const subscriptionId = params.get("subscription_id");
+    const token = params.get("token");
+    return {
+      kind: "BUYER_CANCELED",
+      product: prod,
+      subscriptionId: subscriptionId && PAYPAL_ID.test(subscriptionId) ? subscriptionId : null,
+      orderId: prod === "credits" && token && PAYPAL_ID.test(token) ? token : null,
+    };
   }
   if (params.get("success") !== "1") return null;
 
@@ -133,6 +146,11 @@ export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPa
   const outcome = typeof r.outcome === "string" ? r.outcome : "";
 
   if (ret.kind === "ORDER_CAPTURE") {
+    if (r.statusCode === 404 || r.statusCode === 409) {
+      // The server refused: not this account's order, or not a credit order,
+      // or not at this purchase's price. Nothing was captured or added.
+      return { tone: "error", message: "We could not confirm this PayPal payment for your account, so no credit was added. If you were charged, contact support.", retry: false };
+    }
     switch (outcome) {
       case "GRANTED":
       case "ALREADY_GRANTED":
@@ -146,16 +164,37 @@ export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPa
       case "FAILED":
         return { tone: "error", message: "PayPal declined this payment, so no credit was added. You can try again with another payment method.", retry: false };
       default:
-        return { tone: "error", message: "We could not confirm this PayPal payment. If you were charged, it will be reconciled automatically.", retry: false };
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — true now: an approved
+        // payment whose confirmation failed stays "processing" and the hourly
+        // billing sweep settles it (one capture, one credit).
+        return { tone: "info", message: "We could not confirm this PayPal payment yet. PROOVRA keeps checking with PayPal automatically; if you were charged, your credit is added once PayPal confirms it.", retry: false };
     }
   }
 
   const noun = PRODUCT_NOUN[ret.product];
+  if (r.code === "PAYPAL_STORAGE_ACTIVATION_REFUSED") {
+    return {
+      tone: "error",
+      message: "PayPal activated this storage add-on, but it could not be added to this account, so PROOVRA cancelled it at PayPal. Support will review the charge — you do not need to do anything.",
+      retry: false,
+    };
+  }
   switch (outcome) {
     case "ACTIVE":
-      return { tone: "success", message: `Your ${noun} is active. Thank you!`, retry: false };
+      return r.superseded === true
+        ? {
+            tone: "info",
+            message: "You already have an active plan, so this second PayPal subscription was cancelled at PayPal and support will review the charge. Your current plan is unchanged.",
+            retry: false,
+          }
+        : { tone: "success", message: `Your ${noun} is active. Thank you!`, retry: false };
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — "approved, activating" and "not
+    // approved yet" are different facts, and the page no longer promises to
+    // update itself after it has stopped asking.
     case "PENDING":
-      return { tone: "info", message: `PayPal is activating your ${noun}. This page will update when it is confirmed.`, retry: true };
+      return { tone: "info", message: `You approved this at PayPal and PayPal is activating your ${noun}. PROOVRA keeps checking automatically — refresh Billing in a few minutes to see it.`, retry: true };
+    case "AWAITING_APPROVAL":
+      return { tone: "info", message: `PayPal has not confirmed your approval of this ${noun} yet. Nothing has been charged.`, retry: true };
     case "PAYMENT_PROBLEM":
       return { tone: "error", message: `PayPal reports a problem collecting payment for this ${noun}.`, retry: false };
     case "ENDED":

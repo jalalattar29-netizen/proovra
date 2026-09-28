@@ -96,9 +96,20 @@ export async function recordDependentCancellationIntent(
     triggeredBySubscriptionId: string;
     now?: Date;
   },
-  client: Pick<prismaPkg.Prisma.TransactionClient, "workspaceStorageAddon">,
+  client: Pick<prismaPkg.Prisma.TransactionClient, "workspaceStorageAddon" | "subscription">,
 ): Promise<{ created: number; alreadyOpen: number }> {
-  return recordDependentCancellationObligations(input, client);
+  // The base being cancelled may still read ACTIVE (PayPal) or carry only
+  // `cancelAtPeriodEnd` (Stripe) — it is named as ENDING, so it can neither
+  // satisfy its own dependants nor be missed as their trigger.
+  return recordDependentCancellationObligations(
+    {
+      ownerUserId: input.ownerUserId,
+      teamId: input.teamId,
+      endingBaseIds: [input.triggeredBySubscriptionId],
+      now: input.now,
+    },
+    client,
+  );
 }
 
 /**

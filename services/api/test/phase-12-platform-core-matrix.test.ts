@@ -574,6 +574,9 @@ vi.mock("../src/services/presence/presence-selector.js", () => ({
 
 vi.mock("../src/services/rate-limit.js", () => ({
   enforceRateLimit: async () => ({ allowed: H.rateLimitAllowed }),
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — the reconcile route holds a real
+  // per-account lease while it runs; this matrix exercises one run at a time.
+  acquireLease: async () => ({ acquired: true, release: async () => {} }),
 }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   listAdminAuditLogs: async () => {

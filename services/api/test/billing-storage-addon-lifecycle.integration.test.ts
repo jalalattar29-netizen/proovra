@@ -48,12 +48,13 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
     cycle: "MONTHLY" | "ONE_TIME";
     gb: number;
     status?: "ACTIVE" | "PENDING" | "PAST_DUE" | "CANCELED";
+    addonKey?: "PERSONAL_10_GB" | "TEAM_100_GB";
   }) {
     return prisma.workspaceStorageAddon.create({
       data: {
         ownerUserId: input.ownerUserId,
         teamId: input.teamId ?? null,
-        addonKey: "PERSONAL_10_GB",
+        addonKey: input.addonKey ?? "PERSONAL_10_GB",
         extraStorageBytes: BigInt(input.gb) * GB,
         billingCycle: input.cycle,
         status: input.status ?? "ACTIVE",
@@ -247,11 +248,12 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
     });
 
     it("losing recurring capacity deletes no Evidence and keeps legacy capacity", async () => {
-      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      const t = await seedPersonalTenant(deps, "TEAM", { credits: 0 });
       const recurring = await seedAddon({
         ownerUserId: t.owner.userId,
         cycle: "MONTHLY",
         gb: 10,
+        addonKey: "TEAM_100_GB",
       });
       await seedAddon({ ownerUserId: t.owner.userId, cycle: "ONE_TIME", gb: 5 });
 
@@ -278,11 +280,27 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
       const { recordDependentCancellationObligations } = await import(
         "../src/services/billing/dependent-cancellation.service.js"
       );
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — the TEAM base this add-on
+      // depends on is the one ending; only a DEPENDENT add-on is cascaded.
+      const base = await prisma.subscription.create({
+        data: {
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          providerSubId: `I-${randomUUID()}`,
+          status: "ACTIVE",
+          plan: "TEAM",
+          currentPeriodEnd: new Date(Date.now() + 86400_000),
+          activatedAtUtc: new Date(Date.now() - 86400_000),
+          // What `requestSubscriptionCancellation` records once PayPal
+          // confirmed the (immediate) cancellation, before the webhook lands.
+          canceledAtUtc: new Date(),
+        },
+      });
       await recordDependentCancellationObligations(
         {
           ownerUserId: t.owner.userId,
           teamId: null,
-          triggeredBySubscriptionId: randomUUID(),
+          endingBaseIds: [base.id],
         },
         prisma,
       );

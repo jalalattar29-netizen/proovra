@@ -30,6 +30,8 @@ import {
   type OpenCheckoutAttemptGate,
 } from "./checkout-attempts.service.js";
 import { resolvePendingProviderCheckoutAttempt } from "./pending-checkout-attempt.service.js";
+import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { defaultReconciliationProviders } from "./reconciliation/reconciliation.service.js";
 
 const PAYPAL = prismaPkg.PaymentProvider.PAYPAL;
 
@@ -179,6 +181,14 @@ export async function startPayPalPlanCheckout(input: {
 }): Promise<PayPalCheckoutStart> {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(input.plan, currency);
+
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — an approval nobody finished within
+  // the approval window is closed provider-first before it can block this
+  // purchase. Best effort: a provider outage leaves it to reconciliation.
+  await expireStalePlanAttempts({
+    userId: input.userId,
+    deps: { providers: defaultReconciliationProviders() },
+  }).catch(() => 0);
 
   const gate = await openCheckoutAttempt({
     userId: input.userId,

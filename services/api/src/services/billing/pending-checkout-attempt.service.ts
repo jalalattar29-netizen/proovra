@@ -8,7 +8,11 @@ import {
 } from "./reconciliation/reconciliation.service.js";
 import type { ObservationFailure } from "./reconciliation/types.js";
 import type { BillingAccountRef } from "./billing-accounts.service.js";
-import { abandonCheckoutAttempt } from "./checkout-attempt-recovery.service.js";
+import {
+  abandonCheckoutAttempt,
+  APPROVAL_EXPIRY_MS,
+} from "./checkout-attempt-recovery.service.js";
+import { CHECKOUT_REUSE_WINDOW_MS } from "./checkout-attempts.service.js";
 
 type SubscriptionClient = Pick<
   prismaPkg.Prisma.TransactionClient["subscription"],
@@ -64,6 +68,10 @@ export async function resolvePendingProviderCheckoutAttempt(input: {
       providerSubId: { not: "" },
       plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
       status: prismaPkg.SubscriptionStatus.TRIALING,
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — an approval older than the
+      // approval window no longer blocks (reconciliation closes it,
+      // provider-first); it used to block every later plan checkout forever.
+      createdAt: { gte: new Date(Date.now() - APPROVAL_EXPIRY_MS) },
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, plan: true },
@@ -130,6 +138,13 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
       SELECT pg_advisory_xact_lock(hashtext(${`billing-storage-checkout:PAYPAL:${input.ownerUserId}:${input.teamId ?? "personal"}`}))
     `;
 
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — only an attempt that can still
+    // be approved blocks: a BOUND one inside the approval window, or an
+    // unbound one still inside the duplicate-click window. An unbound attempt
+    // older than that gave the buyer no approval page; an approval older than
+    // the window is closed by reconciliation. Neither blocks a purchase
+    // forever any more.
+    const now = Date.now();
     const existing = await tx.workspaceStorageAddon.findFirst({
       where: {
         ownerUserId: input.ownerUserId,
@@ -137,6 +152,11 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
         paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
         billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
         status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+        createdAt: { gte: new Date(now - APPROVAL_EXPIRY_MS) },
+        OR: [
+          { externalSubscriptionId: { not: null } },
+          { createdAt: { gte: new Date(now - CHECKOUT_REUSE_WINDOW_MS) } },
+        ],
       },
       orderBy: { createdAt: "desc" },
       select: {

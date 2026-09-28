@@ -72,6 +72,9 @@ import { getWorkspaceUsage } from "../workspace-usage.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
+import { getEvidenceCreditPriceCents } from "../billing-pricing.service.js";
+import { storageAddonRequiresPaidPlan } from "./storage-addon-rules.js";
+import { countOpenBillingReviewItems } from "./billing-review.service.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE plan -> storage
 // catalogue decision, and the ONE personal-evidence counter, both shared with
 // the enforcement path so the meter cannot disagree with the gate.
@@ -275,6 +278,13 @@ export type PlanSummary = {
     planKey: string;
     displayName: string;
     effectiveAtUtc: string | null;
+    /**
+     * BILLING PAYPAL INTEGRITY (2026-09-28) — the provider has not yet been
+     * authorised by the buyer (a PayPal revision awaiting approval). It is
+     * NOT a confirmed change: choosing the plan again re-issues the approval,
+     * and it lapses if never approved.
+     */
+    awaitingApproval: boolean;
   };
   providerTransition?: {
     state: "IN_PROGRESS";
@@ -406,6 +416,12 @@ export type ActiveStorageAddon = {
   billingCycle: string;
   /** True for a grandfathered one-time purchase. */
   legacyOneTime: boolean;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — cancelling the base plan also
+   * cancels this add-on (its SKU needs a paid plan). A SKU a Free account may
+   * hold is kept when the plan ends. The cancellation copy counts only these.
+   */
+  endsWithPlan: boolean;
   /**
    * Whether THIS add-on can be cancelled by THIS viewer.
    *
@@ -789,6 +805,7 @@ async function activeAddonsFor(params: {
       status: r.status,
       billingCycle: r.billingCycle,
       legacyOneTime,
+      endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
       canCancel:
         params.canPurchaseAddons &&
         !legacyOneTime &&
@@ -858,6 +875,8 @@ function planOffersFor(params: {
    * PAST_DUE still has one, and must not be sent to buy a second.
    */
   hasLiveSubscription: boolean;
+  /** The provider of the live subscription a move would change. */
+  liveProvider?: prismaPkg.PaymentProvider | null;
   currency: BillingCurrency;
   showAmounts: boolean;
   blockedTargetPlan?: "PRO" | "TEAM" | null;
@@ -901,7 +920,16 @@ function planOffersFor(params: {
       action,
       // A purchase and an upgrade both start now. Only a downgrade waits, and
       // it waits because the current period is already paid for.
-      effect: action === "DOWNGRADE" ? ("AT_PERIOD_END" as const) : ("IMMEDIATE" as const),
+      //
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — except on PayPal, whose only
+      // plan-change primitive (`revise`) takes effect from the next billing
+      // cycle in BOTH directions. The page said "Starts immediately" to a
+      // PayPal subscriber who would stay on the old plan until renewal.
+      effect:
+        action === "DOWNGRADE" ||
+        (action === "UPGRADE" && params.liveProvider === prismaPkg.PaymentProvider.PAYPAL)
+          ? ("AT_PERIOD_END" as const)
+          : ("IMMEDIATE" as const),
       /*
        * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — one verb for a move
        * between tiers, and no claim about money we have not been given.
@@ -1090,6 +1118,7 @@ export async function buildBillingAccountProjection(input: {
             // change, so the plan card can say what is coming and when.
             pendingPlan: true,
             pendingPlanEffectiveAtUtc: true,
+            pendingPlanAwaitingApproval: true,
             billedCurrency: true,
             billedUnitAmountCents: true,
           },
@@ -1211,6 +1240,7 @@ export async function buildBillingAccountProjection(input: {
             planKey: subscription.pendingPlan,
             displayName: getPlanCapabilities(subscription.pendingPlan).displayName,
             effectiveAtUtc: iso(subscription.pendingPlanEffectiveAtUtc ?? null),
+            awaitingApproval: subscription.pendingPlanAwaitingApproval === true,
           },
         }
       : {}),
@@ -1608,6 +1638,25 @@ export async function buildBillingAccountProjection(input: {
     );
   }
 
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — provider charges PROOVRA stopped or
+  // could not turn into an entitlement (a duplicate plan subscription, a
+  // storage activation that could not be granted, a refund of spent credits,
+  // a dispute). A persistent server fact, not a toast.
+  if (!scope.teamId) {
+    const review = await countOpenBillingReviewItems(scope.ownerUserId);
+    if (review.providerStillBilling > 0) {
+      bannerMessages.push(
+        "A payment provider subscription on this account could not be stopped automatically and may still be billing. Support has been notified — please contact us.",
+      );
+    } else if (review.refundReview > 0) {
+      bannerMessages.push(
+        "A charge on this account is being reviewed by support (for example a duplicate subscription PROOVRA cancelled at your provider). You do not need to do anything; contact us to hear the outcome.",
+      );
+    } else if (review.open > 0) {
+      bannerMessages.push("A payment on this account is being reviewed by support.");
+    }
+  }
+
   // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the PERSISTENT
   // half of the failure.
   //
@@ -1679,7 +1728,9 @@ export async function buildBillingAccountProjection(input: {
             creditsPerPurchase: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
             ...(showAmounts
               ? {
-                  unitPriceCents: EVIDENCE_CREDIT_PRODUCT.unitPriceCents,
+                  // BILLING PAYPAL INTEGRITY (2026-09-28) — the price checkout
+                  // charges (and the attempt records), not the package default.
+                  unitPriceCents: getEvidenceCreditPriceCents(currency),
                   currency,
                 }
               : {}),
@@ -1704,6 +1755,7 @@ export async function buildBillingAccountProjection(input: {
             // the drawer the page opened — which is precisely how a FREE
             // account came to be offered two UPGRADES.
             hasLiveSubscription: liveSubscription,
+            liveProvider: subscription?.provider ?? null,
             currency,
             showAmounts,
             blockedTargetPlan:

@@ -8,7 +8,7 @@ import {
   type PlanType,
 } from "@proovra/shared-billing";
 // The ONE offer catalog that says which storage rows a subject may buy.
-import { storageAddonOffersForPlan } from "../services/workspace-usage.service.js";
+import { storageAddonEligibleForPlan } from "../services/billing/storage-addon-rules.js";
 import { requireAuth } from "../middleware/auth.js";
 // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — `cancelPayPalSubscription`
 // and `stripeRequestRaw` are no longer imported here. This route reached the
@@ -56,7 +56,6 @@ import {
   getStorageAddonPriceCents,
   resolveCheckoutCurrency,
 } from "../services/billing-pricing.service.js";
-import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the billing-ACCOUNT authority.
 // Every route below that names a subject resolves and authorizes it here, so a
 // wrong-workspace or cross-organization id is refused by ONE rule rather than
@@ -72,6 +71,7 @@ import {
 } from "../services/billing/billing-account-projection.service.js";
 import { withoutProviderStatus } from "../services/billing/reconciliation/types.js";
 import {
+  resolveAttemptIdForPayPalResource,
   abandonBillingAttempt,
   readBillingActivityForAccount,
   recheckBillingAttempt,
@@ -106,7 +106,7 @@ import {
   summarizeDependentCancellations,
 } from "../services/billing/dependent-cancellation.service.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
-import { enforceRateLimit } from "../services/rate-limit.js";
+import { acquireLease, enforceRateLimit } from "../services/rate-limit.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
@@ -407,11 +407,41 @@ function assertPurchasablePlan(plan: prismaPkg.PlanType) {
 // filtered it in the browser. The account projection returns already-scoped
 // rows instead.
 
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — a storage add-on is bought by the
+ * PERSONAL account, for the Personal Workspace, and nothing else.
+ *
+ * A `teamId` in the body used to reach this function, which resolved the named
+ * workspace's commercial context WITHOUT authorizing the caller for it (the
+ * capability check that preceded it was on the caller's PERSONAL account).
+ * Anyone could open a PayPal storage subscription naming any workspace — one
+ * that could never activate, because the activation check required a
+ * workspace billing plan self-service never writes: a monthly charge for
+ * nothing, and a PENDING row that blocked that workspace's storage checkout.
+ * Workspace storage is not a self-service product, so the target is refused
+ * outright, before any attempt row or provider call exists.
+ */
+function assertStorageCheckoutTarget(teamId: string | undefined | null) {
+  if (teamId) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Storage add-ons are bought for your Personal Workspace; they do not take a workspace target",
+    );
+    err.statusCode = 400;
+    err.code = "CHECKOUT_TARGET_NOT_SUPPORTED";
+    throw err;
+  }
+}
+
+/**
+ * May the caller buy this SKU? ONE answer: the offer catalogue for the
+ * account's plan (`storageAddonEligibleForPlan`) — the same list the Billing
+ * page shows and the activation authority re-checks. The TEAM catalogue used
+ * to be offered and then refused here.
+ */
 async function assertStorageAddonAllowed(params: {
   userId: string;
   addonKey: prismaPkg.StorageAddonKey;
   billingCycle: prismaPkg.StorageAddonBillingCycle;
-  teamId?: string | null;
 }) {
   if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
     const err: Error & { statusCode?: number } = new Error(
@@ -423,81 +453,15 @@ async function assertStorageAddonAllowed(params: {
 
   const definition = getStorageAddonDefinition(params.addonKey);
 
-  if (params.teamId) {
-    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the ownership check that
-    // stood here was a SECOND authorization authority. Both callers of this
-    // function now assert BILLING_ADDON_PURCHASE on the billing account first,
-    // which is the same question asked once, in the place that owns it.
-
-    // §9.7 — explicit WORKSPACE subject; authorization already asserted.
-    const scope = (
-      await resolveCommercialContext({ type: "WORKSPACE", teamId: params.teamId, requesterUserId: params.userId })
-    ).scope;
-    const caps = getPlanCapabilities(scope.plan);
-
-    if (definition.billingShape !== "SHARED") {
-      const err: Error & { statusCode?: number } = new Error(
-        "This storage add-on is not valid for team workspaces"
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-
-    /**
-     * Important:
-     * Team workspaces are no longer assumed to be valid only on the TEAM paid plan.
-     * A team workspace may also be valid when the owner's/base plan supports teams
-     * (for example PRO in the new ruleset).
-     *
-     * So the correct guard here is:
-     * - the effective workspace plan must support team workspaces
-     * - not specifically `scope.plan === TEAM`
-     */
-    if (!caps.allowsSharedWorkspace) {
-      const err: Error & { statusCode?: number; code?: string } = new Error(
-        "This workspace does not currently support team storage add-ons"
-      );
-      err.statusCode = 409;
-      err.code = "SHARED_WORKSPACE_PLAN_REQUIRED";
-      throw err;
-    }
-
-    return {
-      scope,
-      definition,
-    };
-  }
-
-  // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on the
-  // PERSONAL_ACCOUNT storage-addon checkout target. A managed enterprise
-  // identity has no personal space, so deny BEFORE resolving commercial
-  // context or creating any provider session. Fails closed for MANAGED +
-  // MANAGED_UNRESOLVED. TEAM addon checkout (above) is unaffected.
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement: a managed
+  // enterprise identity has no personal space. Denied before any provider
+  // session is created. Fails closed for MANAGED + MANAGED_UNRESOLVED.
   await assertPersonalSpaceAllowed(params.userId);
 
-  // §9.7 — explicit PERSONAL_ACCOUNT subject.
   const scope = (
     await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: params.userId })
   ).scope;
 
-  if (definition.billingShape !== "SINGLE_OCCUPANT") {
-    const err: Error & { statusCode?: number } = new Error(
-      "This storage add-on is not valid for personal workspaces"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  /*
-   * ==========================================================================
-   * FREE storage policy (2026-09-16) — THE SERVER GATE, ON THE CANONICAL
-   * CAPABILITY.
-   * ==========================================================================
-   * Every normal FREE personal account may buy supported personal storage
-   * add-ons. This increases bytes only: no plan change, no evidence credit, no
-   * report/package entitlement. The button, drawer, checkout gate and webhook
-   * all read the same entitlement/catalog answer.
-   */
   const storageAddons = resolveStorageAddonEntitlement({
     plan: scope.plan as PlanType,
   });
@@ -510,55 +474,16 @@ async function assertStorageAddonAllowed(params: {
     throw err;
   }
 
-  /*
-   * FREE buys from the SINGLE_OCCUPANT catalog — the same rows PRO buys,
-   * checked here against the offer catalog rather than re-listed, so one list
-   * governs what is offered and what is accepted.
-   */
-  if (storageAddons.source === "FREE_STORAGE") {
-    const offered = storageAddonOffersForPlan(scope.plan).some(
-      (offer) => offer.key === params.addonKey,
+  if (!storageAddonEligibleForPlan(scope.plan, params.addonKey)) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "This storage add-on is not available on your current plan.",
     );
-    if (!offered) {
-      const err: Error & { statusCode?: number } = new Error(
-        "This storage add-on is not available for Free.",
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-    return { scope, definition };
+    err.statusCode = 400;
+    err.code = "STORAGE_ADDON_NOT_OFFERED";
+    throw err;
   }
 
-  if (scope.plan === prismaPkg.PlanType.PAYG) {
-    if (
-      params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_10_GB &&
-      params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_50_GB
-    ) {
-      const err: Error & { statusCode?: number } = new Error(
-        "PAYG supports only +10 GB and +50 GB storage add-ons"
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-
-    return {
-      scope,
-      definition,
-    };
-  }
-
-  if (scope.plan === prismaPkg.PlanType.PRO) {
-    return {
-      scope,
-      definition,
-    };
-  }
-
-  const err: Error & { statusCode?: number } = new Error(
-    "Unsupported workspace plan for storage add-ons"
-  );
-  err.statusCode = 400;
-  throw err;
+  return { scope, definition };
 }
 
 export async function billingRoutes(app: FastifyInstance) {
@@ -1272,38 +1197,50 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_MANAGE",
       });
 
-      const rate = await enforceRateLimit({
-        key: `ratelimit:billing_reconcile:${userId}:${account.type}:${account.id}`,
-        max: 4,
-        windowSec: 300,
-      });
-      if (!rate.allowed) {
-        return reply.code(429).send(
-          createErrorResponse(
-            ErrorCode.RATE_LIMIT_EXCEEDED,
-            req.id,
-            undefined,
-            "Billing has been re-checked recently. Please try again in a few minutes.",
-          ),
-        );
-      }
-
       // ONE run per account at a time. A second press while a run is in flight
       // would duplicate every provider request for no benefit.
-      const lease = await enforceRateLimit({
-        key: `lease:billing_reconcile:${account.type}:${account.id}`,
-        max: 1,
-        windowSec: 60,
-      });
-      if (!lease.allowed) {
-        return reply.code(200).send({
-          outcome: "PENDING",
+      //
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a real LEASE, held while the
+      // run executes and released when it ends. It used to be a 60-second
+      // fixed-window rate limit that was never released: a second press made
+      // AFTER the first run had finished was refused for the rest of the
+      // minute and answered `outcome: "PENDING"`, which older clients showed
+      // as "Your provider is still settling a payment" — without any
+      // provider having been asked anything. A busy answer now says exactly
+      // that, with `checked: false`.
+      const lease = await acquireLease(`billing_reconcile:${account.type}:${account.id}`, 120_000);
+      if (!lease.acquired) {
+        return reply.code(409).send({
+          outcome: "BUSY",
+          code: "RECONCILE_IN_PROGRESS",
+          checked: false,
           summary: null,
-          message: "A check is already running for this account.",
+          message: "A check is already running for this account. Nothing new was checked.",
         });
       }
 
-      const summary = await reconcileBillingAccount({ account });
+      let summary: Awaited<ReturnType<typeof reconcileBillingAccount>>;
+      try {
+        const rate = await enforceRateLimit({
+          key: `ratelimit:billing_reconcile:${userId}:${account.type}:${account.id}`,
+          max: 4,
+          windowSec: 300,
+        });
+        if (!rate.allowed) {
+          return reply.code(429).send({
+            ...createErrorResponse(
+              ErrorCode.RATE_LIMIT_EXCEEDED,
+              req.id,
+              undefined,
+              "Billing has been re-checked recently. Nothing new was checked — please try again in a few minutes.",
+            ),
+            checked: false,
+          });
+        }
+        summary = await reconcileBillingAccount({ account });
+      } finally {
+        await lease.release();
+      }
 
       auditBillingAction(req, {
         userId,
@@ -1326,6 +1263,7 @@ export async function billingRoutes(app: FastifyInstance) {
       // renders it verbatim.
       return reply.code(200).send({
         outcome: summary.outcome,
+        checked: true,
         summary: {
           ...summary,
           storageAttempts: summary.storageAttempts.map(withoutProviderStatus),
@@ -2156,7 +2094,9 @@ export async function billingRoutes(app: FastifyInstance) {
           code:
             result.reason === "NOT_OWNED" || result.reason === "UNATTRIBUTABLE"
               ? "PAYPAL_SUBSCRIPTION_NOT_FOUND"
-              : "PAYPAL_SUBSCRIPTION_NOT_APPLIED",
+              : result.reason === "STORAGE_ADDON_REFUSED"
+                ? "PAYPAL_STORAGE_ACTIVATION_REFUSED"
+                : "PAYPAL_SUBSCRIPTION_NOT_APPLIED",
         });
       }
 
@@ -2165,6 +2105,69 @@ export async function billingRoutes(app: FastifyInstance) {
         kind: result.kind,
         plan: result.plan,
         storageAddonKey: result.storageAddonKey,
+        ...(result.superseded ? { superseded: true } : {}),
+      });
+    },
+  );
+
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the buyer pressed "Cancel and
+   * return" at PayPal (`?canceled=1&provider=paypal`, PayPal appends the
+   * order `token` or `subscription_id`).
+   *
+   * This did nothing on the server: the attempt stayed "waiting for approval"
+   * and — for a plan — blocked every later plan checkout, on either provider,
+   * until the customer found Billing activity. The buyer's cancel IS the
+   * customer's decision, so the attempt is closed exactly as Billing
+   * activity's confirmed Abandon closes it: provider-first (a subscription
+   * PayPal already shows as approved or active is never closed), PayPal asked
+   * to cancel an unapproved subscription where it will, and a later
+   * provider-proven payment still wins.
+   */
+  app.post(
+    "/v1/billing/checkout/paypal/returns/canceled",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          subscriptionId: PayPalResourceIdParam.optional(),
+          orderId: PayPalResourceIdParam.optional(),
+        })
+        .safeParse(req.body ?? {});
+      if (!body.success || (!body.data.subscriptionId && !body.data.orderId)) {
+        return reply.code(400).send({ error: { code: "invalid_body" } });
+      }
+      const ref = (body.data.subscriptionId ?? body.data.orderId)!;
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_HISTORY_VIEW",
+      });
+
+      const attemptId = await resolveAttemptIdForPayPalResource({ userId, providerResourceId: ref });
+      if (!attemptId) {
+        // Nothing of this account's to close. One answer for "not yours" and
+        // "never existed".
+        return reply.code(200).send({ outcome: "NO_ATTEMPT" });
+      }
+
+      const result = await abandonBillingAttempt({ account, attemptId, confirmed: true });
+      auditBillingAction(req, {
+        userId,
+        action: "billing.paypal_return_canceled",
+        resourceId: attemptId,
+        outcome: "success",
+        metadata: {
+          result: result.outcome,
+          act: result.outcome === "ABANDONED" ? "LOCAL_ABANDONMENT" : "NO_LOCAL_ABANDONMENT",
+          cancelsAtProvider: result.cancelsAtProvider,
+        },
+      });
+      return reply.code(200).send({
+        outcome: result.outcome,
+        cancelsAtProvider: result.cancelsAtProvider,
       });
     },
   );
@@ -2181,6 +2184,7 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       const userId = getAuthUserId(req);
+      assertStorageCheckoutTarget(body.teamId);
 
       await assertBillingCapability({
         viewerUserId: userId,
@@ -2197,7 +2201,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
-        teamId: body.teamId ?? null,
       });
 
       const offerCurrency = getStorageAddonCurrency({
@@ -2215,7 +2218,7 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         addonKey: body.addonKey,
         currency: offerCurrency,
-        teamId: body.teamId ?? null,
+        teamId: null,
         workspacePlan: scope.plan,
       });
       if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
@@ -2235,7 +2238,7 @@ export async function billingRoutes(app: FastifyInstance) {
         metadata: {
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
-          teamId: body.teamId ?? null,
+          teamId: null,
           amountCents: result.amountCents,
           currency: result.currency,
           workspacePlan: scope.plan,
@@ -2251,7 +2254,7 @@ export async function billingRoutes(app: FastifyInstance) {
           provider: "STRIPE",
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
-          teamId: body.teamId ?? null,
+          teamId: null,
           amountCents: result.amountCents,
           currency: result.currency,
           workspacePlan: scope.plan,
@@ -2367,6 +2370,7 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       const userId = getAuthUserId(req);
+      assertStorageCheckoutTarget(body.teamId);
 
       await assertBillingCapability({
         viewerUserId: userId,
@@ -2383,7 +2387,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
-        teamId: body.teamId ?? null,
       });
 
       const currency = getStorageAddonCurrency({
@@ -2403,7 +2406,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const definition = getStorageAddonDefinition(body.addonKey);
       const gated = await withPendingStorageAddonCheckoutGate({
         ownerUserId: userId,
-        teamId: body.teamId ?? null,
+        teamId: null,
         addonKey: body.addonKey,
         extraStorageBytes: definition.storageBytes,
         currency,
@@ -2414,7 +2417,7 @@ export async function billingRoutes(app: FastifyInstance) {
             addonKey: body.addonKey,
             billingCycle: body.billingCycle,
             currency,
-            teamId: body.teamId ?? null,
+            teamId: null,
             workspacePlan: scope.plan,
             attemptId,
           });
@@ -2470,7 +2473,7 @@ export async function billingRoutes(app: FastifyInstance) {
         metadata: {
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
-          teamId: body.teamId ?? null,
+          teamId: null,
           amountCents: result.amountCents,
           currency: result.currency,
           workspacePlan: scope.plan,
@@ -2495,7 +2498,7 @@ export async function billingRoutes(app: FastifyInstance) {
           provider: "PAYPAL",
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
-          teamId: body.teamId ?? null,
+          teamId: null,
           amountCents: result.amountCents,
           currency: result.currency,
           workspacePlan: scope.plan,

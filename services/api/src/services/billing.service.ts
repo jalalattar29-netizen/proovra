@@ -9,8 +9,7 @@ import {
   observedStateFromPaymentStatus,
 } from "./billing/reconciliation/payment-status.js";
 import {
-  decideSubscriptionTransition,
-  observedStateFromSubscriptionStatus,
+  decideSubscriptionStatusWrite,
 } from "./billing/subscription-status.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the canonical capability table, read by the
 // downgrade grandfather below to learn whether the target plan has a lifetime
@@ -350,6 +349,32 @@ export async function setPersonalPlan(
 // `activateTeamPlan`, which survives for Enterprise provisioning and writes the
 // same columns. See `phase-9-commercial-invariants.test.ts`.
 
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — the closed vocabulary of
+ * `payments.product`.
+ *
+ *   PLAN / STORAGE_ADDON / EVIDENCE_CREDIT  written by the writer that knows;
+ *   STORAGE_ADDON_ONE_TIME                  a legacy one-time storage order;
+ *   SUBSCRIPTION_UNSPECIFIED                a historic recurring payment whose
+ *                                           plan-vs-storage split is unknown;
+ *   UNCLASSIFIED                            a historic row the provider could
+ *                                           not attribute to a credit order.
+ *
+ * The last two are PROVISIONAL: a writer that later proves the product
+ * replaces them. A definite product is never re-labelled.
+ */
+export type PaymentProduct =
+  | "PLAN"
+  | "STORAGE_ADDON"
+  | "EVIDENCE_CREDIT"
+  | "STORAGE_ADDON_ONE_TIME"
+  | "SUBSCRIPTION_UNSPECIFIED"
+  | "UNCLASSIFIED";
+
+export function isProvisionalPaymentProduct(product: string | null | undefined): boolean {
+  return product === "SUBSCRIPTION_UNSPECIFIED" || product === "UNCLASSIFIED";
+}
+
 export async function recordPayment(params: {
   userId: string;
   provider: prismaPkg.PaymentProvider;
@@ -365,6 +390,15 @@ export async function recordPayment(params: {
    * monotonicity rule still applies and only the ordering rule is unavailable.
    */
   observedAtUtc?: Date | null;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — WHAT the payment paid for. Every
+   * writer states it; credit recovery reads EVIDENCE_CREDIT rows only, so a
+   * plan or storage renewal can never be mistaken for a credit purchase.
+   */
+  product: PaymentProduct;
+  checkoutAttemptId?: string | null;
+  /** The PayPal order / subscription (Stripe session / subscription) id. */
+  providerResourceId?: string | null;
 }) {
   /*
    * BILLING SURFACE CORRECTION (2026-08-29) — a settled payment is never
@@ -391,26 +425,76 @@ export async function recordPayment(params: {
         providerPaymentId: params.providerPaymentId,
       },
     },
-    select: { id: true, status: true, providerStateAtUtc: true },
+    select: {
+      id: true,
+      status: true,
+      providerStateAtUtc: true,
+      userId: true,
+      product: true,
+      checkoutAttemptId: true,
+      providerResourceId: true,
+    },
   });
+
+  if (existing && existing.userId !== params.userId) {
+    // One provider payment belongs to one payer. A second writer naming a
+    // different payer is a correlation fault, never a re-assignment.
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Provider payment is bound to a different payer",
+    );
+    err.statusCode = 409;
+    err.code = "PROVIDER_PAYMENT_SUBJECT_MISMATCH";
+    throw err;
+  }
 
   let payment;
   if (!existing) {
-    payment = await prisma.payment.create({
-      data: {
-        userId: params.userId,
-        provider: params.provider,
-        providerPaymentId: params.providerPaymentId,
-        amountCents: params.amountCents,
-        currency: params.currency,
-        status: params.status,
-        teamId: params.teamId ?? null,
-        ...(params.observedAtUtc
-          ? { providerStateAtUtc: params.observedAtUtc }
-          : {}),
-      },
-    });
+    payment = await prisma.payment
+      .create({
+        data: {
+          userId: params.userId,
+          provider: params.provider,
+          providerPaymentId: params.providerPaymentId,
+          amountCents: params.amountCents,
+          currency: params.currency,
+          status: params.status,
+          teamId: params.teamId ?? null,
+          product: params.product,
+          checkoutAttemptId: params.checkoutAttemptId ?? null,
+          providerResourceId: params.providerResourceId ?? null,
+          ...(params.observedAtUtc
+            ? { providerStateAtUtc: params.observedAtUtc }
+            : {}),
+        },
+      })
+      .catch(async (err: unknown) => {
+        // A concurrent writer (return route vs webhook) inserted the same
+        // provider payment first. Converge on its row through the normal
+        // compare-and-set path instead of failing the request.
+        if ((err as { code?: string }).code !== "P2002") throw err;
+        return null;
+      });
+    if (!payment) return recordPayment(params);
   } else {
+    // Identity is written once and completed, never replaced: a later writer
+    // may fill what an earlier one could not know, but cannot re-label it.
+    const identity = {
+      ...(!existing.product || isProvisionalPaymentProduct(existing.product)
+        ? existing.product === params.product
+          ? {}
+          : { product: params.product }
+        : {}),
+      ...(!existing.checkoutAttemptId && params.checkoutAttemptId
+        ? { checkoutAttemptId: params.checkoutAttemptId }
+        : {}),
+      ...(!existing.providerResourceId && params.providerResourceId
+        ? { providerResourceId: params.providerResourceId }
+        : {}),
+    };
+    if (Object.keys(identity).length > 0) {
+      await prisma.payment.update({ where: { id: existing.id }, data: identity });
+    }
+
     const decision = decidePaymentTransition({
       current: existing.status,
       currentObservedAtUtc: existing.providerStateAtUtc,
@@ -464,29 +548,39 @@ export async function recordPayment(params: {
   return payment;
 }
 
-export async function upsertSubscription(params: {
-  userId: string;
-  provider: prismaPkg.PaymentProvider;
-  providerSubId: string;
-  status: prismaPkg.SubscriptionStatus;
-  plan: prismaPkg.PlanType;
-  currentPeriodEnd?: Date | null;
-  teamId?: string | null;
-  observedAtUtc?: Date | null;
+type SubscriptionWriteClient = Pick<prismaPkg.Prisma.TransactionClient, "subscription" | "team">;
+
+export async function upsertSubscription(
+  params: {
+    userId: string;
+    provider: prismaPkg.PaymentProvider;
+    providerSubId: string;
+    status: prismaPkg.SubscriptionStatus;
+    plan: prismaPkg.PlanType;
+    currentPeriodEnd?: Date | null;
+    teamId?: string | null;
+    observedAtUtc?: Date | null;
+    /**
+     * BILLING (2026-09-28) — what the PROVIDER bills, when this fact carries
+     * it. Absent leaves the recorded value; it is never guessed.
+     */
+    billedCurrency?: string | null;
+    billedUnitAmountCents?: number | null;
+  },
   /**
-   * BILLING (2026-09-28) — what the PROVIDER bills, when this fact carries
-   * it. Absent leaves the recorded value; it is never guessed.
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the caller's transaction, so an
+   * activation can be decided and written under one per-payer lock
+   * (`syncPlanForSubscription`). Defaults to the global client.
    */
-  billedCurrency?: string | null;
-  billedUnitAmountCents?: number | null;
-}) {
+  client: SubscriptionWriteClient = prisma,
+) {
   const billed = {
     ...(params.billedCurrency ? { billedCurrency: params.billedCurrency.toUpperCase() } : {}),
     ...(typeof params.billedUnitAmountCents === "number" && params.billedUnitAmountCents >= 0
       ? { billedUnitAmountCents: params.billedUnitAmountCents }
       : {}),
   };
-  const existing = await prisma.subscription.findUnique({
+  const existing = await client.subscription.findUnique({
     where: {
       provider_providerSubId: {
         provider: params.provider,
@@ -501,11 +595,22 @@ export async function upsertSubscription(params: {
       currentPeriodEnd: true,
       providerStateAtUtc: true,
       userId: true,
+      activatedAtUtc: true,
       // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — read so a landed
       // schedule can be cleared below.
       pendingPlan: true,
     },
   });
+
+  const readCurrent = () =>
+    client.subscription.findUniqueOrThrow({
+      where: {
+        provider_providerSubId: {
+          provider: params.provider,
+          providerSubId: params.providerSubId,
+        },
+      },
+    });
 
   // §9.10 STALE/OUT-OF-ORDER PROTECTION (2026-07-23): a provider event whose
   // billing period is OLDER than the stored row's cannot restore an older
@@ -519,14 +624,19 @@ export async function upsertSubscription(params: {
     params.currentPeriodEnd &&
     params.currentPeriodEnd.getTime() < existing.currentPeriodEnd.getTime()
   ) {
-    return prisma.subscription.findUniqueOrThrow({
-      where: {
-        provider_providerSubId: {
-          provider: params.provider,
-          providerSubId: params.providerSubId,
-        },
-      },
-    });
+    return readCurrent();
+  }
+
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — a LEGACY workspace-bound row whose
+  // workspace was deleted has had its `teamId` set NULL by the foreign key
+  // (ON DELETE SET NULL), while the provider's `custom_id` still names the
+  // old workspace. That is the SAME subject, not a rebinding: without this,
+  // every later provider fact for the subscription threw SUBJECT_MISMATCH and
+  // a cancellation or renewal could never be applied.
+  let teamId = params.teamId ?? null;
+  if (existing && existing.teamId === null && teamId !== null) {
+    const stillExists = await client.team.findUnique({ where: { id: teamId }, select: { id: true } });
+    if (!stillExists) teamId = null;
   }
 
   // §9.10 SUBJECT BINDING: a provider subscription id maps to exactly ONE
@@ -534,8 +644,7 @@ export async function upsertSubscription(params: {
   // stored row to a different user or workspace — fail closed instead.
   if (
     existing &&
-    (existing.userId !== params.userId ||
-      (existing.teamId ?? null) !== (params.teamId ?? null))
+    (existing.userId !== params.userId || (existing.teamId ?? null) !== teamId)
   ) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Provider subscription is bound to a different commercial subject"
@@ -546,26 +655,17 @@ export async function upsertSubscription(params: {
   }
 
   if (existing) {
-    const decision = decideSubscriptionTransition({
+    const decision = decideSubscriptionStatusWrite({
       current: existing.status,
       currentObservedAtUtc: existing.providerStateAtUtc,
-      observed: observedStateFromSubscriptionStatus(params.status),
+      next: params.status,
       observedAtUtc: params.observedAtUtc ?? null,
     });
-
-    if (!decision.apply && decision.reason !== "ALREADY_THAT_STATUS") {
-      return prisma.subscription.findUniqueOrThrow({
-        where: {
-          provider_providerSubId: {
-            provider: params.provider,
-            providerSubId: params.providerSubId,
-          },
-        },
-      });
-    }
+    if (!decision.apply) return readCurrent();
   }
 
-  const subscription = await prisma.subscription.upsert({
+  const becomesActive = params.status === prismaPkg.SubscriptionStatus.ACTIVE;
+  const subscription = await client.subscription.upsert({
     where: {
       provider_providerSubId: {
         provider: params.provider,
@@ -576,31 +676,28 @@ export async function upsertSubscription(params: {
       status: params.status,
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
-      teamId: params.teamId ?? null,
+      teamId,
       ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
+      ...(becomesActive && !existing?.activatedAtUtc
+        ? { activatedAtUtc: params.observedAtUtc ?? new Date() }
+        : {}),
       // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a SCHEDULED plan
-      // change is cleared the moment it stops being in the future.
-      //
-      // Two ways that happens, and both are the provider telling us: the
+      // change is cleared the moment it stops being in the future: the
       // scheduled plan is now the plan in force, or the subscription ended
-      // before it could be. A `pendingPlan` left behind after either would
-      // keep the Billing page promising a change that has already happened or
-      // can no longer happen — the second being the worse of the two, since it
-      // would tell someone who has cancelled that they are moving to Pro next
-      // month.
-      //
-      // It is cleared HERE, in the one writer every provider fact passes
-      // through, rather than by whichever caller happened to notice. This
-      // function is not the place that decides a plan change; it is the place
-      // that records what the provider says is true, and "the schedule is no
-      // longer pending" is part of that same statement.
+      // before it could be. It is cleared HERE, in the one writer every
+      // provider fact passes through.
       ...(existing?.pendingPlan &&
       (existing.pendingPlan === params.plan ||
         params.status === prismaPkg.SubscriptionStatus.CANCELED)
-        ? { pendingPlan: null, pendingPlanEffectiveAtUtc: null }
+        ? {
+            pendingPlan: null,
+            pendingPlanEffectiveAtUtc: null,
+            pendingPlanAwaitingApproval: false,
+            pendingPlanRequestedAtUtc: null,
+          }
         : {}),
     },
     create: {
@@ -610,11 +707,12 @@ export async function upsertSubscription(params: {
       status: params.status,
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
-      teamId: params.teamId ?? null,
+      teamId,
       ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
+      ...(becomesActive ? { activatedAtUtc: params.observedAtUtc ?? new Date() } : {}),
     },
   });
 
@@ -626,7 +724,7 @@ export async function upsertSubscription(params: {
           ? "billing_subscription_updated"
           : "billing_subscription_created",
     userId: params.userId,
-    teamId: params.teamId ?? null,
+    teamId,
     plan: params.plan,
     provider: params.provider,
     subscriptionStatus: params.status,
@@ -667,6 +765,12 @@ export async function upsertWorkspaceStorageAddon(params: {
   expiresAtUtc?: Date | null;
   observedAtUtc?: Date | null;
   metadata?: Record<string, unknown> | null;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the base subscription this add-on
+   * depends on, decided by the storage activation authority at FIRST
+   * activation. Undefined leaves the recorded value.
+   */
+  dependsOnSubscriptionId?: string | null;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — BOTH cycles are writable
@@ -788,6 +892,9 @@ export async function upsertWorkspaceStorageAddon(params: {
     ),
     ...(params.observedAtUtc
       ? { providerStateAtUtc: params.observedAtUtc }
+      : {}),
+    ...(params.dependsOnSubscriptionId !== undefined
+      ? { dependsOnSubscriptionId: params.dependsOnSubscriptionId }
       : {}),
   };
 

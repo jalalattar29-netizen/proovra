@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1166
-RegisteredRoutes                            1167
+ProductionRegisteredRoutes                  1167
+RegisteredRoutes                            1168
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1300
-ROUTE_ATTRIBUTED_REACHABLE                  1152
+TerminalWriters                             1318
+ROUTE_ATTRIBUTED_REACHABLE                  1170
 JOB_ATTRIBUTED_REACHABLE                     130
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        966
+ProductConsumedRoutes                        967
 NonProductDispositionedRoutes                200
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
@@ -255,6 +255,21 @@ Result deltas after ARTIFACT RECOVERY GATE B (2026-09-26). One writer:
     module). No route was added: the per-output action contract, the D5 403,
     the D6 limits and the operator supersession all ride the existing
     endpoints.
+
+Result deltas after BILLING PAYPAL INTEGRITY (2026-09-28). One route, 18 writers:
+
+  * ProductionRegisteredRoutes 1166 -> 1167, RegisteredRoutes 1167 -> 1168 and
+    ProductConsumedRoutes 966 -> 967: `POST /v1/billing/checkout/paypal/returns/canceled`
+    closes the checkout attempt a buyer cancelled at PayPal (consumed by the web
+    PayPal return handler), so an unapproved subscription stops blocking checkout.
+  * TerminalWriters 1300 -> 1318 and ROUTE_ATTRIBUTED_REACHABLE 1152 -> 1170, all
+    BILLING_SUBSCRIPTION_SEAT: billing review items (2, new table
+    `billing_review_items`), canonical storage activation/refusal (4), refund
+    reversal of credits (3, incl. payment status), payment product
+    classification (2), approval expiry of attempts and plan changes (4),
+    obligation withdrawal and storage reconciliation (2), legacy local-termination
+    repair (1). Every one is reached from an existing billing route, webhook or
+    the reconciliation job; DEAD_UNREACHABLE stays 0.
 
 AuditEngineIntegrity returned to PASS in this pass, from FAIL with
 DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,

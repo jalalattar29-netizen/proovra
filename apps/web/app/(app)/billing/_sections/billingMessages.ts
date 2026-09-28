@@ -32,13 +32,32 @@ function plural(n: number, one: string, many: string): string {
 export function describeReconciliation(result: ReconciliationResult): BillingNotice {
   const s = result.summary;
   if (!s) {
+    // BILLING PAYPAL INTEGRITY (2026-09-28) — a refused request checked
+    // NOTHING, and says so. "Billing was checked" (and, before it, "your
+    // provider is still settling a payment") was shown for a request that
+    // never reached a provider.
+    if (result.outcome === "BUSY") {
+      return { message: "A check is already running for this account. Nothing new was checked — wait a moment, then look again.", tone: "info" };
+    }
+    if (result.outcome === "RATE_LIMITED") {
+      return { message: "Billing was re-checked several times just now. Nothing new was checked — please try again in a few minutes.", tone: "info" };
+    }
     return result.outcome === "PROVIDER_UNAVAILABLE"
       ? { message: "We could not reach your payment provider. Nothing was changed.", tone: "error" }
-      : { message: "Billing was checked. Nothing was changed.", tone: "info" };
+      : { message: "The check did not run. Nothing was changed — please try again.", tone: "info" };
   }
 
   const attempts = (s.attempts ?? []).filter((a) => !a.locallyAbandoned);
-  const awaiting = attempts.filter((a) => a.outcome === "STILL_PENDING").length;
+  const stillPending = attempts.filter((a) => a.outcome === "STILL_PENDING");
+  // "Waiting for your approval at PayPal" only for what IS waiting for the
+  // buyer at PayPal; an approved activation, a payment still processing and
+  // an open Stripe page are each said as themselves.
+  const awaiting = stillPending.filter(
+    (a) => a.provider === "PAYPAL" && (a.waitingFor ?? "APPROVAL") === "APPROVAL",
+  ).length;
+  const activating = stillPending.filter((a) => a.waitingFor === "ACTIVATION").length;
+  const processing = stillPending.filter((a) => a.waitingFor === "PAYMENT_PROCESSING").length;
+  const stripePage = stillPending.filter((a) => a.waitingFor === "PAYMENT_PAGE").length;
   const unverified = attempts.filter((a) => UNVERIFIED.has(a.outcome)).length;
   const unreachable = s.unavailable;
   const changed =
@@ -55,6 +74,15 @@ export function describeReconciliation(result: ReconciliationResult): BillingNot
   }
   if (awaiting > 0) {
     parts.push(`${plural(awaiting, "purchase is", "purchases are")} still waiting for your approval at PayPal.`);
+  }
+  if (activating > 0) {
+    parts.push(`${plural(activating, "purchase was", "purchases were")} approved and PayPal is activating it; PROOVRA keeps checking.`);
+  }
+  if (processing > 0) {
+    parts.push(`${plural(processing, "payment is", "payments are")} still processing with the provider; PROOVRA keeps checking.`);
+  }
+  if (stripePage > 0) {
+    parts.push(`${plural(stripePage, "card payment page is", "card payment pages are")} still open and unpaid.`);
   }
   if (unverified > 0) {
     parts.push(
@@ -75,9 +103,9 @@ export function describeReconciliation(result: ReconciliationResult): BillingNot
   }
 
   const tone: BillingNotice["tone"] =
-    unreachable > 0 && changed === 0 && awaiting === 0 && unverified === 0
+    unreachable > 0 && changed === 0 && awaiting + activating + processing + stripePage === 0 && unverified === 0
       ? "error"
-      : changed > 0 && awaiting + unverified + unreachable + s.discrepancies === 0
+      : changed > 0 && awaiting + activating + processing + stripePage + unverified + unreachable + s.discrepancies === 0
         ? "success"
         : "info";
   return { message: parts.join(" "), tone };
@@ -91,9 +119,14 @@ export function describeAttemptRecheck(result: CheckoutAttemptResult): BillingNo
       return { message: "The provider confirmed a new status for this purchase. Billing is updated.", tone: "success" };
     case "STILL_PENDING":
       return {
-        message: result.resumeUrl
-          ? "PayPal still shows this waiting for your approval. You can continue at PayPal, or abandon it."
-          : "PayPal still shows this as in progress. Nothing more is needed from you right now.",
+        message:
+          result.waitingFor === "ACTIVATION"
+            ? "You approved this at PayPal and PayPal is activating it. PROOVRA keeps checking automatically; nothing more is needed from you."
+            : result.waitingFor === "PAYMENT_PROCESSING"
+              ? "PayPal is still processing this payment. PROOVRA keeps checking automatically; nothing more is needed from you."
+              : result.resumeUrl
+                ? "PayPal still shows this waiting for your approval. You can continue at PayPal, or abandon it."
+                : "PayPal still shows this waiting for your approval. Nothing is charged unless you approve it; you can abandon it. Approvals not completed within 24 hours are closed automatically.",
         tone: "info",
       };
     case "NO_CHANGE":

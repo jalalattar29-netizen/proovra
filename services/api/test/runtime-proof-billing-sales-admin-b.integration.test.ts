@@ -154,6 +154,25 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
 
   const form = (body: string | null) => new URLSearchParams(body ?? "");
 
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — a PayPal plan is only sold when its
+   * one REGULAR monthly cycle bills exactly the catalogue price in the checkout
+   * currency. The fake answers a plan lookup with that shape.
+   */
+  const paypalPlan = (id: string, amountCents: number, currency: string) => ({
+    body: {
+      id,
+      status: "ACTIVE",
+      billing_cycles: [
+        {
+          tenure_type: "REGULAR",
+          frequency: { interval_unit: "MONTH", interval_count: 1 },
+          pricing_scheme: { fixed_price: { value: (amountCents / 100).toFixed(2), currency_code: currency } },
+        },
+      ],
+    },
+  });
+
   async function payer(plan: "FREE" | "PRO" = "FREE"): Promise<PersonalTenant> {
     return seedPersonalTenant(deps, plan);
   }
@@ -296,7 +315,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         (req) =>
           paypalToken(req) ??
           (req.url === `${PAYPAL_FAKE_BASE}/v1/billing/plans/P-K7FAKEPROUSD`
-            ? { body: { id: "P-K7FAKEPROUSD", status: "ACTIVE" } }
+            ? paypalPlan("P-K7FAKEPROUSD", pricing.getPlanPriceCents("PRO", "USD"), "USD")
             : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
               ? { body: { id: subscriptionId, status: "APPROVAL_PENDING", links: [{ rel: "approve", href: "https://paypal.example.invalid/approve" }] } }
               : undefined),
@@ -345,7 +364,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         (req) =>
           paypalToken(req) ??
           (req.url === `${PAYPAL_FAKE_BASE}/v1/billing/plans/P-K7FAKEPROUSD`
-            ? { body: { id: "P-K7FAKEPROUSD", status: "ACTIVE" } }
+            ? paypalPlan("P-K7FAKEPROUSD", pricing.getPlanPriceCents("PRO", "USD"), "USD")
             : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
               ? { status: 503, body: { name: "INTERNAL_SERVICE_ERROR", message: "x" } }
               : undefined),
@@ -376,7 +395,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         (req) =>
           paypalToken(req) ??
           (req.url === `${PAYPAL_FAKE_BASE}/v1/billing/plans/P-K7FAKEPROUSD`
-            ? { body: { id: "P-K7FAKEPROUSD", status: "ACTIVE" } }
+            ? paypalPlan("P-K7FAKEPROUSD", pricing.getPlanPriceCents("PRO", "USD"), "USD")
             : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
               ? { status: 422, body: { name: "UNPROCESSABLE_ENTITY", message: "x" } }
               : undefined),
@@ -484,7 +503,7 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         (req) =>
           paypalToken(req) ??
           (req.url.startsWith(`${PAYPAL_FAKE_BASE}/v1/billing/plans/`)
-            ? { body: { id: "P-K7FAKESTORAGE10EUR", status: "ACTIVE" } }
+            ? paypalPlan("P-K7FAKESTORAGE10EUR", pricing.getStorageAddonPriceCents({ addonKey: "PERSONAL_10_GB", currency: "EUR" }), "EUR")
             : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
               ? {
                   body: {
@@ -644,8 +663,10 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       data: {
         ownerUserId,
         teamId: null,
-        addonKey: "PERSONAL_10_GB",
-        extraStorageBytes: BigInt(10 * 1024 ** 3),
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — only a SKU that needs a paid
+        // plan can be owed a dependent cancellation; a Free-eligible SKU is kept.
+        addonKey: "TEAM_100_GB",
+        extraStorageBytes: BigInt(100 * 1024 ** 3),
         billingCycle: "MONTHLY",
         status: "ACTIVE",
         paymentProvider: "STRIPE",
@@ -662,8 +683,10 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   describe("POST /v1/billing/accounts/:type/:id/reconcile", () => {
     it("unconfigured: 200, provider state UNKNOWN moves no payment, the orphaned add-on gets a durable retry obligation, audited", async () => {
       const t = await payer("PRO");
+      // The ended base is a TEAM plan that was once active: the plan whose end
+      // obliges the TEAM storage add-on to end with it.
       const base = await prisma.subscription.create({
-        data: { userId: t.owner.userId, provider: "STRIPE", providerSubId: `sub_k7_base_${randomUUID().slice(0, 8)}`, status: "CANCELED", plan: "PRO" },
+        data: { userId: t.owner.userId, provider: "STRIPE", providerSubId: `sub_k7_base_${randomUUID().slice(0, 8)}`, status: "CANCELED", plan: "TEAM", activatedAtUtc: new Date(Date.now() - 86_400_000) },
       });
       const addon = await seedOrphanedAddon(t.owner.userId);
       const pending = await seedPayment(t.owner.userId, "STRIPE", "PENDING");
@@ -705,6 +728,9 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
                   status: "complete",
                   amount_total: price,
                   currency: "usd",
+                  // What a credit checkout session carries: recovery grants
+                  // credits only for a session that says it sold credits.
+                  metadata: { productKey: "EVIDENCE_CREDIT" },
                   created: Math.floor(Date.now() / 1000) - 60,
                 },
               }

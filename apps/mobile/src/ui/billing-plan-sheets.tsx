@@ -77,7 +77,9 @@ export function ManagePlanSheet({
           </ProovraText>
           {plan.scheduledChange ? (
             <ProovraText variant="label" color={theme.color.ink.secondary}>
-              {billingDate(plan.scheduledChange.effectiveAtUtc)
+              {plan.scheduledChange.awaitingApproval
+                ? `Your change to ${plan.scheduledChange.displayName} is waiting for your approval at PayPal. Nothing changes until you approve it; choose the plan again for a new approval link. An unapproved change lapses after 3 days.`
+                : billingDate(plan.scheduledChange.effectiveAtUtc)
                 ? `Moving to ${plan.scheduledChange.displayName} on ${billingDate(plan.scheduledChange.effectiveAtUtc)}. You keep everything you have now until then.`
                 : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
             </ProovraText>

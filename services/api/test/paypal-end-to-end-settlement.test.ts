@@ -34,6 +34,11 @@ const state = vi.hoisted(() => ({
   payments: new Map<string, { status: string; amountCents: number; currency: string; userId: string }>(),
   subRows: new Map<string, { status: string; plan: string; userId: string; teamId: string | null; providerStateAtUtc: Date | null; pendingPlan: string | null; pendingPlanEffectiveAtUtc: Date | null }>(),
   webhookEvents: new Map<string, { processingStatus: string; payloadHash: string | null }>(),
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — storage activation reads the LOCAL
+  // attempt row first (the canonical decision checks identity against it).
+  storageRows: new Map<string, Record<string, unknown>>(),
+  reviewItems: [] as Array<Record<string, unknown>>,
+  paypalCancels: [] as string[],
   captureCalls: [] as string[],
   captureImpl: null as null | ((orderId: string) => Promise<Record<string, unknown>>),
   subscriptionReadFails: false,
@@ -63,8 +68,46 @@ vi.mock("../src/db.js", () => {
         state.subRows.get(where.provider_providerSubId.providerSubId) ?? null,
       ),
       findFirst: vi.fn(async () => null),
+      updateMany: vi.fn(async () => ({ count: 0 })),
     },
     team: { findUnique: vi.fn(async () => null) },
+    entitlement: { findFirst: vi.fn(async () => null) },
+    billingCheckoutAttempt: {
+      findUnique: vi.fn(async () => null),
+      findFirst: vi.fn(async () => null),
+      updateMany: vi.fn(async () => ({ count: 0 })),
+    },
+    billingReviewItem: {
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        state.reviewItems.push(data);
+        return data;
+      }),
+      update: vi.fn(async () => ({})),
+    },
+    workspaceStorageAddon: {
+      findUnique: vi.fn(async ({ where }: { where: { id?: string; externalSubscriptionId?: string } }) => {
+        if (where.id) return state.storageRows.get(where.id) ?? null;
+        for (const row of state.storageRows.values()) {
+          if (row.externalSubscriptionId === where.externalSubscriptionId) return row;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = state.storageRows.get(where.id)!;
+        Object.assign(row, data);
+        return row;
+      }),
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: `created-${state.storageRows.size + 1}`, ...data };
+        state.storageRows.set(row.id as string, row);
+        return row;
+      }),
+    },
+    // The per-payer activation lock runs in a transaction; the stand-in runs
+    // the callback on the same client.
+    $executeRaw: vi.fn(async () => 0),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
   return { prisma };
 });
@@ -90,7 +133,7 @@ vi.mock("../src/services/billing/evidence-credits.service.js", () => ({
 
 vi.mock("../src/services/billing.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/billing.service.js")>();
-  const { decideSubscriptionTransition, observedStateFromSubscriptionStatus } = await import(
+  const { decideSubscriptionStatusWrite } = await import(
     "../src/services/billing/subscription-status.js"
   );
   return {
@@ -111,19 +154,20 @@ vi.mock("../src/services/billing.service.js", async (importOriginal) => {
       const existing = state.subRows.get(p.providerSubId);
       if (existing) {
         if (existing.userId !== p.userId) throw new Error("subject mismatch");
-        const decision = decideSubscriptionTransition({
+        const decision = decideSubscriptionStatusWrite({
           current: existing.status as never,
           currentObservedAtUtc: existing.providerStateAtUtc,
-          observed: observedStateFromSubscriptionStatus(p.status as never),
+          next: p.status as never,
           observedAtUtc: p.observedAtUtc ?? null,
         });
-        if (!decision.apply && decision.reason !== "ALREADY_THAT_STATUS") return existing;
+        if (!decision.apply) return existing;
       }
       const row = {
         status: p.status,
         plan: p.plan,
         userId: p.userId,
         teamId: p.teamId ?? null,
+        id: `row-${p.providerSubId}`,
         providerStateAtUtc: p.observedAtUtc ?? existing?.providerStateAtUtc ?? null,
         pendingPlan: existing?.pendingPlan ?? null,
         pendingPlanEffectiveAtUtc: existing?.pendingPlanEffectiveAtUtc ?? null,
@@ -150,6 +194,12 @@ vi.mock("../src/services/paypal.service.js", async (importOriginal) => {
       state.captureCalls.push(orderId);
       if (state.captureImpl) return state.captureImpl(orderId);
       return captureOrder(orderId, "COMPLETED");
+    }),
+    cancelPayPalSubscription: vi.fn(async (id: string) => {
+      state.paypalCancels.push(id);
+      const sub = state.subscriptions.get(id);
+      if (sub) sub.status = "CANCELLED";
+      return true;
     }),
     getPayPalSubscription: vi.fn(async (id: string) => {
       if (state.subscriptionReadFails) throw new Error("paypal down");
@@ -214,6 +264,27 @@ function captureOrder(orderId: string, captureStatus: string) {
   return structuredClone(order);
 }
 
+/** The local storage attempt row PROOVRA commits before calling PayPal. */
+function seedStorageRow(over: Record<string, unknown>) {
+  const row: Record<string, unknown> = {
+    id: `row-${state.storageRows.size + 1}`,
+    ownerUserId: USER,
+    teamId: null,
+    addonKey: "PERSONAL_10_GB",
+    status: "PENDING",
+    paymentProvider: "PAYPAL",
+    externalSubscriptionId: null,
+    activatedAtUtc: null,
+    currency: "USD",
+    metadata: null,
+    dependentCancellationState: "NONE",
+    canceledAtUtc: null,
+    ...over,
+  };
+  state.storageRows.set(row.id as string, row);
+  return row;
+}
+
 function setSubscription(id: string, over: Record<string, unknown>) {
   state.subscriptions.set(id, {
     id,
@@ -265,6 +336,9 @@ beforeEach(() => {
   state.captureCalls.length = 0;
   state.captureImpl = null;
   state.subscriptionReadFails = false;
+  state.storageRows.clear();
+  state.reviewItems.length = 0;
+  state.paypalCancels.length = 0;
   vi.mocked(billingService.setPersonalPlan).mockClear();
   vi.mocked(billingService.upsertWorkspaceStorageAddon).mockClear();
   vi.mocked(grantEvidenceCredits).mockClear();
@@ -623,6 +697,7 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
       teamId: null,
     });
 
+    seedStorageRow({ id: attemptId });
     setSubscription("I-SA-FAST", {
       status: "ACTIVE",
       plan_id: "P-S10-USD",
@@ -669,6 +744,7 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
   });
 
   it("the webhook activates an add-on created with main's short-code custom_id", async () => {
+    seedStorageRow({ externalSubscriptionId: "I-SA-SHORT" });
     setSubscription("I-SA-SHORT", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|p10` });
     await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-SHORT" });
     expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(
@@ -704,6 +780,7 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
   });
 
   it("the webhook applies a legacy-JSON storage subscription as a storage add-on, never as a plan", async () => {
+    seedStorageRow({ externalSubscriptionId: "I-SA-LEGACY" });
     setSubscription("I-SA-LEGACY", {
       status: "ACTIVE",
       plan_id: "P-S10-USD",
@@ -725,6 +802,7 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
 
   it("APPROVAL_PENDING records a PENDING add-on (no capacity), ACTIVE activates it", async () => {
     const custom_id = `sa1|${USER}|-|PERSONAL_10_GB`;
+    seedStorageRow({ externalSubscriptionId: "I-SA" });
     setSubscription("I-SA", { status: "APPROVAL_PENDING", plan_id: "P-S10-USD", custom_id });
     await deliver("BILLING.SUBSCRIPTION.CREATED", { id: "I-SA" });
     expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(
@@ -740,21 +818,44 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
     expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
   });
 
-  it("does not activate an add-on billed on another add-on's plan (price mismatch)", async () => {
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — an ungrantable activation is no
+  // longer left as a billed PENDING row: PayPal is asked to cancel it, the row
+  // becomes FAILED (nothing granted) and a refund-review item is recorded.
+  it("does not activate an add-on billed on another add-on's plan (price mismatch) — stops it and opens a review", async () => {
+    const row = seedStorageRow({ externalSubscriptionId: "I-SA-BAD" });
     setSubscription("I-SA-BAD", { status: "ACTIVE", plan_id: "P-T100-USD", custom_id: `sa1|${USER}|-|PERSONAL_10_GB` });
     const result = await applyPayPalSubscriptionState({ subscriptionId: "I-SA-BAD", source: "test" });
-    expect(result).toMatchObject({ outcome: "REJECTED", reason: "PLAN_ID_MISMATCH" });
+    expect(result).toMatchObject({ outcome: "REJECTED", reason: "STORAGE_ADDON_REFUSED" });
     expect(billingService.upsertWorkspaceStorageAddon).not.toHaveBeenCalled();
+    expect(state.paypalCancels).toEqual(["I-SA-BAD"]);
+    expect(row.status).toBe("FAILED");
+    expect(row.dependentCancellationState).toBe("CONFIRMED");
+    expect(state.reviewItems).toEqual([
+      expect.objectContaining({ reason: "STORAGE_ACTIVATION_REFUSED", refundReviewRequired: true, providerAction: "CANCELED_AT_PROVIDER" }),
+    ]);
   });
 
-  it("does not activate a team add-on for a workspace the payer does not own", async () => {
+  it("does not activate a workspace-bound add-on (workspace storage is not self-service) — stops it", async () => {
+    seedStorageRow({ externalSubscriptionId: "I-SA-TEAM", teamId: TEAM, addonKey: "TEAM_100_GB" });
     setSubscription("I-SA-TEAM", { status: "ACTIVE", plan_id: "P-T100-USD", custom_id: `sa1|${USER}|${TEAM}|TEAM_100_GB` });
     const result = await applyPayPalSubscriptionState({ subscriptionId: "I-SA-TEAM", source: "test" });
-    expect(result).toMatchObject({ outcome: "REJECTED", reason: "STORAGE_ADDON_NOT_ALLOWED" });
+    expect(result).toMatchObject({ outcome: "REJECTED", reason: "STORAGE_ADDON_REFUSED" });
     expect(billingService.upsertWorkspaceStorageAddon).not.toHaveBeenCalled();
+    expect(state.paypalCancels).toEqual(["I-SA-TEAM"]);
+  });
+
+  it("a provider-ACTIVE storage subscription with NO local record is recorded, stopped and reviewed — never silently dropped", async () => {
+    setSubscription("I-SA-ORPHAN", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|p10` });
+    const result = await applyPayPalSubscriptionState({ subscriptionId: "I-SA-ORPHAN", source: "test" });
+    expect(result).toMatchObject({ outcome: "REJECTED", reason: "STORAGE_ADDON_REFUSED" });
+    expect([...state.storageRows.values()]).toEqual([
+      expect.objectContaining({ externalSubscriptionId: "I-SA-ORPHAN", status: "FAILED", ownerUserId: USER }),
+    ]);
+    expect(state.reviewItems[0]).toMatchObject({ reason: "STORAGE_SUBSCRIPTION_WITHOUT_RECORD" });
   });
 
   it("cancellation marks the add-on CANCELED", async () => {
+    seedStorageRow({ externalSubscriptionId: "I-SA-C", status: "ACTIVE", activatedAtUtc: new Date("2026-09-01T00:00:00Z") });
     setSubscription("I-SA-C", { status: "CANCELLED", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|PERSONAL_10_GB` });
     await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-SA-C" });
     expect(billingService.upsertWorkspaceStorageAddon).toHaveBeenLastCalledWith(expect.objectContaining({ status: "CANCELED" }));

@@ -52,29 +52,59 @@ import type { BillingAccountRef } from "../services/billing/billing-accounts.ser
 export const ACCOUNT_BATCH = 20;
 
 /**
+ * How long an open checkout attempt is left to its return route and webhooks
+ * before the sweep asks the provider about it.
+ */
+export const ATTEMPT_SWEEP_GRACE_MS = 5 * 60 * 1000;
+
+/**
  * The accounts whose stored bindings could need repair.
  *
- * Deliberately narrow. An account with no live provider binding and no
- * ungranted payment has nothing a provider could tell us, so asking would be a
- * request spent to learn nothing.
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — five categories, each with its own
+ * share of the batch, filled round-robin:
+ *
+ *   1. open checkout attempts (a credit capture whose response was lost, an
+ *      approval whose webhook never came, an approval-pending plan that must
+ *      eventually be closed) — never looked at before, so a paid-but-unrecorded
+ *      credit waited for the customer to press a button;
+ *   2. PENDING credit payments (a capture still settling whose completion
+ *      webhook was lost);
+ *   3. SUCCEEDED credit payments with no ledger grant (a lost grant);
+ *   4. recurring storage add-ons;
+ *   5. base subscriptions.
+ *
+ * Category 3 used to take EVERY settled personal payment without a ledger
+ * row — every plan and storage renewal qualifies, forever — and was pushed
+ * first, so with twenty recent payers nothing else ever got a slot.
  */
 export async function selectReconciliationCandidates(
   limit: number = ACCOUNT_BATCH,
+  now: Date = new Date(),
 ): Promise<BillingAccountRef[]> {
-  const [subscriptions, addons, ungrantedPayments] = await Promise.all([
-    prisma.subscription.findMany({
+  const creditProduct = { OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }] };
+  const [attempts, pendingPayments, settledCredits, addons, subscriptions] = await Promise.all([
+    prisma.billingCheckoutAttempt.findMany({
       where: {
-        status: {
-          in: [
-            prismaPkg.SubscriptionStatus.ACTIVE,
-            prismaPkg.SubscriptionStatus.TRIALING,
-            prismaPkg.SubscriptionStatus.PAST_DUE,
-          ],
-        },
+        status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
+        createdAt: { lt: new Date(now.getTime() - ATTEMPT_SWEEP_GRACE_MS) },
       },
+      // Each check writes the attempt's metadata, which bumps updatedAt, so
+      // the oldest-checked attempt is always next.
       orderBy: { updatedAt: "asc" },
       take: limit,
-      select: { userId: true, teamId: true },
+      select: { userId: true },
+    }),
+    prisma.payment.findMany({
+      where: { teamId: null, status: prismaPkg.PaymentStatus.PENDING, ...creditProduct },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+      select: { userId: true },
+    }),
+    prisma.payment.findMany({
+      where: { teamId: null, status: prismaPkg.PaymentStatus.SUCCEEDED, ...creditProduct },
+      orderBy: { createdAt: "desc" },
+      take: limit * 4,
+      select: { userId: true, provider: true, providerPaymentId: true },
     }),
     prisma.workspaceStorageAddon.findMany({
       where: {
@@ -90,74 +120,77 @@ export async function selectReconciliationCandidates(
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
-      select: { ownerUserId: true, teamId: true },
+      select: { ownerUserId: true },
     }),
-    // A settled personal payment with no PURCHASE ledger row is the exact
-    // shape of a lost credit webhook. The join is expressed as a NOT-EXISTS
-    // over the ledger rather than a scan of every payment ever made.
-    prisma.payment.findMany({
+    prisma.subscription.findMany({
       where: {
-        teamId: null,
-        status: prismaPkg.PaymentStatus.SUCCEEDED,
+        status: {
+          in: [
+            prismaPkg.SubscriptionStatus.ACTIVE,
+            prismaPkg.SubscriptionStatus.TRIALING,
+            prismaPkg.SubscriptionStatus.PAST_DUE,
+          ],
+        },
       },
-      orderBy: { createdAt: "desc" },
-      take: limit * 4,
-      select: { userId: true, provider: true, providerPaymentId: true },
+      orderBy: { updatedAt: "asc" },
+      take: limit,
+      select: { userId: true },
     }),
   ]);
 
-  const granted = ungrantedPayments.length
+  const granted = settledCredits.length
     ? await prisma.evidenceCreditLedgerEntry.findMany({
         where: {
           entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
-          providerRef: { in: ungrantedPayments.map((p) => p.providerPaymentId) },
+          providerRef: { in: settledCredits.map((p) => p.providerPaymentId) },
         },
         select: { provider: true, providerRef: true },
       })
     : [];
-  const grantedKeys = new Set(
-    granted.map((g) => `${String(g.provider)}:${g.providerRef}`),
+  const grantedKeys = new Set(granted.map((g) => `${String(g.provider)}:${g.providerRef}`));
+  const ungranted = settledCredits.filter(
+    (p) => !grantedKeys.has(`${String(p.provider)}:${p.providerPaymentId}`),
   );
 
-  // Deduplicate to ACCOUNTS. One account with four bindings is one unit of
-  // work, because the authority reconciles all of its bindings in one pass.
+  // Every self-service binding reconciles against its OWNER's personal
+  // account (BILLING PERSONAL/ORGANIZATION MODEL, 2026-08-28).
+  const queues: string[][] = [
+    attempts.map((a) => a.userId),
+    pendingPayments.map((p) => p.userId),
+    ungranted.map((p) => p.userId),
+    addons.map((a) => a.ownerUserId),
+    subscriptions.map((s) => s.userId),
+  ];
+
   const seen = new Set<string>();
   const out: BillingAccountRef[] = [];
-
-  const push = (type: BillingAccountRef["type"], id: string) => {
-    const key = `${type}:${id}`;
-    if (seen.has(key) || out.length >= limit) return;
-    seen.add(key);
-    // The sweep is a SERVICE actor. It holds no viewer capabilities and its
-    // work is not shown to anyone, so the ref carries an empty capability set
-    // — the authority it calls does not read them.
-    out.push({
-      type,
-      id,
-      displayName: "",
-      capabilities: [],
-      billingOwnerMissing: false,
-    });
-  };
-
-  for (const p of ungrantedPayments) {
-    if (grantedKeys.has(`${String(p.provider)}:${p.providerPaymentId}`)) continue;
-    push("PERSONAL", p.userId);
+  const cursors = queues.map(() => 0);
+  let progressed = true;
+  while (out.length < limit && progressed) {
+    progressed = false;
+    for (let q = 0; q < queues.length && out.length < limit; q++) {
+      const queue = queues[q]!;
+      while (cursors[q]! < queue.length) {
+        const userId = queue[cursors[q]!]!;
+        cursors[q] = cursors[q]! + 1;
+        if (seen.has(userId)) continue;
+        seen.add(userId);
+        // The sweep is a SERVICE actor. It holds no viewer capabilities and
+        // its work is not shown to anyone.
+        out.push({
+          type: "PERSONAL",
+          id: userId,
+          displayName: "",
+          capabilities: [],
+          billingOwnerMissing: false,
+        });
+        progressed = true;
+        break;
+      }
+    }
   }
-  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — every self-service
-  // binding reconciles against its OWNER's personal account.
-  //
-  // A stored `teamId` on a subscription or add-on is tenancy — including on
-  // rows written under the obsolete model, where a TEAM subscription was bound
-  // to an Owned Workspace. Those rows still have an owner, and the owner's
-  // personal account is the subject that can now be reconciled, so historical
-  // bindings keep converging rather than being stranded by the model change.
-  for (const sub of subscriptions) push("PERSONAL", sub.userId);
-  for (const addon of addons) push("PERSONAL", addon.ownerUserId);
-
   return out;
 }
-
 /**
  * One tick.
  *

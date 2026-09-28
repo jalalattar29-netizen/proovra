@@ -15,10 +15,7 @@ import {
 } from "../services/billing.service.js";
 // Evidence credits are granted through the canonical wallet by the shared
 // Stripe/PayPal settlement services (idempotent on the provider payment id).
-import {
-  storageAddonStatusFromSubscription,
-  syncPlanForSubscription,
-} from "../services/billing/subscription-lifecycle.handlers.js";
+import { syncPlanForSubscription } from "../services/billing/subscription-lifecycle.handlers.js";
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
 // the AUTHORITATIVE STORED subscription row, not from provider metadata that
 // providers do not in fact put on renewal events.
@@ -37,12 +34,15 @@ import { parsePayPalStorageAddonCustomId } from "../services/paypal-checkout-pol
 // settled by ONE service shared with the authenticated return routes, from
 // PayPal's live server-side state.
 import {
+  applyPayPalDispute,
+  applyPayPalRefundOrReversal,
   applyPayPalSubscriptionState,
   assertWebhookStorageAddonAllowed,
   handlePayPalCaptureWebhook,
   isPayPalResourceId,
   settlePayPalEvidenceCreditOrder,
 } from "../services/billing/paypal-settlement.service.js";
+import { applyStorageSubscriptionObservation } from "../services/billing/storage-activation.service.js";
 import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
 // PHASE 9 §12 / §9.4 — the ONE subscription-active rule is consumed by the
 // storage add-on guard, which now lives in paypal-settlement.service.ts
@@ -353,19 +353,20 @@ export async function webhooksRoutes(app: FastifyInstance) {
         subscription.metadata?.billingCycle
       );
       if (userId && storageAddonKey && parsedCycle !== null) {
-        await upsertWorkspaceStorageAddon({
-          ownerUserId: userId,
-          teamId,
-          addonKey: storageAddonKey,
-          billingCycle: parsedCycle,
-          status: storageAddonStatusFromSubscription(stripeStatus),
-          paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-          externalSubscriptionId: subscription.id,
+        // BILLING PAYPAL INTEGRITY (2026-09-28) — the ONE storage activation
+        // decision; a first activation is checked exactly as every other
+        // path checks it.
+        await applyStorageSubscriptionObservation({
+          provider: prismaPkg.PaymentProvider.STRIPE,
+          subscriptionId: subscription.id,
+          status: stripeStatus,
+          planId: null,
+          claimed: { userId, teamId, addonKey: storageAddonKey, attemptId: null },
           currentPeriodEnd: subscription.current_period_end
             ? new Date(subscription.current_period_end * 1000)
             : null,
           observedAtUtc: stripeObservedAt,
-          metadata: { source: event.type },
+          source: event.type,
         }).catch((err: unknown) => {
           req.log.warn(
             { err, provider: "STRIPE", subscriptionId: subscription.id },
@@ -426,25 +427,27 @@ export async function webhooksRoutes(app: FastifyInstance) {
       const metadataUserId = invoice.metadata?.userId;
       const metadataPlan = parsePlan(invoice.metadata?.plan);
 
+      const stripeSubId = stripeSubscriptionIdFromInvoice(invoice);
       let subject:
-        | { userId: string; teamId: string | null; plan: prismaPkg.PlanType }
+        | {
+            userId: string;
+            teamId: string | null;
+            product: "PLAN" | "STORAGE_ADDON";
+          }
         | null =
-        metadataUserId && metadataPlan
+        metadataUserId && (metadataPlan || storageAddonKey)
           ? {
               userId: metadataUserId,
               teamId: invoice.metadata?.teamId ?? null,
-              plan: metadataPlan,
+              product: storageAddonKey ? "STORAGE_ADDON" : "PLAN",
             }
           : null;
 
-      if (!subject) {
-        const stripeSubId = stripeSubscriptionIdFromInvoice(invoice);
-        if (stripeSubId) {
-          subject = await resolveSubjectFromProviderSubscription({
-            provider: prismaPkg.PaymentProvider.STRIPE,
-            providerSubId: stripeSubId,
-          });
-        }
+      if (!subject && stripeSubId) {
+        subject = await resolveSubjectFromProviderSubscription({
+          provider: prismaPkg.PaymentProvider.STRIPE,
+          providerSubId: stripeSubId,
+        });
       }
 
       if (storageAddonKey && parsedCycle !== null) {
@@ -478,6 +481,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
             ? prismaPkg.PaymentStatus.SUCCEEDED
             : prismaPkg.PaymentStatus.FAILED,
           teamId: subject.teamId,
+          product: subject.product,
+          providerResourceId: stripeSubId,
         });
       } else {
         // Deliberately visible: an unbindable invoice is an operational signal,
@@ -784,6 +789,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
               currency: (amount?.currency_code ?? "USD").toUpperCase(),
               status: prismaPkg.PaymentStatus.SUCCEEDED,
               teamId: addonContext.teamId ?? null,
+              product: "STORAGE_ADDON_ONE_TIME",
             });
 
             await upsertWorkspaceStorageAddon({
@@ -825,17 +831,58 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
 
       /**
+       * BILLING PAYPAL INTEGRITY (2026-09-28) — refunds, reversals
+       * (chargebacks) and disputes. None of these reached PROOVRA: a refunded
+       * credit purchase kept its credit and its payment row kept saying
+       * SUCCEEDED. The policy lives in the settlement service; here the
+       * verified event is only routed to it.
+       */
+      if (
+        event.event_type === "PAYMENT.CAPTURE.REFUNDED" ||
+        event.event_type === "PAYMENT.CAPTURE.REVERSED" ||
+        event.event_type === "PAYMENT.SALE.REFUNDED" ||
+        event.event_type === "PAYMENT.SALE.REVERSED"
+      ) {
+        const adverse = await applyPayPalRefundOrReversal({
+          eventType: event.event_type,
+          resource: event.resource,
+        });
+        req.log.info(
+          { provider: "PAYPAL", eventId: paypalEventId, eventType: event.event_type, outcome: adverse.outcome, product: adverse.product },
+          "paypal.refund_or_reversal_applied"
+        );
+        await markProcessed();
+        return reply.code(200).send({ received: true });
+      }
+
+      if (
+        event.event_type === "CUSTOMER.DISPUTE.CREATED" ||
+        event.event_type === "CUSTOMER.DISPUTE.UPDATED" ||
+        event.event_type === "CUSTOMER.DISPUTE.RESOLVED"
+      ) {
+        const dispute = await applyPayPalDispute({
+          eventType: event.event_type,
+          resource: event.resource,
+        });
+        req.log.info(
+          { provider: "PAYPAL", eventId: paypalEventId, eventType: event.event_type, outcome: dispute.outcome },
+          "paypal.dispute_recorded"
+        );
+        await markProcessed();
+        return reply.code(200).send({ received: true });
+      }
+
+      /**
        * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — PayPal RENEWALS.
        *
-       * A PayPal subscription renewal arrives as `PAYMENT.SALE.COMPLETED`,
-       * which this handler did not implement at all: only
-       * `PAYMENT.CAPTURE.COMPLETED` (the one-time order path) was handled, and
-       * only when its `custom_id` said PAYG. Every PayPal renewal was
-       * therefore invisible in payment history.
-       *
+       * A PayPal subscription renewal arrives as `PAYMENT.SALE.COMPLETED`.
        * `billing_agreement_id` on a recurring sale IS the subscription id this
        * platform stored at checkout, so ownership is resolved from the stored
        * row rather than from a payload field PayPal does not populate.
+       *
+       * BILLING PAYPAL INTEGRITY (2026-09-28) — a recurring STORAGE add-on is
+       * resolved too (it has no `subscriptions` row), so storage renewals
+       * reach payment history instead of being "unattributable".
        */
       if (
         event.event_type === "PAYMENT.SALE.COMPLETED" ||
@@ -845,6 +892,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
           id?: string;
           billing_agreement_id?: string;
           amount?: { total?: string; currency?: string };
+          create_time?: string;
+          update_time?: string;
         };
         const providerSubId = paypalSubscriptionIdFromSale(sale);
         const saleSubject = providerSubId
@@ -855,6 +904,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           : null;
 
         if (saleSubject && sale.id) {
+          const saleTime = sale.update_time ?? sale.create_time;
           await recordPayment({
             userId: saleSubject.userId,
             provider: prismaPkg.PaymentProvider.PAYPAL,
@@ -866,14 +916,13 @@ export async function webhooksRoutes(app: FastifyInstance) {
                 ? prismaPkg.PaymentStatus.SUCCEEDED
                 : prismaPkg.PaymentStatus.FAILED,
             teamId: saleSubject.teamId,
+            product: saleSubject.product,
+            providerResourceId: providerSubId,
+            observedAtUtc: saleTime && !Number.isNaN(new Date(saleTime).getTime()) ? new Date(saleTime) : null,
           });
-          // A renewal is when a scheduled (period-end) plan change lands and
-          // when a lapsed subscription recovers, so re-read the subscription.
-          if (
-            event.event_type === "PAYMENT.SALE.COMPLETED" &&
-            providerSubId &&
-            isPayPalResourceId(providerSubId)
-          ) {
+          // A renewal (or a failed one) is when a scheduled plan change lands,
+          // a lapsed subscription recovers, or one starts failing: re-read it.
+          if (providerSubId && isPayPalResourceId(providerSubId)) {
             await applyPayPalSubscriptionState({
               subscriptionId: providerSubId,
               source: event.event_type,
@@ -885,6 +934,20 @@ export async function webhooksRoutes(app: FastifyInstance) {
             { provider: "PAYPAL", saleId: sale.id ?? null, providerSubId },
             "paypal.sale.unattributable_no_stored_subscription"
           );
+          // BILLING PAYPAL INTEGRITY (2026-09-28) — a billing subscription
+          // with no local record (its workspace row was deleted, or it was
+          // never recorded) is still PayPal's to describe: the live read
+          // routes it through the settlement authorities, which record it and,
+          // for storage that cannot be granted, stop it and open a review.
+          if (providerSubId && isPayPalResourceId(providerSubId)) {
+            await applyPayPalSubscriptionState({
+              subscriptionId: providerSubId,
+              source: event.event_type,
+              log: req.log,
+            }).catch((err: unknown) => {
+              req.log.warn({ err, provider: "PAYPAL", providerSubId }, "paypal.sale.orphan_subscription_read_failed");
+            });
+          }
         }
 
         await markProcessed();
@@ -895,29 +958,23 @@ export async function webhooksRoutes(app: FastifyInstance) {
         event.event_type === "BILLING.SUBSCRIPTION.CREATED" ||
         event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED" ||
         event.event_type === "BILLING.SUBSCRIPTION.UPDATED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.RE-ACTIVATED" ||
         event.event_type === "BILLING.SUBSCRIPTION.CANCELLED" ||
         event.event_type === "BILLING.SUBSCRIPTION.SUSPENDED" ||
-        event.event_type === "BILLING.SUBSCRIPTION.EXPIRED"
+        event.event_type === "BILLING.SUBSCRIPTION.EXPIRED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.PAYMENT.FAILED"
       ) {
-        // Phase 10 — TEAM + PRO entitlement transitions are wrapped
-        // by the outer paypal_webhook_events idempotency record. The
-        // dedup keystone above ensures BILLING.SUBSCRIPTION.UPDATED
-        // and BILLING.SUBSCRIPTION.CANCELLED for TEAM and PRO tiers
-        // cannot double-fire (the unique index on `paypal_event_id`
-        // makes the second delivery a P2002 → 200 no-op).
+        // The LIVE subscription decides (the event body is only the
+        // fallback), so a duplicate or out-of-order event converges on
+        // PayPal's current state. Plans and storage add-ons alike pass
+        // through the ONE settlement service; storage activation through the
+        // ONE storage decision. A failed renewal payment is applied as the
+        // subscription's own state (PayPal suspends after its retry policy).
         const subscriptionId = event.resource.id ?? null;
         if (!subscriptionId) {
           await markProcessed();
           return reply.code(200).send({ received: true });
         }
-
-        // PAYPAL END-TO-END (2026-09-25) — the LIVE subscription decides
-        // (the event body is only the fallback), so a duplicate or
-        // out-of-order event converges on PayPal's current state. The plan is
-        // read from the billed plan_id, which a `revise` upgrade changes and
-        // custom_id does not. CREATED / APPROVAL_PENDING / APPROVED grant
-        // nothing; storage add-ons activate only on ACTIVE with their own
-        // configured plan id and a workspace the payer may extend.
         const settlement = await applyPayPalSubscriptionState({
           subscriptionId,
           fallbackResource: event.resource,

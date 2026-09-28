@@ -59,6 +59,7 @@ import {
 import {
   withoutProviderStatus,
   type BillingReconciliationProvider,
+  type AttemptWaitingFor,
   type CheckoutAttemptReconciliation,
   type ObservationFailure,
   type ReconciliationSummary,
@@ -232,6 +233,20 @@ function baseResult(attempt: LoadedAttempt): Omit<CheckoutAttemptReconciliation,
   };
 }
 
+/** What a STILL_PENDING attempt is waiting for, from the provider's own status word. */
+function waitingForOf(attempt: LoadedAttempt, providerStatus: string | null): AttemptWaitingFor {
+  const status = (providerStatus ?? "").toUpperCase();
+  if (attempt.provider === prismaPkg.PaymentProvider.STRIPE) {
+    return status === "OPEN" ? "PAYMENT_PAGE" : "PAYMENT_PROCESSING";
+  }
+  if (attempt.product === "PLAN" || attempt.product === "STORAGE_ADDON") {
+    return status === "APPROVED" ? "ACTIVATION" : "APPROVAL";
+  }
+  return status === "CREATED" || status === "SAVED" || status === "PAYER_ACTION_REQUIRED" || status === ""
+    ? "APPROVAL"
+    : "PAYMENT_PROCESSING";
+}
+
 export type CheckoutAttemptCheck = CheckoutAttemptReconciliation & {
   /** Raw provider status, kept server-side for the abandon decision. */
   providerStatus?: string | null;
@@ -250,10 +265,12 @@ async function checkAttempt(
     if (attempt.source === "ATTEMPT") {
       await noteCheckoutAttemptCheck({ attemptId: attempt.id, outcome }).catch(() => undefined);
     }
+    const waitingFor = outcome === "STILL_PENDING" ? waitingForOf(attempt, extra.providerStatus ?? null) : null;
     return {
       ...base,
       currentStatus: await currentStatusOf(attempt),
       outcome,
+      ...(waitingFor ? { waitingFor } : {}),
       ...(extra.resumeUrl ? { resumeUrl: extra.resumeUrl } : {}),
       ...(extra.providerStatus !== undefined ? { providerStatus: extra.providerStatus } : {}),
     };
@@ -318,11 +335,17 @@ async function checkAttempt(
       return finish(failureOutcome(observation.failure));
     }
     try {
-      await (deps.applySubscription ?? applyPayPalSubscriptionState)({
+      const applied = await (deps.applySubscription ?? applyPayPalSubscriptionState)({
         subscriptionId: ref,
         expectedUserId: account.id,
         source: "checkout_attempt_recheck",
       });
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a subscription the settlement
+      // refused to apply (not this account's, unattributable) is not "no
+      // change": the provider object does not match the attempt.
+      if (applied.outcome === "REJECTED" && applied.reason !== "STORAGE_ADDON_REFUSED") {
+        return finish("PROVIDER_MALFORMED", { providerStatus: observation.providerStatus ?? null });
+      }
     } catch {
       return finish("PROVIDER_UNAVAILABLE");
     }
@@ -473,6 +496,7 @@ export async function abandonCheckoutAttempt(input: {
   if (
     (check.providerStatus && IN_FLIGHT_PROVIDER_STATUSES.has(check.providerStatus)) ||
     checkoutState === "CAPTURE_PENDING" ||
+    checkoutState === "APPROVED_AWAITING_ACTIVATION" ||
     checkoutState === "NEEDS_REVIEW"
   ) {
     return {
@@ -661,11 +685,100 @@ export async function reconcileCheckoutAttempts(input: {
     seen.add(attempt.id);
 
     const check = await checkAttempt(attempt, input.account, input.deps);
-    const result = withoutProviderStatus(check);
+    let result = withoutProviderStatus(check);
+    if (isExpiredApproval(check, attempt, now)) {
+      const expired = await expireUnapprovedAttempt({ attempt, account: input.account, deps: input.deps });
+      if (expired) {
+        result = { ...result, outcome: "UPDATED", currentStatus: expired, waitingFor: undefined };
+      }
+    }
     input.summary.attempts.push(result);
     input.summary.checked += 1;
     countAttemptOutcome(input.summary, result);
   }
+}
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — how long an attempt may wait for the
+ * buyer's APPROVAL before PROOVRA closes it. PayPal does not announce when an
+ * unapproved subscription or order stops being approvable, and the page used
+ * to tell customers to "wait for it to expire" — an expiry no code observed,
+ * while the open attempt blocked every new plan checkout. After this window
+ * the attempt is closed provider-first (PayPal is asked; only an approval it
+ * still reports as NOT approved is closed), exactly as the customer's own
+ * Abandon would, and a later provider-proven payment still wins.
+ */
+export const APPROVAL_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+function isExpiredApproval(check: CheckoutAttemptCheck, attempt: LoadedAttempt, now: Date): boolean {
+  return (
+    check.outcome === "STILL_PENDING" &&
+    check.waitingFor === "APPROVAL" &&
+    now.getTime() - attempt.createdAt.getTime() > APPROVAL_EXPIRY_MS &&
+    (check.currentStatus === A.PENDING || check.currentStatus === prismaPkg.SubscriptionStatus.TRIALING)
+  );
+}
+
+/** Close one approval-expired attempt, provider-first. Returns its new status, or null. */
+async function expireUnapprovedAttempt(input: {
+  attempt: LoadedAttempt;
+  account: BillingAccountRef;
+  deps: CheckoutRecoveryDeps;
+}): Promise<string | null> {
+  const result = await abandonCheckoutAttempt({
+    account: input.account,
+    attemptId: input.attempt.id,
+    confirmed: true,
+    deps: input.deps,
+  });
+  if (result.outcome !== "ABANDONED") return null;
+  if (input.attempt.source === "ATTEMPT") {
+    await prisma.billingCheckoutAttempt.updateMany({
+      where: { id: input.attempt.id, status: { in: [A.ABANDONED, A.CANCELED] } },
+      data: { checkoutState: "LOCALLY_EXPIRED" },
+    });
+  }
+  return await currentStatusOf(input.attempt);
+}
+
+/**
+ * Close every approval-expired PLAN attempt of one payer before a new plan
+ * checkout is opened, so an approval nobody will finish does not block the
+ * purchase the customer is trying to make now. Provider-first; an attempt
+ * PayPal reports as approved or paid is never closed.
+ */
+export async function expireStalePlanAttempts(input: {
+  userId: string;
+  deps: CheckoutRecoveryDeps;
+  now?: Date;
+}): Promise<number> {
+  const now = input.now ?? new Date();
+  const account: BillingAccountRef = {
+    type: "PERSONAL",
+    id: input.userId,
+    displayName: "",
+    capabilities: ["BILLING_MANAGE"],
+    billingOwnerMissing: false,
+  };
+  const stale = await prisma.billingCheckoutAttempt.findMany({
+    where: {
+      userId: input.userId,
+      product: prismaPkg.BillingCheckoutProduct.PLAN,
+      status: A.PENDING,
+      createdAt: { lt: new Date(now.getTime() - APPROVAL_EXPIRY_MS) },
+    },
+    select: { id: true },
+    take: 5,
+  });
+  let closed = 0;
+  for (const row of stale) {
+    const attempt = await loadOwnedCheckoutAttempt(account, row.id);
+    if (!attempt) continue;
+    const check = await checkAttempt(attempt, account, input.deps);
+    if (!isExpiredApproval(check, attempt, now)) continue;
+    if (await expireUnapprovedAttempt({ attempt, account, deps: input.deps })) closed += 1;
+  }
+  return closed;
 }
 
 /** Shared counting rule for every attempt kind. */

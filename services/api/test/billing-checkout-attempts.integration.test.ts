@@ -70,6 +70,15 @@ class FakePayPal {
   createFailure: { status: number } | null = null;
   calls: Array<{ method: string; url: string; body: string | null; requestId: string | null }> = [];
   captureStatus = "COMPLETED";
+  /** What each configured plan bills (the catalogue defaults). */
+  planPrices: Record<string, { value: string; currency_code: string }> = {
+    "P-PRO-USD": { value: "19.00", currency_code: "USD" },
+    "P-PRO-EUR": { value: "19.00", currency_code: "EUR" },
+    "P-TEAM-USD": { value: "79.00", currency_code: "USD" },
+    "P-TEAM-EUR": { value: "79.00", currency_code: "EUR" },
+    "P-STORAGE-50-EUR": { value: "7.99", currency_code: "EUR" },
+    "P-STORAGE-50-USD": { value: "7.99", currency_code: "USD" },
+  };
   private seq = 0;
   /** Unique per fake, so ids never collide with another test's rows. */
   private readonly ns = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -92,7 +101,25 @@ class FakePayPal {
     const path = url.slice(PAYPAL.length);
     if (path === "/v1/oauth2/token") return { status: 200, body: { access_token: "fake" } };
     if (path.startsWith("/v1/billing/plans/")) {
-      return { status: 200, body: { id: path.split("/").pop(), status: "ACTIVE" } };
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — a plan is verified against the
+      // catalogue before checkout, so the fake answers with PayPal's plan
+      // shape: one monthly REGULAR cycle at the configured price.
+      const id = path.split("/").pop()!;
+      const price = this.planPrices[id] ?? { value: "0.00", currency_code: "USD" };
+      return {
+        status: 200,
+        body: {
+          id,
+          status: "ACTIVE",
+          billing_cycles: [
+            {
+              tenure_type: "REGULAR",
+              frequency: { interval_unit: "MONTH", interval_count: 1 },
+              pricing_scheme: { fixed_price: price },
+            },
+          ],
+        },
+      };
     }
     if (path === "/v1/billing/subscriptions" && method === "POST") {
       if (this.createFailure) return { status: this.createFailure.status, body: { name: "X", message: "x" } };
@@ -621,7 +648,12 @@ describe("Billing checkout attempts + activity (live PostgreSQL 16)", () => {
         const res = await call("POST", "/v1/billing/subscription/plan", t.owner.token, { plan: "TEAM" });
         expect(res.statusCode, res.body).toBe(200);
         const revise = fake.calls.find((c) => c.url.endsWith("/revise"));
-        expect(JSON.parse(revise!.body!)).toEqual({ plan_id: "P-TEAM-EUR" });
+        // The revise names the EUR plan, and sends the buyer back to Billing
+        // (whose PayPal return handler confirms the change server-side).
+        expect(JSON.parse(revise!.body!)).toMatchObject({
+          plan_id: "P-TEAM-EUR",
+          application_context: { return_url: expect.stringContaining("/billing?success=1&provider=paypal&kind=plan") },
+        });
       });
       // Scheduled, not granted.
       expect((await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).plan).toBe("PRO");

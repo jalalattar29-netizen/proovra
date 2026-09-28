@@ -31,7 +31,21 @@ export const PAYMENTS_UNAVAILABLE_MESSAGE =
 export function paymentsUnavailable(
   provider: "stripe" | "paypal",
   setting: string,
-  reason: "not_configured" | "plan_not_configured" = "not_configured",
+  reason:
+    | "not_configured"
+    | "plan_not_configured"
+    /**
+     * BILLING PAYPAL INTEGRITY (2026-09-28) — the provider's configured plan
+     * bills a different amount, currency or interval than the catalogue the
+     * customer was shown. Refused before any checkout exists.
+     */
+    | "plan_price_mismatch"
+    /**
+     * BILLING PAYPAL INTEGRITY (2026-09-28) — the provider could not be reached
+     * (OAuth token, plan lookup) BEFORE the create request was sent, so it is
+     * certain nothing was created. Distinct from an ambiguous create failure.
+     */
+    | "provider_unreachable_before_create" = "not_configured",
 ): DomainError {
   return providerUnavailable({
     code: PAYMENTS_UNAVAILABLE_CODE,
@@ -39,6 +53,9 @@ export function paymentsUnavailable(
     provider,
     reason,
     setting,
-    developerMessage: `${provider} is not configured: ${setting} is missing`,
+    developerMessage:
+      reason === "not_configured"
+        ? `${provider} is not configured: ${setting} is missing`
+        : `${provider} checkout refused before create (${reason}): ${setting}`,
   });
 }

@@ -197,6 +197,17 @@ const AUTHORITY_WRITERS: Array<{
       // red at e9efd55.
       "services/billing/pending-checkout-attempt.service.ts":
         "canonical: pre-provider storage checkout attempt (PENDING/FAILED + provider binding only, never ACTIVE)",
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — THE storage activation
+      // decision. It REPLACES three divergent paths (PayPal webhook/return
+      // refused silently, reconciliation granted with no check, Stripe checked
+      // a workspace plan) rather than adding a fourth: every first activation
+      // passes the same identity, plan-id and eligibility checks, and its own
+      // writes are only (a) the PENDING record a Stripe subscription needs
+      // before that decision and (b) the FAILED + obligation record of a
+      // provider-ACTIVE subscription it refused (never ACTIVE — activation is
+      // written by `upsertWorkspaceStorageAddon`).
+      "services/billing/storage-activation.service.ts":
+        "canonical: storage activation decision — refused-activation FAILED record + Stripe pre-decision PENDING record; ACTIVE only via upsertWorkspaceStorageAddon",
     },
   },
 ];
@@ -306,6 +317,11 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
     "PROVIDER PROJECTION: normalizes PayPal subscription status → SubscriptionStatus and applies it through the shared handler (no capability decision)",
   "services/billing/plan-transition.service.ts":
     "SELECTION: finds the one live subscription; applies status through the shared handler — no active/grace decision",
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — maps a provider subscription
+  // status onto a storage add-on (first activation vs maintenance vs refused
+  // cancellation); no plan active/grace decision.
+  "services/billing/storage-activation.service.ts":
+    "PROVIDER PROJECTION: provider subscription status -> storage activation / refusal handling (no capability decision)",
 };
 
 describe("Phase 9 STEP 5 — subscription-active decision is centralized (anti-divergence)", () => {

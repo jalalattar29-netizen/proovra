@@ -44,10 +44,15 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeGet, stripeRequest } from "../stripe.service.js";
-import { getPayPalSubscription, paypalRequest } from "../paypal.service.js";
+import {
+  assertPayPalPlanSellable,
+  getPayPalSubscription,
+  paypalRequest,
+} from "../paypal.service.js";
 import { currencyForPayPalBasePlanId } from "../paypal-plan-map.service.js";
 import { getPayPalPlanId } from "../paypal-checkout-policy.service.js";
 import {
+  getPlanPriceCents,
   getStripePlanPriceId,
   resolveCheckoutCurrency,
   type BillingCurrency,
@@ -212,8 +217,20 @@ export async function resolvePersonalPlanTransition(input: {
   // The plan a scheduled change is heading for counts as the current one for
   // this comparison. Without it, a TEAM customer who has already scheduled a
   // downgrade to PRO and asks for PRO again would be told they are upgrading.
-  const effectivePlan =
-    subscription.pendingPlan ?? state.effectivePlan;
+  //
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — but only a change the PROVIDER
+  // confirmed. A PayPal revision the buyer never approved used to count too:
+  // asking for that plan again answered "already there" (NO_CHANGE) and no
+  // approval link could ever be issued again. An unapproved change older
+  // than the approval window lapses here; a younger one is simply re-issued
+  // (a fresh revise, a fresh link — a stored link is never reused).
+  if (subscription.pendingPlanAwaitingApproval) {
+    await expireUnapprovedPlanChange(subscription.id);
+  }
+  const confirmedPending = subscription.pendingPlanAwaitingApproval
+    ? null
+    : subscription.pendingPlan;
+  const effectivePlan = confirmedPending ?? state.effectivePlan;
 
   if (effectivePlan === input.targetPlan) {
     return { kind: "NO_CHANGE", currentPlan: effectivePlan };
@@ -617,11 +634,27 @@ async function applyPayPalPlanChange(args: {
   // the next billing cycle. That is correct for a downgrade and is what a
   // customer upgrading is told — PayPal will not charge a prorated difference,
   // so promising immediate capacity would be promising something unpaid for.
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — the target plan must bill the
+  // catalogue price the customer was shown, verified before the revise.
+  await assertPayPalPlanSellable(planId, {
+    amountCents: getPlanPriceCents(transition.targetPlan, currency),
+    currency,
+  });
+
   let revised: { links?: Array<{ rel?: string; href?: string }> };
   try {
     revised = (await paypalRequest(
       `/v1/billing/subscriptions/${subscription.providerSubId}/revise`,
-      { plan_id: planId },
+      {
+        plan_id: planId,
+        // The buyer returns to Billing, whose PayPal return handler confirms
+        // the subscription server-side — the same contract as a checkout.
+        application_context: {
+          brand_name: "PROOVRA",
+          return_url: billingPayPalReturnUrl("success=1&provider=paypal&kind=plan"),
+          cancel_url: billingPayPalReturnUrl("canceled=1&provider=paypal&kind=plan"),
+        },
+      },
     )) as { links?: Array<{ rel?: string; href?: string }> };
   } catch (err) {
     throw providerFailure(
@@ -643,6 +676,7 @@ async function applyPayPalPlanChange(args: {
     subscriptionId: subscription.id,
     plan: transition.targetPlan,
     effectiveAt: subscription.currentPeriodEnd,
+    awaitingApproval: approvalUrl !== null,
   });
 
   return {
@@ -667,14 +701,28 @@ async function recordPendingPlan(input: {
   subscriptionId: string;
   plan: prismaPkg.PlanType;
   effectiveAt: Date | null;
+  /** The provider returned an approval link the buyer has not used yet. */
+  awaitingApproval?: boolean;
 }): Promise<void> {
   await prisma.subscription.update({
     where: { id: input.subscriptionId },
     data: {
       pendingPlan: input.plan,
       pendingPlanEffectiveAtUtc: input.effectiveAt,
+      pendingPlanAwaitingApproval: input.awaitingApproval === true,
+      pendingPlanRequestedAtUtc: new Date(),
     },
   });
+}
+
+function billingPayPalReturnUrl(query: string): string {
+  const base = (
+    process.env.APP_BASE_URL?.trim() ||
+    process.env.WEB_BASE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
+    "https://app.proovra.com"
+  ).replace(/\/+$/, "");
+  return `${base}/billing?${query}`;
 }
 
 /**
@@ -688,6 +736,48 @@ async function recordPendingPlan(input: {
 export async function clearPendingPlan(subscriptionId: string): Promise<void> {
   await prisma.subscription.updateMany({
     where: { id: subscriptionId, NOT: { pendingPlan: null } },
-    data: { pendingPlan: null, pendingPlanEffectiveAtUtc: null },
+    data: {
+      pendingPlan: null,
+      pendingPlanEffectiveAtUtc: null,
+      pendingPlanAwaitingApproval: false,
+      pendingPlanRequestedAtUtc: null,
+    },
+  });
+}
+
+/** How long a revised plan may await the buyer's approval before it lapses. */
+export const PENDING_PLAN_APPROVAL_TTL_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — a scheduled change that still awaits
+ * the buyer's approval and is older than the approval window lapses: it is no
+ * longer the plan the account is moving to, and a new request re-issues it.
+ * Returns whether it was cleared.
+ */
+export async function expireUnapprovedPlanChange(
+  subscriptionId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const cleared = await prisma.subscription.updateMany({
+    where: {
+      id: subscriptionId,
+      pendingPlanAwaitingApproval: true,
+      pendingPlanRequestedAtUtc: { lt: new Date(now.getTime() - PENDING_PLAN_APPROVAL_TTL_MS) },
+    },
+    data: {
+      pendingPlan: null,
+      pendingPlanEffectiveAtUtc: null,
+      pendingPlanAwaitingApproval: false,
+      pendingPlanRequestedAtUtc: null,
+    },
+  });
+  return cleared.count > 0;
+}
+
+/** The buyer approved a PayPal revision: it is now a provider-confirmed schedule. */
+export async function markPlanChangeApproved(subscriptionId: string): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { id: subscriptionId, pendingPlanAwaitingApproval: true },
+    data: { pendingPlanAwaitingApproval: false },
   });
 }

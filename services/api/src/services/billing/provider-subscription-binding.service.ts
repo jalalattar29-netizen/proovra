@@ -35,15 +35,33 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 
-export type ResolvedPaymentSubject = {
-  userId: string;
-  /** null = the payer's PERSONAL account. */
-  teamId: string | null;
-  plan: prismaPkg.PlanType;
-};
+export type ResolvedPaymentSubject =
+  | {
+      product: "PLAN";
+      userId: string;
+      /** null = the payer's PERSONAL account. */
+      teamId: string | null;
+      plan: prismaPkg.PlanType;
+      /** The local Subscription row. */
+      recordId: string;
+    }
+  | {
+      /**
+       * BILLING PAYPAL INTEGRITY (2026-09-28) — a recurring STORAGE add-on is
+       * its own provider subscription and has no `subscriptions` row. Its
+       * renewals were "unattributable" and never reached payment history.
+       */
+      product: "STORAGE_ADDON";
+      userId: string;
+      teamId: string | null;
+      plan: null;
+      /** The local workspace_storage_addons row. */
+      recordId: string;
+    };
 
 /**
- * Resolve the commercial subject of a provider subscription id.
+ * Resolve the commercial subject of a provider subscription id: a base plan
+ * (`subscriptions`) or a recurring storage add-on (`workspace_storage_addons`).
  *
  * Returns `null` when this platform has no record of that subscription, which
  * the caller must treat as "do not attribute" rather than as a default.
@@ -62,11 +80,33 @@ export async function resolveSubjectFromProviderSubscription(input: {
         providerSubId: trimmed,
       },
     },
-    select: { userId: true, teamId: true, plan: true },
+    select: { id: true, userId: true, teamId: true, plan: true },
   });
 
-  if (!row) return null;
-  return { userId: row.userId, teamId: row.teamId ?? null, plan: row.plan };
+  if (row) {
+    return {
+      product: "PLAN",
+      userId: row.userId,
+      teamId: row.teamId ?? null,
+      plan: row.plan,
+      recordId: row.id,
+    };
+  }
+
+  const addon = await prisma.workspaceStorageAddon.findUnique({
+    where: { externalSubscriptionId: trimmed },
+    select: { id: true, ownerUserId: true, teamId: true, paymentProvider: true },
+  });
+  if (!addon || (addon.paymentProvider && addon.paymentProvider !== input.provider)) {
+    return null;
+  }
+  return {
+    product: "STORAGE_ADDON",
+    userId: addon.ownerUserId,
+    teamId: addon.teamId ?? null,
+    plan: null,
+    recordId: addon.id,
+  };
 }
 
 /**

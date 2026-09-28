@@ -420,6 +420,7 @@ export async function createPayPalCheckout(params: {
     returnUrl: successUrl,
     cancelUrl,
     requestId: params.attemptId ?? null,
+    expectedAmountCents: amountCents,
   });
 
   const subscriptionId = String(

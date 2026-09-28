@@ -74,6 +74,13 @@ describe("parsePayPalReturn — the real PayPal return URLs", () => {
     expect(parsePayPalReturn(params("canceled=1&provider=paypal&kind=credits&token=5O190127TN364715T"))).toEqual({
       kind: "BUYER_CANCELED",
       product: "credits",
+      subscriptionId: null,
+      orderId: "5O190127TN364715T",
+    });
+    expect(parsePayPalReturn(params("canceled=1&provider=paypal&kind=plan&subscription_id=I-BW452GLLEP1G&ba_token=BA-1"))).toMatchObject({
+      kind: "BUYER_CANCELED",
+      subscriptionId: "I-BW452GLLEP1G",
+      orderId: null,
     });
   });
 
@@ -142,6 +149,22 @@ describe("usePayPalReturn — server confirmation on return", () => {
     const { notify } = run("success=1&provider=paypal&kind=credits&token=5O190127TN364715T");
     await waitFor(() => expect(notify).toHaveBeenCalled());
     expect(notify).toHaveBeenCalledWith(expect.stringMatching(/could not confirm/), "error");
+  });
+
+  it("a customer cancellation that names its PayPal subscription closes it on the server (so it stops blocking checkout)", async () => {
+    apiFetch.mockResolvedValueOnce({ outcome: "ABANDONED" });
+    const { notify } = run("canceled=1&provider=paypal&kind=plan&subscription_id=I-BW452GLLEP1G");
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    expect(apiFetch.mock.calls[0]![0]).toBe("/v1/billing/checkout/paypal/returns/canceled");
+    expect(JSON.parse(String((apiFetch.mock.calls[0]![1] as { body: string }).body))).toEqual({ subscriptionId: "I-BW452GLLEP1G" });
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/Nothing was charged/), "info");
+  });
+
+  it("a server failure after approval is not reported as a refusal: PROOVRA keeps checking", async () => {
+    apiFetch.mockRejectedValueOnce(Object.assign(new Error("gateway"), { statusCode: 502 }));
+    const { notify } = run("success=1&provider=paypal&kind=credits&token=5O190127TN364715T");
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/keeps checking/), "info");
   });
 
   it("a customer cancellation calls nothing and says nothing was charged", async () => {

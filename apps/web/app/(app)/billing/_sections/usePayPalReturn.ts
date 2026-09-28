@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { reportPayPalReturnCanceled } from "../../../../lib/api/billing-accounts";
 import { captureException } from "../../../../lib/sentry";
 import {
   parsePayPalReturn,
@@ -53,6 +54,14 @@ export function usePayPalReturn(input: {
     if (ret.kind === "BUYER_CANCELED") {
       const msg = payPalCanceledMessage(ret.product);
       latest.current.notify(msg.message, msg.tone);
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — the buyer's cancel closes the
+      // checkout on the server (provider-first), so it no longer blocks the
+      // next one. Best effort: a failure leaves it to Billing activity.
+      if (ret.subscriptionId || ret.orderId) {
+        void reportPayPalReturnCanceled({ subscriptionId: ret.subscriptionId, orderId: ret.orderId })
+          .then(() => latest.current.onSettled())
+          .catch((err) => captureException(err, { feature: "billing_paypal_return_canceled" }));
+      }
       return;
     }
 
@@ -72,7 +81,10 @@ export function usePayPalReturn(input: {
           last = payPalReturnMessage(ret, response);
         } catch (err) {
           captureException(err, { feature: "billing_paypal_return", kind: ret.kind });
-          last = payPalReturnMessage(ret, null);
+          last = payPalReturnMessage(ret, {
+            code: (err as { code?: unknown }).code ?? null,
+            statusCode: (err as { statusCode?: unknown }).statusCode ?? null,
+          });
           break;
         }
         if (!last.retry || attempt === PAYPAL_RETURN_MAX_ATTEMPTS) break;

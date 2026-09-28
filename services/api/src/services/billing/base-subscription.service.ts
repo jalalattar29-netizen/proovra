@@ -1,6 +1,7 @@
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import type { DependencyBase } from "./storage-addon-rules.js";
 
 type SubscriptionStatusValue =
   (typeof prismaPkg.SubscriptionStatus)[keyof typeof prismaPkg.SubscriptionStatus];
@@ -45,6 +46,9 @@ export type LiveBaseSubscriptionRow = {
   billedUnitAmountCents?: number | null;
   pendingPlan: prismaPkg.PlanType | null;
   pendingPlanEffectiveAtUtc: Date | null;
+  /** The scheduled change still awaits the buyer's approval at the provider. */
+  pendingPlanAwaitingApproval?: boolean;
+  pendingPlanRequestedAtUtc?: Date | null;
   teamId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -86,6 +90,8 @@ const LIVE_BASE_SELECT = {
   billedUnitAmountCents: true,
   pendingPlan: true,
   pendingPlanEffectiveAtUtc: true,
+  pendingPlanAwaitingApproval: true,
+  pendingPlanRequestedAtUtc: true,
   teamId: true,
   createdAt: true,
   updatedAt: true,
@@ -170,3 +176,67 @@ export function derivePersonalBaseSubscriptionState(input: {
     providerTransition: null,
   };
 }
+
+type DependencyClient = Pick<prismaPkg.Prisma.TransactionClient, "subscription">;
+
+/**
+ * The dependency facts of ONE subject: the live base plan that still
+ * satisfies paid-only SKUs, and the bases that ended or are ending.
+ *
+ * `endingBaseIds` names bases the caller is cancelling right now (their row
+ * may still read ACTIVE until the provider's webhook lands).
+ */
+export async function loadDependencyContext(
+  client: DependencyClient,
+  input: { ownerUserId: string; teamId: string | null; endingBaseIds?: string[] },
+): Promise<{
+  satisfyingBase: { id: string; plan: prismaPkg.PlanType } | null;
+  endedBases: DependencyBase[];
+}> {
+  const ending = input.endingBaseIds ?? [];
+  const subject = input.teamId
+    ? { teamId: input.teamId }
+    : { userId: input.ownerUserId, teamId: null };
+  const select = {
+    id: true,
+    teamId: true,
+    status: true,
+    plan: true,
+    activatedAtUtc: true,
+    currentPeriodEnd: true,
+    locallyTerminatedAtUtc: true,
+  } as const;
+
+  const [satisfying, ended] = await Promise.all([
+    client.subscription.findFirst({
+      where: {
+        ...subject,
+        ...(ending.length > 0 ? { id: { notIn: ending } } : {}),
+        providerSubId: { not: "" },
+        status: {
+          in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE],
+        },
+        cancelAtPeriodEnd: false,
+        canceledAtUtc: null,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, plan: true },
+    }),
+    client.subscription.findMany({
+      where: {
+        ...subject,
+        OR: [
+          { status: prismaPkg.SubscriptionStatus.CANCELED },
+          { cancelAtPeriodEnd: true },
+          { canceledAtUtc: { not: null } },
+          ...(ending.length > 0 ? [{ id: { in: ending } }] : []),
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select,
+    }),
+  ]);
+  return { satisfyingBase: satisfying, endedBases: ended };
+}
+

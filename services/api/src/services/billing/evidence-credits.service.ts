@@ -321,6 +321,84 @@ export async function grantEvidenceCredits(params: {
 }
 
 /**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — UNDO a credit purchase the provider
+ * refunded or reversed (chargeback).
+ *
+ * POLICY: the credits that payment granted are removed from the wallet, as a
+ * REVERSAL ledger entry (negative delta) keyed on the same provider payment —
+ * history is never deleted, and at most one reversal exists per payment (a
+ * partial unique index). A credit already spent on an Evidence record cannot
+ * be taken back from that record: the reversal removes what is still in the
+ * wallet (never below zero) and reports the shortfall, which the caller
+ * records for review.
+ *
+ * Returns `reversed: false` when there was no PURCHASE for this payment (so
+ * nothing had been granted) or it was already reversed.
+ */
+export async function reverseEvidenceCreditPurchase(params: {
+  userId: string;
+  provider: prismaPkg.PaymentProvider;
+  providerRef: string;
+}): Promise<{ reversed: boolean; creditsRemoved: number; shortfall: number }> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const purchase = await tx.evidenceCreditLedgerEntry.findFirst({
+        where: {
+          entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+          provider: params.provider,
+          providerRef: params.providerRef,
+          userId: params.userId,
+        },
+        select: { creditsDelta: true },
+      });
+      if (!purchase) return { reversed: false, creditsRemoved: 0, shortfall: 0 };
+      const already = await tx.evidenceCreditLedgerEntry.findFirst({
+        where: {
+          entryType: prismaPkg.EvidenceCreditEntryType.REVERSAL,
+          evidenceId: null,
+          provider: params.provider,
+          providerRef: params.providerRef,
+        },
+        select: { id: true },
+      });
+      if (already) return { reversed: false, creditsRemoved: 0, shortfall: 0 };
+
+      const entitlement = await tx.entitlement.findFirst({
+        where: { userId: params.userId, active: true },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, credits: true },
+      });
+      const available = Math.max(0, entitlement?.credits ?? 0);
+      const owed = Math.max(0, purchase.creditsDelta);
+      const removable = Math.min(available, owed);
+      let balanceAfter = available;
+      if (entitlement && removable > 0) {
+        const updated = await tx.entitlement.update({
+          where: { id: entitlement.id },
+          data: { credits: { decrement: removable } },
+          select: { credits: true },
+        });
+        balanceAfter = updated.credits;
+      }
+      await tx.evidenceCreditLedgerEntry.create({
+        data: {
+          userId: params.userId,
+          entryType: prismaPkg.EvidenceCreditEntryType.REVERSAL,
+          creditsDelta: -removable,
+          provider: params.provider,
+          providerRef: params.providerRef,
+          balanceAfter,
+        },
+      });
+      return { reversed: true, creditsRemoved: removable, shortfall: owed - removable };
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return { reversed: false, creditsRemoved: 0, shortfall: 0 };
+    throw err;
+  }
+}
+
+/**
  * Consume ONE credit for a completed Evidence record.
  *
  * MUST be called with the same transaction client as the completion write, so

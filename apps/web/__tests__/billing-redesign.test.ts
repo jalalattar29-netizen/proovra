@@ -367,7 +367,10 @@ test("the cancel confirmation states the whole consequence, not just the plan", 
   // (`cancelDependentRecurringAddons`, in the same transaction). A customer not
   // told that finds out when the capacity goes.
   assert.match(src, /recurring storage add-on/);
-  assert.match(src, /no recurring storage add-ons, so nothing else is cancelled/);
+  // BILLING PAYPAL INTEGRITY (2026-09-28) — only add-ons whose SKU needs a paid
+  // plan end with it; storage a Free account may hold is kept and said so.
+  assert.match(src, /No storage add-on depends on this plan, so no storage is cancelled/);
+  assert.match(src, /you can keep on Free/);
 
   // And the fear this dialog actually raises: does the evidence survive.
   assert.match(src, /Your evidence is not deleted/);

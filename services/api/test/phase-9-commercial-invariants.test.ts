@@ -72,7 +72,11 @@ describe("Phase 9 §12.6 — billing failure/cancellation never deletes Evidence
     // another base subscription is live, takes nothing away. The branch still
     // ends in exactly one write, the FREE plan.
     expect(fn).toMatch(
-      /SubscriptionStatus\.CANCELED\)\s*\{[\s\S]*?if \(!everCarriedEntitlement\) return;[\s\S]*?if \(otherLive\) return;\s*await setPersonalPlan\(\s*params\.userId,\s*prismaPkg\.PlanType\.FREE,?\s*\);\s*return;/,
+      // BILLING PAYPAL INTEGRITY (2026-09-28) — the handler now returns its
+      // outcome, and a surviving live subscription's plan is kept (moved to it
+      // only when the plan in force was the cancelled one's). Still no other
+      // write: FREE, or the survivor's plan.
+      /SubscriptionStatus\.CANCELED\)\s*\{[\s\S]*?if \(!everCarriedEntitlement\) return applied;[\s\S]*?if \(otherLive\) \{[\s\S]*?return applied;\s*\}\s*await setPersonalPlan\(params\.userId,\s*prismaPkg\.PlanType\.FREE\);/,
     );
 
     // NEVER deletes evidence or purges memberships on cancellation.

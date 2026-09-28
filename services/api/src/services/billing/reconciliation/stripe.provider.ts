@@ -196,6 +196,30 @@ export function isStripeHostedCheckoutUrl(value: unknown): boolean {
   }
 }
 
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — what a Checkout Session was for, from
+ * the metadata PROOVRA itself stamped on it. Never inferred from an amount.
+ */
+function stripeSessionProduct(session: Record<string, unknown>): {
+  productKey: "EVIDENCE_CREDIT" | "PLAN" | "STORAGE_ADDON" | null;
+  attemptId: string | null;
+} {
+  const meta = asRecord(session["metadata"]) ?? {};
+  const productKey =
+    meta["productKey"] === "EVIDENCE_CREDIT" || meta["plan"] === "PAYG"
+      ? "EVIDENCE_CREDIT"
+      : typeof meta["storageAddonKey"] === "string"
+        ? "STORAGE_ADDON"
+        : typeof meta["plan"] === "string"
+          ? "PLAN"
+          : null;
+  const attempt = typeof meta["attemptId"] === "string" ? meta["attemptId"] : null;
+  return {
+    productKey,
+    attemptId: attempt && /^[0-9a-f-]{36}$/i.test(attempt) ? attempt : null,
+  };
+}
+
 export class StripeBillingReconciliationProvider
   implements BillingReconciliationProvider
 {
@@ -254,6 +278,7 @@ export class StripeBillingReconciliationProvider
         state === "PENDING" && isStripeHostedCheckoutUrl(url)
           ? (url as string)
           : null,
+      ...stripeSessionProduct(session),
     };
   }
 

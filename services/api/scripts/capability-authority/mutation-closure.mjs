@@ -198,6 +198,13 @@ const FAMILY_RULES = Object.freeze([
    * started and what the provider said about it), never an entitlement.
    */
   [/^billingCheckoutAttempt$/, "BILLING_SUBSCRIPTION_SEAT"],
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the auditable record of a provider
+   * charge PROOVRA could not turn into an entitlement (superseded duplicate
+   * subscription, refused storage activation, refund of consumed credits,
+   * dispute). Billing state for operator review, never an entitlement.
+   */
+  [/^billingReviewItem$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** The public verification page's view record for a shared package. */
   [/^verificationView$/, "EXTERNAL_REVIEW_INTAKE_SHARE"],
   /** SCIM/SSO-driven membership provisioning grants. */

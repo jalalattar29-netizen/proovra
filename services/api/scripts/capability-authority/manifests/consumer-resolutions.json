@@ -393,11 +393,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:332",
+      "site": "apps/mobile/app/(stack)/billing.tsx:349",
       "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:329",
-        "apps/mobile/app/(stack)/billing.tsx:332",
+        "apps/mobile/app/(stack)/billing.tsx:346",
+        "apps/mobile/app/(stack)/billing.tsx:349",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
@@ -413,11 +413,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:339",
+      "site": "apps/mobile/app/(stack)/billing.tsx:362",
       "helper": "checkoutRequest({ ...purchase, transition: false }, provider, currency).path — the CHECKOUT_REQUIRED fallback of a plan transition",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:338",
-        "apps/mobile/app/(stack)/billing.tsx:339"
+        "apps/mobile/app/(stack)/billing.tsx:361",
+        "apps/mobile/app/(stack)/billing.tsx:362"
       ],
       "routes": [
         "POST /v1/billing/checkout/stripe",
@@ -425,6 +425,22 @@
       ],
       "evidence": "Reached only when purchase.kind === \"PLAN\" && purchase.transition, re-issued with transition: false, so the table yields `/v1/billing/checkout/${provider}` only.",
       "reviewedAtUtc": "2026-09-25"
+    },
+    {
+      "site": "apps/mobile/app/(stack)/billing.tsx:300",
+      "helper": "payPalReturnConfirmation(response, provider).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/billing.tsx:290",
+        "apps/mobile/app/(stack)/billing.tsx:300",
+        "apps/mobile/app/(stack)/billing.tsx:373",
+        "apps/mobile/src/product/billing-purchase.ts"
+      ],
+      "routes": [
+        "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
+        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
+      ],
+      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`.",
+      "reviewedAtUtc": "2026-09-28"
     }
   ]
 }

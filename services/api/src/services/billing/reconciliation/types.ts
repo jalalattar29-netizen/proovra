@@ -135,6 +135,15 @@ export type PaymentObservation = {
    * an order the buyer has already approved. Never shown to a customer.
    */
   providerStatus?: string | null;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — WHAT the provider object says was
+   * bought, read from what PROOVRA wrote into it (Stripe session metadata,
+   * PayPal order custom_id). Credit recovery grants only on EVIDENCE_CREDIT —
+   * an amount never decides it. Null = the provider object names nothing.
+   */
+  productKey?: "EVIDENCE_CREDIT" | "PLAN" | "STORAGE_ADDON" | "STORAGE_ADDON_ONE_TIME" | null;
+  /** The durable checkout attempt the provider object names, when it does. */
+  attemptId?: string | null;
 };
 
 /** ONE provider subscription, as observed. */
@@ -159,6 +168,14 @@ export type SubscriptionObservation = {
   failure?: ObservationFailure;
   /** See PaymentObservation.providerStatus. */
   providerStatus?: string | null;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — the billed plan id and the
+   * PROOVRA custom_id the provider object carries, so a first storage
+   * activation observed by reconciliation is decided with the same identity
+   * and plan checks as the webhook. Server-side only; never sent to a client.
+   */
+  planId?: string | null;
+  customId?: string | null;
 };
 
 export type Observation = PaymentObservation | SubscriptionObservation;
@@ -244,6 +261,8 @@ export type StorageAttemptReconciliation = {
   resumeUrl?: string | null;
   /** Raw provider status (server-side decisions only). */
   providerStatus?: string | null;
+  /** See CheckoutAttemptReconciliation.waitingFor. */
+  waitingFor?: AttemptWaitingFor;
 };
 
 /**
@@ -266,7 +285,23 @@ export type CheckoutAttemptReconciliation = {
   /** The customer had already abandoned this attempt locally. */
   locallyAbandoned: boolean;
   resumeUrl?: string | null;
+  /**
+   * BILLING PAYPAL INTEGRITY (2026-09-28) — for a STILL_PENDING attempt, WHAT
+   * it is waiting for, so the page never calls a payment that is processing
+   * (or a Stripe page that is open) "waiting for your approval at PayPal".
+   */
+  waitingFor?: AttemptWaitingFor;
 };
+
+export type AttemptWaitingFor =
+  /** The buyer has not approved at the provider yet. */
+  | "APPROVAL"
+  /** The buyer approved a subscription; the provider has not activated it. */
+  | "ACTIVATION"
+  /** Money is moving (a capture or payment method still settling). */
+  | "PAYMENT_PROCESSING"
+  /** A Stripe payment page is open and unpaid. */
+  | "PAYMENT_PAGE";
 
 /**
  * What a reconciliation run did, in categories a customer can read.

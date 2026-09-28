@@ -21,6 +21,10 @@
 import * as prismaPkg from "@prisma/client";
 
 import { PayPalHttpError, paypalGet } from "../../paypal.service.js";
+import {
+  parsePayPalCustomId,
+  parsePayPalStorageAddonCustomId,
+} from "../../paypal-checkout-policy.service.js";
 import type {
   BillingReconciliationProvider,
   ObservationFailure,
@@ -220,6 +224,27 @@ export function isAskablePayPalReference(providerRef: string): boolean {
   return providerRef.trim().length > 0;
 }
 
+/**
+ * BILLING PAYPAL INTEGRITY (2026-09-28) — what an order was for, from the
+ * custom_id PROOVRA wrote into it. Never inferred from an amount.
+ */
+function orderProduct(unit: Record<string, unknown> | null): {
+  productKey: "EVIDENCE_CREDIT" | "STORAGE_ADDON_ONE_TIME" | "PLAN" | null;
+  attemptId: string | null;
+} {
+  const customId = typeof unit?.["custom_id"] === "string" ? (unit["custom_id"] as string) : null;
+  if (!customId) return { productKey: null, attemptId: null };
+  if (parsePayPalStorageAddonCustomId(customId)) {
+    return { productKey: "STORAGE_ADDON_ONE_TIME", attemptId: null };
+  }
+  const parsed = parsePayPalCustomId(customId);
+  if (!parsed.userId || !parsed.plan) return { productKey: null, attemptId: null };
+  return {
+    productKey: parsed.plan === prismaPkg.PlanType.PAYG ? "EVIDENCE_CREDIT" : "PLAN",
+    attemptId: parsed.attemptId ?? null,
+  };
+}
+
 function unknownPayment(
   providerRef: string,
   failure: PaymentObservation["failure"],
@@ -306,6 +331,7 @@ export class PayPalBillingReconciliationProvider
       kind: "PAYMENT",
       provider: PROVIDER,
       providerRef,
+      ...orderProduct(unit),
       state: orderState(order),
       amountCents: centsFromAmount(amount?.["value"]),
       currency:
@@ -346,10 +372,31 @@ export class PayPalBillingReconciliationProvider
     if (!capture || capture["id"] !== providerRef) return null;
     const amount = asRecord(capture["amount"]);
 
+    // WHAT the capture paid for is written on its ORDER (custom_id), which
+    // the capture names in supplementary_data. A capture whose order cannot
+    // be read names no product: it is never treated as a credit.
+    const related = asRecord(asRecord(capture["supplementary_data"])?.["related_ids"]);
+    const orderId = typeof related?.["order_id"] === "string" ? (related["order_id"] as string) : null;
+    let product: ReturnType<typeof orderProduct> = { productKey: null, attemptId: null };
+    if (orderId) {
+      try {
+        const order = asRecord(
+          await paypalGet(`/v2/checkout/orders/${encodeURIComponent(orderId)}`),
+        );
+        const unit = Array.isArray(order?.["purchase_units"])
+          ? asRecord((order!["purchase_units"] as unknown[])[0])
+          : null;
+        product = orderProduct(unit);
+      } catch {
+        // The capture is still observed; it just names no product.
+      }
+    }
+
     return {
       kind: "PAYMENT",
       provider: PROVIDER,
       providerRef,
+      ...product,
       state: captureState(capture),
       amountCents: centsFromAmount(amount?.["value"]),
       currency:
@@ -456,6 +503,8 @@ export class PayPalBillingReconciliationProvider
       recentPayments: await this.recentTransactions(providerRef),
       resumeUrl: sub["status"] === "APPROVAL_PENDING" ? approvalLink(sub) : null,
       providerStatus: typeof sub["status"] === "string" ? sub["status"] : null,
+      planId: typeof sub["plan_id"] === "string" ? sub["plan_id"] : null,
+      customId: typeof sub["custom_id"] === "string" ? sub["custom_id"] : null,
     };
   }
 
