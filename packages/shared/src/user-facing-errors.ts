@@ -658,6 +658,22 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "View billing",
     actionHref: "/billing",
   },
+  // BILLING (2026-09-28) — storage checkout refusals from billing.routes.ts.
+  PAYPAL_STORAGE_APPROVAL_PENDING: {
+    title: "A storage checkout is already open",
+    message:
+      "A PayPal checkout for storage is already waiting for your approval. Finish it, or resolve it under Billing activity before starting another.",
+    severity: "info",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  STORAGE_ADDON_CURRENCY_MISMATCH: {
+    title: "The storage price changed",
+    message: "The storage offer's currency changed since this page loaded. Refresh Billing and try again. Nothing was charged.",
+    severity: "info",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
   LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE: {
     title: "This purchase can't be cancelled",
     message:

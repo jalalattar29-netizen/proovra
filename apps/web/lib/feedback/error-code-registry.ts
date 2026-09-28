@@ -291,6 +291,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   PROVIDER_CANCELLATION_FAILED: { disposition: "customer", where: "global" },
   STORAGE_ADDON_NOT_FOUND: { disposition: "customer", where: "global" },
   STORAGE_ADDON_NOT_LINKED: { disposition: "customer", where: "global" },
+  // BILLING (2026-09-28) — a storage checkout refused because a PayPal storage
+  // approval is already open, or because the offer's currency changed since
+  // the page loaded. Both carry a customer sentence the page shows as given.
+  PAYPAL_STORAGE_APPROVAL_PENDING: { disposition: "customer", where: "global" },
+  STORAGE_ADDON_CURRENCY_MISMATCH: { disposition: "customer", where: "global" },
   LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE: {
     disposition: "customer",
     where: "global",
