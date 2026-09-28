@@ -47,6 +47,8 @@ let consumers = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let firstPending = false;
 let inFlight = false;
+/** When the last read settled; a remount within one interval reuses it. */
+let lastSettledAt = 0;
 
 function emit(next: ServiceStatusSnapshot) {
   snapshot = next;
@@ -62,6 +64,7 @@ export async function refreshServiceStatus(): Promise<void> {
   } catch {
     emit({ status: null, error: true, settled: true });
   } finally {
+    lastSettledAt = Date.now();
     inFlight = false;
   }
 }
@@ -72,7 +75,10 @@ function start() {
   const firstRun = () => {
     if (!firstPending) return;
     firstPending = false;
-    if (consumers > 0) void refreshServiceStatus();
+    // A consumer remounting (a tab switch, a route change) inside one poll
+    // interval reuses the answer it already has instead of asking again.
+    const fresh = snapshot.settled && Date.now() - lastSettledAt < SERVICE_STATUS_POLL_MS;
+    if (consumers > 0 && !fresh) void refreshServiceStatus();
   };
   const idle = (
     globalThis as unknown as {
@@ -121,6 +127,7 @@ export function resetServiceStatusForTests(): void {
   stop();
   consumers = 0;
   inFlight = false;
+  lastSettledAt = 0;
   snapshot = INITIAL;
   for (const l of listeners) l();
 }
