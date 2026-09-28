@@ -441,6 +441,30 @@ export async function generateIncidentsForWorkspace(
     }
   }
 
+  // -------------------------------------------------------------------------
+  // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — THE PIPELINE BRIDGES RESOLVE FROM
+  // SOURCE TRUTH TOO.
+  //
+  // Both sources were declared PROBE_AUTO_RESOLVE and no scheduler ever swept
+  // them, so a condition stayed open until a person closed it — and the
+  // manual close was allowed while the package was still missing (see the
+  // probe). The worker opens these conditions; this reads the now
+  // version-aware probes and closes exactly the ones whose artifact exists at
+  // the version the condition names. DISCOVERY IS NOT THE PRODUCER HERE.
+  // -------------------------------------------------------------------------
+  for (const sourceId of [
+    "pipeline.report_generation_failed",
+    "pipeline.package_generation_failed",
+  ] as const) {
+    attempted.push(sourceId);
+    try {
+      await sweepSourceTruthRecoveries({ teamId: ctx.teamId, sourceId });
+      successful.push(sourceId);
+    } catch (err) {
+      failSource([sourceId], "SCAN", err);
+    }
+  }
+
   return {
     recorded,
     failed,

@@ -91,19 +91,24 @@ import { logger, withJobContext } from "./logger.js";
 // import is not tidying — an unused deletion primitive in the worker's largest
 // module is an invitation to re-open the second delete path this pass closed.
 import {
-  applyDefaultObjectRetention,
-  copyObject,
   deleteObject,
   getObjectStream,
   headObject,
-  putObjectBuffer,
-  putObjectFromFile,
 } from "./storage.js";
 import {
   cleanupStagedTemp,
-  stagingPackageKey,
   type StagedPackage,
 } from "./verification-package-staging.js";
+// EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the one way a report PDF or a
+// package ZIP is written: checksum-bound, retention in the same request,
+// single-use key, read back by VersionId before a row may say READY.
+import {
+  StoragePublicationRejectedError,
+  buildPublicationKey,
+  publishImmutableArtifact,
+  type PublishedArtifact,
+} from "./immutable-publication.js";
+import type { PackageSealResult } from "./verification-package.js";
 import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
 // Phase O1.5B — bounded integrity.signature.verify span on the
 // Ed25519 verification of report signing artifacts.
@@ -1078,6 +1083,45 @@ function resolveRecordedIntegrityPromotionDecision(params: {
  * the same private helper, given a name a test can reach so the package-failure
  * state transition can be asserted without standing up a signed fixture.
  */
+/**
+ * The workspace allowance refused the package: its plan does not include one,
+ * or publishing it would exceed the workspace's storage. A commercial answer,
+ * carried apart from pipeline failures so it never opens an incident or
+ * burns the retry budget.
+ */
+export class PackageAllowanceRefusal extends Error {
+  readonly code: "VERIFICATION_PACKAGE_NOT_INCLUDED" | "STORAGE_LIMIT_REACHED";
+  constructor(code: "VERIFICATION_PACKAGE_NOT_INCLUDED" | "STORAGE_LIMIT_REACHED") {
+    super(code);
+    this.name = "PackageAllowanceRefusal";
+    this.code = code;
+  }
+}
+
+/** Errors the package path raised after its own incident was recorded. */
+export function isPackageOwnedFailure(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  return (
+    code.startsWith("VERIFICATION_PACKAGE_INCOMPLETE_") ||
+    code === "VERIFICATION_PACKAGE_STORAGE_REJECTED"
+  );
+}
+
+/** Classify an allowance-gate error; anything unrecognised stays a failure. */
+export function toPackageAllowanceRefusal(error: unknown): unknown {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  if (code === "VERIFICATION_PACKAGE_NOT_INCLUDED" || code === "STORAGE_LIMIT_REACHED") {
+    return new PackageAllowanceRefusal(code);
+  }
+  return error;
+}
+
 export function createWorkerError(code: string, retriable: boolean): WorkerError {
   const err = new Error(code) as WorkerError;
   err.code = code;
@@ -1158,30 +1202,6 @@ function isCommercialDenialError(error: unknown): boolean {
   return commercialDenialCode(error) !== null;
 }
 
-function isAlreadyObjectLockedLike(e: unknown): boolean {
-  const err = e as {
-    name?: unknown;
-    code?: unknown;
-    Code?: unknown;
-    message?: unknown;
-  };
-
-  const name = String(err?.name ?? "").toLowerCase();
-  const code = String(err?.code ?? err?.Code ?? "").toLowerCase();
-  const msg = String(err?.message ?? "").toLowerCase();
-
-  return (
-    name.includes("accessdenied") ||
-    code.includes("accessdenied") ||
-    code === "accessdenied" ||
-    msg.includes("access denied because object protected by object lock") ||
-    msg.includes("object protected by object lock") ||
-    msg.includes("object lock") ||
-    msg.includes("retention") ||
-    msg.includes("legal hold")
-  );
-}
-
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
@@ -1189,6 +1209,7 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
   }
   return Buffer.concat(chunks);
 }
+
 
 /**
  * Incrementally SHA-256 a stream WITHOUT materialising it — the integrity re-hash
@@ -1201,35 +1222,6 @@ async function sha256HexFromStream(stream: Readable): Promise<string> {
     hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return hash.digest("hex");
-}
-
-async function applyRetentionOrThrow(
-  targets: Array<{ bucket: string; key: string }>
-) {
-  const deduped = Array.from(
-    new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
-  );
-
-  for (const target of deduped) {
-    try {
-      await applyDefaultObjectRetention({
-        bucket: target.bucket,
-        key: target.key,
-      });
-    } catch (error) {
-      if (isAlreadyObjectLockedLike(error)) {
-        continue;
-      }
-
-      const reason =
-        error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
-
-      throw createWorkerError(
-        `OBJECT_RETENTION_APPLY_FAILED:${target.bucket}:${target.key}:${reason}`,
-        false
-      );
-    }
-  }
 }
 
 // `deleteObjectIfExists` used to live here. Its only caller was the purge
@@ -3112,6 +3104,7 @@ async function loadCommittedReportForPackage(params: {
       generatedAtUtc: true,
       reviewerSummaryVersion: true,
       trustDecisionSnapshot: true,
+      s3VersionId: true,
     },
   });
   if (!report) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
@@ -3121,7 +3114,6 @@ async function loadCommittedReportForPackage(params: {
   // Every downstream consumer reads the version and keys from `prepared`.
   prepared.version = version;
   prepared.reportKey = report.storageKey;
-  prepared.verificationKey = `verification/${evidenceId}/v${version}.zip`;
 
   const current = await prisma.evidence.findUniqueOrThrow({
     where: { id: evidenceId },
@@ -3131,8 +3123,19 @@ async function loadCommittedReportForPackage(params: {
       reviewReadyAtUtc: true,
     },
   });
+  /*
+   * AS OF THE REPORT'S ISSUANCE, NOT AS OF NOW.
+   *
+   * A package built later for an issued report used to carry every custody
+   * event up to the moment of assembly, beside a report that described the
+   * chain as it stood when it was issued. The package now carries the chain
+   * the report describes: every event recorded at or before the report's
+   * issuance instant (the issuance's own events share that instant). Later
+   * events are later facts; the seal records the cut-off and that the package
+   * was assembled after the report.
+   */
   const custodyEvents = await prisma.custodyEvent.findMany({
-    where: { evidenceId },
+    where: { evidenceId, atUtc: { lte: report.generatedAtUtc } },
     orderBy: { sequence: "asc" },
     select: {
       sequence: true,
@@ -3203,6 +3206,8 @@ async function loadCommittedReportForPackage(params: {
     effectiveRecordedIntegrityVerifiedAtUtc,
     finalizedReportPdf: verified.bytes,
     finalizedTrustDecision,
+    reportIssuedAtUtc: report.generatedAtUtc,
+    custodyThroughSequence: custodyEvents.at(-1)?.sequence ?? null,
     finalizedCustodyEvents: custodyEvents.map((ev) => ({
       sequence: ev.sequence,
       atUtc: ev.atUtc.toISOString(),
@@ -3297,7 +3302,19 @@ async function runReportGeneration(
      * condition; treating it as a pipeline failure would turn a policy decision
      * into an incident and retry against a gate that is meant to hold.
      */
-    let packageTechnicalFailure: { phase: string; message: string } | null = null;
+    let packageTechnicalFailure: {
+      phase: string;
+      message: string;
+      /** False for a deterministic storage refusal: retrying cannot succeed. */
+      retriable?: boolean;
+      storageCode?: string | null;
+    } | null = null;
+    /**
+     * The package was refused by the workspace allowance (plan or storage),
+     * not failed by the pipeline. Carried out so the request records the
+     * commercial answer instead of escalating an outage.
+     */
+    let packageAllowanceRefusal: PackageAllowanceRefusal | null = null;
 
     /*
      * =====================================================================
@@ -3419,77 +3436,188 @@ async function runReportGeneration(
             prepared,
             teamId: evidence.teamId ?? null,
           })
-        : await prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`
-          SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
-        `;
-
+        : await (async () => {
         /*
          * =====================================================================
-         * VERSION RESERVATION — INSIDE THE LOCK, BEFORE ANY OBJECT IS WRITTEN.
+         * REPORT ISSUANCE IN THREE PHASES (2026-09-29)
          * =====================================================================
-         * `prepareReportArtifacts` computed `provisionalVersion = max+1` and
-         * built both storage keys from it, and it did that OUTSIDE this
-         * transaction — before the advisory lock that serializes generation for
-         * this record. The lock therefore protected only the DATABASE work.
+         * The report used to be rendered, uploaded to object storage, retention-
+         * locked and HEAD-checked INSIDE one 120-second database transaction.
+         * A storage call inside a transaction holds row locks and a connection
+         * for the length of a network round trip, and when the commit then
+         * failed the locked object was already published under a key the retry
+         * would write again with different bytes.
          *
-         * Two runnable requests for one record at one baseline both held N.
-         * That pair is reachable: a completion request (`REPORT:<id>:v0`) still
-         * retrying when the OTS upgrade anchors and asks for a forced
-         * regeneration (`REPORT:<id>:v0:force`) is two DIFFERENT idempotency
-         * keys, so nothing collapsed them. Both would build, both would upload
-         * to `reports/<id>/vN.pdf`, and only then would the unique index on
-         * (evidenceId, version) elect a winner — by which point the object at
-         * that key held the LOSER's bytes while the surviving row described the
-         * winner's. An evidentiary artifact whose stored bytes are not the bytes
-         * its row describes is not a state this platform may reach.
+         *   A. RESERVE (short transaction, advisory lock): decide whether this
+         *      run may issue a report at all, and reserve version N on the
+         *      request row (`stage = REPORT_RESERVED`). A retry of the same
+         *      request reuses its reservation; a concurrent request reserves
+         *      past it.
+         *   B. RENDER + PUBLISH (no transaction): read the record, render the
+         *      PDF, check the allowance with the exact size, publish it once
+         *      to a single-use key with its checksum and retention, and verify
+         *      it by VersionId.
+         *   C. COMMIT (short transaction, advisory lock): confirm the
+         *      reservation still stands, then append the issuance custody
+         *      events, write the Report row with the exact object identity,
+         *      and advance the request to REPORT_COMMITTED.
          *
-         * The uniqueness constraint is a backstop, not an allocator. The
-         * allocation now happens here, inside the serialized boundary, and every
-         * downstream consumer — the finalized PDF, both storage keys, the Report
-         * row, the package built after this transaction — reads the reserved
-         * number rather than the provisional one.
+         * If C refuses (someone else committed N), the object published in B is
+         * an unreferenced immutable orphan — never a second version at a key a
+         * row points to — and the run retries against fresh state.
          *
-         * WHY MUTATING `prepared` RATHER THAN THREADING A PARAMETER. `prepared`
-         * is this run's own working object, built moments ago by
-         * `prepareReportArtifacts` and referenced from ~30 places in this
-         * transaction and in the package block after it. Re-pointing it once,
-         * before its first use, gives every one of those sites the reserved
-         * value; threading a second version variable through them all would
-         * leave thirty opportunities to read the stale one.
+         * The PDF describes the custody chain AS OF ITS ISSUANCE: it is
+         * rendered from the chain read in B, and `custodyThroughSequence` on
+         * the row records exactly where that chain ended. The issuance's own
+         * events (identity context, REPORT_GENERATED, REVIEW_READY) are
+         * appended in C and follow it in the chain.
          */
-        const reservation = await tx.report.aggregate({
-          where: { evidenceId: prepared.evidenceId },
-          _max: { version: true },
-        });
-        const reservedVersion = (reservation._max.version ?? 0) + 1;
+
+        // ---- A. RESERVE ----------------------------------------------------
+        const reservation = await prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`
+              SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
+            `;
+            const lockedEvidence = await tx.evidence.findFirst({
+              where: { id: prepared.evidenceId, deletedAt: null },
+              select: {
+                id: true,
+                status: true,
+                fileSha256: true,
+                fingerprintHash: true,
+                signatureBase64: true,
+                signingKeyId: true,
+                signingKeyVersion: true,
+              },
+            });
+            if (!lockedEvidence) {
+              throw createWorkerError("EVIDENCE_NOT_FOUND", false);
+            }
+
+            const existingLatestReport = await tx.report.findFirst({
+              where: { evidenceId: prepared.evidenceId },
+              orderBy: { version: "desc" },
+              select: { version: true },
+            });
+
+            /*
+             * Completeness is a PAIR AT ONE VERSION: the package that
+             * accompanies the latest report, not "some package". Report v2
+             * beside package v1 is not complete — package v1 embeds report v1.
+             */
+            const lockedPackage =
+              verificationPackageEntitled && existingLatestReport
+                ? await tx.verificationPackage.findFirst({
+                    where: {
+                      evidenceId: prepared.evidenceId,
+                      version: existingLatestReport.version,
+                    },
+                    select: { id: true },
+                  })
+                : null;
+
+            if (
+              lockedEvidence.status === EvidenceStatus.REPORTED &&
+              existingLatestReport &&
+              !forceRegenerate
+            ) {
+              if (!verificationPackageEntitled || lockedPackage !== null) {
+                return {
+                  skipped: true as const,
+                  existingReportVersion: existingLatestReport.version,
+                };
+              }
+              // A concurrent run committed a report after this run decided to
+              // issue the first one. Issuing another would be wrong; the retry
+              // re-reads the state and completes that report's package instead.
+              throw createWorkerError("REPORT_STATE_CHANGED_RETRY", true);
+            }
+
+            if (
+              lockedEvidence.status !== EvidenceStatus.SIGNED &&
+              !(forceRegenerate && lockedEvidence.status === EvidenceStatus.REPORTED)
+            ) {
+              throw createWorkerError(
+                `EVIDENCE_NOT_SIGNED:${lockedEvidence.status}`,
+                false,
+              );
+            }
+
+            if (
+              !lockedEvidence.fileSha256 ||
+              !lockedEvidence.fingerprintHash ||
+              !lockedEvidence.signatureBase64 ||
+              !lockedEvidence.signingKeyId ||
+              lockedEvidence.signingKeyVersion == null
+            ) {
+              throw createWorkerError("SIGNED_EVIDENCE_CRYPTO_STATE_INCOMPLETE", false);
+            }
+
+            // This request's own reservation, when a previous attempt made one
+            // and nothing was committed at it.
+            const own = await tx.reportGenerationRequest.findUnique({
+              where: { id: command.requestId },
+              select: { reportVersion: true, stage: true },
+            });
+            const latestVersion = existingLatestReport?.version ?? 0;
+            let reserved: number;
+            if (
+              own?.stage === "REPORT_RESERVED" &&
+              own.reportVersion != null &&
+              own.reportVersion > latestVersion
+            ) {
+              reserved = own.reportVersion;
+            } else {
+              const others = await tx.reportGenerationRequest.aggregate({
+                where: {
+                  evidenceId: prepared.evidenceId,
+                  id: { not: command.requestId },
+                  stage: "REPORT_RESERVED",
+                  state: { in: ["QUEUED", "PROCESSING", "FAILED_RETRYABLE"] },
+                },
+                _max: { reportVersion: true },
+              });
+              reserved = Math.max(latestVersion, others._max.reportVersion ?? 0) + 1;
+              await tx.reportGenerationRequest.update({
+                where: { id: command.requestId },
+                data: { reportVersion: reserved, stage: "REPORT_RESERVED" },
+              });
+            }
+            return {
+              skipped: false as const,
+              reservedVersion: reserved,
+              previousReportVersion: existingLatestReport?.version ?? null,
+            };
+          },
+          { maxWait: 10_000, timeout: 15_000 },
+        );
+
+        if (reservation.skipped) {
+          return {
+            skipped: true as const,
+            existingReportVersion: reservation.existingReportVersion,
+            reportVersion: reservation.existingReportVersion,
+            finalizedCustodyEvents: [],
+          };
+        }
+
+        const reservedVersion = reservation.reservedVersion;
         prepared.version = reservedVersion;
-        prepared.reportKey = `reports/${prepared.evidenceId}/v${reservedVersion}.pdf`;
-        prepared.verificationKey = `verification/${prepared.evidenceId}/v${reservedVersion}.zip`;
         /*
          * The reviewer-summary version travels on the identity snapshot and is
-         * persisted on the Report row, so it has to follow the reservation too;
-         * it was captured from the provisional number at prep time.
+         * persisted on the Report row, so it follows the reservation; it was
+         * captured from the provisional number at prep time.
          */
         prepared.identitySnapshot.reviewerSummaryVersion = reservedVersion;
 
-        const lockedEvidence = await tx.evidence.findFirst({
+        // ---- B. RENDER + PUBLISH (no transaction) --------------------------
+        const lockedEvidence = await prisma.evidence.findFirst({
           where: { id: prepared.evidenceId, deletedAt: null },
           select: {
             id: true,
-            ownerUserId: true,
-            status: true,
             verificationStatus: true,
             recordedIntegrityVerifiedAtUtc: true,
-            reportGeneratedAtUtc: true,
-            fileSha256: true,
-            fingerprintHash: true,
-            signatureBase64: true,
-            signingKeyId: true,
-            signingKeyVersion: true,
-            lockedAt: true,
-            verificationPackageVersion: true,
             // Phase 6 — Read Phase T template-identity trio so the
             // generated report can surface a provenance envelope.
             // Identity-only; never drives policy.
@@ -3498,130 +3626,11 @@ async function runReportGeneration(
             templateDbId: true,
           },
         });
-
         if (!lockedEvidence) {
           throw createWorkerError("EVIDENCE_NOT_FOUND", false);
         }
 
-        const existingLatestReport = await tx.report.findFirst({
-          where: { evidenceId: prepared.evidenceId },
-          orderBy: { version: "desc" },
-          select: {
-            id: true,
-            version: true,
-            storageBucket: true,
-            storageKey: true,
-            generatedAtUtc: true,
-          },
-        });
-
-        /*
-         * The same completeness rule as the pre-transaction guard, re-asserted
-         * under the lock. A concurrent run may have created the report between
-         * the two checks; what must not happen is that this one skips while the
-         * package the request is responsible for is still absent.
-         */
-        /*
-         * Completeness is a PAIR AT ONE VERSION: the package that accompanies
-         * the latest report, not "some package". Report v2 beside package v1 is
-         * not complete — package v1 embeds report v1.
-         */
-        const lockedPackage =
-          verificationPackageEntitled && existingLatestReport
-            ? await tx.verificationPackage.findFirst({
-                where: {
-                  evidenceId: prepared.evidenceId,
-                  version: existingLatestReport.version,
-                },
-                select: { id: true },
-              })
-            : null;
-
-        if (
-          lockedEvidence.status === EvidenceStatus.REPORTED &&
-          existingLatestReport &&
-          !forceRegenerate
-        ) {
-          if (!verificationPackageEntitled || lockedPackage !== null) {
-            return {
-              skipped: true as const,
-              existingReportVersion: existingLatestReport.version,
-              reportVersion: existingLatestReport.version,
-              finalizedCustodyEvents: [],
-            };
-          }
-          // A concurrent run committed a report after this run decided to
-          // generate the first one. Minting another would be wrong; the retry
-          // re-reads the state and completes that report's package instead.
-          throw createWorkerError("REPORT_STATE_CHANGED_RETRY", true);
-        }
-
-        if (
-          lockedEvidence.status !== EvidenceStatus.SIGNED &&
-          !(forceRegenerate && lockedEvidence.status === EvidenceStatus.REPORTED)
-        ) {
-          throw createWorkerError(
-            `EVIDENCE_NOT_SIGNED:${lockedEvidence.status}`,
-            false
-          );
-        }
-
-        if (
-          !lockedEvidence.fileSha256 ||
-          !lockedEvidence.fingerprintHash ||
-          !lockedEvidence.signatureBase64 ||
-          !lockedEvidence.signingKeyId ||
-          lockedEvidence.signingKeyVersion == null
-        ) {
-          throw createWorkerError(
-            "SIGNED_EVIDENCE_CRYPTO_STATE_INCOMPLETE",
-            false
-          );
-        }
-
-        // Phase C #5 — distinct event type for the worker-time identity
-        // re-snapshot. The intake-time IDENTITY_SNAPSHOT_RECORDED event is
-        // written by the API at evidence creation. Re-using the same event
-        // type at report generation made the chain look like a duplicate or
-        // tampered audit entry. REPORT_IDENTITY_CONTEXT_RECORDED carries
-        // the same payload shape but the distinct semantic of "report-time
-        // identity context for the reviewer audit context".
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType:
-            prismaPkg.CustodyEventType.REPORT_IDENTITY_CONTEXT_RECORDED,
-          atUtc: prepared.now,
-          payload: {
-            phase: "report_identity_context",
-            submittedByEmail: prepared.identitySnapshot.submittedByEmail,
-            submittedByAuthProvider:
-              prepared.identitySnapshot.submittedByAuthProvider,
-            identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
-            workspaceNameSnapshot:
-              prepared.identitySnapshot.workspaceNameSnapshot,
-            organizationNameSnapshot:
-              prepared.identitySnapshot.organizationNameSnapshot,
-            organizationVerifiedSnapshot:
-              prepared.identitySnapshot.organizationVerifiedSnapshot,
-          } as Prisma.InputJsonValue,
-        });
-
-        /*
-         * THE OTS WRITE BLOCK IS GONE, NOT MOVED INSIDE A CONDITION.
-         *
-         * Sixty lines here persisted the stamp this job had made, appended
-         * its custody event, and decided whether to schedule the upgrade. All
-         * three now belong to `ots-lifecycle.ts` and the `ots-upgrade`
-         * processor, which is the only place that writes the OTS columns.
-         *
-         * The report transaction therefore no longer writes integrity state
-         * at all. It reads it. That is the separation the whole change is
-         * for: leaving a disabled copy here would be a second writer waiting
-         * for someone to re-enable it.
-         */
-
-        const promotionCustodyEvents = await tx.custodyEvent.findMany({
+        const custodyAtIssue = await prisma.custodyEvent.findMany({
           where: { evidenceId: prepared.evidenceId },
           orderBy: { sequence: "asc" },
           select: {
@@ -3633,6 +3642,7 @@ async function runReportGeneration(
             eventHash: true,
           },
         });
+        const custodyThroughSequence = custodyAtIssue.at(-1)?.sequence ?? null;
 
         const promotionDecision = resolveRecordedIntegrityPromotionDecision({
           evidenceId: prepared.evidenceId,
@@ -3647,9 +3657,6 @@ async function runReportGeneration(
           tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
           tsaMessageImprint: prepared.reportEvidencePayload.tsaMessageImprint ?? null,
           tsaInputDigestHex: prepared.reportEvidencePayload.tsaInputDigestHex ?? null,
-          // One source, the prepared projection of the record's own columns.
-          // These read `otsData?.x ?? prepared…` while this job made its own
-          // stamp; with no stamp to prefer, the second operand is the answer.
           otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
           otsHash: prepared.reportEvidencePayload.otsHash ?? null,
           otsAnchoredAtUtc:
@@ -3662,7 +3669,7 @@ async function runReportGeneration(
                 prepared.verificationEvidenceFiles.every((file) => Boolean(file.sha256)),
           publicKeyPem: prepared.reportEvidencePayload.publicKeyPem as string,
           verifiedAtUtc: prepared.now,
-          custodyEvents: promotionCustodyEvents,
+          custodyEvents: custodyAtIssue,
         });
 
         const effectiveVerificationStatus =
@@ -3674,16 +3681,16 @@ async function runReportGeneration(
           ...prepared.identitySnapshot,
           verificationStatus: effectiveVerificationStatus,
         };
-const effectiveReportEvidencePayload = {
-  ...prepared.reportEvidencePayload,
-  status: EvidenceStatus.REPORTED,
-  verificationStatus: effectiveVerificationStatus,
-  recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
-  reportGeneratedAtUtc: prepared.now.toISOString(),
-  latestReportVersion: prepared.version,
-  reviewReadyAtUtc: prepared.now.toISOString(),
-  reviewerSummaryVersion: effectiveIdentitySnapshot.reviewerSummaryVersion,
-};
+        const effectiveReportEvidencePayload = {
+          ...prepared.reportEvidencePayload,
+          status: EvidenceStatus.REPORTED,
+          verificationStatus: effectiveVerificationStatus,
+          recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
+          reportGeneratedAtUtc: prepared.now.toISOString(),
+          latestReportVersion: prepared.version,
+          reviewReadyAtUtc: prepared.now.toISOString(),
+          reviewerSummaryVersion: effectiveIdentitySnapshot.reviewerSummaryVersion,
+        };
         const effectiveReviewGuidance = buildReportReviewGuidance({
           itemCount: prepared.contentSummary.itemCount,
           previewableItemCount: prepared.contentSummary.previewableItemCount,
@@ -3691,88 +3698,6 @@ const effectiveReportEvidencePayload = {
             effectiveVerificationStatus ===
               prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED ||
             Boolean(effectiveRecordedIntegrityVerifiedAtUtc),
-        });
-
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
-          atUtc: prepared.now,
-          payload: {
-            phase: "report_generated",
-            reportVersion: prepared.version,
-            generatedAtUtc: prepared.now.toISOString(),
-            verificationStatusSnapshot: effectiveVerificationStatus,
-            captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
-            acquisitionModeSnapshot:
-              effectiveReportEvidencePayload.acquisitionMode ?? null,
-            identityLevelSnapshot:
-              effectiveIdentitySnapshot.identityLevelSnapshot,
-            ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
-            ...(promotionDecision.shouldPromote
-              ? {
-                  recordedIntegrityVerifiedAtUtc:
-                    effectiveRecordedIntegrityVerifiedAtUtc,
-                  integrityPromotion: "recorded_integrity_verified",
-                }
-              : {}),
-          } as Prisma.InputJsonValue,
-        });
-
-        await tx.evidence.update({
-          where: { id: prepared.evidenceId },
-          data: {
-            status: EvidenceStatus.REPORTED,
-            verificationStatus: effectiveVerificationStatus,
-            recordedIntegrityVerifiedAtUtc:
-              effectiveRecordedIntegrityVerifiedAtUtc != null
-                ? new Date(effectiveRecordedIntegrityVerifiedAtUtc)
-                : null,
-            captureMethod: effectiveIdentitySnapshot.captureMethod,
-            identityLevelSnapshot:
-              effectiveIdentitySnapshot.identityLevelSnapshot,
-            submittedByEmail: effectiveIdentitySnapshot.submittedByEmail,
-            submittedByAuthProvider:
-              effectiveIdentitySnapshot.submittedByAuthProvider,
-            submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,
-            createdByUserId: effectiveIdentitySnapshot.createdByUserId,
-            uploadedByUserId: effectiveIdentitySnapshot.uploadedByUserId,
-            workspaceNameSnapshot:
-              effectiveIdentitySnapshot.workspaceNameSnapshot,
-            organizationNameSnapshot:
-              effectiveIdentitySnapshot.organizationNameSnapshot,
-            organizationVerifiedSnapshot:
-              effectiveIdentitySnapshot.organizationVerifiedSnapshot,
-            latestReportVersion: prepared.version,
-            reportGeneratedAtUtc: prepared.now,
-            lastVerifiedAtUtc: prepared.now,
-            lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
-            reviewReadyAtUtc: prepared.now,
-            reviewerSummaryVersion:
-              effectiveIdentitySnapshot.reviewerSummaryVersion,
-          },
-        });
-
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.REVIEW_READY,
-          atUtc: prepared.now,
-          payload: {
-            reviewerSummaryVersion:
-              effectiveIdentitySnapshot.reviewerSummaryVersion,
-          } as Prisma.InputJsonValue,
-        });
-
-        const finalizedCustodyEvents = await tx.custodyEvent.findMany({
-          where: { evidenceId: prepared.evidenceId },
-          orderBy: { sequence: "asc" },
-          select: {
-            sequence: true,
-            atUtc: true,
-            eventType: true,
-            payload: true,
-            prevEventHash: true,
-            eventHash: true,
-          },
         });
 
         // Resolved before the custody display context so the finalized
@@ -3790,7 +3715,7 @@ const effectiveReportEvidencePayload = {
           acquisitionMode: effectiveReportEvidencePayload.acquisitionMode ?? null,
         } as const;
 
-        const finalizedCustodyForReport = finalizedCustodyEvents.map((ev) => ({
+        const finalizedCustodyForReport = custodyAtIssue.map((ev) => ({
           sequence: ev.sequence,
           atUtc: ev.atUtc.toISOString(),
           eventType: ev.eventType,
@@ -3844,6 +3769,8 @@ const effectiveReportEvidencePayload = {
           derivedReview: finalizedReportDerivedReview,
         });
 
+        // The allowance is checked with the EXACT size, before any byte is
+        // written to storage.
         await assertWorkspaceAllowsReportArtifact({
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
@@ -3856,12 +3783,7 @@ const effectiveReportEvidencePayload = {
         // or signed URL in attributes.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_UPLOAD, { "proovra.operation": "report_upload", "proovra.evidence_id": prepared.evidenceId, "proovra.size_bytes": finalizedReportPdf.length }, () => undefined);
         // Phase 6 — Build report provenance envelope for downstream
-        // traceability. Identity-only; never drives policy. Wrapped in
-        // try/catch so a propagation failure can never break the
-        // primary report-generation lifecycle. Trio values are
-        // stringified for the S3 metadata block (string-only) and
-        // surface NULL as empty string so the metadata key is always
-        // present but unambiguously null on legacy rows.
+        // traceability. Identity-only; never drives policy.
         let reportProvenanceMetadata: Record<string, string> = {};
         try {
           reportProvenanceMetadata = {
@@ -3876,18 +3798,23 @@ const effectiveReportEvidencePayload = {
           /* identity propagation failure must never break report flow */
         }
 
-        // The hash of the exact bytes stored below; package-only recovery
+        // The hash of the exact bytes published below; package-only recovery
         // verifies the stored object against it before embedding it.
-        const finalizedReportSha256 = createHash("sha256")
-          .update(finalizedReportPdf)
-          .digest("hex");
+        const finalizedReportDigest = createHash("sha256").update(finalizedReportPdf).digest();
+        const finalizedReportSha256 = finalizedReportDigest.toString("hex");
 
-        await putObjectBuffer({
+        const publishedReport = await publishImmutableArtifact({
           bucket: env.S3_BUCKET,
-          key: prepared.reportKey,
-          body: finalizedReportPdf,
+          key: buildPublicationKey({
+            family: "reports",
+            evidenceId: prepared.evidenceId,
+            version: prepared.version,
+            requestId: command.requestId,
+            extension: "pdf",
+          }),
+          body: { kind: "buffer", buffer: finalizedReportPdf },
+          sha256Base64: finalizedReportDigest.toString("base64"),
           contentType: "application/pdf",
-          immutable: true,
           metadata: {
             evidence_id: prepared.evidenceId,
             report_version: String(prepared.version),
@@ -3900,235 +3827,356 @@ const effectiveReportEvidencePayload = {
             immutable: "true",
           },
         });
+        prepared.reportKey = publishedReport.key;
         // Phase O1.5C — bounded report.publish span emitted post-upload.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_PUBLISH, { "proovra.operation": "report_publish", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
 
-        await applyRetentionOrThrow([
-          {
-            bucket: env.S3_BUCKET,
-            key: prepared.reportKey,
-          },
-        ]);
+        const issueKind = forceRegenerate && reservation.previousReportVersion != null
+          ? "UPDATED_REPORT"
+          : "FIRST_ISSUE";
 
-        const reportHead = await headObject({
-          bucket: env.S3_BUCKET,
-          key: prepared.reportKey,
-        });
+        // ---- C. COMMIT -----------------------------------------------------
+        return await prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`
+              SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
+            `;
+            const stillReserved = await tx.reportGenerationRequest.findUnique({
+              where: { id: command.requestId },
+              select: { reportVersion: true, stage: true },
+            });
+            const taken = await tx.report.findUnique({
+              where: {
+                evidenceId_version: {
+                  evidenceId: prepared.evidenceId,
+                  version: prepared.version,
+                },
+              },
+              select: { id: true },
+            });
+            if (
+              taken ||
+              stillReserved?.stage !== "REPORT_RESERVED" ||
+              stillReserved.reportVersion !== prepared.version
+            ) {
+              // The object published above is now an unreferenced, immutable
+              // orphan. It is never overwritten and never pointed at.
+              throw createWorkerError("REPORT_RESERVATION_LOST_RETRY", true);
+            }
 
-        await tx.report.create({
-          data: {
-            evidenceId: prepared.evidenceId,
-            version: prepared.version,
-            storageBucket: env.S3_BUCKET,
-            storageKey: prepared.reportKey,
-            storageRegion: process.env.S3_REGION?.trim() || null,
-            storageObjectLockMode: reportHead.objectLockMode
-              ? String(reportHead.objectLockMode)
-              : null,
-            storageObjectLockRetainUntilUtc:
-              reportHead.objectLockRetainUntilDate ?? null,
-            storageObjectLockLegalHoldStatus:
-              reportHead.objectLockLegalHoldStatus
-                ? String(reportHead.objectLockLegalHoldStatus)
-                : null,
-            generatedAtUtc: prepared.now,
-            sizeBytes: BigInt(finalizedReportPdf.length),
-            pdfSha256: finalizedReportSha256,
+            // Phase C #5 — distinct event type for the worker-time identity
+            // re-snapshot (REPORT_IDENTITY_CONTEXT_RECORDED, not the intake-time
+            // IDENTITY_SNAPSHOT_RECORDED).
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType:
+                prismaPkg.CustodyEventType.REPORT_IDENTITY_CONTEXT_RECORDED,
+              atUtc: prepared.now,
+              payload: {
+                phase: "report_identity_context",
+                submittedByEmail: prepared.identitySnapshot.submittedByEmail,
+                submittedByAuthProvider:
+                  prepared.identitySnapshot.submittedByAuthProvider,
+                identityLevelSnapshot:
+                  prepared.identitySnapshot.identityLevelSnapshot,
+                workspaceNameSnapshot:
+                  prepared.identitySnapshot.workspaceNameSnapshot,
+                organizationNameSnapshot:
+                  prepared.identitySnapshot.organizationNameSnapshot,
+                organizationVerifiedSnapshot:
+                  prepared.identitySnapshot.organizationVerifiedSnapshot,
+              } as Prisma.InputJsonValue,
+            });
 
-            verificationStatusSnapshot: effectiveIdentitySnapshot.verificationStatus,
-            identityLevelSnapshot:
-              effectiveIdentitySnapshot.identityLevelSnapshot,
-            submittedByEmailSnapshot:
-              effectiveIdentitySnapshot.submittedByEmail,
-            submittedByAuthProviderSnapshot:
-              effectiveIdentitySnapshot.submittedByAuthProvider,
-            captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
-            acquisitionModeSnapshot:
-              effectiveReportEvidencePayload.acquisitionMode ?? null,
-            reviewerSummaryVersion:
-              effectiveIdentitySnapshot.reviewerSummaryVersion,
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
+              atUtc: prepared.now,
+              payload: {
+                phase: "report_generated",
+                reportVersion: prepared.version,
+                generatedAtUtc: prepared.now.toISOString(),
+                issueKind,
+                ...(issueKind === "UPDATED_REPORT"
+                  ? { previousReportVersion: reservation.previousReportVersion }
+                  : {}),
+                pdfSha256: finalizedReportSha256,
+                custodyThroughSequence,
+                verificationStatusSnapshot: effectiveVerificationStatus,
+                captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
+                acquisitionModeSnapshot:
+                  effectiveReportEvidencePayload.acquisitionMode ?? null,
+                identityLevelSnapshot:
+                  effectiveIdentitySnapshot.identityLevelSnapshot,
+                ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
+                ...(promotionDecision.shouldPromote
+                  ? {
+                      recordedIntegrityVerifiedAtUtc:
+                        effectiveRecordedIntegrityVerifiedAtUtc,
+                      integrityPromotion: "recorded_integrity_verified",
+                    }
+                  : {}),
+              } as Prisma.InputJsonValue,
+            });
+
+            await tx.evidence.update({
+              where: { id: prepared.evidenceId },
+              data: {
+                status: EvidenceStatus.REPORTED,
+                verificationStatus: effectiveVerificationStatus,
+                recordedIntegrityVerifiedAtUtc:
+                  effectiveRecordedIntegrityVerifiedAtUtc != null
+                    ? new Date(effectiveRecordedIntegrityVerifiedAtUtc)
+                    : null,
+                captureMethod: effectiveIdentitySnapshot.captureMethod,
+                identityLevelSnapshot:
+                  effectiveIdentitySnapshot.identityLevelSnapshot,
+                submittedByEmail: effectiveIdentitySnapshot.submittedByEmail,
+                submittedByAuthProvider:
+                  effectiveIdentitySnapshot.submittedByAuthProvider,
+                submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,
+                createdByUserId: effectiveIdentitySnapshot.createdByUserId,
+                uploadedByUserId: effectiveIdentitySnapshot.uploadedByUserId,
+                workspaceNameSnapshot:
+                  effectiveIdentitySnapshot.workspaceNameSnapshot,
+                organizationNameSnapshot:
+                  effectiveIdentitySnapshot.organizationNameSnapshot,
+                organizationVerifiedSnapshot:
+                  effectiveIdentitySnapshot.organizationVerifiedSnapshot,
+                latestReportVersion: prepared.version,
+                reportGeneratedAtUtc: prepared.now,
+                lastVerifiedAtUtc: prepared.now,
+                lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
+                reviewReadyAtUtc: prepared.now,
+                reviewerSummaryVersion:
+                  effectiveIdentitySnapshot.reviewerSummaryVersion,
+              },
+            });
+
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.REVIEW_READY,
+              atUtc: prepared.now,
+              payload: {
+                reviewerSummaryVersion:
+                  effectiveIdentitySnapshot.reviewerSummaryVersion,
+              } as Prisma.InputJsonValue,
+            });
+
+            await tx.report.create({
+              data: {
+                evidenceId: prepared.evidenceId,
+                version: prepared.version,
+                storageBucket: env.S3_BUCKET,
+                storageKey: publishedReport.key,
+                storageRegion: process.env.S3_REGION?.trim() || null,
+                storageObjectLockMode: publishedReport.objectLockMode,
+                storageObjectLockRetainUntilUtc:
+                  publishedReport.objectLockRetainUntilUtc,
+                storageObjectLockLegalHoldStatus:
+                  publishedReport.objectLockLegalHoldStatus,
+                generatedAtUtc: prepared.now,
+                sizeBytes: BigInt(finalizedReportPdf.length),
+                pdfSha256: finalizedReportSha256,
+                s3VersionId: publishedReport.versionId,
+                issueKind,
+                issueReason:
+                  issueKind === "UPDATED_REPORT"
+                    ? (regenerateReason?.slice(0, 200) ?? null)
+                    : null,
+                previousReportVersion:
+                  issueKind === "UPDATED_REPORT"
+                    ? reservation.previousReportVersion
+                    : null,
+                custodyThroughSequence,
+
+                verificationStatusSnapshot: effectiveIdentitySnapshot.verificationStatus,
+                identityLevelSnapshot:
+                  effectiveIdentitySnapshot.identityLevelSnapshot,
+                submittedByEmailSnapshot:
+                  effectiveIdentitySnapshot.submittedByEmail,
+                submittedByAuthProviderSnapshot:
+                  effectiveIdentitySnapshot.submittedByAuthProvider,
+                captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
+                acquisitionModeSnapshot:
+                  effectiveReportEvidencePayload.acquisitionMode ?? null,
+                reviewerSummaryVersion:
+                  effectiveIdentitySnapshot.reviewerSummaryVersion,
+                /*
+                 * This column names a package that EXISTS, or it names nothing.
+                 * The package transaction sets it, conditionally on its own
+                 * success. Here it starts null.
+                 */
+                verificationPackageVersion: null,
+
+                displayTitleSnapshot: prepared.display.displayTitle,
+                displayDescriptionSnapshot: prepared.display.displayDescription,
+                contentStructureSnapshot: prepared.contentSummary.structure,
+                itemCountSnapshot: prepared.contentSummary.itemCount,
+                previewableItemCountSnapshot:
+                  prepared.contentSummary.previewableItemCount,
+                downloadableItemCountSnapshot:
+                  prepared.contentSummary.downloadableItemCount,
+                primaryContentKindSnapshot: prepared.contentSummary.primaryKind,
+                primaryContentLabelSnapshot: prepared.primaryContentLabel,
+                contentCompositionSummarySnapshot:
+                  prepared.contentCompositionSummary,
+                contentAccessPolicyModeSnapshot:
+                  prepared.contentAccessPolicy.mode ?? null,
+                defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
+
+                workspaceNameSnapshot:
+                  effectiveIdentitySnapshot.workspaceNameSnapshot,
+                organizationNameSnapshot:
+                  effectiveIdentitySnapshot.organizationNameSnapshot,
+                organizationVerifiedSnapshot:
+                  effectiveIdentitySnapshot.organizationVerifiedSnapshot,
+                recordedIntegrityVerifiedAtUtcSnapshot:
+                  effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                    ? new Date(
+                        effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                      )
+                    : null,
+                lastVerifiedAtUtcSnapshot:
+                  effectiveReportEvidencePayload.lastVerifiedAtUtc
+                    ? new Date(effectiveReportEvidencePayload.lastVerifiedAtUtc)
+                    : null,
+                lastVerifiedSourceSnapshot:
+                  (effectiveReportEvidencePayload.lastVerifiedSource as
+                    | prismaPkg.VerificationSource
+                    | null
+                    | undefined) ?? null,
+                storageImmutableSnapshot:
+                  effectiveReportEvidencePayload.storageImmutable ?? null,
+
+                displaySnapshot:
+                  prepared.display as unknown as Prisma.InputJsonValue,
+                contentSummarySnapshot:
+                  prepared.contentSummary as unknown as Prisma.InputJsonValue,
+                contentItemsSnapshot:
+                  prepared.contentItems as unknown as Prisma.InputJsonValue,
+                primaryContentItemSnapshot:
+                  prepared.primaryContentItem as unknown as Prisma.InputJsonValue,
+                previewPolicySnapshot:
+                  prepared.previewPolicy as unknown as Prisma.InputJsonValue,
+                reviewGuidanceSnapshot:
+                  effectiveReviewGuidance as unknown as Prisma.InputJsonValue,
+                limitationsSnapshot:
+                  prepared.limitations as unknown as Prisma.InputJsonValue,
+                anchorSnapshot:
+                  prepared.anchorSummary as unknown as Prisma.InputJsonValue,
+                trustDecisionSnapshot:
+                  finalizedTrustDecision as unknown as Prisma.InputJsonValue,
+                contentAccessPolicySnapshot:
+                  prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
+                embeddedPreviewsSnapshot:
+                  prepared.contentItems
+                    .filter(
+                      (item) => item.previewDataUrl || item.previewTextExcerpt
+                    )
+                    .map((item) => ({
+                      id: item.id,
+                      previewDataUrl: item.previewDataUrl ?? null,
+                      previewTextExcerpt: item.previewTextExcerpt ?? null,
+                      previewCaption: item.previewCaption ?? null,
+                    })) as unknown as Prisma.InputJsonValue,
+                // Phase A2 — explicit PDF artifact signature columns.
+                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+                pdfSignedAtUtc:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signedAtUtc
+                    : null,
+                pdfSignerKeyId:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signerKeyId
+                    : null,
+                pdfSigningWarning:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? null
+                    : prepared.pdfSigningOutcome.warning,
+              },
+            });
+
+            // Phase A2 — a distinct custody event for the PDF signing decision.
+            const pdfCustodyEventType =
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
+                : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: pdfCustodyEventType,
+              atUtc: prepared.now,
+              payload: {
+                reportVersion: prepared.version,
+                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+                pdfSignerKeyId:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signerKeyId
+                    : null,
+                pdfSignedAtUtc:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
+                    : null,
+              },
+            });
+
             /*
-             * RELIABILITY CLOSURE (2026-09-09) — THIS COLUMN NAMES A PACKAGE
-             * THAT EXISTS, OR IT NAMES NOTHING.
-             *
-             * It used to be written here, at report-row creation, as
-             * `verificationPackageIncluded ? prepared.version : null` — an
-             * OPTIMISTIC claim, made before the package had been built, let
-             * alone uploaded or persisted. The package is produced after this
-             * transaction commits, in its own transaction, and its failure path
-             * is swallowed. So a package build that failed left
-             * `Report{version: N}.verificationPackageVersion = N` with no
-             * `VerificationPackage` row at N, and the artifact-status projection
-             * returned both numbers in one response: a package version from the
-             * report row, and a different (or absent) one from the package
-             * table.
-             *
-             * A column that answers "which package version accompanies this
-             * report" must be written by the code that creates that package.
-             * The package transaction below already sets it, conditionally on
-             * its own success. Here it starts null.
+             * DURABLE PROGRESS, IN THE SAME TRANSACTION AS THE REPORT ROW. A
+             * retry of this request after this point resumes at the package for
+             * exactly this version; if the transaction rolls back, neither
+             * exists.
              */
-            verificationPackageVersion: null,
+            await tx.reportGenerationRequest.update({
+              where: { id: command.requestId },
+              data: { reportVersion: prepared.version, stage: "REPORT_COMMITTED" },
+            });
 
-            displayTitleSnapshot: prepared.display.displayTitle,
-            displayDescriptionSnapshot: prepared.display.displayDescription,
-            contentStructureSnapshot: prepared.contentSummary.structure,
-            itemCountSnapshot: prepared.contentSummary.itemCount,
-            previewableItemCountSnapshot:
-              prepared.contentSummary.previewableItemCount,
-            downloadableItemCountSnapshot:
-              prepared.contentSummary.downloadableItemCount,
-            primaryContentKindSnapshot: prepared.contentSummary.primaryKind,
-            primaryContentLabelSnapshot: prepared.primaryContentLabel,
-            contentCompositionSummarySnapshot:
-              prepared.contentCompositionSummary,
-            contentAccessPolicyModeSnapshot:
-              prepared.contentAccessPolicy.mode ?? null,
-            defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
+            // The chain the package built by THIS run carries: everything up to
+            // and including the issuance events just appended.
+            const finalizedCustodyEvents = await tx.custodyEvent.findMany({
+              where: { evidenceId: prepared.evidenceId },
+              orderBy: { sequence: "asc" },
+              select: {
+                sequence: true,
+                atUtc: true,
+                eventType: true,
+                payload: true,
+                prevEventHash: true,
+                eventHash: true,
+              },
+            });
 
-            workspaceNameSnapshot:
-              effectiveIdentitySnapshot.workspaceNameSnapshot,
-            organizationNameSnapshot:
-              effectiveIdentitySnapshot.organizationNameSnapshot,
-            organizationVerifiedSnapshot:
-              effectiveIdentitySnapshot.organizationVerifiedSnapshot,
-            recordedIntegrityVerifiedAtUtcSnapshot:
-              effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
-                ? new Date(
-                    effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
-                  )
-                : null,
-            lastVerifiedAtUtcSnapshot:
-              effectiveReportEvidencePayload.lastVerifiedAtUtc
-                ? new Date(effectiveReportEvidencePayload.lastVerifiedAtUtc)
-                : null,
-            lastVerifiedSourceSnapshot:
-              (effectiveReportEvidencePayload.lastVerifiedSource as
-                | prismaPkg.VerificationSource
-                | null
-                | undefined) ?? null,
-            storageImmutableSnapshot:
-              effectiveReportEvidencePayload.storageImmutable ?? null,
-
-            displaySnapshot:
-              prepared.display as unknown as Prisma.InputJsonValue,
-            contentSummarySnapshot:
-              prepared.contentSummary as unknown as Prisma.InputJsonValue,
-            contentItemsSnapshot:
-              prepared.contentItems as unknown as Prisma.InputJsonValue,
-            primaryContentItemSnapshot:
-              prepared.primaryContentItem as unknown as Prisma.InputJsonValue,
-            previewPolicySnapshot:
-              prepared.previewPolicy as unknown as Prisma.InputJsonValue,
-            reviewGuidanceSnapshot:
-              effectiveReviewGuidance as unknown as Prisma.InputJsonValue,
-            limitationsSnapshot:
-              prepared.limitations as unknown as Prisma.InputJsonValue,
-            anchorSnapshot:
-              prepared.anchorSummary as unknown as Prisma.InputJsonValue,
-            trustDecisionSnapshot:
-              finalizedTrustDecision as unknown as Prisma.InputJsonValue,
-            contentAccessPolicySnapshot:
-              prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
-            embeddedPreviewsSnapshot:
-              prepared.contentItems
-                .filter(
-                  (item) => item.previewDataUrl || item.previewTextExcerpt
-                )
-                .map((item) => ({
-                  id: item.id,
-                  previewDataUrl: item.previewDataUrl ?? null,
-                  previewTextExcerpt: item.previewTextExcerpt ?? null,
-                  previewCaption: item.previewCaption ?? null,
-                })) as unknown as Prisma.InputJsonValue,
-            // Phase A2 — explicit PDF artifact signature columns.
-            // Backend writes these from the bounded signing outcome
-            // so the API + frontend can render artifact trust
-            // without inferring from copy.
-            pdfSignatureStatus: prepared.pdfSigningOutcome.status,
-            pdfSignedAtUtc:
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? prepared.pdfSigningOutcome.signedAtUtc
-                : null,
-            pdfSignerKeyId:
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? prepared.pdfSigningOutcome.signerKeyId
-                : null,
-            pdfSigningWarning:
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? null
-                : prepared.pdfSigningOutcome.warning,
+            return {
+              skipped: false as const,
+              reportCreated: true as const,
+              version: prepared.version,
+              reportKey: publishedReport.key,
+              reportVersion: prepared.version,
+              finalizedReportSha256,
+              finalizedReportEvidencePayload: effectiveReportEvidencePayload,
+              effectiveVerificationStatus,
+              effectiveRecordedIntegrityVerifiedAtUtc,
+              finalizedReportPdf,
+              finalizedTrustDecision,
+              reportIssuedAtUtc: prepared.now,
+              custodyThroughSequence:
+                finalizedCustodyEvents.at(-1)?.sequence ?? custodyThroughSequence,
+              finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
+                sequence: ev.sequence,
+                atUtc: ev.atUtc.toISOString(),
+                eventType: ev.eventType,
+                payload: ev.payload,
+                prevEventHash: ev.prevEventHash ?? null,
+                eventHash: ev.eventHash ?? null,
+              })),
+            };
           },
-        });
-
-        // Phase A2 — emit a distinct custody event for the PDF
-        // signing decision. Distinct from REPORT_GENERATED so the
-        // forensic timeline records what trust the artifact carries.
-        // SIGNING_UNAVAILABLE rolls into REPORT_PDF_UNSIGNED_OPT_OUT
-        // because both are "operator-acknowledged non-signed paths"
-        // from the custody-chain perspective; the precise distinction
-        // (opt-out vs dev-env) lives on the Report row + API.
-        const pdfCustodyEventType =
-          prepared.pdfSigningOutcome.status === "SIGNED"
-            ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
-            : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: pdfCustodyEventType,
-          atUtc: prepared.now,
-          payload: {
-            reportVersion: prepared.version,
-            pdfSignatureStatus: prepared.pdfSigningOutcome.status,
-            pdfSignerKeyId:
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? prepared.pdfSigningOutcome.signerKeyId
-                : null,
-            pdfSignedAtUtc:
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
-                : null,
-          },
-        });
-
-        /*
-         * DURABLE PROGRESS, IN THE SAME TRANSACTION AS THE REPORT ROW. A retry
-         * of this request after this point resumes at the package for exactly
-         * this version; if the transaction rolls back, neither exists.
-         */
-        await tx.reportGenerationRequest.update({
-          where: { id: command.requestId },
-          data: { reportVersion: prepared.version, stage: "REPORT_COMMITTED" },
-        });
-
-        return {
-          skipped: false as const,
-          reportCreated: true as const,
-          version: prepared.version,
-          reportKey: prepared.reportKey,
-          reportVersion: prepared.version,
-          finalizedReportSha256,
-          finalizedReportEvidencePayload: effectiveReportEvidencePayload,
-          effectiveVerificationStatus,
-          effectiveRecordedIntegrityVerifiedAtUtc,
-          finalizedReportPdf,
-          finalizedTrustDecision,
-          finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
-            sequence: ev.sequence,
-            atUtc: ev.atUtc.toISOString(),
-            eventType: ev.eventType,
-            payload: ev.payload,
-            prevEventHash: ev.prevEventHash ?? null,
-            eventHash: ev.eventHash ?? null,
-          })),
-        };
-      },
-      {
-        maxWait: 10_000,
-        timeout: 120_000,
-      }
-    );
+          { maxWait: 10_000, timeout: 30_000 },
+        );
+      })();
 
     let finalizedVerificationStaged: StagedPackage | null = null;
+    let finalizedVerificationSeal: PackageSealResult | null = null;
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
     // Phase 32.6.6 — personal BASIC + team GOVERNED modes (was: skip
@@ -4271,6 +4319,19 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
+          // FORMAT 5 — the seal binds the checksum index and, through it, the
+          // exact report bytes above. Chronology is stated, never implied: a
+          // package assembled after its report says so.
+          seal: {
+            reportSha256: finalized.finalizedReportSha256,
+            reportIssuedAtUtc: finalized.reportIssuedAtUtc.toISOString(),
+            packageAssembledAtUtc: new Date().toISOString(),
+            assembly: finalized.reportCreated ? "WITH_REPORT_ISSUE" : "AFTER_REPORT_ISSUE",
+            custodyThroughSequence: finalized.custodyThroughSequence,
+            proofMaterialsObservedAtUtc: prepared.now.toISOString(),
+            fileSha256: evidence.fileSha256 ?? null,
+            fingerprintHash: evidence.fingerprintHash ?? null,
+          },
           fingerprint: prepared.fingerprintCanonicalJson,
 signature: evidence.signatureBase64!,
           timestampToken: evidence.tsaTokenBase64 ?? null,
@@ -4475,6 +4536,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           },
         });
         finalizedVerificationStaged = finalizedVerificationPackage.staged;
+        finalizedVerificationSeal = finalizedVerificationPackage.seal;
         finalizedVerificationArtifactPresence =
           finalizedVerificationPackage.artifactPresence;
         // Phase 32.6 — completion counter at the canonical success
@@ -4582,40 +4644,26 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
 
     if (!finalized.skipped && finalizedVerificationStaged) {
       const staged = finalizedVerificationStaged;
-      const stagingKey = stagingPackageKey(prepared.evidenceId, prepared.version);
+      // Set only once the package row is committed; the catch below uses it to
+      // tell "published but not recorded" (reconcilable) from "not published".
+      let publishedPackage: PublishedArtifact | null = null;
             try {
-        // UC-3 STREAMING PACKAGE PUBLICATION (Decision #1):
-        //   stream temp file → PRIVATE staging object → verify exact bytes
-        //   → canonical allowance gate (exact size known) → server-side PROMOTE
-        //   → verify canonical object → DB AVAILABLE → cleanup.
-        // The staging object is private (never a canonical package, never
-        // user-visible / Public-Verify-visible) and is removed on refusal/success.
-
-        // 1. Stream the package from its private temp file to the private staging key.
-        await putObjectFromFile({
-          bucket: env.S3_BUCKET,
-          key: stagingKey,
-          filePath: staged.tempPath,
-          contentLength: staged.sizeBytes,
-          contentType: "application/zip",
-          metadata: {
-            evidence_id: prepared.evidenceId,
-            report_version: String(prepared.version),
-            artifact_type: "verification_package_staging",
-          },
-          tags: { artifact: "verification-package-staging", evidenceId: prepared.evidenceId, staging: "true" },
-        });
-        // Local temp is no longer the only copy — bound worker disk.
-        await cleanupStagedTemp(staged);
-
-        // 2. Verify the staging object holds EXACTLY the generated bytes.
-        const stagingHead = await headObject({ bucket: env.S3_BUCKET, key: stagingKey });
-        if (Number(stagingHead.sizeBytes ?? 0) !== staged.sizeBytes) {
-          await deleteObject({ bucket: env.S3_BUCKET, key: stagingKey }).catch(() => {});
-          throw createWorkerError("VERIFICATION_PACKAGE_STAGING_SIZE_MISMATCH", true);
-        }
-
-        // 3. Canonical allowance gate — ONLY now, with the exact byte size known.
+        /*
+         * PACKAGE PUBLICATION (2026-09-29) — one verified, immutable write.
+         *
+         *   exact size + SHA-256 known from the temp file
+         *   → allowance gate (BEFORE any byte leaves the worker)
+         *   → PutObject to a single-use key WITH x-amz-checksum-sha256 AND the
+         *     Object Lock retention in the same request, If-None-Match: *
+         *   → HEAD by VersionId: size, stored SHA-256, lock mode, retain-until
+         *   → DB row records the exact key, VersionId and digest.
+         *
+         * The UC-3 staging PUT (no checksum) and the promote CopyObject (lock
+         * headers, no checksum) are gone: they are the two candidate calls for
+         * the 2026-09-28 Object Lock refusal, and neither is needed — the gate
+         * already has the exact size before upload. No transaction is open
+         * while storage is written.
+         */
         try {
           await assertWorkspaceAllowsVerificationPackageArtifact({
             ownerUserId: evidence.ownerUserId,
@@ -4625,23 +4673,28 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             evidenceId: evidence.id,
           });
         } catch (gateError) {
-          // REFUSED: remove the private staging object; no canonical package appears.
-          await deleteObject({ bucket: env.S3_BUCKET, key: stagingKey }).catch(() => {});
-          throw gateError;
+          throw toPackageAllowanceRefusal(gateError);
         }
 
-        // 4. PROMOTE: server-side copy staging → canonical (bytes never enter RAM).
-        await copyObject({
-          sourceBucket: env.S3_BUCKET,
-          sourceKey: stagingKey,
-          destBucket: env.S3_BUCKET,
-          destKey: prepared.verificationKey,
+        publishedPackage = await publishImmutableArtifact({
+          bucket: env.S3_BUCKET,
+          key: buildPublicationKey({
+            family: "verification",
+            evidenceId: prepared.evidenceId,
+            version: prepared.version,
+            requestId: command.requestId,
+            extension: "zip",
+          }),
+          body: { kind: "file", filePath: staged.tempPath, sizeBytes: staged.sizeBytes },
+          sha256Base64: staged.sha256Base64,
           contentType: "application/zip",
-          immutable: true,
           metadata: {
             evidence_id: prepared.evidenceId,
             report_version: String(prepared.version),
             artifact_type: "verification_package",
+            package_format_version: finalizedVerificationSeal
+              ? String(finalizedVerificationSeal.packageFormatVersion)
+              : "4",
           },
           tags: {
             artifact: "verification-package",
@@ -4649,22 +4702,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             immutable: "true",
           },
         });
-
-        await applyRetentionOrThrow([
-          {
-            bucket: env.S3_BUCKET,
-            key: prepared.verificationKey,
-          },
-        ]);
-
-        // 5. Verify the canonical object BEFORE it can become AVAILABLE.
-        const verificationHead = await headObject({
-          bucket: env.S3_BUCKET,
-          key: prepared.verificationKey,
-        });
-        if (Number(verificationHead.sizeBytes ?? 0) !== staged.sizeBytes) {
-          throw createWorkerError("VERIFICATION_PACKAGE_CANONICAL_SIZE_MISMATCH", true);
-        }
+        // Local temp is no longer the only copy — bound worker disk.
+        await cleanupStagedTemp(staged);
+        const verificationHead = publishedPackage;
 
         await prisma.$transaction(async (tx) => {
           await tx.verificationPackage.create({
@@ -4672,17 +4712,13 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               evidenceId: prepared.evidenceId,
               version: prepared.version,
               storageBucket: env.S3_BUCKET,
-              storageKey: prepared.verificationKey,
+              storageKey: verificationHead.key,
               storageRegion: process.env.S3_REGION?.trim() || null,
-              storageObjectLockMode: verificationHead.objectLockMode
-                ? String(verificationHead.objectLockMode)
-                : null,
+              storageObjectLockMode: verificationHead.objectLockMode,
               storageObjectLockRetainUntilUtc:
-                verificationHead.objectLockRetainUntilDate ?? null,
+                verificationHead.objectLockRetainUntilUtc,
               storageObjectLockLegalHoldStatus:
-                verificationHead.objectLockLegalHoldStatus
-                  ? String(verificationHead.objectLockLegalHoldStatus)
-                  : null,
+                verificationHead.objectLockLegalHoldStatus,
               generatedAtUtc: prepared.now,
               sizeBytes: BigInt(staged.sizeBytes),
 packageType: "full_evidence_package",
@@ -4692,6 +4728,12 @@ trustDecisionSnapshot:
               // report bytes embedded in it.
               reportVersion: prepared.version,
               reportSha256: finalized.finalizedReportSha256,
+              packageSha256: staged.sha256Hex,
+              s3VersionId: verificationHead.versionId,
+              packageFormatVersion:
+                finalizedVerificationSeal?.packageFormatVersion ?? null,
+              reportIssuedAtUtc: finalized.reportIssuedAtUtc,
+              custodyThroughSequence: finalized.custodyThroughSequence,
             },
           });
 
@@ -4844,21 +4886,29 @@ trustDecisionSnapshot:
           );
         }
 
-        // Canonical package is AVAILABLE and verified — remove the private staging
-        // object. Best-effort; a survivor is reclaimed by stale-staging reconciliation.
-        await deleteObject({ bucket: env.S3_BUCKET, key: stagingKey }).catch(() => {});
       } catch (verificationError) {
-        // Fail closed: never leave a private temp file or a stale staging object
-        // behind on a failed publication. The canonical object (if the copy already
-        // happened) is left for the idempotent retry, which overwrites it.
+        // Fail closed: never leave a private temp file behind. A published but
+        // unrecorded object is NOT overwritten by the retry (single-use keys,
+        // If-None-Match); it is left as an immutable orphan and listed by the
+        // orphan inventory, and the retry publishes under a fresh key.
         await cleanupStagedTemp(staged).catch(() => {});
-        await deleteObject({ bucket: env.S3_BUCKET, key: stagingKey }).catch(() => {});
 
+        if (verificationError instanceof PackageAllowanceRefusal) {
+          // A commercial or storage-allowance answer, not a pipeline fault.
+          packageAllowanceRefusal = verificationError;
+        } else {
         captureException(verificationError, {
           requestId,
           evidenceId,
           jobId: job.id ?? null,
           phase: "verification_package_store",
+          jobKind: "GenerateReportJob",
+          queueName: "report",
+          storageCode:
+            verificationError instanceof StoragePublicationRejectedError
+              ? verificationError.storageCode
+              : null,
+          publishedButUnrecorded: publishedPackage !== null,
         });
 
         logger.error(
@@ -4904,7 +4954,15 @@ trustDecisionSnapshot:
         packageTechnicalFailure = {
           phase: "store",
           message: toBoundedReasonCode(verificationError),
+          // A deterministic storage refusal cannot succeed on retry; it is
+          // terminal at once instead of burning the whole retry budget.
+          retriable: !(verificationError instanceof StoragePublicationRejectedError),
+          storageCode:
+            verificationError instanceof StoragePublicationRejectedError
+              ? verificationError.storageCode
+              : null,
         };
+        }
       }
     }
 
@@ -5006,14 +5064,31 @@ trustDecisionSnapshot:
      * The report that DID commit is untouched and stays downloadable. This is a
      * statement about the REQUEST, not a rollback of the artifact.
      */
+    if (packageAllowanceRefusal) {
+      // Not an incident: the workspace's plan or storage refused it. The
+      // request records the bounded commercial code; an upgrade or more
+      // storage makes it supersedable (see COMMERCIAL_TERMINAL_REASONS).
+      throw createWorkerError(packageAllowanceRefusal.code, false);
+    }
     if (packageTechnicalFailure && verificationPackageEntitled) {
       await recordPackageGenerationIncident({
         evidenceId,
         teamId: evidence.teamId ?? null,
         jobId: job.id ?? null,
         phase: packageTechnicalFailure.phase,
-        reasonCode: packageTechnicalFailure.message,
+        reasonCode:
+          packageTechnicalFailure.retriable === false
+            ? `VERIFICATION_PACKAGE_STORAGE_REJECTED`
+            : packageTechnicalFailure.message,
+        reportVersion: packageTargetVersion ?? prepared.version,
+        storageCode: packageTechnicalFailure.storageCode ?? null,
       });
+      if (packageTechnicalFailure.retriable === false) {
+        // Deterministic: terminal now, escalated with a CRITICAL incident that
+        // names the storage code. An operator path (supersede) exists once the
+        // configuration or code is fixed.
+        throw createWorkerError("VERIFICATION_PACKAGE_STORAGE_REJECTED", false);
+      }
       throw createWorkerError(
         "VERIFICATION_PACKAGE_INCOMPLETE_" +
           packageTechnicalFailure.phase.toUpperCase(),
@@ -5214,6 +5289,16 @@ async function recordReportFailureIncident(input: {
   severity: "CRITICAL" | "HIGH";
   retriable: boolean;
 }): Promise<void> {
+  /*
+   * A PACKAGE FAILURE IS NOT A REPORT FAILURE.
+   *
+   * When the report committed and only its package failed, the package path
+   * has already recorded `PACKAGE:<id>:v<N>:<class>`. Recording the same run
+   * again here, under the REPORT source, produced a second condition for the
+   * same fact — and that one's probe asks "does a report exist?", which is
+   * true, so it read as recovered while the package was still missing.
+   */
+  if (isPackageOwnedFailure(input.error)) return;
   try {
     const ev = await prisma.evidence.findUnique({
       where: { id: input.evidenceId },
@@ -5303,6 +5388,10 @@ async function recordPackageGenerationIncident(input: {
   jobId: string | number | null | undefined;
   phase: string;
   reasonCode: string;
+  /** The report version whose package failed — the condition clears only when THAT package exists. */
+  reportVersion: number;
+  /** The object-store error code when storage refused the publication. */
+  storageCode?: string | null;
 }): Promise<void> {
   try {
     const errorClass =
@@ -5312,23 +5401,31 @@ async function recordPackageGenerationIncident(input: {
         .slice(0, 80)
         .toUpperCase()
         .replace(/\s+/g, "_") || "UNKNOWN";
+    const deterministic = errorClass === "VERIFICATION_PACKAGE_STORAGE_REJECTED";
     await recordWorkerIncident({
       sourceId: "pipeline.package_generation_failed",
       teamId: input.teamId,
       category: "PACKAGE",
-      severity: "HIGH",
-      // One condition per (record, failure class), matching the report bridge's
-      // shape so a flapping build does not open a new row per attempt.
-      fingerprint: `PACKAGE:${input.evidenceId}:${errorClass}`,
-      title: `Verification package generation failed (${input.evidenceId.slice(0, 8)})`,
-      safeSummary:
-        "The report for this record was generated and stored, but its verification package was not. The evidence record and its integrity state are unaffected; the pipeline will retry, and the condition clears when the package exists.",
+      // A deterministic storage refusal will not clear on retry: it needs a
+      // configuration or code change, so it is CRITICAL from the first sight.
+      severity: deterministic ? "CRITICAL" : "HIGH",
+      // One condition per (record, report version, failure class). Segment 1
+      // is the evidence id and segment 2 the version the probe checks.
+      fingerprint: `PACKAGE:${input.evidenceId}:v${input.reportVersion}:${errorClass}`,
+      title: deterministic
+        ? `Verification package v${input.reportVersion} refused by object storage (${input.evidenceId.slice(0, 8)})`
+        : `Verification package v${input.reportVersion} generation failed (${input.evidenceId.slice(0, 8)})`,
+      safeSummary: deterministic
+        ? `Report version ${input.reportVersion} is stored, but object storage refused its verification package. Retrying the same request cannot succeed; after the storage configuration or worker is corrected, an operator can retry it from Operations. The evidence and the report are unaffected.`
+        : `Report version ${input.reportVersion} is stored, but its verification package was not. The evidence and the report are unaffected; the pipeline retries, and the condition clears only when the package for version ${input.reportVersion} exists.`,
       relatedEvidenceId: input.evidenceId,
       relatedJobId: input.jobId == null ? null : String(input.jobId),
       metadata: {
         queueName: "report",
         phase: input.phase,
         errorClass,
+        reportVersion: input.reportVersion,
+        ...(input.storageCode ? { storageCode: input.storageCode.slice(0, 64) } : {}),
       },
     });
   } catch (err) {

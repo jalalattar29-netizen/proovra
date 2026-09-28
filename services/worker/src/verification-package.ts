@@ -3,12 +3,12 @@ import path from "node:path";
 // Phase 4B — lifecycle + exchange manifests integration.
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 void buildLifecycleAndExchangeManifests; // tree-shake guard
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Readable } from "stream";
+import { Transform, type Readable } from "stream";
 import { getObjectStream } from "./storage.js";
 import { HashingMeter, cleanupStagedTemp, type StagedPackage } from "./verification-package-staging.js";
 // Phase O1.5C — bounded verification package pipeline spans.
@@ -46,6 +46,13 @@ import {
   ACQUISITION_LIMITATION_TEXT,
   normalizePartArtifactClass,
   resolveEvidenceAcquisition,
+  // Format 5 — the seal that binds every entry, including the report.
+  PACKAGE_FORMAT_VERSION_SEALED,
+  PACKAGE_SEAL_FILE,
+  PACKAGE_SEAL_SIGNATURE_FILE,
+  buildPackageSeal,
+  serializePackageSeal,
+  type PackageSealSignature,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -942,8 +949,74 @@ function appendStreamedPartEntry(
       ? { name, streamed: true, sha256, sizeBytes }
       : { name, streamed: true, sha256, sizeBytes, contentType },
   );
-  archive.append(source, { name });
+  /*
+   * THE INDEX RECORDS WHAT WAS STREAMED, NOT WHAT WAS EXPECTED.
+   *
+   * The checksum index lists this part under its canonical ingest digest. That
+   * is only true if the bytes read back from storage ARE those bytes, and a
+   * sealed package asserts it under a signature. So the stream is hashed on its
+   * way into the archive and the build fails closed on any difference in size
+   * or digest — a package never seals a claim the worker did not observe.
+   */
+  const verifier = new ExpectedDigestStream(name, sha256, sizeBytes);
+  source.on("error", (error: Error) => verifier.destroy(error));
+  verifier.on("error", (error: Error) => archive.emit("error", error));
+  archive.append(source.pipe(verifier), { name });
 }
+
+/** Pass-through that fails if the bytes it carried do not match the expected digest. */
+class ExpectedDigestStream extends Transform {
+  private readonly hash = createHash("sha256");
+  private bytes = 0;
+  constructor(
+    private readonly entryName: string,
+    private readonly expectedSha256: string,
+    private readonly expectedSize: number,
+  ) {
+    super();
+  }
+  override _transform(chunk: Buffer, _enc: BufferEncoding, cb: (e?: Error | null, d?: Buffer) => void): void {
+    this.hash.update(chunk);
+    this.bytes += chunk.length;
+    cb(null, chunk);
+  }
+  override _flush(cb: (e?: Error | null) => void): void {
+    const digest = this.hash.digest("hex");
+    if (this.bytes !== this.expectedSize || digest !== this.expectedSha256.toLowerCase()) {
+      cb(
+        new Error(
+          `EVIDENCE_PART_DIGEST_MISMATCH:${this.entryName.slice(0, 80)}`,
+        ),
+      );
+      return;
+    }
+    cb();
+  }
+}
+
+/**
+ * The THIRD and last archive write site: the seal and its signature. They are
+ * deliberately not recorded in `packageEntries`, because they seal the index
+ * built from it — an index that listed its own seal would be circular.
+ */
+function appendSealEntries(
+  archive: archiver.Archiver,
+  sealBytes: Buffer,
+  signatureBytes: Buffer,
+): void {
+  for (const [name, bytes] of [
+    [PACKAGE_SEAL_FILE, sealBytes],
+    [PACKAGE_SEAL_SIGNATURE_FILE, signatureBytes],
+  ] as const) {
+    archive.append(bytes, { name });
+  }
+}
+
+export type PackageSealResult = {
+  packageFormatVersion: typeof PACKAGE_FORMAT_VERSION_SEALED;
+  sealSha256: string;
+  signingKeyFingerprint: string | null;
+};
 
 function buildPackageChecksums(entries: PackageEntry[]) {
   return {
@@ -2290,6 +2363,23 @@ export async function createVerificationPackage(data: {
   };
   reportPdf?: Buffer | null;
   reportFileName?: string | null;
+  /**
+   * FORMAT 5 SEAL INPUTS (2026-09-29). When present, the package is sealed:
+   * `package-seal.json` binds the checksum index — and through it every entry,
+   * including the embedded report — under one Ed25519 signature. Required for
+   * every package the report pipeline publishes; optional only so legacy
+   * callers and fixtures keep building the format-4 layout.
+   */
+  seal?: {
+    reportSha256: string;
+    reportIssuedAtUtc: string;
+    packageAssembledAtUtc: string;
+    assembly: "WITH_REPORT_ISSUE" | "AFTER_REPORT_ISSUE";
+    custodyThroughSequence: number | null;
+    proofMaterialsObservedAtUtc: string;
+    fileSha256: string | null;
+    fingerprintHash: string | null;
+  } | null;
   metadata?: VerificationPackageMetadata;
   /**
    * Hotfix — OTS proof material for inclusion in the package zip. When
@@ -2349,7 +2439,12 @@ export async function createVerificationPackage(data: {
    * only the bounded projection (hashes + fingerprints + bounded labels).
    */
   provenanceChain?: import("@proovra/shared").ProvenanceChain | null;
-}): Promise<{ staged: StagedPackage; artifactPresence: VerificationPackageArtifactPresence }> {
+}): Promise<{
+  staged: StagedPackage;
+  artifactPresence: VerificationPackageArtifactPresence;
+  /** Present when the package was sealed (format 5). */
+  seal: PackageSealResult | null;
+}> {
   // THE SIGNING BOUNDARY for the verification package.
   //
   // Every package this function returns carries a signed manifest —
@@ -2437,6 +2532,8 @@ export async function createVerificationPackage(data: {
     const meter = new HashingMeter();
     const out = createWriteStream(tempPath);
     const packageEntries: PackageEntry[] = [];
+    let reportEntryPath: string | null = null;
+    let sealResult: PackageSealResult | null = null;
     const artifactPresence: VerificationPackageArtifactPresence = {
       manifestPresent: false,
       signedManifestPresent: false,
@@ -2463,6 +2560,14 @@ export async function createVerificationPackage(data: {
         try {
           const { size } = await stat(tempPath);
           const digest = meter.hash.digest();
+          if (meter.bytes !== size) {
+            // The digest describes the bytes that passed the meter; the file
+            // on disk must be exactly those bytes, or the digest describes
+            // nothing that will be published.
+            await cleanupStagedTemp({ tempDir });
+            reject(new Error("PACKAGE_TEMP_FILE_SIZE_MISMATCH"));
+            return;
+          }
           resolve({
             staged: {
               tempPath,
@@ -2472,6 +2577,7 @@ export async function createVerificationPackage(data: {
               sha256Base64: digest.toString("base64"),
             },
             artifactPresence,
+            seal: sealResult,
           });
         } catch (e) {
           reject(e instanceof Error ? e : new Error(String(e)));
@@ -3106,14 +3212,15 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     }
 
     if (data.reportPdf) {
+      reportEntryPath = `reports/${normalizeFileName(
+        data.reportFileName ??
+          `proovra-report-v${data.reportVersion ?? "latest"}.pdf`,
+        "proovra-report.pdf"
+      )}`;
       appendPackageEntry(
         archive,
         packageEntries,
-        `reports/${normalizeFileName(
-          data.reportFileName ??
-            `proovra-report-v${data.reportVersion ?? "latest"}.pdf`,
-          "proovra-report.pdf"
-        )}`,
+        reportEntryPath,
         data.reportPdf,
         "application/pdf"
       );
@@ -3340,14 +3447,77 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     }
 
     // Compute the package checksum index over all packaged entries.
+    const checksumsBuffer = jsonBuffer(buildPackageChecksums(packageEntries));
+    const checksummedFileCount = packageEntries.length;
     appendPackageEntry(
       archive,
       packageEntries,
       "package-checksums.json",
-      jsonBuffer(buildPackageChecksums(packageEntries)),
+      checksumsBuffer,
       "application/json"
     );
     artifactPresence.checksumIndexPresent = true;
+
+    // FORMAT 5 — seal the index, and through it every entry above.
+    if (data.seal) {
+      if (!data.reportPdf || !reportEntryPath) {
+        throw new Error("PACKAGE_SEAL_REQUIRES_REPORT");
+      }
+      const reportSha = sha256Hex(data.reportPdf);
+      if (reportSha !== data.seal.reportSha256.toLowerCase()) {
+        // The caller named one report and handed us different bytes.
+        throw new Error("PACKAGE_SEAL_REPORT_DIGEST_MISMATCH");
+      }
+      const seal = buildPackageSeal({
+        evidenceId: data.evidenceId as string,
+        reportVersion: Number(data.reportVersion),
+        reportFile: reportEntryPath,
+        reportSha256: reportSha,
+        reportIssuedAtUtc: data.seal.reportIssuedAtUtc,
+        packageAssembledAtUtc: data.seal.packageAssembledAtUtc,
+        assembly: data.seal.assembly,
+        custodyThroughSequence: data.seal.custodyThroughSequence,
+        proofMaterialsObservedAtUtc: data.seal.proofMaterialsObservedAtUtc,
+        fileSha256: data.seal.fileSha256,
+        fingerprintHash: data.seal.fingerprintHash,
+        checksumsSha256: sha256Hex(checksumsBuffer),
+        fileCount: checksummedFileCount,
+      });
+      const sealBytes = Buffer.from(serializePackageSeal(seal), "utf8");
+      const sealSha256 = sha256Hex(sealBytes);
+      const signature = await signPackageManifestDigest(sealSha256);
+      let signingKeyFingerprint: string | null = null;
+      try {
+        signingKeyFingerprint = createHash("sha256")
+          .update(createPublicKey(signature.publicKeyPem).export({ type: "spki", format: "der" }))
+          .digest("hex");
+      } catch {
+        signingKeyFingerprint = null;
+      }
+      const sealSignature: PackageSealSignature = {
+        schema: "PROOVRA_PACKAGE_SEAL_SIGNATURE",
+        version: 1,
+        signedFile: PACKAGE_SEAL_FILE,
+        digestAlgorithm: "SHA-256",
+        signatureAlgorithm:
+          signature.provider === "aws-kms" ? "ED25519_SHA_512" : "ED25519",
+        sealSha256,
+        signatureBase64: signature.signatureBase64,
+        signingKeyId: signature.signingKeyId ?? null,
+        signingKeyVersion: signature.signingKeyVersion ?? null,
+        signingKeyFingerprint,
+        publicKeyFile: "package-manifest-public-key.pem",
+        signatureInput:
+          "Ed25519 signature over the 32 raw bytes of SHA-256(package-seal.json bytes)",
+      };
+      // Not listed in the index they seal; the verifier knows these two names.
+      appendSealEntries(archive, sealBytes, jsonBuffer(sealSignature));
+      sealResult = {
+        packageFormatVersion: PACKAGE_FORMAT_VERSION_SEALED,
+        sealSha256,
+        signingKeyFingerprint,
+      };
+    }
 
     await archive.finalize();
   } catch (error) {

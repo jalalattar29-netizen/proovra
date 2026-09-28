@@ -597,7 +597,15 @@ export async function reconcileStrandedReportRequests(input: {
       state: "FAILED_RETRYABLE",
       attemptCount: { gte: REPORT_RECONCILE_MAX_ATTEMPTS },
     },
-    select: { id: true, attemptCount: true, evidenceId: true, teamId: true },
+    select: {
+      id: true,
+      attemptCount: true,
+      evidenceId: true,
+      teamId: true,
+      artifactType: true,
+      stage: true,
+      reportVersion: true,
+    },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
   });
@@ -615,24 +623,56 @@ export async function reconcileStrandedReportRequests(input: {
        * path uses for this record — deduplicated on (workspace, fingerprint) —
        * so Operations shows one actionable condition, never a second system.
        */
-      await recordWorkerIncident({
-        sourceId: "pipeline.report_generation_failed",
-        teamId: row.teamId,
-        category: "REPORT",
-        severity: "HIGH",
-        fingerprint: `REPORT:${row.evidenceId}:RETRY_BUDGET_EXHAUSTED`,
-        title: "Report generation stopped after its retry budget was exhausted",
-        safeSummary:
-          "Automatic retries for this record's report or verification package were exhausted. An operator can review and retry it from Operations.",
-        relatedEvidenceId: row.evidenceId,
-        metadata: {
-          queueName: "report",
-          retriable: false,
-          errorClass: "RETRY_BUDGET_EXHAUSTED",
-          requestId: row.id,
-          attemptCount: row.attemptCount,
-        },
-      }).catch(() => null);
+      /*
+       * NAME THE COMPONENT THAT IS ACTUALLY MISSING.
+       *
+       * A request that committed its report (`stage = REPORT_COMMITTED`) or
+       * that only ever targeted a package is missing a PACKAGE at a known
+       * version. Filing it under the REPORT source let a probe that asks "does
+       * a report exist?" declare it recovered while the package was absent.
+       */
+      const packageOnly =
+        row.reportVersion != null &&
+        (row.artifactType === "VERIFICATION_PACKAGE" || row.stage === "REPORT_COMMITTED");
+      await recordWorkerIncident(
+        packageOnly
+          ? {
+              sourceId: "pipeline.package_generation_failed",
+              teamId: row.teamId,
+              category: "PACKAGE",
+              severity: "HIGH",
+              fingerprint: `PACKAGE:${row.evidenceId}:v${row.reportVersion}:RETRY_BUDGET_EXHAUSTED`,
+              title: `Verification package v${row.reportVersion} stopped after its retry budget was exhausted`,
+              safeSummary: `Automatic retries for the verification package of report version ${row.reportVersion} were exhausted. The report is stored. An operator can review and retry it from Operations; the condition clears only when the package for version ${row.reportVersion} exists.`,
+              relatedEvidenceId: row.evidenceId,
+              metadata: {
+                queueName: "report",
+                retriable: false,
+                errorClass: "RETRY_BUDGET_EXHAUSTED",
+                requestId: row.id,
+                attemptCount: row.attemptCount,
+                reportVersion: row.reportVersion,
+              },
+            }
+          : {
+              sourceId: "pipeline.report_generation_failed",
+              teamId: row.teamId,
+              category: "REPORT",
+              severity: "HIGH",
+              fingerprint: `REPORT:${row.evidenceId}:RETRY_BUDGET_EXHAUSTED`,
+              title: "Report issuance stopped after its retry budget was exhausted",
+              safeSummary:
+                "Automatic retries for this record's report were exhausted. An operator can review and retry it from Operations.",
+              relatedEvidenceId: row.evidenceId,
+              metadata: {
+                queueName: "report",
+                retriable: false,
+                errorClass: "RETRY_BUDGET_EXHAUSTED",
+                requestId: row.id,
+                attemptCount: row.attemptCount,
+              },
+            },
+      ).catch(() => null);
       logger.warn(
         {
           event: "report_generation.retry_budget_exhausted",

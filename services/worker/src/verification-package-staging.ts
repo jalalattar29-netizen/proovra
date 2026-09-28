@@ -42,15 +42,6 @@ export type StagedPackage = {
   sha256Base64: string;
 };
 
-/**
- * A private, deterministic staging key that normal users / Public Verify never
- * resolve. Keyed by (evidence, version) so a job RETRY overwrites the same staging
- * object idempotently rather than leaking a new one per attempt.
- */
-export function stagingPackageKey(evidenceId: string, version: number): string {
-  return `internal/package-staging/${evidenceId}/v${version}.zip`;
-}
-
 /** A pass-through Transform that updates a hash and counts bytes without buffering. */
 export class HashingMeter extends Transform {
   readonly hash: Hash = createHash("sha256");

@@ -162,8 +162,10 @@ export async function sweepSourceTruthRecoveries(
     });
     if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
 
-    await client.operationalIncident.update({
-      where: { id: row.id },
+    // Compare-and-set on the status this sweep read: a reopen or a manual
+    // transition that landed between the probe and this write wins.
+    const closed = await client.operationalIncident.updateMany({
+      where: { id: row.id, status: row.status },
       data: {
         status: prismaPkg.IncidentStatus.RESOLVED,
         resolvedAtUtc: now,
@@ -174,6 +176,7 @@ export async function sweepSourceTruthRecoveries(
         resolutionNote: `Resolved from source truth: ${lifecycle.displayLabel} is no longer reported by its source.`,
       },
     });
+    if (closed.count === 0) continue;
     await client.operationalIncidentEvent
       .create({
         data: {

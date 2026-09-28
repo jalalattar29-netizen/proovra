@@ -6,7 +6,6 @@ import { Readable } from "node:stream";
 import {
   streamZipToTempFile,
   cleanupStagedTemp,
-  stagingPackageKey,
   isStaleStagingObject,
   reconcileStaleStaging,
   STAGING_PREFIX,
@@ -119,13 +118,7 @@ describe("streaming verification-package staging writer", () => {
     expect(deletedKeys.some((k) => k.startsWith("verification/"))).toBe(false);
   });
 
-  it("staging keys live under a private namespace, idempotent per (evidence, version)", () => {
-    const k = stagingPackageKey("ev-1", 3);
-    expect(k).toBe("internal/package-staging/ev-1/v3.zip");
-    expect(k.startsWith("internal/package-staging/")).toBe(true);
-    // Distinct from the canonical `verification/<id>/v<n>.zip` namespace users resolve.
-    expect(k.startsWith("verification/")).toBe(false);
-    // A retry produces the SAME key (overwrite, not a per-attempt leak).
-    expect(stagingPackageKey("ev-1", 3)).toBe(k);
-  });
+  // The staging-key test was retired with the staging path (2026-09-29): packages are
+  // published directly to a single-use canonical key. STAGING_PREFIX survives only so
+  // reconciliation can reclaim residue written before the change.
 });

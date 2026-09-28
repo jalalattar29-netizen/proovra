@@ -36,12 +36,14 @@ const REMOVED_FILES = [
 ];
 
 describe("Offline Verifier decommission — package generator", () => {
-  it("archive writes are confined to the two entry helpers (buffer + streamed part)", () => {
+  it("archive writes are confined to the three entry helpers (buffer, streamed part, seal)", () => {
     // UC-3 streaming closure: buffer entries append via appendPackageEntry; ORIGINAL
-    // parts stream from storage via appendStreamedPartEntry. Both are the ONLY
-    // archive.append sites — no ad-hoc appends elsewhere.
+    // parts stream from storage via appendStreamedPartEntry. Format 5 adds the seal
+    // and its signature through appendSealEntries (one loop, one call site). These
+    // are the ONLY archive.append sites — no ad-hoc appends elsewhere.
     const appends = (generator.match(/archive\.append\(/g) ?? []).length;
-    expect(appends).toBe(2);
+    expect(appends).toBe(3);
+    expect(generator).toMatch(/function appendSealEntries\(/);
   });
 
   it("no appendPackageEntry call emits any offline verifier file", () => {

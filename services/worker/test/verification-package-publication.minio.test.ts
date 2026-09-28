@@ -1,173 +1,131 @@
 /**
- * UC-3 STREAMING PACKAGE PUBLICATION — disposable MinIO lifecycle harness.
+ * PACKAGE / REPORT PUBLICATION AGAINST AN OBJECT-LOCK BUCKET (MinIO).
  *
- * Proves the integrity-critical package publication behavior BELOW the queue
- * boundary against real object storage (the Point-7 disposable MinIO), without the
- * full BullMQ/report pipeline:
+ * Replaces the UC-3 staging harness. That harness ran against a bucket with NO
+ * Object Lock, which is exactly why the staging PUT (no checksum) and the
+ * promote CopyObject (lock headers, no checksum) passed it and failed in
+ * production (Sentry 150024171, 2026-09-28).
  *
- *   synthetic source objects → streamed ZIP → local temp → private staging object
- *   → HEAD (exact size) → allowance decision → server-side promotion → HEAD canonical
- *   → cleanup.
+ * This suite needs a MinIO whose bucket was created WITH object lock and a
+ * DEFAULT COMPLIANCE retention — the production shape documented in
+ * `docs/architecture/evidence-lifecycle-convergence.md`:
  *
- * Run with the local MinIO reachable: `P7_HOST_S3_PORT=59400` selects the disposable
- * instance the Point-7 bootstrap already points at (bucket `point7-local-bucket`).
+ *   mc mb --with-lock l/olc-locked
+ *   mc retention set --default COMPLIANCE 1d l/olc-locked
+ *
+ * and is enabled by `OBJECT_LOCK_MINIO_ENDPOINT` (plus `_LOGIN`,
+ * `_PASSPHRASE`, `_BUCKET` — names chosen so the test bootstrap's credential
+ * scrub does not remove them). Without it the suite is skipped.
+ *
+ * WHAT MINIO CANNOT PROVE (observed 2026-09-29, MinIO RELEASE.2024-12-18):
+ * a PUT with NO checksum header into this default-COMPLIANCE bucket was
+ * ACCEPTED. MinIO does not enforce the AWS rule that produced the incident, so
+ * this suite cannot reproduce the failure and cannot close the production
+ * gate. It proves the new path's own properties — checksum validated and kept,
+ * retention applied, VersionId pinned, single write per key — and nothing
+ * about AWS acceptance. That gate stays open until a run against a real AWS
+ * bucket configured like production.
  */
-import { describe, it, expect, afterAll } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
+import { describe, expect, it } from "vitest";
 
-import {
-  copyObject,
-  deleteObject,
-  getObjectStream,
-  headObject,
-  putObjectBuffer,
-  putObjectFromFile,
-} from "../src/storage.js";
-import { env } from "../src/config.js";
-import {
-  streamZipToTempFile,
-  cleanupStagedTemp,
-  reconcileStaleStaging,
-  type StreamingPackageEntry,
-} from "../src/verification-package-staging.js";
-import { listObjects } from "../src/storage.js";
+const ENDPOINT = process.env.OBJECT_LOCK_MINIO_ENDPOINT;
+const run = ENDPOINT ? describe : describe.skip;
 
-const BUCKET = env.S3_BUCKET;
-const RUN = `uc3pub-${randomUUID()}`;
-const created: string[] = [];
-
-async function put(key: string, body: Buffer) {
-  await putObjectBuffer({ bucket: BUCKET, key, body, contentType: "application/octet-stream" });
-  created.push(key);
-}
-async function exists(key: string): Promise<boolean> {
-  try {
-    await headObject({ bucket: BUCKET, key });
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function streamToBuffer(s: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const c of s) chunks.push(typeof c === "string" ? Buffer.from(c) : (c as Buffer));
-  return Buffer.concat(chunks);
+if (ENDPOINT) {
+  process.env.S3_ENDPOINT = ENDPOINT;
+  process.env.S3_REGION = "us-east-1";
+  process.env.S3_ACCESS_KEY = process.env.OBJECT_LOCK_MINIO_LOGIN ?? "";
+  process.env.S3_SECRET_KEY = process.env.OBJECT_LOCK_MINIO_PASSPHRASE ?? "";
+  process.env.S3_BUCKET = process.env.OBJECT_LOCK_MINIO_BUCKET ?? "olc-locked";
+  process.env.S3_ALLOW_INSECURE = "true";
+  process.env.S3_FORCE_PATH_STYLE = "true";
+  process.env.S3_OBJECT_LOCK_ENABLED = "true";
+  process.env.S3_OBJECT_LOCK_MODE = "COMPLIANCE";
+  process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "1";
 }
 
-afterAll(async () => {
-  for (const key of created) await deleteObject({ bucket: BUCKET, key }).catch(() => {});
-});
+run("publication to an Object-Lock bucket with default COMPLIANCE retention", async () => {
+  const storage = await import("../src/storage.js");
+  const { publishImmutableArtifact, buildPublicationKey, StoragePublicationRejectedError } =
+    await import("../src/immutable-publication.js");
+  const { streamZipToTempFile, cleanupStagedTemp } = await import(
+    "../src/verification-package-staging.js"
+  );
+  const { HeadObjectCommand, ListObjectVersionsCommand } = await import("@aws-sdk/client-s3");
+  const BUCKET = process.env.S3_BUCKET as string;
+  const RUN = `olc-${randomUUID()}`;
 
-describe("UC-3 streaming package publication — disposable MinIO", () => {
-  it("A. success: stream → staging → exact size → allow → promote → canonical verified → cleanup", async () => {
-    // Synthetic ORIGINAL parts already in storage.
-    const p0 = Buffer.from("segment-0-bytes-".repeat(1000));
-    const p1 = Buffer.from("segment-1-bytes-".repeat(2000));
-    const k0 = `${RUN}/src/part-0.mp4`;
-    const k1 = `${RUN}/src/part-1.mp4`;
-    await put(k0, p0);
-    await put(k1, p1);
-
-    // Stream a package from the storage objects + a small manifest — never buffering.
-    const entries: StreamingPackageEntry[] = [
-      { name: "evidence-manifest.json", buffer: Buffer.from(JSON.stringify({ parts: 2 })) },
-      { name: "evidence-parts/part-0.mp4", source: () => getObjectStream({ bucket: BUCKET, key: k0 }) as unknown as Promise<Readable> },
-      { name: "evidence-parts/part-1.mp4", source: () => getObjectStream({ bucket: BUCKET, key: k1 }) as unknown as Promise<Readable> },
-    ];
-    const staged = await streamZipToTempFile(entries);
-
-    // Upload to the PRIVATE staging key (streamed from temp, exact ContentLength).
-    const stagingKey = `internal/package-staging/${RUN}/v1.zip`;
-    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
-    created.push(stagingKey);
+  it("publishes a streamed package once, checksum-validated and COMPLIANCE-locked, pinned by VersionId", async () => {
+    const parts = [Buffer.from("segment-0-".repeat(4000)), Buffer.from("segment-1-".repeat(9000))];
+    const staged = await streamZipToTempFile([
+      { name: "manifest.json", buffer: Buffer.from(JSON.stringify({ parts: 2 })) },
+      { name: "evidence-parts/p0.bin", source: () => Readable.from(parts[0]) },
+      { name: "evidence-parts/p1.bin", source: () => Readable.from(parts[1]) },
+    ]);
+    const key = buildPublicationKey({
+      family: "verification",
+      evidenceId: RUN,
+      version: 7,
+      requestId: "req",
+      extension: "zip",
+    });
+    const published = await publishImmutableArtifact({
+      bucket: BUCKET,
+      key,
+      body: { kind: "file", filePath: staged.tempPath, sizeBytes: staged.sizeBytes },
+      sha256Base64: staged.sha256Base64,
+      contentType: "application/zip",
+    });
     await cleanupStagedTemp(staged);
 
-    // Staging exists and is EXACTLY the generated bytes.
-    const stagingHead = await headObject({ bucket: BUCKET, key: stagingKey });
-    expect(Number(stagingHead.sizeBytes)).toBe(staged.sizeBytes);
-    // Its bytes hash to the generated digest (end-to-end streaming integrity).
-    const stagingBytes = await streamToBuffer((await getObjectStream({ bucket: BUCKET, key: stagingKey })) as unknown as Readable);
-    expect(createHash("sha256").update(stagingBytes).digest("hex")).toBe(staged.sha256Hex);
+    expect(published.versionId).toBeTruthy();
+    expect(published.sha256Hex).toBe(staged.sha256Hex);
+    expect(published.objectLockMode).toBe("COMPLIANCE");
 
-    // Staging is NOT canonical — the user-visible canonical object does not exist yet.
-    const canonicalKey = `verification/${RUN}/v1.zip`;
-    expect(await exists(canonicalKey)).toBe(false);
+    const head = await storage.s3.send(
+      new HeadObjectCommand({ Bucket: BUCKET, Key: key, VersionId: published.versionId!, ChecksumMode: "ENABLED" }),
+    );
+    expect(head.ChecksumSHA256).toBe(staged.sha256Base64);
+    expect(head.ContentLength).toBe(staged.sizeBytes);
 
-    // ALLOWANCE PASSES (simulated) → server-side PROMOTE → verify canonical.
-    await copyObject({ sourceBucket: BUCKET, sourceKey: stagingKey, destBucket: BUCKET, destKey: canonicalKey, contentType: "application/zip" });
-    created.push(canonicalKey);
-    const canonicalHead = await headObject({ bucket: BUCKET, key: canonicalKey });
-    expect(Number(canonicalHead.sizeBytes)).toBe(staged.sizeBytes);
-
-    // Cleanup staging; canonical remains available.
-    await deleteObject({ bucket: BUCKET, key: stagingKey });
-    expect(await exists(stagingKey)).toBe(false);
-    expect(await exists(canonicalKey)).toBe(true);
+    // The bytes read back are the bytes hashed.
+    const body = (await storage.getObjectStream({ bucket: BUCKET, key })) as unknown as Readable;
+    const chunks: Buffer[] = [];
+    for await (const c of body) chunks.push(c as Buffer);
+    expect(createHash("sha256").update(Buffer.concat(chunks)).digest("hex")).toBe(staged.sha256Hex);
   });
 
-  it("B. refusal: staging exists, gate refuses → staging removed, canonical never appears", async () => {
-    const staged = await streamZipToTempFile([{ name: "m.json", buffer: Buffer.from("{}") }]);
-    const stagingKey = `internal/package-staging/${RUN}-refuse/v1.zip`;
-    const canonicalKey = `verification/${RUN}-refuse/v1.zip`;
-    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
-    await cleanupStagedTemp(staged);
-    expect(await exists(stagingKey)).toBe(true);
-
-    // Gate REFUSES → delete staging, never promote.
-    await deleteObject({ bucket: BUCKET, key: stagingKey });
-    expect(await exists(stagingKey)).toBe(false);
-    expect(await exists(canonicalKey)).toBe(false);
+  it("never writes a second version at a key: a repeat with different bytes is refused", async () => {
+    const key = `reports/${RUN}/v1/req-fixed.pdf`;
+    const a = Buffer.from("%PDF first");
+    const b = Buffer.from("%PDF second, different bytes");
+    const sha = (x: Buffer) => createHash("sha256").update(x).digest("base64");
+    await publishImmutableArtifact({ bucket: BUCKET, key, body: { kind: "buffer", buffer: a }, sha256Base64: sha(a), contentType: "application/pdf" });
+    // Same bytes again (lost response): accepted, same object.
+    const again = await publishImmutableArtifact({ bucket: BUCKET, key, body: { kind: "buffer", buffer: a }, sha256Base64: sha(a), contentType: "application/pdf" });
+    expect(again.sizeBytes).toBe(a.length);
+    await expect(
+      publishImmutableArtifact({ bucket: BUCKET, key, body: { kind: "buffer", buffer: b }, sha256Base64: sha(b), contentType: "application/pdf" }),
+    ).rejects.toBeInstanceOf(StoragePublicationRejectedError);
+    const versions = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: key }));
+    expect((versions.Versions ?? []).filter((v) => v.Key === key)).toHaveLength(1);
   });
 
-  it("C. idempotent promote: a retry re-copies to the same canonical key, one object, exact size", async () => {
-    const staged = await streamZipToTempFile([{ name: "m.json", buffer: Buffer.from(JSON.stringify({ a: 1 })) }]);
-    const stagingKey = `internal/package-staging/${RUN}-idem/v1.zip`;
-    const canonicalKey = `verification/${RUN}-idem/v1.zip`;
-    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
-    created.push(stagingKey, canonicalKey);
-    await cleanupStagedTemp(staged);
-
-    await copyObject({ sourceBucket: BUCKET, sourceKey: stagingKey, destBucket: BUCKET, destKey: canonicalKey, contentType: "application/zip" });
-    await copyObject({ sourceBucket: BUCKET, sourceKey: stagingKey, destBucket: BUCKET, destKey: canonicalKey, contentType: "application/zip" });
-    const head = await headObject({ bucket: BUCKET, key: canonicalKey });
-    expect(Number(head.sizeBytes)).toBe(staged.sizeBytes);
-  });
-
-  it("E. stale-staging reconciliation reclaims an orphaned staging object (crash residue)", async () => {
-    // Simulate a crashed publication: a staging object exists but was never promoted.
-    const staged = await streamZipToTempFile([{ name: "m.json", buffer: Buffer.from("{}") }]);
-    const stagingKey = `internal/package-staging/${RUN}-orphan/v1.zip`;
-    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
-    await cleanupStagedTemp(staged);
-    expect(await exists(stagingKey)).toBe(true);
-
-    // Reconcile with ttlMs=0 (everything under the staging prefix is "stale") →
-    // the orphan is reclaimed; a canonical `verification/` object would be untouched.
-    const res = await reconcileStaleStaging({ bucket: BUCKET, listObjects, deleteObject, ttlMs: 0 });
-    expect(res.deleted).toBeGreaterThanOrEqual(1);
-    expect(await exists(stagingKey)).toBe(false);
-  });
-
-  it("D. many-artifact package streams from storage without buffering all parts", async () => {
-    const n = 12;
-    const keys: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const k = `${RUN}/many/part-${i}.bin`;
-      await put(k, Buffer.from(`part-${i}-`.repeat(500)));
-      keys.push(k);
-    }
-    const entries: StreamingPackageEntry[] = keys.map((k, i) => ({
-      name: `evidence-parts/part-${i}.bin`,
-      source: () => getObjectStream({ bucket: BUCKET, key: k }) as unknown as Promise<Readable>,
-    }));
-    const staged = await streamZipToTempFile(entries);
-    const stagingKey = `internal/package-staging/${RUN}-many/v1.zip`;
-    await putObjectFromFile({ bucket: BUCKET, key: stagingKey, filePath: staged.tempPath, contentLength: staged.sizeBytes, contentType: "application/zip" });
-    created.push(stagingKey);
-    await cleanupStagedTemp(staged);
-    const head = await headObject({ bucket: BUCKET, key: stagingKey });
-    expect(Number(head.sizeBytes)).toBe(staged.sizeBytes);
-    expect(staged.sizeBytes).toBeGreaterThan(0);
+  it("a key-only delete of a locked object leaves the locked version (delete marker only)", async () => {
+    const key = `reports/${RUN}/v2/req-del.pdf`;
+    const a = Buffer.from("%PDF locked");
+    await publishImmutableArtifact({
+      bucket: BUCKET,
+      key,
+      body: { kind: "buffer", buffer: a },
+      sha256Base64: createHash("sha256").update(a).digest("base64"),
+      contentType: "application/pdf",
+    });
+    await storage.deleteObject({ bucket: BUCKET, key });
+    const versions = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: key }));
+    expect((versions.Versions ?? []).length).toBe(1);
+    expect((versions.DeleteMarkers ?? []).length).toBe(1);
   });
 });

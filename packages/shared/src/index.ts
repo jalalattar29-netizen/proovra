@@ -2469,3 +2469,6 @@ export * from "./security-event-labels.js";
 
 /* Tenant service status: the one client reading of GET /v1/runtime/status (web + native). */
 export * from "./tenant-service-status.js";
+
+/* Verification package format 5: the seal that binds every entry, including the embedded report. */
+export * from "./package-seal.js";

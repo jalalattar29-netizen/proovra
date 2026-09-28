@@ -792,40 +792,119 @@ async function observeOtsInitializationStalled(
 /**
  * Does the record the condition names now HAVE the artifact it lacked?
  *
- * The recovery signal for the two pipeline bridges. A report job that failed
- * and a package the gate denied are both statements about one record's
- * artifacts, and the record's own column answers whether the artifact exists
- * now — which is the only thing either condition was ever about.
+ * The recovery signal for the pipeline bridges.
  *
- * `segment` is where the evidence id sits in that writer's fingerprint.
+ * ---------------------------------------------------------------------------
+ * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — TWO DEFECTS CLOSED
+ * ---------------------------------------------------------------------------
+ *   1. The package probe read fingerprint segment 2. For the package bridge's
+ *      own shape, `PACKAGE:<evidenceId>:<class>`, segment 2 is the error
+ *      class — never a UUID — so the probe always answered NOT_APPLICABLE,
+ *      which made the condition operator-closable while the package was
+ *      still missing.
+ *   2. Both probes asked "is SOME artifact recorded?" — any
+ *      `verificationPackageVersion`, any `latestReportVersion`. A record with
+ *      report v7 and only package v2 answered RECOVERED for a missing package
+ *      v7, and a failed package-only request filed under the REPORT source
+ *      answered RECOVERED because the report existed.
+ *
+ * The probe now resolves the version the condition is ABOUT and asks whether
+ * that artifact exists: a package at that report version, or — for a report
+ * condition — that no report issuance is still failing after the latest
+ * report.
  */
 async function observeEvidenceArtifact(
   ctx: ProbeContext,
   which: "report" | "package",
-  segment: number,
 ): Promise<SourceObservation> {
   const base = { observedAtUtc: ctx.now } as const;
   try {
-    const evidenceId = identifiableSubject(
-      fingerprintSegment(ctx.fingerprint, segment),
-    );
-    if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+    const parsed = parseArtifactFingerprint(ctx.fingerprint);
+    const evidenceId = identifiableSubject(parsed?.evidenceId ?? null);
+    if (!evidenceId || !parsed) return { ...base, activity: "NOT_APPLICABLE" };
     const record = await ctx.client.evidence.findFirst({
       // Bound to the workspace as well as the id: a fingerprint is not an
       // authorization, and a probe that read across tenants would be the one
       // place this closure could leak.
       where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
-      select: { latestReportVersion: true, verificationPackageVersion: true },
+      select: { id: true, latestReportVersion: true },
     });
     if (!record) return { ...base, activity: "NOT_APPLICABLE" };
-    const present =
-      which === "report"
-        ? record.latestReportVersion != null
-        : record.verificationPackageVersion != null;
-    return { ...base, activity: present ? "RECOVERED" : "ACTIVE" };
+
+    // A report-sourced condition whose error class is a PACKAGE failure (rows
+    // written before the bridges were separated) is a package condition.
+    const target =
+      which === "package" || parsed.packageFailureClass ? "package" : "report";
+
+    if (target === "package") {
+      const version = parsed.reportVersion ?? record.latestReportVersion;
+      if (version == null) return { ...base, activity: "ACTIVE" };
+      const pkg = await ctx.client.verificationPackage.findFirst({
+        where: { evidenceId, version },
+        select: { id: true },
+      });
+      return { ...base, activity: pkg ? "RECOVERED" : "ACTIVE" };
+    }
+
+    if (record.latestReportVersion == null) return { ...base, activity: "ACTIVE" };
+    // A report exists. The condition is still active if a REPORT issuance
+    // created after that report is live or failed — the failure was about a
+    // version that does not exist yet.
+    const latestReport = await ctx.client.report.findFirst({
+      where: { evidenceId, version: record.latestReportVersion },
+      select: { generatedAtUtc: true },
+    });
+    const pending = await ctx.client.reportGenerationRequest.findFirst({
+      where: {
+        evidenceId,
+        artifactType: "REPORT",
+        stage: { not: "REPORT_COMMITTED" },
+        state: { in: ["QUEUED", "PROCESSING", "FAILED_RETRYABLE", "FAILED_TERMINAL"] },
+        ...(latestReport ? { createdAtUtc: { gt: latestReport.generatedAtUtc } } : {}),
+      },
+      select: { id: true },
+    });
+    return { ...base, activity: pending ? "ACTIVE" : "RECOVERED" };
   } catch {
     return { ...base, activity: "UNKNOWN" };
   }
+}
+
+/**
+ * The record and, when the writer recorded it, the report version a pipeline
+ * fingerprint is about. Pure; exported for tests.
+ */
+export function parseArtifactFingerprint(fingerprint: string): {
+  evidenceId: string | null;
+  reportVersion: number | null;
+  /** True when the error class names a package-only failure. */
+  packageFailureClass: boolean;
+} | null {
+  const parts = fingerprint.split(":");
+  const head = parts[0] ?? "";
+  if (head === "worker_package_gate") {
+    return { evidenceId: parts[2] ?? null, reportVersion: null, packageFailureClass: true };
+  }
+  if (head === "PACKAGE") {
+    const versionSegment = parts[2] ?? "";
+    const match = /^v(\d{1,7})$/.exec(versionSegment);
+    return {
+      evidenceId: parts[1] ?? null,
+      reportVersion: match ? Number(match[1]) : null,
+      packageFailureClass: true,
+    };
+  }
+  if (head === "REPORT") {
+    const cls = (parts[2] ?? "").toUpperCase();
+    return {
+      evidenceId: parts[1] ?? null,
+      reportVersion: null,
+      packageFailureClass:
+        cls.startsWith("VERIFICATION_PACKAGE_INCOMPLETE") ||
+        cls === "VERIFICATION_PACKAGE_STORAGE_REJECTED",
+    };
+  }
+  return null;
 }
 
 /**
@@ -1130,12 +1209,13 @@ const PROBE_HANDLERS: Readonly<
   "evidence.ots_initialization_stalled": (ctx) =>
     observeOtsInitializationStalled(ctx),
 
-  // `REPORT:<evidenceId>:<errorClass>` and
+  // `REPORT:<evidenceId>:<errorClass>`, `PACKAGE:<evidenceId>:v<N>:<class>`,
+  // legacy `PACKAGE:<evidenceId>:<class>` and
   // `worker_package_gate:<team>:<evidenceId>:<outcome>` — the artifact the
-  // failed job did not produce either exists now or does not.
-  "evidence.report_present": (ctx) => observeEvidenceArtifact(ctx, "report", 1),
-  "evidence.package_present": (ctx) =>
-    observeEvidenceArtifact(ctx, "package", 2),
+  // failed job did not produce, AT THE VERSION IT WAS FOR, either exists now or
+  // does not. See `parseArtifactFingerprint`.
+  "evidence.report_present": (ctx) => observeEvidenceArtifact(ctx, "report"),
+  "evidence.package_present": (ctx) => observeEvidenceArtifact(ctx, "package"),
 
   // `idp-outage:<connectionId>` — cleared to NULL by the first success.
   "identity.idp_outage_state": (ctx) => observeIdpOutage(ctx),

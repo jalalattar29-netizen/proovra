@@ -773,6 +773,22 @@ model Report {
   pdfSigningWarning  String?   @map("pdf_signing_warning") @db.VarChar(400)
   /// SHA-256 (hex) of the exact PDF bytes stored at storageKey.
   pdfSha256          String?   @map("pdf_sha256") @db.VarChar(64)
+  /// EVIDENCE OUTPUT LIFECYCLE (2026-09-29). The S3 VersionId of the exact
+  /// object the row describes. Downloads presign this version, never "latest
+  /// at key". NULL on rows published before it was recorded — those are read
+  /// with an explicit limitation, never with a fabricated identity.
+  s3VersionId        String?   @map("s3_version_id") @db.VarChar(255)
+  /// FIRST_ISSUE | UPDATED_REPORT | LEGACY (NULL = written before the field).
+  /// An UPDATED_REPORT is an explicit, authorized issuance that documents
+  /// later facts; it never replaces the first issue.
+  issueKind          String?   @map("issue_kind") @db.VarChar(24)
+  /// Why an UPDATED_REPORT was issued (bounded, actor-supplied).
+  issueReason        String?   @map("issue_reason") @db.VarChar(200)
+  /// The report version an UPDATED_REPORT follows.
+  previousReportVersion Int?   @map("previous_report_version")
+  /// Last custody sequence the rendered PDF describes. Events after it
+  /// happened after this report was issued.
+  custodyThroughSequence Int?  @map("custody_through_sequence")
 
   evidence Evidence @relation(fields: [evidenceId], references: [id])
 
@@ -841,6 +857,22 @@ model VerificationPackage {
   reportVersion                    Int?      @map("report_version")
   /// SHA-256 (hex) of the report PDF bytes embedded in this package.
   reportSha256                     String?   @map("report_sha256") @db.VarChar(64)
+  /// EVIDENCE OUTPUT LIFECYCLE (2026-09-29). SHA-256 (hex) of the exact ZIP
+  /// bytes published, validated by the object store on receipt.
+  packageSha256                    String?   @map("package_sha256") @db.VarChar(64)
+  /// The S3 VersionId of the exact ZIP object this row describes.
+  s3VersionId                      String?   @map("s3_version_id") @db.VarChar(255)
+  /// Package format. 5 = sealed (package-seal.json signs the checksum index,
+  /// which binds every entry including the embedded report). NULL = legacy
+  /// manifest-signed format whose signature does not cover the report PDF.
+  packageFormatVersion             Int?      @map("package_format_version")
+  /// When the report this package certifies was issued (copied from the
+  /// report row so chronology survives without a join).
+  reportIssuedAtUtc                DateTime? @map("report_issued_at_utc") @db.Timestamptz(6)
+  /// Last custody sequence included in the package's custody materials. A
+  /// package assembled after its report includes nothing later than the
+  /// report's own issuance.
+  custodyThroughSequence           Int?      @map("custody_through_sequence")
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
