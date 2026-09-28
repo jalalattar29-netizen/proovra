@@ -494,7 +494,7 @@ describe("7. C2 — executeDestruction with real S3 deletion", () => {
     expect(write).not.toMatch(/status:\s*"DESTROYED"/);
     expect(executor).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);
     // Verified deletion precedes the tombstone. That ordering is the point.
-    expect(executor.indexOf("objectExists(target)")).toBeLessThan(
+    expect(executor.indexOf("const remaining = await storage.listObjectVersions(target)")).toBeLessThan(
       executor.indexOf('lifecycleState: "DESTROYED"'),
     );
   });

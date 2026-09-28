@@ -30,6 +30,7 @@
  * test is the production executor and only its outermost adapter is swapped.
  * Nothing here can reach a real bucket: the port is passed by value.
  */
+import { versionedDestructionPort } from "./helpers/versioned-destruction-port.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -60,19 +61,17 @@ class DisposableStore {
     return this.objects.has(`${bucket}/${key}`);
   }
 
+  retained = new Map<string, Date>();
+
   get port() {
-    return {
-      deleteObject: async (input: { bucket: string; key: string }) => {
-        const id = `${input.bucket}/${input.key}`;
-        this.deleteCalls.push(id);
-        if (this.refuse.has(id)) return { ok: false, error: "AccessDenied" };
-        if (this.survive.has(id)) return { ok: true };
-        this.objects.delete(id);
-        return { ok: true };
-      },
-      objectExists: async (input: { bucket: string; key: string }) =>
-        this.objects.has(`${input.bucket}/${input.key}`),
-    };
+    return versionedDestructionPort({
+      exists: (id) => this.objects.has(id),
+      remove: (id) => this.objects.delete(id),
+      refuse: (id) => this.refuse.has(id),
+      survive: (id) => this.survive.has(id),
+      retainUntil: (id) => this.retained.get(id) ?? null,
+      onDelete: (id) => this.deleteCalls.push(id),
+    });
   }
 }
 

@@ -1,57 +1,29 @@
 /**
  * The API host's storage adapter for the canonical destruction executor.
  *
- * Deliberately tiny, and deliberately NOT a decision surface: it translates two
- * operations onto this process's configured S3 client and nothing else. The
+ * Deliberately tiny, and deliberately NOT a decision surface. Since 2026-09-29
+ * the executor speaks object VERSIONS (a key-only delete on an Object Lock
+ * bucket writes a delete marker and leaves the locked version), so the adapter
+ * is the shared version-aware port bound to this process's S3 client. The
  * executor in `@proovra/shared-runtime` owns every rule about when a delete may
- * happen; this file owns only how a delete is spelled here.
+ * happen; this file owns only which client it runs on.
  */
-
 import {
-  deleteObject as s3DeleteObject,
-  headObject as s3HeadObject,
-} from "../../storage.js";
-import type { EvidenceDestructionStoragePort } from "@proovra/shared-runtime";
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectVersionsCommand,
+} from "@aws-sdk/client-s3";
+import {
+  createVersionAwareDestructionPort,
+  type EvidenceDestructionStoragePort,
+} from "@proovra/shared-runtime";
 
-/**
- * True when the store still holds the object.
- *
- * The catch is narrow ON PURPOSE. A genuine "not found" is the only error that
- * proves absence; every other failure — a network error, a permission error, a
- * throttle — proves nothing, and this function is the input to a decision about
- * whether it is honest to certify that bytes are gone. Anything unrecognised is
- * re-thrown, and the executor treats a throw as "still there", which refuses the
- * certificate. Refusing a lawful destruction costs a retry; certifying an
- * unperformed one is a false record.
- */
-function isNotFound(err: unknown): boolean {
-  const name = (err as { name?: string })?.name ?? "";
-  const code = (err as { Code?: string; code?: string })?.Code ?? (err as { code?: string })?.code ?? "";
-  const status =
-    (err as { $metadata?: { httpStatusCode?: number } })?.$metadata
-      ?.httpStatusCode ?? 0;
-  return (
-    name === "NotFound" ||
-    name === "NoSuchKey" ||
-    code === "NotFound" ||
-    code === "NoSuchKey" ||
-    status === 404
-  );
-}
+import { s3 } from "../../storage.js";
 
-export const apiEvidenceDestructionStorage: EvidenceDestructionStoragePort = {
-  // A DIRECT reference, not a wrapper. The shapes already match exactly, so a
-  // wrapper would add nothing but a hop — and the hop costs something real:
-  // static analysis can follow a named function through an object literal, and
-  // cannot follow an anonymous method that closes over it.
-  deleteObject: s3DeleteObject,
-  async objectExists(input) {
-    try {
-      await s3HeadObject(input);
-      return true;
-    } catch (err) {
-      if (isNotFound(err)) return false;
-      throw err;
-    }
-  },
-};
+export const apiEvidenceDestructionStorage: EvidenceDestructionStoragePort =
+  createVersionAwareDestructionPort({
+    client: s3,
+    ListObjectVersionsCommand: ListObjectVersionsCommand as never,
+    HeadObjectCommand: HeadObjectCommand as never,
+    DeleteObjectCommand: DeleteObjectCommand as never,
+  });

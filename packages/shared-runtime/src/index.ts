@@ -78,6 +78,7 @@ export * from "./evidence-analysis-revision.js";
 // their own: four independent destroyers, two of which certified destructions
 // they never performed. Every trigger in both processes now calls this.
 export * from "./evidence-destruction/executor.js";
+export * from "./evidence-destruction/version-port.js";
 export * from "./evidence-destruction/approval.js";
 export * from "./evidence-destruction/reconcile-destroyed-derivatives.js";
 

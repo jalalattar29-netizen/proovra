@@ -20,6 +20,7 @@
  * DISPOSABLE INFRASTRUCTURE ONLY: the harness's throwaway PostgreSQL 16 and an
  * in-process object store implementing the executor's storage port.
  */
+import { versionedDestructionPort } from "./helpers/versioned-destruction-port.js";
 import { randomBytes } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -38,15 +39,11 @@ class DisposableStore {
     return this.objects.has(`${bucket}/${key}`);
   }
   get port() {
-    return {
-      deleteObject: async (input: { bucket: string; key: string }) => {
-        this.deleteCalls.push(`${input.bucket}/${input.key}`);
-        this.objects.delete(`${input.bucket}/${input.key}`);
-        return { ok: true };
-      },
-      objectExists: async (input: { bucket: string; key: string }) =>
-        this.objects.has(`${input.bucket}/${input.key}`),
-    };
+    return versionedDestructionPort({
+      exists: (id) => this.objects.has(id),
+      remove: (id) => this.objects.delete(id),
+      onDelete: (id) => this.deleteCalls.push(id),
+    });
   }
 }
 

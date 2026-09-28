@@ -87,9 +87,18 @@ import { createHash } from "node:crypto";
  */
 export const DESTRUCTION_CLAIM_LEASE_MS = 30 * 60 * 1000;
 
-/** The certificate body version. Bound into the hash. */
+/**
+ * The certificate body version. Bound into the hash.
+ *
+ * V3 (2026-09-29): a certificate is minted only after EVERY VERSION of every
+ * object is verified absent. V2 certificates were minted after a key-level
+ * delete and a key-level HEAD, which a versioned (Object Lock) bucket answers
+ * with 404 while locked versions remain; see
+ * services/api/src/scripts/destruction-certificate-audit.ts for the read-only
+ * inventory of V2 certificates that may be inaccurate.
+ */
 export const DESTRUCTION_CERTIFICATE_VERSION =
-  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V2" as const;
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3" as const;
 
 /**
  * The storage operations the executor needs, and nothing else.
@@ -100,12 +109,28 @@ export const DESTRUCTION_CERTIFICATE_VERSION =
  * safety property this whole module is built around.
  */
 export interface EvidenceDestructionStoragePort {
-  deleteObject(input: {
+  /**
+   * Every version and delete marker of EXACTLY this key, answered by the
+   * store, with each data version's retention read by VersionId. MUST throw
+   * rather than return a partial list.
+   */
+  listObjectVersions(input: { bucket: string; key: string }): Promise<ObjectVersionInfo[]>;
+  /** Delete ONE version by its VersionId ("null" for an unversioned object). */
+  deleteObjectVersion(input: {
     bucket: string;
     key: string;
+    versionId: string;
   }): Promise<{ ok: boolean; error?: string }>;
-  objectExists(input: { bucket: string; key: string }): Promise<boolean>;
 }
+
+export type ObjectVersionInfo = {
+  versionId: string;
+  isDeleteMarker: boolean;
+  isLatest: boolean;
+  retainUntil: Date | null;
+  lockMode: string | null;
+  legalHold: boolean;
+};
 
 export type DestructionTrigger =
   | "trash_grace_reconciler"
@@ -148,8 +173,14 @@ export interface DestructionCertificateBody {
   /** SHA-256 of the sorted storage keys, so the certificate binds WHAT went. */
   destroyedStorageKeysSha256: string;
   destroyedObjectCount: number;
-  /** Proof that verification ran, not merely that deletion was requested. */
+  /** Object VERSIONS deleted (data versions + delete markers). */
+  destroyedVersionCount: number;
+  /**
+   * Proof that verification ran, not merely that deletion was requested — and
+   * what was verified: no version of any object remains.
+   */
   storageDeletionVerified: true;
+  verification: "ALL_OBJECT_VERSIONS_ABSENT";
   retentionPolicyVersionId: string | null;
   appRetentionUntilUtc: string | null;
   objectLockRetainUntilUtc: string | null;
@@ -173,6 +204,13 @@ export type ExecuteEvidenceDestructionResult =
       outcome: "BLOCKED";
       /** The canonical reason destruction is not permitted right now. */
       reason: EvidenceLifecycleBlockReason;
+      /**
+       * Set when stored object VERSIONS are still under Object Lock retention
+       * or legal hold: the earliest moment every retained version could be
+       * deleted (null for a legal hold, which has no date).
+       */
+      retainedUntilUtc?: string | null;
+      retainedObjectCount?: number;
     }
   | {
       ok: false;
@@ -355,11 +393,66 @@ export async function executeEvidenceDestruction(
   // 5. ENUMERATE. Everything the Evidence record owns bytes for.
   const targets = await enumerateStorageTargets(prisma, evidence.id, evidence);
 
-  // 6. DELETE.
+  // 5b. INVENTORY every VERSION before touching anything.
+  //
+  //    A version under Object Lock retention or legal hold cannot be deleted,
+  //    and deleting everything ELSE first would leave a record half destroyed
+  //    with no certificate. So retention is decided up front, over every
+  //    version of every object — not just the evidence object's own date — and
+  //    a single retained version blocks the whole destruction until it lapses.
+  const inventory = new Map<string, ObjectVersionInfo[]>();
+  try {
+    for (const target of targets) {
+      inventory.set(`${target.bucket} ${target.key}`, await storage.listObjectVersions(target));
+    }
+  } catch {
+    await releaseClaim();
+    return {
+      ok: false,
+      outcome: "STORAGE_VERIFY_FAILED",
+      failedKeys: targets.map((t) => t.key).slice(0, 50),
+    };
+  }
+  let retainedUntilMs: number | null = null;
+  let retainedObjectCount = 0;
+  let legalHoldVersion = false;
+  for (const versions of inventory.values()) {
+    for (const v of versions) {
+      if (v.isDeleteMarker) continue;
+      const held = v.legalHold;
+      const retained = v.retainUntil !== null && v.retainUntil.getTime() > now.getTime();
+      if (held || retained) {
+        retainedObjectCount++;
+        if (held) legalHoldVersion = true;
+        if (retained) {
+          retainedUntilMs = Math.max(retainedUntilMs ?? 0, v.retainUntil!.getTime());
+        }
+      }
+    }
+  }
+  if (retainedObjectCount > 0) {
+    await releaseClaim();
+    return {
+      ok: false,
+      outcome: "BLOCKED",
+      reason: legalHoldVersion ? "LEGAL_HOLD_ACTIVE" : "OBJECT_LOCK_RETENTION_ACTIVE",
+      retainedUntilUtc:
+        legalHoldVersion || retainedUntilMs === null
+          ? null
+          : new Date(retainedUntilMs).toISOString(),
+      retainedObjectCount,
+    } as ExecuteEvidenceDestructionResult;
+  }
+
+  // 6. DELETE every version (data versions AND delete markers) by VersionId.
   const deleteFailures: string[] = [];
+  let destroyedVersionCount = 0;
   for (const target of targets) {
-    const res = await storage.deleteObject(target);
-    if (!res.ok) deleteFailures.push(target.key);
+    for (const v of inventory.get(`${target.bucket} ${target.key}`) ?? []) {
+      const res = await storage.deleteObjectVersion({ ...target, versionId: v.versionId });
+      if (res.ok) destroyedVersionCount++;
+      else deleteFailures.push(`${target.key}@${v.versionId}`);
+    }
   }
   if (deleteFailures.length > 0) {
     await releaseClaim();
@@ -371,21 +464,18 @@ export async function executeEvidenceDestruction(
   }
 
   // 7. VERIFY. The step whose absence produced certificates for evidence that
-  //    was never deleted.
-  //
-  //    A storage error during verification counts as "still there". The
-  //    conservative reading is the only safe one: we are about to sign a
-  //    statement that these bytes are gone, and "I could not check" is not
-  //    evidence that they are.
+  //    was never deleted — and, until 2026-09-29, a step that asked the wrong
+  //    question: a HEAD by key sees a delete marker as absence. It now asks for
+  //    every VERSION of every key, and any surviving version (or any error)
+  //    refuses the certificate.
   const survivors: string[] = [];
   for (const target of targets) {
-    let stillThere = true;
     try {
-      stillThere = await storage.objectExists(target);
+      const remaining = await storage.listObjectVersions(target);
+      if (remaining.some((v) => !v.isDeleteMarker)) survivors.push(target.key);
     } catch {
-      stillThere = true;
+      survivors.push(target.key);
     }
-    if (stillThere) survivors.push(target.key);
   }
   if (survivors.length > 0) {
     await releaseClaim();
@@ -414,7 +504,9 @@ export async function executeEvidenceDestruction(
         .join("\n"),
     ),
     destroyedObjectCount: targets.length,
+    destroyedVersionCount,
     storageDeletionVerified: true,
+    verification: "ALL_OBJECT_VERSIONS_ABSENT",
     retentionPolicyVersionId: evidence.retentionPolicyVersionId ?? null,
     appRetentionUntilUtc: evidence.retentionUntilUtc?.toISOString() ?? null,
     objectLockRetainUntilUtc:
@@ -438,6 +530,8 @@ export async function executeEvidenceDestruction(
         certificateVersion: DESTRUCTION_CERTIFICATE_VERSION,
         trigger: input.trigger,
         storageDeletionVerified: true,
+        destroyedVersionCount,
+        verification: "ALL_OBJECT_VERSIONS_ABSENT",
       },
     });
 
@@ -504,7 +598,7 @@ export async function executeEvidenceDestruction(
           toState: "DESTROYED",
           eventType: "destruction_executed",
           summary:
-            "Evidence physically destroyed; storage deletion verified before tombstone",
+            "Evidence physically destroyed; every object version verified absent before tombstone",
           metadata: {
             certificateHash,
             certificate,

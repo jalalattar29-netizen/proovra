@@ -113,6 +113,31 @@ run("publication to an Object-Lock bucket with default COMPLIANCE retention", as
     expect((versions.Versions ?? []).filter((v) => v.Key === key)).toHaveLength(1);
   });
 
+  it("the destruction version port sees the COMPLIANCE-locked version as retained, and it cannot be deleted", async () => {
+    const { workerEvidenceDestructionStorage } = await import("../src/governance/destruction-storage-port.js");
+    const key = `reports/${RUN}/v3/req-retained.pdf`;
+    const a = Buffer.from("%PDF retained");
+    await publishImmutableArtifact({
+      bucket: BUCKET,
+      key,
+      body: { kind: "buffer", buffer: a },
+      sha256Base64: createHash("sha256").update(a).digest("base64"),
+      contentType: "application/pdf",
+    });
+    const versions = await workerEvidenceDestructionStorage.listObjectVersions({ bucket: BUCKET, key });
+    const data = versions.filter((v) => !v.isDeleteMarker);
+    expect(data).toHaveLength(1);
+    expect(data[0].retainUntil!.getTime()).toBeGreaterThan(Date.now());
+    const del = await workerEvidenceDestructionStorage.deleteObjectVersion({
+      bucket: BUCKET,
+      key,
+      versionId: data[0].versionId,
+    });
+    expect(del.ok).toBe(false);
+    const after = await workerEvidenceDestructionStorage.listObjectVersions({ bucket: BUCKET, key });
+    expect(after.filter((v) => !v.isDeleteMarker)).toHaveLength(1);
+  });
+
   it("a key-only delete of a locked object leaves the locked version (delete marker only)", async () => {
     const key = `reports/${RUN}/v2/req-del.pdf`;
     const a = Buffer.from("%PDF locked");

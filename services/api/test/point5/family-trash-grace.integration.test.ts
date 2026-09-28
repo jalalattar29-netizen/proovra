@@ -30,6 +30,7 @@
  * observe-only or drives the executor directly with an injected disposable
  * store, so no test can be the thing that destroys evidence.
  */
+import { versionedDestructionPort } from "../helpers/versioned-destruction-port.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
@@ -42,15 +43,10 @@ function disposableStore() {
   const objects = new Set<string>();
   return {
     objects,
-    port: {
-      async deleteObject(i: { bucket: string; key: string }) {
-        objects.delete(`${i.bucket}/${i.key}`);
-        return { ok: true as const };
-      },
-      async objectExists(i: { bucket: string; key: string }) {
-        return objects.has(`${i.bucket}/${i.key}`);
-      },
-    },
+    port: versionedDestructionPort({
+      exists: (id) => objects.has(id),
+      remove: (id) => objects.delete(id),
+    }),
   };
 }
 

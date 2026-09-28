@@ -132,10 +132,38 @@ export async function reconcileDestroyedDerivedAssets(
         bytesForThisRecord += asset.sizeBytes ?? 0;
         continue;
       }
-      const res = await storage.deleteObject({
+      // Every VERSION, not just the key (2026-09-29): a key-only delete on a
+      // versioned bucket writes a marker and leaves the bytes. A version under
+      // retention or legal hold is left, and so is the row that points to it.
+      const target = {
         bucket: asset.storageBucket as string,
         key: asset.storageKey as string,
-      });
+      };
+      let ok = true;
+      try {
+        const versions = await storage.listObjectVersions(target);
+        const now = Date.now();
+        const retained = versions.some(
+          (v) =>
+            !v.isDeleteMarker &&
+            (v.legalHold || (v.retainUntil !== null && v.retainUntil.getTime() > now)),
+        );
+        if (retained) {
+          ok = false;
+        } else {
+          for (const v of versions) {
+            const del = await storage.deleteObjectVersion({ ...target, versionId: v.versionId });
+            if (!del.ok) ok = false;
+          }
+          if (ok) {
+            const remaining = await storage.listObjectVersions(target);
+            ok = !remaining.some((v) => !v.isDeleteMarker);
+          }
+        }
+      } catch {
+        ok = false;
+      }
+      const res = { ok };
       if (res.ok) {
         result.derivedObjectsDeleted += 1;
         rowsSafeToRemove.push(asset.id);

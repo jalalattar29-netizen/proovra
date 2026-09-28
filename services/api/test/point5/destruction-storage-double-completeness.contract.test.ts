@@ -50,7 +50,7 @@ const WORKER_TEST_DIR = resolve(REPO_ROOT, "services/worker/test");
 
 const PORT_ADAPTERS = [
   "services/worker/src/governance/destruction-storage-port.ts",
-  "services/api/src/services/governance/destruction-storage-port.ts",
+  "services/api/src/services/evidence/destruction-storage-port.ts",
 ];
 
 /** Every file under a directory tree, or [] if the tree does not exist. */
@@ -84,8 +84,10 @@ function requiredStorageOperations(): string[] {
     } catch {
       continue; // Only one host's adapter has to exist for the rule to bind.
     }
+    // [^}] keeps the match inside ONE import statement; [\s\S]*? spanned
+    // several and swept in names imported from other modules.
     const importBlock = source.match(
-      /import\s*\{([\s\S]*?)\}\s*from\s*"[^"]*storage\.js"/,
+      /import\s*\{([^}]*)\}\s*from\s*"[^"]*storage\.js"/,
     );
     if (!importBlock) continue;
     for (const spec of importBlock[1].split(",")) {
@@ -145,9 +147,10 @@ describe("destruction storage doubles cover the whole port", () => {
       REQUIRED.length,
       "no destruction storage adapter was readable — this gate would pass vacuously",
     ).toBeGreaterThan(0);
-    // The two that mattered: the delete, and the verification behind it.
-    expect(REQUIRED).toContain("deleteObject");
-    expect(REQUIRED).toContain("headObject");
+    // 2026-09-29: the adapters bind the shared VERSION-aware port to the host's
+    // S3 client, so the client itself is what a double must provide — and it
+    // must answer ListObjectVersions / HeadObject(VersionId) / DeleteObject(VersionId).
+    expect(REQUIRED).toContain("s3");
   });
 
   it("every suite that doubles storage implements each of them", () => {

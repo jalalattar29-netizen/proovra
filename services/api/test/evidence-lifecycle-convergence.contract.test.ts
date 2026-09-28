@@ -113,7 +113,8 @@ describe("only the canonical executor performs physical Evidence deletion", () =
     // The order matters, not merely the presence: verification must appear
     // BEFORE the DESTROYED write in the file, and the DESTROYED write must be
     // the only one.
-    const verifyAt = EXECUTOR.indexOf("objectExists(target)");
+    // 2026-09-29: verification asks for every VERSION of every key.
+    const verifyAt = EXECUTOR.indexOf("const remaining = await storage.listObjectVersions(target)");
     const destroyAt = EXECUTOR.indexOf('lifecycleState: "DESTROYED"');
     const certifyAt = EXECUTOR.indexOf("const certificateHash = sha256Hex(");
     expect(verifyAt).toBeGreaterThan(-1);
