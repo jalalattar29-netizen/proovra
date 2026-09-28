@@ -176,7 +176,7 @@ currency rejection; exact approval-link handoff; ABANDONED enum as additive.
 
 | Gate | Result |
 |---|---|
-| API full unit suite | 25,270 tests: 25,266 passed, 1 pending, **3 failed** → after committing this report, `phase-0-audit-self-reference` (needs a clean tree) re-run: see below. Remaining red: `phase-ia-self-serve-regression-fix` and `phase-e10-2-operational-readiness` — both **Reports workstream, red at HEAD, untouched**. HEAD was 19 failed. No new failure. |
+| API full unit suite | 25,270 tests: 25,266 passed, 1 pending, **3 failed**; `phase-0-audit-self-reference` failed only because this report was uncommitted (it requires a clean tree) and passes 7/7 after committing. Remaining red: `phase-ia-self-serve-regression-fix` and `phase-e10-2-operational-readiness` — both **Reports workstream, red at HEAD, untouched**. HEAD was 19 failed. No new failure. |
 | API billing integration (fresh PostgreSQL 16 + pgvector, Redis) | 10 files, **191 / 191** passed |
 | API typecheck | clean except pre-existing `reports-summary-filter-parity.integration.test.ts:253` (Reports, HEAD) |
 | API lint (changed files), API build | pass |
