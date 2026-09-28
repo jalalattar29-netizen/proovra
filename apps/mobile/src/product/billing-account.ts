@@ -115,7 +115,12 @@ export interface BillingProjection {
   planOffers: Array<{ planKey: string }>;
   actionRequired: { severity: string; title: string; messages: string[]; reassurance: string | null } | null;
   dependentStorageCancellation: { actionAvailable: boolean; supportRequired: boolean } | null;
-  storageAddons: { offerCount: number; offers: Array<{ key: string; label: string }>; active: ActiveAddonModel[] } | null;
+  storageAddons: {
+    offerCount: number;
+    /** Each offer's OWN price and currency, as the server projected them. */
+    offers: Array<{ key: string; label: string; priceCents: number | null; currency: string | null }>;
+    active: ActiveAddonModel[];
+  } | null;
   storageAddonsLocked: { reason: string; unlockedByPlan: string | null } | null;
   actions: {
     canBuyEvidenceCredits: boolean;
@@ -251,7 +256,12 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
           offerCount: rows(addons.offers).length,
           offers: rows(addons.offers).map(raw => {
             const offer = obj(raw);
-            return { key: str(offer.key) ?? str(offer.addonKey) ?? "", label: str(offer.label) ?? str(offer.storageLabel) ?? "Storage" };
+            return {
+              key: str(offer.key) ?? str(offer.addonKey) ?? "",
+              label: str(offer.label) ?? str(offer.storageLabel) ?? "Storage",
+              priceCents: typeof offer.priceCents === "number" ? offer.priceCents : null,
+              currency: str(offer.currency),
+            };
           }).filter(offer => offer.key.length > 0),
           active: rows(addons.active)
             .map((raw): ActiveAddonModel | null => {
