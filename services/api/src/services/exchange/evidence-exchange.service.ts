@@ -98,6 +98,15 @@ export async function createExchangePackage(
     return { ok: false, denial: "INVALID_EVIDENCE" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // Every id must belong to THIS workspace (2026-09-29). The answer does not
+  // say which id failed, so it cannot be used to probe other tenants.
+  const uniqueIds = [...new Set(input.evidenceIds)];
+  const owned = await prisma.evidence.count({
+    where: { id: { in: uniqueIds }, teamId: input.teamId },
+  });
+  if (owned !== uniqueIds.length) {
+    return { ok: false, denial: "INVALID_EVIDENCE" };
+  }
   const row = await prisma.evidenceExchangePackage.create({
     data: {
       teamId: input.teamId,

@@ -270,7 +270,25 @@ async function appendKindContent(params: {
   const provenanceByEvidenceId =
     params.provenanceByEvidenceId ?? new Map<string, TemplateProvenance>();
 
-  const safeIds = evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
+  /*
+   * TENANT BOUND AT THE SOURCE (2026-09-29).
+   *
+   * The ids come from the package row, which came from a request body. Some
+   * kinds filtered by team per lookup; the REPORT kind did not, so another
+   * tenant's report id, version and issue time could be exported by naming its
+   * evidence id, and the AUDIT kind echoed ids verbatim. Every kind now reads
+   * only ids that belong to THIS workspace.
+   */
+  const requestedIds = evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
+  const ownedIds = new Set(
+    (
+      await prisma.evidence.findMany({
+        where: { id: { in: requestedIds }, teamId },
+        select: { id: true },
+      })
+    ).map((row) => row.id),
+  );
+  const safeIds = requestedIds.filter((id) => ownedIds.has(id));
 
   switch (kind) {
     case "EVIDENCE": {

@@ -19,7 +19,13 @@ type ReportVersion = {
   latest: boolean;
 };
 
-type PackageVersion = ReportVersion & { packageType: string | null };
+type PackageVersion = ReportVersion & {
+  packageType: string | null;
+  /** The report version this package certifies (2026-09-29). */
+  certifiesReportVersion?: number | null;
+  /** Format 5: one signature binds every entry, including the report. */
+  sealed?: boolean;
+};
 
 type ArtifactHistory = {
   reports: ReportVersion[];
@@ -165,7 +171,14 @@ function ArtifactFamilyCard({
                 or integrity currently refuses. The server re-checks anyway; the
                 point is not to offer a control that cannot work.
               */}
-              {downloadable ? (
+              {/*
+                HISTORY IS OFFERED THE SAME WAY ON WEB AND MOBILE (2026-09-29).
+                A prior version stays downloadable whether or not the latest
+                artifact is; the server's download gate (access, governance,
+                legal hold) decides each request. Hiding it here made the
+                "earlier version stays downloadable" sentence false on web.
+              */}
+              {(
                 <button
                   type="button"
                   className="app-secondary-action evidence-detail-artifact-version__action"
@@ -175,7 +188,7 @@ function ArtifactFamilyCard({
                 >
                   Download v{item.version}
                 </button>
-              ) : null}
+              )}
             </li>
           ))}
         </ul>
@@ -320,12 +333,14 @@ export function ArtifactHistorySection({
         governed={governed}
         evidenceId={evidenceId}
         teamId={teamId}
-        renderMeta={(item) =>
-          metaChip(
+        renderMeta={(item) => {
+          const pkg = item as PackageVersion;
+          const certifies = pkg.certifiesReportVersion ?? pkg.version;
+          return metaChip(
             item,
-            (item as PackageVersion).packageType || "Package type not recorded",
-          )
-        }
+            `Certifies report v${certifies}${pkg.sealed ? " · sealed" : ""}`,
+          );
+        }}
       />
     </section>
   );

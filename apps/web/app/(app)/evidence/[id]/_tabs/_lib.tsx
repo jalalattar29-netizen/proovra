@@ -437,7 +437,12 @@ export const OUTPUT_STATE_COPY: Record<
 > = {
   READY: { reason: () => "" },
   NOT_INCLUDED: {
-    reason: (noun) => `A ${noun} is not included for this evidence record.`,
+    reason: (noun) =>
+      `No ${noun} has been issued for this record under its current plan. The original evidence is finalized and can be verified.`,
+  },
+  ENTITLEMENT_UNAVAILABLE: {
+    reason: (noun) =>
+      `We could not confirm the subscription just now, so no ${noun} is being issued. This updates automatically.`,
   },
   /*
    * P1-3 (2026-09-10) — NO PLAN NAME, AND NO PROMISE THAT CANNOT BE KEPT.
@@ -478,11 +483,12 @@ const OUTPUT_STATE_LABEL: Record<EvidenceOutputState, string> = {
   READY: "Available",
   QUEUED: "Queued",
   GENERATING: "Generating",
-  ELIGIBLE_NOT_GENERATED: "Not generated yet",
+  ELIGIBLE_NOT_GENERATED: "First issuance pending",
   RETRYABLE_FAILURE: "Generation failed",
   TERMINAL_FAILURE: "Generation stopped",
   BLOCKED: "Blocked",
-  NOT_INCLUDED: "Not included for this record",
+  NOT_INCLUDED: "Not issued",
+  ENTITLEMENT_UNAVAILABLE: "Checking subscription",
   // P1-3 — a record condition, never a commercial one.
   NOT_APPLICABLE: "Not available for this record",
 };

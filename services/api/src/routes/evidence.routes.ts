@@ -69,6 +69,8 @@ import {
   resolveEvidenceAcquisition,
   EVIDENCE_ACQUISITION_CATEGORIES,
   type EvidenceAcquisitionProjection,
+  // Decision B — the basic public verification projection.
+  buildBasicVerification,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -222,6 +224,7 @@ import {
 // Replaces the legacy `.catch(() => null)` silent-swallow pattern.
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
+import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
@@ -2936,154 +2939,21 @@ async function assertArtifactDownloadAllowed(
     kind: "report" | "package";
   },
 ): Promise<ArtifactDownloadGateResult> {
-  const { evidenceId, actorUserId, kind } = input;
-  const action = kind === "report" ? "report_download" : "verification_package_download";
-
-  try {
-    await getEvidenceWithReadAccess(actorUserId, evidenceId);
-  } catch (err) {
-    const statusCode =
-      err instanceof Error && "statusCode" in err
-        ? ((err as Error & { statusCode?: number }).statusCode ?? 500)
-        : 500;
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return {
-      allowed: false,
-      teamId: null,
-      reply: reply.code(statusCode).send({ message }),
-    };
-  }
-
-  const evidenceForGate = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    select: { id: true, teamId: true, retentionUntilUtc: true },
+  // The decision lives in the shared gate (artifact-download-gate.service.ts)
+  // so the case export applies exactly the same rules. This adapter only
+  // writes the HTTP answer.
+  const decision = await evaluateArtifactDownload({
+    ...input,
+    ip: req.ip,
+    userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+    readAccess: getEvidenceWithReadAccess,
   });
-  const teamId = evidenceForGate?.teamId ?? null;
-
-  /*
-   * LEGACY ROWS WITH NO WORKSPACE.
-   *
-   * Both governance gates below are workspace-scoped, and a row written before
-   * every Evidence carried a real team id has nothing for them to evaluate
-   * against. Read access above has already established that the caller owns it
-   * — that helper's personal branch is ownership — so the download proceeds on
-   * ownership alone, exactly as it did before this refactor. Nothing is widened:
-   * a null-workspace row was never reachable by anyone but its owner.
-   */
-  if (!teamId || !evidenceForGate) return { allowed: true, teamId };
-
-  const { enforceSensitiveAction } = await import(
-    "../services/governance.service.js"
-  );
-  // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId: actorUserId } },
-    select: { role: true, status: true },
-  });
-  const decision = await enforceSensitiveAction(
-    kind === "report" ? "download_report" : "download_package",
-    {
-      teamId,
-      role: membership?.status === "ACTIVE" ? membership.role : undefined,
-      evidence: {
-        id: evidenceForGate.id,
-        teamId,
-        retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
-      },
-      consultTemplatePolicy: true,
-    },
-  );
-  if (!decision.allowed) {
-    await appendCustodyEvent({
-      evidenceId,
-      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-      payload: { action, reason: decision.reason, actorUserId },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(noteCustodyFailure);
-    return {
-      allowed: false,
-      teamId,
-      reply: reply
-        .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
-        .send({
-          code: decision.code,
-          reason: decision.reason,
-          message:
-            kind === "report"
-              ? "Report download is blocked by workspace governance policy."
-              : "Verification package download is blocked by workspace governance policy.",
-        }),
-    };
-  }
-
-  if (kind === "package") {
-    const { gateVerificationAction } = await import(
-      "../services/governance/policy-runtime-gates.service.js"
-    );
-    const verifyGate = await gateVerificationAction({
-      teamId,
-      evidenceId,
-      action: "PUBLISH_PACKAGE",
-    });
-    if (!verifyGate.ok) {
-      await appendCustodyEvent({
-        evidenceId,
-        eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-        payload: {
-          action: "verification_package_publish_gate",
-          denial: verifyGate.denial,
-          reason: verifyGate.reason,
-          actorUserId,
-        },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
-      return {
-        allowed: false,
-        teamId,
-        reply: reply.code(403).send({
-          code: "VERIFICATION_POLICY_BLOCKED",
-          denial: verifyGate.denial,
-          reason: verifyGate.reason,
-          message:
-            "Verification package download is blocked by a verification policy.",
-        }),
-      };
-    }
-  }
-
-  const { checkExportEligibility } = await import(
-    "../services/governance-lifecycle/export-governance.service.js"
-  );
-  const eligibility = await checkExportEligibility({
-    teamId,
-    evidenceId,
-    actorUserId,
-  });
-  if (eligibility.outcome !== "ALLOWED") {
-    await appendCustodyEvent({
-      evidenceId,
-      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-      payload: { action, reason: eligibility.outcome, actorUserId },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(noteCustodyFailure);
-    return {
-      allowed: false,
-      teamId,
-      reply: reply.code(403).send({
-        code: eligibility.outcome,
-        reason: eligibility.reason,
-        message:
-          kind === "report"
-            ? "Report download is blocked by evidence export eligibility."
-            : "Verification package download is blocked by evidence export eligibility.",
-      }),
-    };
-  }
-
-  return { allowed: true, teamId };
+  if (decision.allowed) return decision;
+  return {
+    allowed: false,
+    teamId: decision.teamId,
+    reply: reply.code(decision.statusCode).send(decision.body),
+  };
 }
 
 async function getEvidenceWithReadAccess(
@@ -11178,6 +11048,7 @@ if (
           trustDecisionSnapshot: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           storageRegion: true,
           displayTitleSnapshot: true,
 displayDescriptionSnapshot: true,
@@ -11267,6 +11138,8 @@ limitationsSnapshot: true,
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
+        // The exact recorded version; legacy rows (no id) read latest-at-key.
+        versionId: latest.s3VersionId ?? null,
         expiresInSeconds: 600,
       });
 
@@ -11404,6 +11277,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           version: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           storageRegion: true,
           storageObjectLockMode: true,
           storageObjectLockRetainUntilUtc: true,
@@ -11451,6 +11325,8 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       const url = await presignGetObject({
         bucket: row.storageBucket,
         key: row.storageKey,
+        // The exact recorded version; legacy rows (no id) read latest-at-key.
+        versionId: row.s3VersionId ?? null,
         expiresInSeconds: 600,
       });
 
@@ -11514,12 +11390,14 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           version: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           storageRegion: true,
           storageObjectLockMode: true,
           storageObjectLockRetainUntilUtc: true,
           storageObjectLockLegalHoldStatus: true,
           generatedAtUtc: true,
           packageType: true,
+          reportVersion: true,
         },
       });
       if (!row) {
@@ -11568,20 +11446,36 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       const url = await presignGetObject({
         bucket: row.storageBucket,
         key: row.storageKey,
+        // The exact recorded version; legacy rows (no id) read latest-at-key.
+        versionId: row.s3VersionId ?? null,
         expiresInSeconds: 600,
       });
 
-      const latest = await prisma.verificationPackage.findFirst({
+      /*
+       * "LATEST" MEANS THE PACKAGE FOR THE LATEST REPORT (2026-09-29).
+       *
+       * This compared against the newest PACKAGE, so with report v7 and only
+       * package v2, package v2 answered `isLatest: true` — while it certifies
+       * report v2. A package is the latest only when it is paired with the
+       * latest report; every package states the report version it certifies.
+       */
+      const latestReportForPairing = await prisma.report.findFirst({
         where: { evidenceId: id },
         orderBy: { version: "desc" },
         select: { version: true },
       });
+      const certifiesReportVersion =
+        row.reportVersion ?? row.version;
 
       return reply.code(200).send({
         evidenceId: id,
         version: row.version,
-        isLatest: latest?.version === row.version,
-        latestVersion: latest?.version ?? row.version,
+        certifiesReportVersion,
+        latestReportVersion: latestReportForPairing?.version ?? null,
+        isLatest:
+          latestReportForPairing != null &&
+          certifiesReportVersion === latestReportForPairing.version,
+        latestVersion: latestReportForPairing?.version ?? row.version,
         packageType: row.packageType ?? null,
         url,
         generatedAtUtc: row.generatedAtUtc.toISOString(),
@@ -12012,6 +11906,7 @@ displayName: resolvedDisplayName,
           storageBucket: true,
           trustDecisionSnapshot: true,
           storageKey: true,
+          s3VersionId: true,
           storageRegion: true,
           storageObjectLockMode: true,
           storageObjectLockRetainUntilUtc: true,
@@ -12254,6 +12149,8 @@ displayName: resolvedDisplayName,
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
+        // The exact recorded version; legacy rows (no id) read latest-at-key.
+        versionId: latest.s3VersionId ?? null,
         expiresInSeconds: 600,
       });
 
@@ -12651,6 +12548,9 @@ action: "evidence.certification_requested",
         // advisory projection. NEVER surfaced in the response; used
         // only to scope the per-team intelligence count.
         teamId: true,
+        // Decision B — the owner's commercial subject decides BASIC vs RICH.
+        // Never surfaced in the response.
+        ownerUserId: true,
         // Phase 14 — explicit publication state gate. Records that
         // are NOT_PUBLISHED / SUSPENDED / UNPUBLISHED are not
         // returned from the public verify route.
@@ -13044,6 +12944,7 @@ const latestReport = await prisma.report.findFirst({
   select: {
     version: true,
     generatedAtUtc: true,
+    pdfSha256: true,
     embeddedPreviewsSnapshot: true,
     trustDecisionSnapshot: true,
     pdfSignatureStatus: true,
@@ -13127,41 +13028,17 @@ if (persistedVerificationPackageMetadata) {
       inspectedVerificationPackageArtifacts?.accessExportIncluded ?? false,
   };
 
-  if (inspectedVerificationPackageArtifacts) {
-    try {
-      await prisma.evidence.update({
-        where: { id: evidence.id },
-        data: {
-          verificationPackageMetadata: {
-            manifestPresent:
-              inspectedVerificationPackageArtifacts.manifestPresent,
-            signedManifestPresent:
-              inspectedVerificationPackageArtifacts.signedManifestPresent,
-            checksumIndexPresent:
-              inspectedVerificationPackageArtifacts.checksumIndexPresent,
-            auditExportIncluded:
-              inspectedVerificationPackageArtifacts.auditExportIncluded,
-            custodyExportIncluded:
-              inspectedVerificationPackageArtifacts.custodyExportIncluded,
-            accessExportIncluded:
-              inspectedVerificationPackageArtifacts.accessExportIncluded,
-            packageVersion: "v1",
-            generatedAtUtc:
-              evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
-              latestVerificationPackage?.generatedAtUtc?.toISOString() ??
-              new Date().toISOString(),
-            inspectedAtUtc: new Date().toISOString(),
-            source: "ZIP_INSPECTION",
-          },
-        },
-      });
-    } catch (updateError) {
-      console.warn(
-        "Unable to backfill verification package metadata after ZIP inspection:",
-        updateError
-      );
-    }
-  }
+  /*
+   * PUBLIC VERIFY WRITES NOTHING ABOUT THE PACKAGE (2026-09-29).
+   *
+   * This used to "backfill" `evidence.verificationPackageMetadata` from the ZIP
+   * inspection on every unauthenticated GET. That column also carries the
+   * governance marker `{ blocked: true, … }` written when policy refuses a
+   * package, and the backfill REPLACED the whole object — so any anonymous
+   * visitor could erase a governance block and move the record out of
+   * "Package blocked" on the Reports page. A read path does not repair state;
+   * the inspection result is returned in this response and nowhere else.
+   */
 } else {
   verificationPackageIntegrity = {
     available: false,
@@ -13965,7 +13842,66 @@ const technicalMetadata = await (async () => {
   }
 })();
 
+/*
+ * DECISION B (2026-09-29) — BASIC VERIFICATION IS NEVER WITHHELD FOR BILLING.
+ *
+ * Every published, non-revoked, non-destroyed link answers with the basic
+ * projection: what the integrity checks established, the real chronology, and
+ * whether a report/package has been issued — nothing else. The rich view (the
+ * payload below: titles, previews, custody detail, technical materials) is
+ * served only while the owner's commercial subject is entitled to issued
+ * outputs. A lapsed subscription therefore turns a link BASIC; it never makes
+ * a valid link claim the evidence does not exist, and it never exposes paid
+ * material because a link is public.
+ */
+const pairedPackageForBasic = latestReport
+  ? await prisma.verificationPackage.findFirst({
+      where: { evidenceId: evidence.id, version: latestReport.version },
+      select: { version: true, reportVersion: true, generatedAtUtc: true, packageFormatVersion: true },
+    })
+  : null;
+const basicVerification = buildBasicVerification({
+  now: verifiedAt,
+  integrity: {
+    fingerprintMatches: canonicalHashMatches,
+    signatureValid,
+    custodyChainValid: custodyChain.valid,
+  },
+  fileSha256: evidence.fileSha256 ?? null,
+  fingerprintHash: evidence.fingerprintHash ?? null,
+  capturedAtUtc: evidence.capturedAtUtc ?? null,
+  signedAtUtc: evidence.signedAtUtc ?? null,
+  tsaStatus: evidence.tsaStatus ?? null,
+  tsaImprintMatches: timestampDigestMatches ?? null,
+  tsaGenTimeUtc: evidence.tsaGenTimeUtc ?? null,
+  otsStatus: effectiveOtsStatus ?? null,
+  otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+  otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc ?? null,
+  latestReport: latestReport
+    ? { version: latestReport.version, generatedAtUtc: latestReport.generatedAtUtc, pdfSha256: latestReport.pdfSha256 ?? null }
+    : null,
+  pairedPackage: pairedPackageForBasic,
+});
+const richVerifyEntitled = await resolveEvidenceOutputEligibility({
+  evidenceId: evidence.id,
+  ownerUserId: evidence.ownerUserId,
+  teamId: evidence.teamId ?? null,
+})
+  .then((e) => e.issuance.decision === "ENTITLED")
+  .catch(() => false);
+// The answer describes the record NOW; no shared cache may hold it.
+reply.header("Cache-Control", "no-store");
+if (!richVerifyEntitled) {
+  return reply.code(200).send({
+    tier: "BASIC",
+    evidenceId: evidence.id,
+    basicVerification,
+  });
+}
+
 return reply.code(200).send({
+  tier: "RICH",
+  basicVerification,
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
   acquisition,

@@ -38,6 +38,8 @@ import {
   Skeleton,
 } from "../../../components/ui";
 import CaptureLocationMapPanel from "../../../components/capture-location/CaptureLocationMapPanel";
+import BasicVerificationView from "./BasicVerificationView";
+import type { BasicVerification } from "@proovra/shared";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -2752,6 +2754,8 @@ export default function VerifyPage() {
   const [fullCustodyTimeline, setFullCustodyTimeline] = useState<TimelineItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Decision B — a BASIC answer carries only the basic projection.
+  const [basicOnly, setBasicOnly] = useState<BasicVerification | null>(null);
 
   const [title, setTitle] = useState<string | null>(null);
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
@@ -3321,6 +3325,15 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
           `/public/verify/${encodeURIComponent(params.token)}`
         );
         if (cancelled || !isMountedRef.current) return;
+
+        const tier = (data as { tier?: unknown } | null)?.tier;
+        if (tier === "BASIC") {
+          setBasicOnly((data as { basicVerification: BasicVerification }).basicVerification);
+          setError(null);
+          clearPolling();
+          return;
+        }
+        setBasicOnly(null);
 
         applyVerifyResponseRef.current(data as VerifyResponse);
 
@@ -4437,6 +4450,10 @@ const glassPanelStyle: CSSProperties = {
   void verifyAssetPaths;
 
   const VERIFY_HEADER_IMAGE = "/assets/branding/report-header.png";
+
+  if (basicOnly && !loading) {
+    return <BasicVerificationView data={basicOnly} />;
+  }
 
   const pageBackgroundStyle: CSSProperties = {
     background:

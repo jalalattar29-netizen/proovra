@@ -806,7 +806,9 @@ const GENERATION_FALLBACK: Readonly<Record<string, string>> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not included for this evidence record.",
+    "Reports and verification packages are not issued for this evidence record under its current plan. The original evidence remains finalized and verifiable.",
+  ENTITLEMENT_UNAVAILABLE:
+    "We could not confirm the subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:
     "Generation is currently blocked for this record. It becomes possible again when the block is lifted.",
   TERMINAL:
@@ -831,6 +833,7 @@ const GENERATION_TONE: Readonly<Record<string, GenerationTone>> = {
   ALREADY_ACTIVE: "info",
   QUEUE_UNAVAILABLE: "info",
   NOT_INCLUDED: "info",
+  ENTITLEMENT_UNAVAILABLE: "info",
   RECOVERABLE_BLOCKED: "info",
   TERMINAL: "info",
   REQUEST_PERSIST_FAILED: "error",

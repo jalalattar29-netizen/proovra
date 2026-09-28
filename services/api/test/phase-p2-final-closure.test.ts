@@ -104,8 +104,9 @@ describe("Phase P2.3 — Queue Operations Backend", () => {
     expect(src).toContain('"requires_step_up"');
     expect(src).toContain('"forbidden"');
     expect(src).toContain('"unknown"');
-    expect(src).toContain("PurgeDeletedEvidenceJob");
-    expect(src).toMatch(/PurgeDeletedEvidenceJob[\s\S]{0,400}"forbidden"/);
+    // 2026-09-29: entries use the canonical constants; the purge job stays forbidden.
+    expect(src).toContain("JOB_NAMES.PURGE_DELETED_EVIDENCE");
+    expect(src).toMatch(/JOB_NAMES\.PURGE_DELETED_EVIDENCE[\s\S]{0,400}"forbidden"/);
   });
 
   it("operations queues route file exposes all 6 endpoints", () => {

@@ -25,9 +25,13 @@ export async function listEvidenceArtifacts(evidenceId: string) {
         storageKey: true,
         sizeBytes: true,
         storageObjectLockMode: true,
+        reportVersion: true,
+        packageFormatVersion: true,
       },
     }),
   ]);
+  // "Latest" for a package means: paired with the latest REPORT (2026-09-29).
+  const latestReportVersion = reports[0]?.version ?? null;
 
   return {
     reports: reports.map((item, index) => ({
@@ -39,7 +43,7 @@ export async function listEvidenceArtifacts(evidenceId: string) {
       immutableRecorded: Boolean(item.storageObjectLockMode),
       latest: index === 0,
     })),
-    verificationPackages: verificationPackages.map((item, index) => ({
+    verificationPackages: verificationPackages.map((item) => ({
       id: item.id,
       version: item.version,
       generatedAtUtc: item.generatedAtUtc.toISOString(),
@@ -47,7 +51,12 @@ export async function listEvidenceArtifacts(evidenceId: string) {
       storageKey: item.storageKey,
       sizeBytes: item.sizeBytes?.toString() ?? null,
       immutableRecorded: Boolean(item.storageObjectLockMode),
-      latest: index === 0,
+      /** The report version this package certifies (legacy rows: its own version). */
+      certifiesReportVersion: item.reportVersion ?? item.version,
+      sealed: (item.packageFormatVersion ?? 0) >= 5,
+      latest:
+        latestReportVersion !== null &&
+        (item.reportVersion ?? item.version) === latestReportVersion,
     })),
   };
 }

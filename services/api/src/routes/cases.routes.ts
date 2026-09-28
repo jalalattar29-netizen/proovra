@@ -5,6 +5,9 @@ import { prisma } from "../db.js";
 import * as prismaPkg from "@prisma/client";
 import archiver from "archiver";
 import { getObjectStream } from "../storage.js";
+import { appendCustodyEvent } from "../services/custody-events.service.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
+import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
@@ -920,6 +923,47 @@ export async function casesRoutes(app: FastifyInstance) {
         include: { reports: { orderBy: { version: "desc" }, take: 1 } },
       });
 
+      /*
+       * EVERY REPORT IN THE ZIP PASSES THE SAME DOWNLOAD GATE (2026-09-29).
+       *
+       * Case access used to be the only check: the export then streamed every
+       * linked record's latest report — without the sensitive-action gate,
+       * export eligibility (legal hold, lifecycle) or a custody record, i.e.
+       * a path around the rules every per-record download obeys. Each record
+       * now goes through `evaluateArtifactDownload`; a refused one is listed
+       * in the manifest as withheld (reason code only), and every included
+       * report is recorded as downloaded in its custody chain.
+       */
+      const readAccess = async (userId: string, evidenceId: string) => {
+        const access = await resolveEvidenceRecordAccess({
+          userId,
+          evidenceId,
+          permission: "evidence.read",
+        });
+        if (!access.allowed) {
+          const err: Error & { statusCode?: number } = new Error("Evidence not found");
+          err.statusCode = 404;
+          throw err;
+        }
+      };
+      const gated = await Promise.all(
+        evidence.map(async (ev) => {
+          const report = ev.reports?.[0] ?? null;
+          if (!report) return { ev, report: null, withheld: null as string | null };
+          const decision = await evaluateArtifactDownload({
+            evidenceId: ev.id,
+            actorUserId: ownerUserId,
+            kind: "report",
+            ip: req.ip,
+            userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+            readAccess,
+          });
+          return decision.allowed
+            ? { ev, report, withheld: null }
+            : { ev, report: null, withheld: String(decision.body.code ?? decision.statusCode) };
+        }),
+      );
+
       auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.export",
@@ -949,10 +993,13 @@ export async function casesRoutes(app: FastifyInstance) {
         JSON.stringify(
           {
             caseId: id,
-            evidence: evidence.map((ev) => ({
+            evidence: gated.map(({ ev, report, withheld }) => ({
               id: ev.id,
               status: ev.status,
               createdAt: ev.createdAt.toISOString(),
+              reportVersion: report?.version ?? null,
+              reportSha256: report?.pdfSha256 ?? null,
+              ...(withheld ? { reportWithheld: withheld } : {}),
             })),
           },
           null,
@@ -961,17 +1008,30 @@ export async function casesRoutes(app: FastifyInstance) {
         { name: "manifest.json" }
       );
 
-      for (const ev of evidence) {
-        const report = ev.reports?.[0];
+      for (const { ev, report } of gated) {
         if (report) {
           const stream = await getObjectStream({
             bucket: report.storageBucket,
             key: report.storageKey,
+            // The exact recorded version; legacy rows read latest-at-key.
+            versionId: report.s3VersionId ?? null,
           });
 
           archive.append(stream as unknown as Readable, {
             name: `reports/${ev.id}/v${report.version}.pdf`,
           });
+          await appendCustodyEvent({
+            evidenceId: ev.id,
+            eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+            payload: {
+              reportVersion: report.version,
+              channel: "case_export",
+              caseId: id,
+              actorUserId: ownerUserId,
+            },
+            ip: req.ip,
+            userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+          }).catch(() => null);
         }
       }
 

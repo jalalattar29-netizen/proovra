@@ -355,6 +355,12 @@ export async function presignGetObject(params: {
   bucket: string;
   key: string;
   expiresInSeconds?: number;
+  /**
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29). The exact object version the
+   * artifact row recorded. When present the URL can only ever return THOSE
+   * bytes — not whatever a later write left "latest at key".
+   */
+  versionId?: string | null;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -363,9 +369,11 @@ export async function presignGetObject(params: {
     throw new Error("presignGetObject: bucket/key are required");
   }
 
+  const versionId = clean(params.versionId ?? null);
   const cmd = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
+    ...(versionId ? { VersionId: versionId } : {}),
   });
 
   return getSignedUrl(s3, cmd, {
@@ -549,9 +557,12 @@ export async function headObject(params: {
 export async function getObjectStream(params: {
   bucket: string;
   key: string;
+  /** Read exactly this recorded version when the row carries one. */
+  versionId?: string | null;
 }): Promise<NodeJS.ReadableStream> {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
+  const versionId = clean(params.versionId ?? null);
 
   if (!bucket || !key) {
     throw new Error("getObjectStream: bucket/key are required");
@@ -570,6 +581,7 @@ export async function getObjectStream(params: {
         new GetObjectCommand({
           Bucket: bucket,
           Key: key,
+          ...(versionId ? { VersionId: versionId } : {}),
         })
       );
 

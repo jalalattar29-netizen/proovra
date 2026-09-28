@@ -95,6 +95,7 @@ export function caseOutputNeedsAttention(state: EvidenceOutputState): boolean {
   switch (state) {
     case "READY":
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
     case "NOT_APPLICABLE":
     case "QUEUED":
     case "GENERATING":
@@ -121,7 +122,9 @@ export function caseOutputLabel(
     case "READY":
       return `${noun} ready`;
     case "NOT_INCLUDED":
-      return `${noun} not included`;
+      return `${noun} not issued`;
+    case "ENTITLEMENT_UNAVAILABLE":
+      return `${noun} — checking subscription`;
     case "NOT_APPLICABLE":
       return `${noun} not applicable`;
     case "QUEUED":

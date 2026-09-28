@@ -40,7 +40,9 @@ export function outputLabel(state: string | null, ready: boolean, noun: "Report"
     case "READY":
       return `${noun} ready`;
     case "NOT_INCLUDED":
-      return `${noun} not included`;
+      return `${noun} not issued`;
+    case "ENTITLEMENT_UNAVAILABLE":
+      return `${noun} — checking subscription`;
     case "NOT_APPLICABLE":
       return `${noun} not applicable`;
     case "QUEUED":

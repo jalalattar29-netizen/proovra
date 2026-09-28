@@ -535,7 +535,29 @@ export async function listWorkspaceArtifacts(input: {
       AND: [scope],
       status: { in: FINALIZED_STATUSES },
     };
-    if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
+    /*
+     * RESTRICTED CASES STAY RESTRICTED (2026-09-29).
+     *
+     * A case with an access list is visible only to its owner and the people
+     * on the list (the rule every case surface applies). This list used to
+     * return the case's NAME and id on every row, and to filter by any caseId,
+     * so a member left off a restricted case could learn it exists, what it is
+     * called and which records belong to it.
+     */
+    const visibleCase: Prisma.CaseWhereInput = input.callerUserId
+      ? {
+          OR: [
+            { access: { none: {} } },
+            { access: { some: { userId: input.callerUserId } } },
+            { ownerUserId: input.callerUserId },
+          ],
+        }
+      : { access: { none: {} } };
+    if (input.caseId) {
+      whereBase.caseLinks = {
+        some: { caseId: input.caseId, case: visibleCase },
+      };
+    }
     // The filter narrows the QUERY, so pagination, the total and the page all
     // describe the same population.
     const lifecycleClause = await lifecycleWhere(input.lifecycleFilter ?? "all", {
@@ -623,6 +645,7 @@ export async function listWorkspaceArtifacts(input: {
         // only the identifier is what forced the row to render "Case #f2b146"
         // to a human, and fetching the name per row would have been an N+1.
         caseLinks: {
+          where: { case: visibleCase },
           orderBy: { linkedAtUtc: "asc" },
           select: { caseId: true, case: { select: { name: true } } },
           take: 1,

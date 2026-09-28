@@ -2472,3 +2472,6 @@ export * from "./tenant-service-status.js";
 
 /* Verification package format 5: the seal that binds every entry, including the embedded report. */
 export * from "./package-seal.js";
+
+/* Decision B: the basic public verification projection, independent of the owner's subscription. */
+export * from "./basic-verification.js";

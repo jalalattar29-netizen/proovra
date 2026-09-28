@@ -22,6 +22,9 @@ import { ProovraButton, ProovraCard, ProovraText } from "./index";
 
 function versionMeta(v: ArtifactVersion): string {
   return [
+    // A package names the report it certifies, so package v2 is never read as
+    // proof for report v7 (2026-09-29; web parity).
+    v.certifiesReportVersion != null ? `Certifies report v${v.certifiesReportVersion}` : null,
     v.generatedAtIso ? formatUserDateTime(v.generatedAtIso) : null,
     formatArtifactSize(v.sizeBytes),
     v.latest ? "Latest" : null,
@@ -104,6 +107,12 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
           <ProovraText variant="h3" weight="semibold">Artifacts & Versions</ProovraText>
           <ProovraText variant="label" color={theme.color.ink.muted}>Latest and prior generated materials</ProovraText>
         </View>
+        {/*
+          The latest-package button is offered only when a package exists for
+          the LATEST report — "latest" is the paired package, never the newest
+          package certifying an older report (2026-09-29; web parity).
+        */}
+        {history.packages.some((p) => p.latest) ? (
         <ProovraButton
           label="Download verification package"
           variant="secondary"
@@ -115,6 +124,7 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
             })
           }
         />
+        ) : null}
         {family("PDF reports", history.reports, "report")}
         {family("Verification Packages", history.packages, "package")}
         {message ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{message}</ProovraText> : null}

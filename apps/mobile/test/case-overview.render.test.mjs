@@ -98,7 +98,7 @@ test("the per-record report / package list (web Reports tab) opens each record",
   await settle();
   assert.ok(r.hasText("1 of 2 evidence records have a report. 0 have a verification package."));
   assert.ok(r.hasText("Open the evidence record to generate missing deliverables."));
-  assert.ok(r.hasText("Report not generated · Package not included"), "the output states were not labelled");
+  assert.ok(r.hasText("Report not generated · Package not issued"), "the output states were not labelled");
   assert.ok(r.hasText("Report ready · Package not available"), "the readiness fallback was not applied");
   await act(async () => { r.byTestId("case-deliverable-a")[0].props.onPress(); });
   assert.deepEqual(M.calls.push.at(-1), "/(stack)/evidence/a");

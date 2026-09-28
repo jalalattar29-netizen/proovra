@@ -158,7 +158,7 @@ test("Evidence lists the envelope's records with the web meta line, and search f
   const r = await render("Evidence");
   assert.ok(r.hasText("roof.jpg"), "the title cascade was not applied");
   assert.ok(r.hasText("e1e1e1e1 • PHOTO • SIGNED • recorded verified • Report ready • Package not generated"));
-  assert.ok(r.hasText("Report generating • Package not included"));
+  assert.ok(r.hasText("Report generating • Package not issued"));
   await r.type("Search linked evidence by name, type, or record ID", "video");
   assert.equal(r.byTestId(`case-evidence-${EV1}`).length, 0, "the search did not filter");
   assert.equal(r.byTestId(`case-evidence-${EV2}`).length, 1);

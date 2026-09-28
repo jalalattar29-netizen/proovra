@@ -354,6 +354,7 @@ export function buildUnlockBody(reason: string): { reason?: string } {
 export type OutputState =
   | "READY"
   | "NOT_INCLUDED"
+  | "ENTITLEMENT_UNAVAILABLE"
   | "NOT_APPLICABLE"
   | "ELIGIBLE_NOT_GENERATED"
   | "QUEUED"
@@ -365,6 +366,7 @@ export type OutputState =
 const OUTPUT_STATES: readonly OutputState[] = [
   "READY",
   "NOT_INCLUDED",
+  "ENTITLEMENT_UNAVAILABLE",
   "NOT_APPLICABLE",
   "ELIGIBLE_NOT_GENERATED",
   "QUEUED",
@@ -489,7 +491,9 @@ export function outputStateReason(state: OutputState | null, noun: string): stri
     case "READY":
       return "";
     case "NOT_INCLUDED":
-      return `A ${noun} is not included for this evidence record.`;
+      return `No ${noun} has been issued for this record under its current plan. The original evidence is finalized and can be verified.`;
+    case "ENTITLEMENT_UNAVAILABLE":
+      return `We could not confirm the subscription just now, so no ${noun} is being issued. This updates automatically.`;
     case "NOT_APPLICABLE":
       return `A ${noun} is not available for this record in its current state.`;
     case "ELIGIBLE_NOT_GENERATED":

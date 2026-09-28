@@ -191,6 +191,7 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "TERMINAL_FAILURE":
       return "failed";
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
       // P1-3 — mirrors the server-side mapper exactly. See the note there.
@@ -212,6 +213,7 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
     case "TERMINAL_FAILURE":
       return "failed";
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
       // P1-3 — mirrors the server-side mapper exactly. See the note there.

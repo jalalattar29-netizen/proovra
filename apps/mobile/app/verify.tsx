@@ -80,6 +80,8 @@ import {
   ProovraLoadingState,
 } from "../src/ui";
 import { AuthBrandHeader } from "../src/ui/brand";
+import { BasicVerificationView } from "../src/ui/basic-verification-view";
+import type { BasicVerification } from "@proovra/shared";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
 import { parseVerifyCaptureContext } from "../src/product/public-verify";
 
@@ -138,6 +140,15 @@ export default function VerifyScreen() {
   }, [manual, verify]);
 
   if (state === "loading") return <ProovraScreen scroll={false}><ProovraLoadingState label="Verifying" /></ProovraScreen>;
+  // Decision B — a BASIC answer carries only the basic projection; render it alone.
+  if (state === "ready" && data && data.tier === "BASIC" && data.basicVerification) {
+    return (
+      <ProovraScreen>
+        <AuthBrandHeader />
+        <BasicVerificationView data={data.basicVerification as BasicVerification} />
+      </ProovraScreen>
+    );
+  }
   // No id yet: let the user paste a public verification link/id (server-authoritative).
   if (state === "empty" || (state === "error" && !id)) {
     return (

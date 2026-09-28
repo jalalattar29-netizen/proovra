@@ -18,6 +18,8 @@ export interface ArtifactVersion {
   sizeBytes: string | null;
   latest: boolean;
   immutableRecorded: boolean;
+  /** Packages only: the report version this package certifies (2026-09-29). */
+  certifiesReportVersion: number | null;
 }
 
 export interface ArtifactHistory {
@@ -35,6 +37,8 @@ function versions(v: unknown): ArtifactVersion[] {
       sizeBytes: typeof x.sizeBytes === "number" ? String(x.sizeBytes) : str(x.sizeBytes),
       latest: x.latest === true,
       immutableRecorded: x.immutableRecorded === true,
+      certifiesReportVersion:
+        typeof x.certifiesReportVersion === "number" ? (x.certifiesReportVersion as number) : null,
     }));
 }
 

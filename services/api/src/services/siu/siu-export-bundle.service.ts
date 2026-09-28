@@ -141,7 +141,7 @@ async function buildSiuExportBundleInner(
       reportGeneratedAtUtc: true,
       verificationPackageGeneratedAtUtc: true,
       reports: {
-        orderBy: { generatedAtUtc: "desc" },
+        orderBy: { version: "desc" },
         take: 1,
         select: {
           id: true,
@@ -149,18 +149,23 @@ async function buildSiuExportBundleInner(
           generatedAtUtc: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           pdfSignatureStatus: true,
         },
       },
+      // Every package, so the one PAIRED with the latest report can be chosen
+      // (2026-09-29): the newest package may certify an older report.
       verificationPackages: {
-        orderBy: { generatedAtUtc: "desc" },
-        take: 1,
+        orderBy: { version: "desc" },
+        take: 50,
         select: {
           id: true,
           version: true,
+          reportVersion: true,
           generatedAtUtc: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           sizeBytes: true,
         },
       },
@@ -281,6 +286,7 @@ async function buildSiuExportBundleInner(
       generatedAtUtc: Date;
       storageBucket: string | null;
       storageKey: string | null;
+      s3VersionId: string | null;
       pdfSignatureStatus: string | null;
     }> }).reports;
     const evVps = (ev as unknown as { verificationPackages: Array<{
@@ -289,10 +295,16 @@ async function buildSiuExportBundleInner(
       generatedAtUtc: Date;
       storageBucket: string | null;
       storageKey: string | null;
+      s3VersionId: string | null;
+      reportVersion: number | null;
       sizeBytes: bigint | null;
     }> }).verificationPackages;
     const report = evReports[0] ?? null;
-    const vp = evVps[0] ?? null;
+    // The package that certifies THIS report — never a newer-numbered package
+    // for an older report bundled beside it as if they were a pair.
+    const vp = report
+      ? (evVps.find((p) => (p.reportVersion ?? p.version) === report.version) ?? null)
+      : null;
 
     const reportEntry: ArtifactInventory["reportPdf"] = {
       includedInBundle: false,
@@ -306,6 +318,7 @@ async function buildSiuExportBundleInner(
         const stream = await getObjectStream({
           bucket: report.storageBucket,
           key: report.storageKey,
+          versionId: report.s3VersionId ?? null,
         });
         const path = `reports/${ev.id}/report.pdf`;
         archive.append(stream as unknown as Readable, { name: path });
@@ -341,6 +354,7 @@ async function buildSiuExportBundleInner(
         const stream = await getObjectStream({
           bucket: vp.storageBucket,
           key: vp.storageKey,
+          versionId: vp.s3VersionId ?? null,
         });
         const path = `verification/${ev.id}/verification-package.zip`;
         archive.append(stream as unknown as Readable, { name: path });
