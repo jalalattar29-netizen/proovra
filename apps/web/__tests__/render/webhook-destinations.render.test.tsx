@@ -127,10 +127,16 @@ describe("automation webhook destinations", () => {
      * then checked for what it uniquely adds, which is that assistive
      * technology is told the same thing the eye is.
      */
-    const form = await screen.findByRole("form", {
-      name: "Add a webhook destination",
-    });
-    await waitFor(() => expect(add.getAttribute("aria-expanded")).toBe("true"));
+    //
+    // The default one-second find window was itself the race on a loaded
+    // runner (ci run 36439123092: the DOM still showed aria-expanded="false"
+    // when it expired). The assertion is unchanged; it is given time.
+    const form = await screen.findByRole(
+      "form",
+      { name: "Add a webhook destination" },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(add.getAttribute("aria-expanded")).toBe("true"), { timeout: 5000 });
     expect(document.activeElement).toBe(within(form).getByLabelText("Name"));
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "New receiver" } });
     fireEvent.change(within(form).getByLabelText("Destination URL"), { target: { value: "https://new.example/in" } });
