@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "d23ae19e73d809817e78aa818fd6cfa9d40a3f95f18de958c4e841c510c76fda",
   "routeInventoryHash": "f5eca677b6b2874ca6d3cb4e7aa1d0c04e581c55dfdd10145eee99158145838e",
-  "consumerInventoryHash": "33cf0f057874d98cd16d6a90ef9bdc8e2c92542ea8494db38c992fe3334c8567",
+  "consumerInventoryHash": "bbbe6d06af37406bd54e178a9d8120bb59103138b4566a97dede5c8234389b63",
   "dispositionsHash": "84258bb75ea0397d36382918b8b5b556c1d7c9407eecac9698b9b3aede4b12fe",
   "totals": {
     "RegisteredRoutes": 1167,
@@ -119611,7 +119611,7 @@
         },
         {
           "file": "apps/web/lib/useServiceStatus.ts",
-          "line": 60,
+          "line": 62,
           "caller": "refreshServiceStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119621,7 +119621,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/runtime-status-banner.tsx:62 (refreshServiceStatus, MOBILE); apps/web/lib/useServiceStatus.ts:60 (refreshServiceStatus, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/runtime-status-banner.tsx:62 (refreshServiceStatus, MOBILE); apps/web/lib/useServiceStatus.ts:62 (refreshServiceStatus, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
