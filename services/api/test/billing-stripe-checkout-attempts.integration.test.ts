@@ -58,7 +58,8 @@ class FakeStripe {
   fail = new Map<string, number>();
   private seq = 0;
   private readonly ns = randomUUID().replace(/-/g, "").slice(0, 8);
-  private clock = 1_790_000_000;
+  // Provider time starts at the real now (see the PayPal fake for why).
+  private clock = Math.floor(Date.now() / 1000);
 
   answer(method: string, path: string, body: string | null, key: string | null): { status: number; body: unknown } {
     this.calls.push({ method, path, key });

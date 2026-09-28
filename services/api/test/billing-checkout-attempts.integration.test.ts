@@ -73,7 +73,14 @@ class FakePayPal {
   private seq = 0;
   /** Unique per fake, so ids never collide with another test's rows. */
   private readonly ns = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
-  private tick = Date.parse("2026-09-28T10:00:00Z");
+  /*
+   * Provider time starts at the REAL now. It was a fixed 2026-09-28T10:00Z,
+   * so once the wall clock passed it, a local write stamped "now" (a local
+   * abandonment) was newer than every later provider fact, and the monotonic
+   * stale-event guard correctly ignored them. Real provider timestamps follow
+   * the local actions that precede them.
+   */
+  private tick = Date.now();
 
   now(): string {
     this.tick += 1000;
