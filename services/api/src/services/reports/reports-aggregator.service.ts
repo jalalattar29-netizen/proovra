@@ -313,7 +313,16 @@ function toPackageLifecycle(
   state: EvidenceOutputState,
   blocked: boolean,
 ): PackageLifecycle {
-  if (blocked && state !== "READY") return "blocked";
+  /*
+   * A gate-blocked package reads "blocked" only when the CANONICAL state says
+   * BLOCKED. It used to override every non-READY state, so a record whose
+   * plan does not include packages (NOT_INCLUDED — which the canonical
+   * derivation deliberately ranks above a gate block) read "blocked" in its
+   * row while the classifier, the `package_blocked` filter and its tile
+   * counted it as not included. NOT_INCLUDED, BLOCKED and FAILED are three
+   * different statements; the row now makes the same one as the tile.
+   */
+  if (blocked && state === "BLOCKED") return "blocked";
   switch (state) {
     case "READY":
       return "ready";

@@ -4,7 +4,7 @@ import path from "node:path";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 void buildLifecycleAndExchangeManifests; // tree-shake guard
 import { createHash } from "node:crypto";
-import { readFileSync, createWriteStream } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

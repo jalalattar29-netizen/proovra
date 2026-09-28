@@ -549,21 +549,46 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
   // =========================================================================
 
   describe("subscription states", () => {
-    it("CANCELED returns the person to FREE; TRIALING leaves the entitlement alone", async () => {
-      const t = await seedPersonalTenant(deps, "TEAM");
+    /*
+     * BILLING CHECKOUT ATTEMPTS (2026-09-28) — the premise is now stated, not
+     * assumed.
+     *
+     * This test used to seed a GRANTED TEAM entitlement (no subscription row
+     * at all), deliver a TRIALING event for a subscription, and then expect
+     * that subscription's deletion to downgrade the person to FREE. That
+     * subscription never carried TEAM — a trial moves no entitlement, which
+     * the test itself asserts — so removing the grant on its deletion was the
+     * defect `syncPlanForSubscription` now refuses (a cancellation removes
+     * only the entitlement THAT subscription granted). The two cases are now
+     * separate and each says where TEAM came from.
+     */
+    it("CANCELED of the subscription that supplied TEAM returns the person to FREE; TRIALING leaves the entitlement alone", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
       const subscriptionId = `sub_${randomUUID().slice(0, 8)}`;
 
+      // TEAM is supplied by THIS paid subscription.
+      const active = stripeEvent({
+        type: "customer.subscription.created",
+        userId: t.owner.userId,
+        plan: "TEAM",
+        subscriptionId,
+        status: "active",
+      });
+      expect((await deliver(active, sign(active))).statusCode).toBe(200);
+      expect((await entitlementOf(t.owner.userId))?.plan).toBe("TEAM");
+
+      // A trial on another subscription does not silently move it.
       const trialing = stripeEvent({
         type: "customer.subscription.updated",
         userId: t.owner.userId,
         plan: "PRO",
-        subscriptionId,
+        subscriptionId: `sub_${randomUUID().slice(0, 8)}`,
         status: "trialing",
       });
       expect((await deliver(trialing, sign(trialing))).statusCode).toBe(200);
-      // A trial does not silently move a paid entitlement.
       expect((await entitlementOf(t.owner.userId))?.plan).toBe("TEAM");
 
+      // The sole source of TEAM ends: TEAM ends.
       const canceled = stripeEvent({
         type: "customer.subscription.deleted",
         userId: t.owner.userId,
@@ -578,6 +603,42 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       const caps = await capabilitiesOf(t.owner.userId);
       expect(caps.maxWorkspaceSeats).toBe(1);
       expect(caps.maxCollaborationTeamsPerWorkspace).toBe(0);
+    });
+
+    it("CANCELED of a subscription that never activated does not wipe an unrelated (granted) TEAM", async () => {
+      // TEAM is a grant: an entitlement with no subscription behind it.
+      const t = await seedPersonalTenant(deps, "TEAM");
+      const subscriptionId = `sub_${randomUUID().slice(0, 8)}`;
+
+      const trialing = stripeEvent({
+        type: "customer.subscription.updated",
+        userId: t.owner.userId,
+        plan: "PRO",
+        subscriptionId,
+        status: "trialing",
+      });
+      expect((await deliver(trialing, sign(trialing))).statusCode).toBe(200);
+      expect((await entitlementOf(t.owner.userId))?.plan).toBe("TEAM");
+
+      const canceled = stripeEvent({
+        type: "customer.subscription.deleted",
+        userId: t.owner.userId,
+        plan: "PRO",
+        subscriptionId,
+        status: "canceled",
+      });
+      expect((await deliver(canceled, sign(canceled))).statusCode).toBe(200);
+      // The subscription is recorded as ended...
+      expect(
+        (
+          await prisma.subscription.findFirstOrThrow({
+            where: { providerSubId: subscriptionId },
+            select: { status: true },
+          })
+        ).status,
+      ).toBe("CANCELED");
+      // ...and the grant it never supplied is untouched.
+      expect((await entitlementOf(t.owner.userId))?.plan).toBe("TEAM");
     });
   });
 
