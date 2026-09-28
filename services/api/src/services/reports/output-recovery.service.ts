@@ -438,7 +438,7 @@ export async function requestOutputRecovery(input: {
   actorUserId: string;
   intent?: GenerationIntent;
   clientRequestKey?: string | null;
-  purpose: "operator_regenerate";
+  purpose: "operator_regenerate" | "updated_report" | "package_recovery" | "first_issuance";
   regenerateReason: string;
   /** Operations only, after its own capability check and a recorded reason. */
   operatorSupersede?: boolean;

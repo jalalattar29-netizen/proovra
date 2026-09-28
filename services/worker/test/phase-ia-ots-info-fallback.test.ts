@@ -322,10 +322,8 @@ describe("Phase IA-OTS-info-fallback — processor source contract", () => {
       'if (classification.kind === "FULLY_ANCHORED")',
     );
     expect(fullAnchoredBranch).toBeGreaterThan(-1);
-    const otsAnchoredRegenIdx = src.indexOf(
-      'regenerateReason: "ots_anchored"',
-    );
-    expect(otsAnchoredRegenIdx).toBeGreaterThan(fullAnchoredBranch);
+    // 2026-09-29: anchoring re-issues no report on any branch.
+    expect(src).not.toMatch(/regenerateReason:\s*"ots_anchored"/);
   });
 
   it("FULLY_ANCHORED branch returns BEFORE any enqueueOtsUpgradeJob (no follow-up after ANCHORED)", () => {

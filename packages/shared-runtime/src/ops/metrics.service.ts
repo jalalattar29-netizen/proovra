@@ -758,6 +758,11 @@ export const COUNTER_NAMES = [
    * should not, and that is worth seeing without any incident being opened.
    */
   "report_generation_not_included_total",
+  /*
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — a request refused because the
+   * subscription state could not be read. Rising = billing reads are failing.
+   */
+  "report_generation_entitlement_unresolved_total",
   // Canonical transport client — one pair for every converged api producer.
   "canonical_enqueue_total",
   "canonical_enqueue_failed_total",

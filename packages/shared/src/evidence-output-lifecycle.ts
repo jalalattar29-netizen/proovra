@@ -52,6 +52,13 @@
 export const OUTPUT_COMMERCIAL_ELIGIBILITIES = [
   "NOT_INCLUDED",
   "ELIGIBLE",
+  /**
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29). The subscription state could not be
+   * read. Neither "not included" (that blames the plan) nor "eligible" (that
+   * issues paid outputs on a guess): nothing is issued or offered, and the
+   * surface says entitlement is being checked.
+   */
+  "UNRESOLVED",
 ] as const;
 export type OutputCommercialEligibility =
   (typeof OUTPUT_COMMERCIAL_ELIGIBILITIES)[number];
@@ -64,7 +71,15 @@ export type OutputCommercialEligibility =
  * boolean because the next reason (a contract that excludes an output, a
  * suspended commercial lifecycle) must be addable without changing the shape.
  */
-export const OUTPUT_INELIGIBILITY_REASONS = ["NOT_INCLUDED_IN_PLAN"] as const;
+export const OUTPUT_INELIGIBILITY_REASONS = [
+  "NOT_INCLUDED_IN_PLAN",
+  /** The subscription is past due beyond its grace window. */
+  "PAYMENT_LAPSED",
+  /** The subscription ended (cancelled after its paid period). */
+  "SUBSCRIPTION_ENDED",
+  /** The commercial state could not be read; nothing is issued meanwhile. */
+  "ENTITLEMENT_UNRESOLVED",
+] as const;
 export type OutputIneligibilityReason =
   (typeof OUTPUT_INELIGIBILITY_REASONS)[number];
 
@@ -337,8 +352,17 @@ export type OutputArtifactAvailability =
  * a column for it would be a fourth authority that can disagree with them.
  */
 export const EVIDENCE_OUTPUT_STATES = [
-  /** The plan (and this record's funding) do not include this output. */
+  /**
+   * Not issued: the plan (and this record's funding) do not include it — for a
+   * Free record, the original evidence is finalized and verifiable and no PDF
+   * or package has been issued.
+   */
   "NOT_INCLUDED",
+  /**
+   * Whether this output is owed could not be determined right now (the
+   * subscription state was unreadable). Nothing is issued meanwhile.
+   */
+  "ENTITLEMENT_UNAVAILABLE",
   /**
    * The RECORD is not in a condition where this output could exist — it has
    * not been finalized, or its integrity check failed and it never will be.
@@ -477,6 +501,7 @@ export function deriveEvidenceOutputState(
   if (axes.record === "NOT_FINALIZED") return "NOT_APPLICABLE";
 
   if (axes.eligibility === "NOT_INCLUDED") return "NOT_INCLUDED";
+  if (axes.eligibility === "UNRESOLVED") return "ENTITLEMENT_UNAVAILABLE";
 
   if (axes.generation === "BLOCKED") return "BLOCKED";
   if (axes.generation === "RETRYABLE_FAILURE") return "RETRYABLE_FAILURE";
@@ -548,6 +573,7 @@ export function outputActionFor(input: {
         ? "GENERATE"
         : "NONE";
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
     case "QUEUED":
     case "GENERATING":
     case "BLOCKED":
@@ -589,6 +615,8 @@ export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
   "NOT_FINALIZED",
   "INTEGRITY_FAILED",
   "NOT_INCLUDED",
+  /** Entitlement could not be determined; nothing is offered until it can. */
+  "ENTITLEMENT_UNAVAILABLE",
   /** The caller may read the record but not generate or recover its outputs. */
   "PERMISSION_DENIED",
   "LEGAL_HOLD_ACTIVE",
@@ -841,6 +869,12 @@ export const GENERATION_REQUEST_OUTCOMES = [
   "QUEUE_UNAVAILABLE",
   /** The record's plan and funding do not include this output. */
   "NOT_INCLUDED",
+  /**
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29). The subscription state could not be
+   * read, so nothing was requested. Not "not included" and not "queued": try
+   * again shortly.
+   */
+  "ENTITLEMENT_UNAVAILABLE",
   /** A governance or lifecycle condition refuses it, and still does. */
   "RECOVERABLE_BLOCKED",
   /** The previous attempt ended in a state nothing will reopen. */
@@ -1104,7 +1138,9 @@ export function resolveEvidenceOutputActions(
 
   const reportReady = f.latestReportVersion != null;
   const pairComplete =
-    reportReady && (f.packageAtLatestReport || f.packageEligibility !== "ELIGIBLE");
+    // An UNRESOLVED package entitlement is not "not owed": the pair is only
+    // complete without a package when the package is genuinely not included.
+    reportReady && (f.packageAtLatestReport || f.packageEligibility === "NOT_INCLUDED");
 
   const recordReason: OutputActionUnavailableReason | null =
     f.record === "INTEGRITY_FAILED"
@@ -1128,6 +1164,7 @@ export function resolveEvidenceOutputActions(
       return none("NOT_REQUIRED");
     }
     if (f.latestPackageVersion != null) return none("CONSISTENCY_REVIEW_REQUIRED");
+    if (f.reportEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.reportRequest) {
       const failed = failedRequestDecision(
@@ -1148,6 +1185,7 @@ export function resolveEvidenceOutputActions(
       return f.latestPackageVersion != null ? none("NOT_REQUIRED") : none("FOLLOWS_REPORT");
     }
     if (f.packageAtLatestReport) return none("NOT_REQUIRED");
+    if (f.packageEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.packageEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.packageBlockedByGovernance) return none("BLOCKED_BY_POLICY");
     if (f.packageRequest) {
@@ -1188,6 +1226,7 @@ export function resolveEvidenceOutputActions(
       if (failed) return no(failed.reason ?? "RETRY_AVAILABLE");
     }
     if (!pairComplete) return no("PAIR_INCOMPLETE");
+    if (f.reportEligibility === "UNRESOLVED") return no("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return no("NOT_INCLUDED");
     if (f.restrictions.legalHold) return no("LEGAL_HOLD_ACTIVE");
     if (f.newVersionFitsStorage === false) return no("STORAGE_LIMIT");

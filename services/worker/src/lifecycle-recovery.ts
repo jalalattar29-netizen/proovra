@@ -31,10 +31,7 @@
  *   - Non-destructive: it only ENQUEUES. It never mutates evidence,
  *     custody, reports, or storage.
  */
-import * as prismaPkg from "@prisma/client";
-import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 
-import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 // PHASE 12 — POINT 5. The recovery calls the report AUTHORITY directly rather
 // than the queue: it persists a durable `ReportGenerationRequest` and then
@@ -42,15 +39,9 @@ import { logger } from "./logger.js";
 // instead of `./processor.js` also keeps this module free of the report
 // generator's whole dependency graph.
 import { enqueueReportGenerationRequest } from "./queue.js";
-import {
-  reconcileStrandedReportRequests,
-  requestReportGenerationFromWorker,
-} from "./report-generation-authority.js";
+import { reconcileStrandedReportRequests } from "./report-generation-authority.js";
+import { runFirstIssuanceReconciliation } from "./first-issuance-reconciliation.js";
 import { runOtsInitializationReconciler } from "./ots-initialization-reconciler.js";
-import {
-  resolveEffectivePlanForEvidence,
-  resolveEvidenceFundingSource,
-} from "./workspace-billing.js";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -132,72 +123,28 @@ export async function runLifecycleRecovery(
     MAX_BATCH_SIZE,
   );
 
-  const now = Date.now();
-  const upperBound = new Date(now - minAge); // signed at least minAge ago
-  const lowerBound = new Date(now - maxAge); // but not older than maxAge
-
-  // Detect: SIGNED, not deleted, within the age window, with NO Report row.
-  // `reports: { none: {} }` is the authoritative "no report was ever
-  // generated" predicate (a successful report generation writes a Report
-  // row AND flips status → REPORTED, so a SIGNED row with no Report row is
-  // precisely the stuck-at-SIGNED case).
-  const candidates = await prisma.evidence.findMany({
-    where: {
-      status: prismaPkg.EvidenceStatus.SIGNED,
-      deletedAt: null,
-      signedAtUtc: { gte: lowerBound, lte: upperBound },
-      reports: { none: {} },
-    },
-    select: { id: true, ownerUserId: true, teamId: true },
-    orderBy: { signedAtUtc: "asc" },
-    take: batchSize,
-  });
-
+  /*
+   * THE EVIDENCE-SHAPED HALF (2026-09-29) — first issuance and missing
+   * packages, decided by the ONE issuance authority. See
+   * first-issuance-reconciliation.ts for the rule; the old "plan includes
+   * reports, signed in the last 7 days" rule is gone.
+   */
+  void minAge;
+  void maxAge;
   let reenqueued = 0;
   let skippedIneligiblePlan = 0;
-  let skippedExistingJob = 0;
+  const skippedExistingJob = 0;
   let failed = 0;
-
-  for (const ev of candidates) {
-    try {
-      const plan = await resolveEffectivePlanForEvidence({
-        ownerUserId: ev.ownerUserId,
-        teamId: ev.teamId ?? null,
-      });
-      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — recovery must not skip a
-      // record whose report was PAID FOR with an evidence credit. Asking the
-      // plan alone treated every credit-funded record on a FREE account as
-      // "ineligible" and quietly abandoned an artifact the customer had bought.
-      const outputs = resolveEvidenceOutputEntitlements({
-        plan,
-        funding: await resolveEvidenceFundingSource(ev.id),
-      });
-      if (!outputs.reportsIncluded) {
-        skippedIneligiblePlan++;
-        continue;
-      }
-      const res = await requestReportGenerationFromWorker({
-        evidenceId: ev.id,
-        purpose: "lifecycle_recovery",
-        machineId: "worker.lifecycle-recovery",
-        enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
-      });
-      if (res.enqueued) {
-        reenqueued++;
-        logger.warn(
-          { evidenceId: ev.id, trigger },
-          "lifecycle.recovery.report_reenqueued",
-        );
-      } else {
-        skippedExistingJob++;
-      }
-    } catch (err) {
-      failed++;
-      logger.error(
-        { err, evidenceId: ev.id, trigger },
-        "lifecycle.recovery.evidence.failed",
-      );
-    }
+  let scanned = 0;
+  try {
+    const fi = await runFirstIssuanceReconciliation({ trigger, batchSize });
+    reenqueued = fi.firstIssueScheduled + fi.packageScheduled;
+    skippedIneligiblePlan = fi.firstIssueSkippedNotEntitled + fi.packageSkippedNotEntitled;
+    failed = fi.failed;
+    scanned = fi.firstIssueScanned + fi.packageScanned;
+  } catch (err) {
+    failed++;
+    logger.error({ err, trigger }, "lifecycle.recovery.first_issuance_failed");
   }
 
   /*
@@ -286,7 +233,7 @@ export async function runLifecycleRecovery(
   }
 
   const result: LifecycleRecoveryResult = {
-    scanned: candidates.length,
+    scanned,
     reenqueued,
     skippedIneligiblePlan,
     skippedExistingJob,

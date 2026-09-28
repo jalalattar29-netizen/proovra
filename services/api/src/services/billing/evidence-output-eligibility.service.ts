@@ -33,9 +33,13 @@
 import {
   getPlanCapabilities,
   resolveEvidenceOutputEntitlements,
+  resolveOutputIssuanceEntitlement,
   type EvidenceFundingSource,
+  type OutputIssuanceEntitlement,
+  type OutputIssuanceLifecycle,
   type PlanType,
 } from "@proovra/shared-billing";
+import { readCommercialLifecycle } from "@proovra/shared-runtime";
 import type {
   OutputCommercialEligibility,
   OutputIneligibilityReason,
@@ -81,8 +85,14 @@ export type EvidenceOutputEligibility = {
   reportEligibility: OutputCommercialEligibility;
   /** Axis 1 for the verification package. */
   packageEligibility: OutputCommercialEligibility;
-  /** Bounded reason, present only when something is NOT_INCLUDED. */
+  /** Bounded reason, present only when something is NOT_INCLUDED or UNRESOLVED. */
   ineligibilityReason: OutputIneligibilityReason | null;
+  /**
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the ONE issuance decision (plan,
+   * funding AND the subscription lifecycle). `reportEligibility` and
+   * `packageEligibility` above are derived from it.
+   */
+  issuance: OutputIssuanceEntitlement;
 };
 
 function toEligibility(included: boolean): OutputCommercialEligibility {
@@ -90,25 +100,74 @@ function toEligibility(included: boolean): OutputCommercialEligibility {
 }
 
 function project(input: {
-  plan: PlanType;
+  plan: PlanType | null;
   funding: EvidenceFundingSource;
+  lifecycle: OutputIssuanceLifecycle;
 }): EvidenceOutputEligibility {
-  const outputs = resolveEvidenceOutputEntitlements({
+  const issuance = resolveOutputIssuanceEntitlement({
     plan: input.plan,
     funding: input.funding,
+    lifecycle: input.lifecycle,
   });
+  // Public verification is never gated on the subscription (Decision B).
+  const publicVerifyIncluded = input.plan
+    ? resolveEvidenceOutputEntitlements({ plan: input.plan, funding: input.funding })
+        .publicVerifyIncluded
+    : true;
+  const unresolved = issuance.decision === "UNRESOLVED";
+  const eligibilityOf = (included: boolean): OutputCommercialEligibility =>
+    unresolved ? "UNRESOLVED" : toEligibility(included);
   const anyExcluded =
-    !outputs.reportsIncluded || !outputs.verificationPackageIncluded;
+    !issuance.reportsIncluded || !issuance.verificationPackageIncluded;
   return {
-    plan: input.plan,
+    plan: input.plan ?? fallbackPlan(),
     funding: input.funding,
-    reportsIncluded: outputs.reportsIncluded,
-    verificationPackageIncluded: outputs.verificationPackageIncluded,
-    publicVerifyIncluded: outputs.publicVerifyIncluded,
-    reportEligibility: toEligibility(outputs.reportsIncluded),
-    packageEligibility: toEligibility(outputs.verificationPackageIncluded),
-    ineligibilityReason: anyExcluded ? "NOT_INCLUDED_IN_PLAN" : null,
+    reportsIncluded: issuance.reportsIncluded,
+    verificationPackageIncluded: issuance.verificationPackageIncluded,
+    publicVerifyIncluded,
+    reportEligibility: eligibilityOf(issuance.reportsIncluded),
+    packageEligibility: eligibilityOf(issuance.verificationPackageIncluded),
+    ineligibilityReason: unresolved
+      ? "ENTITLEMENT_UNRESOLVED"
+      : !anyExcluded
+        ? null
+        : issuance.basis === "PAYMENT_LAPSED"
+          ? "PAYMENT_LAPSED"
+          : issuance.basis === "SUBSCRIPTION_ENDED"
+            ? "SUBSCRIPTION_ENDED"
+            : "NOT_INCLUDED_IN_PLAN",
+    issuance,
   };
+}
+
+type ResolvedSubject = {
+  plan: PlanType;
+  ownerUserId: string;
+  teamId: string | null;
+  billingShape: string;
+};
+
+/**
+ * The commercial lifecycle of the subject that owns a record, through the ONE
+ * shared reader (the worker reads the same function). `null` when it cannot
+ * be read — which the decision turns into UNRESOLVED, never into FREE and
+ * never into paid.
+ */
+async function resolveSubjectLifecycle(
+  subject: ResolvedSubject | null,
+): Promise<OutputIssuanceLifecycle> {
+  if (!subject) return null;
+  try {
+    const reading = await readCommercialLifecycle(
+      prisma,
+      subject.billingShape === "SINGLE_OCCUPANT" || !subject.teamId
+        ? { kind: "PERSONAL", ownerUserId: subject.ownerUserId, plan: String(subject.plan) }
+        : { kind: "WORKSPACE", teamId: subject.teamId, plan: String(subject.plan) },
+    );
+    return { state: reading.state, providerStatus: reading.providerStatus };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -132,10 +191,10 @@ function fallbackPlan(): PlanType {
  * in a workspace is that workspace, whoever created the row — and
  * `PERSONAL_ACCOUNT` otherwise.
  */
-async function resolveSubjectPlan(input: {
+async function resolveSubject(input: {
   ownerUserId?: string | null;
   teamId: string | null;
-}): Promise<PlanType | null> {
+}): Promise<ResolvedSubject | null> {
   try {
     if (input.teamId) {
       const ctx = await resolveCommercialPlan({
@@ -143,14 +202,24 @@ async function resolveSubjectPlan(input: {
         teamId: input.teamId,
         requesterUserId: input.ownerUserId ?? "",
       });
-      return ctx.plan as PlanType;
+      return {
+        plan: ctx.plan as PlanType,
+        ownerUserId: ctx.ownerUserId,
+        teamId: input.teamId,
+        billingShape: String(ctx.billingShape),
+      };
     }
     if (!input.ownerUserId) return null;
     const ctx = await resolveCommercialPlan({
       type: "PERSONAL_ACCOUNT",
       userId: input.ownerUserId,
     });
-    return ctx.plan as PlanType;
+    return {
+      plan: ctx.plan as PlanType,
+      ownerUserId: ctx.ownerUserId,
+      teamId: null,
+      billingShape: String(ctx.billingShape),
+    };
   } catch {
     return null;
   }
@@ -176,19 +245,17 @@ export async function resolveEvidenceOutputEligibility(input: {
    */
   plan?: PlanType | null;
 }): Promise<EvidenceOutputEligibility> {
-  const [plan, funding] = await Promise.all([
-    input.plan
-      ? Promise.resolve(input.plan)
-      : resolveSubjectPlan({
-          ownerUserId: input.ownerUserId,
-          teamId: input.teamId,
-        }),
+  const [subject, funding] = await Promise.all([
+    resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
     resolveEvidenceFunding(input.evidenceId).catch(
       (): EvidenceFundingSource => "PLAN",
     ),
   ]);
-
-  return project({ plan: plan ?? fallbackPlan(), funding });
+  const plan = input.plan ?? subject?.plan ?? null;
+  const lifecycle = await resolveSubjectLifecycle(
+    subject && plan ? { ...subject, plan } : null,
+  );
+  return project({ plan, funding, lifecycle });
 }
 
 /**
@@ -216,23 +283,21 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
   const out = new Map<string, EvidenceOutputEligibility>();
   if (input.evidenceIds.length === 0) return out;
 
-  const [resolvedPlan, fundingById] = await Promise.all([
-    input.plan
-      ? Promise.resolve(input.plan)
-      : resolveSubjectPlan({
-          ownerUserId: input.ownerUserId,
-          teamId: input.teamId,
-        }),
+  const [subject, fundingById] = await Promise.all([
+    resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
     resolveEvidenceFundingMany(input.evidenceIds).catch(
       () => new Map<string, EvidenceFundingSource>(),
     ),
   ]);
-  const plan = resolvedPlan ?? fallbackPlan();
+  const plan = input.plan ?? subject?.plan ?? null;
+  const lifecycle = await resolveSubjectLifecycle(
+    subject && plan ? { ...subject, plan } : null,
+  );
 
   for (const evidenceId of input.evidenceIds) {
     out.set(
       evidenceId,
-      project({ plan, funding: fundingById.get(evidenceId) ?? "PLAN" }),
+      project({ plan, funding: fundingById.get(evidenceId) ?? "PLAN", lifecycle }),
     );
   }
   return out;

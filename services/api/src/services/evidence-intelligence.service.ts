@@ -148,6 +148,8 @@ function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
     case "READY":
     case "NOT_INCLUDED":
     case "NOT_APPLICABLE":
+    // Whether it is owed is unknown for now; not a review gap in the evidence.
+    case "ENTITLEMENT_UNAVAILABLE":
       return false;
     case "ELIGIBLE_NOT_GENERATED":
     case "QUEUED":
@@ -172,7 +174,11 @@ function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
 function outputParticipatesInReadinessScore(
   state: EvidenceOutputState,
 ): boolean {
-  return state !== "NOT_INCLUDED" && state !== "NOT_APPLICABLE";
+  return (
+    state !== "NOT_INCLUDED" &&
+    state !== "NOT_APPLICABLE" &&
+    state !== "ENTITLEMENT_UNAVAILABLE"
+  );
 }
 
 type EventLabelInfo = {

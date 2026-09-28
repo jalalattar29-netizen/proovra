@@ -26,6 +26,7 @@
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import { readCommercialLifecycle } from "@proovra/shared-runtime";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
   resolveWorkspaceScopeForUser,
@@ -53,8 +54,6 @@ import { resolveEnterpriseContract } from "../organization/enterprise-contract.s
  * (status ACTIVE/SUSPENDED/TERMINATED) is surfaced via `enterpriseContract`.
  */
 export const COMMERCIAL_GRACE_PERIOD_DAYS = 7;
-const COMMERCIAL_GRACE_PERIOD_MS =
-  COMMERCIAL_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 
 export type CommercialLifecycleState =
   | "ACTIVE"
@@ -82,144 +81,34 @@ export type CommercialLifecycle = {
 };
 
 /**
- * THE single grace/lifecycle resolver. Reads the authoritative Subscription
- * row for the scope and applies the ONE bounded-grace rule. Fail-closed on
- * terminal states; tolerant of webhook lag (no row → authoritative field
- * governs → ACTIVE) so a legitimately-paying, webhook-lagged subject is not
- * locked out of custody/evidence access.
+ * THE single grace/lifecycle resolver — now a thin adapter over the shared
+ * reader (`@proovra/shared-runtime` `readCommercialLifecycle`), which the
+ * worker's issuance gates also use, so the two hosts cannot disagree.
+ *
+ * SUBJECT (EVIDENCE OUTPUT LIFECYCLE, 2026-09-29). A SINGLE_OCCUPANT scope is a
+ * PERSONAL subject: its subscription rows are keyed by user and plan. This
+ * read `scope.teamId ? { teamId } : { userId, plan }`, and a Personal Space
+ * carries its personal team's id — so a personal subscription was looked up
+ * by team, never found, and the "no row → authoritative field governs" branch
+ * read a PAST_DUE personal subscription as ACTIVE forever: the grace window
+ * was never applied to personal subscribers. The subject now follows the
+ * billing shape.
  */
-const LIFE_ACTIVE: CommercialLifecycle = {
-  state: "ACTIVE",
-  paidActive: true,
-  mutationsAllowed: true,
-  graceEndsAtUtc: null,
-  providerStatus: null,
-};
-
-/** The ONE grace-window evaluation for a matching PAST_DUE row. */
-function evalPastDueGrace(
-  currentPeriodEnd: Date | null,
-): CommercialLifecycle {
-  const periodEndMs = currentPeriodEnd?.getTime() ?? null;
-  // §9.5 HARDENED (2026-07-22): PAST_DUE with NO trustworthy clock FAILS
-  // CLOSED for new paid mutations (deterministic graceEndsAt is required
-  // for grace). Evidence/custody/legal-hold access is untouched — the
-  // lifecycle gate restricts only the paid-mutation assert surface.
-  if (periodEndMs === null) {
-    return {
-      state: "PAST_DUE_EXPIRED",
-      paidActive: false,
-      mutationsAllowed: false,
-      graceEndsAtUtc: null,
-      providerStatus: prismaPkg.SubscriptionStatus.PAST_DUE,
-    };
-  }
-  const graceEndMs = periodEndMs + COMMERCIAL_GRACE_PERIOD_MS;
-  const inGrace = Date.now() <= graceEndMs;
-  return inGrace
-    ? {
-        state: "GRACE",
-        paidActive: true,
-        mutationsAllowed: true,
-        graceEndsAtUtc: new Date(graceEndMs),
-        providerStatus: prismaPkg.SubscriptionStatus.PAST_DUE,
-      }
-    : {
-        state: "PAST_DUE_EXPIRED",
-        paidActive: false,
-        mutationsAllowed: false,
-        graceEndsAtUtc: null,
-        providerStatus: prismaPkg.SubscriptionStatus.PAST_DUE,
-      };
-}
-
 async function resolvePaidLifecycle(
   scope: WorkspaceScope,
 ): Promise<CommercialLifecycle> {
-  // FREE tier has no paid subscription state. Mutations remain allowed
-  // (gated by per-feature plan limits, mirroring the prior billing-guards
-  // FREE short-circuit); paid capability is not active.
-  if (scope.plan === prismaPkg.PlanType.FREE) {
-    return {
-      state: "INACTIVE",
-      paidActive: false,
-      mutationsAllowed: true,
-      graceEndsAtUtc: null,
-      providerStatus: null,
-    };
-  }
-
-  const S = prismaPkg.SubscriptionStatus;
-  // Team-scoped workspace subscription (owned-workspace subject).
-  const scopeWhere = scope.teamId
-    ? { teamId: scope.teamId }
-    : { userId: scope.ownerUserId, plan: scope.plan };
-
-  // Faithful relocation of billing-guards' corroboration policy (protects
-  // the production stale-row 402 regression): prefer a LIVE row, then a
-  // matching PAST_DUE row's grace, then tolerate webhook lag, then deny.
-  // Step 1 — live (ACTIVE/TRIALING) matching row(s).
-  // §9.5 HARDENED: MULTIPLE live rows for the same subject are AMBIGUOUS
-  // provider state — fail closed for paid mutations rather than silently
-  // selecting the latest row.
-  const liveRows = await prisma.subscription.findMany({
-    where: { ...scopeWhere, status: { in: [S.ACTIVE, S.TRIALING] } },
-    orderBy: { updatedAt: "desc" },
-    select: { status: true },
-    take: 2,
-  });
-  if (liveRows.length > 1) {
-    return {
-      state: "CANCELLED",
-      paidActive: false,
-      mutationsAllowed: false,
-      graceEndsAtUtc: null,
-      providerStatus: liveRows[0].status,
-    };
-  }
-  if (liveRows.length === 1)
-    return { ...LIFE_ACTIVE, providerStatus: liveRows[0].status };
-
-  // Step 2 — matching PAST_DUE row → the ONE grace rule.
-  const pastDue = await prisma.subscription.findFirst({
-    where: { ...scopeWhere, status: S.PAST_DUE },
-    orderBy: { updatedAt: "desc" },
-    select: { currentPeriodEnd: true },
-  });
-  if (pastDue) return evalPastDueGrace(pastDue.currentPeriodEnd);
-
-  // Step 3 — no matching-scope row at all → authoritative field governs;
-  // tolerate provider-webhook lag. ACTIVE.
-  const anyMatching = await prisma.subscription.findFirst({
-    where: scopeWhere,
-    orderBy: { updatedAt: "desc" },
-    select: { status: true, currentPeriodEnd: true },
-  });
-  if (!anyMatching) return LIFE_ACTIVE;
-
-  // Step 4 — terminal matching row. §9.5: an explicit canonical PAID-THROUGH
-  // date is respected — a CANCELED subscription remains commercially active
-  // until its paid period ends; after that (or with no valid date) paid
-  // capability is inactive, fail closed.
-  if (
-    anyMatching.status === S.CANCELED &&
-    anyMatching.currentPeriodEnd &&
-    anyMatching.currentPeriodEnd.getTime() > Date.now()
-  ) {
-    return {
-      state: "ACTIVE",
-      paidActive: true,
-      mutationsAllowed: true,
-      graceEndsAtUtc: anyMatching.currentPeriodEnd,
-      providerStatus: anyMatching.status,
-    };
-  }
+  const reading = await readCommercialLifecycle(
+    prisma,
+    scope.billingShape === "SINGLE_OCCUPANT" || !scope.teamId
+      ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan: String(scope.plan) }
+      : { kind: "WORKSPACE", teamId: scope.teamId, plan: String(scope.plan) },
+  );
   return {
-    state: "CANCELLED",
-    paidActive: false,
-    mutationsAllowed: false,
-    graceEndsAtUtc: null,
-    providerStatus: anyMatching.status,
+    state: reading.state,
+    paidActive: reading.paidActive,
+    mutationsAllowed: reading.mutationsAllowed,
+    graceEndsAtUtc: reading.graceEndsAtUtc,
+    providerStatus: reading.providerStatus as prismaPkg.SubscriptionStatus | null,
   };
 }
 

@@ -165,14 +165,12 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     );
   });
 
-  it("FULLY_ANCHORED branch writes ANCHORED + enqueueReportJob ots_anchored", () => {
-    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027: structural, so
-    // new custody-payload fields cannot push the asserted text out).
+  it("FULLY_ANCHORED branch writes ANCHORED and does NOT re-issue a report (2026-09-29)", () => {
+    // An anchor that lands later is a LATER FACT: recorded on the record and
+    // shown by Verify. Issued reports keep what they said; no new version.
     const block = fullyAnchoredBranch();
     expect(block).toMatch(/status:\s*"ANCHORED"/);
-    expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);
-    expect(block).toMatch(/regenerateReason:\s*"ots_anchored"/);
-    expect(block).toMatch(/forceRegenerate:\s*true/);
+    expect(block).not.toMatch(/enqueueReportJob|requestReportGeneration|forceRegenerate/);
   });
 
   it("FULLY_ANCHORED branch writes ANCHORED + custody event inside the SAME transaction", () => {
@@ -234,17 +232,9 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     // `ReportGenerationRequest` and enqueues its id, so both call sites gained
     // a `purpose` and a machine principal. The count is what this pins, and it
     // is unchanged: exactly two, both on an anchored classification.
-    const regenSites = UP.match(/enqueueReportJob\(evidenceId,/g) ?? [];
-    expect(regenSites.length).toBe(2);
-    const firstIdx = UP.indexOf("enqueueReportJob(evidenceId");
-    const beforeFirst = UP.slice(0, firstIdx);
-    // Distance-based heuristic: the nearest thing above the first regen call
-    // must be the FULLY_ANCHORED branch. Widened from 3000 to 4000 because the
-    // Point-5 comment explaining WHY the regeneration is authorized here (and
-    // persisted rather than flagged on a message) sits between them.
-    expect(beforeFirst).toMatch(
-      /classification\.kind === "FULLY_ANCHORED"[\s\S]{0,4000}$/,
-    );
+    // 2026-09-29: the upgrade processor issues NO report on any branch.
+    const regenSites = UP.match(/enqueueReportJob\(|requestReportGeneration/g) ?? [];
+    expect(regenSites.length).toBe(0);
   });
 
   it("global budget exhaustion writes FAILED + records OperationalIncident", () => {

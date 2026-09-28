@@ -73,10 +73,21 @@ export type ReportArtifactType = (typeof REPORT_ARTIFACT_TYPES)[number];
 export const REPORT_GENERATION_PURPOSES = [
   "evidence_completed",
   "operator_regenerate",
+  /** Retained so historical rows parse; nothing writes it any more. */
   "tsa_repair",
   "lifecycle_recovery",
+  /** Retained so historical rows parse; OTS anchoring no longer re-issues. */
   "ots_upgrade_completed",
   "queue_legacy_drain",
+  /**
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29). The first report/package for a
+   * record finalized before its subject held a confirmed paid subscription.
+   */
+  "first_issuance",
+  /** The missing package for a report version that exists without one. */
+  "package_recovery",
+  /** An explicit, authorized updated report documenting later facts. */
+  "updated_report",
 ] as const;
 export type ReportGenerationPurpose =
   (typeof REPORT_GENERATION_PURPOSES)[number];

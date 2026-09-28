@@ -292,6 +292,7 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "TERMINAL_FAILURE":
       return "failed";
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
       /*
@@ -333,6 +334,7 @@ function toPackageLifecycle(
     case "TERMINAL_FAILURE":
       return "failed";
     case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
       /*

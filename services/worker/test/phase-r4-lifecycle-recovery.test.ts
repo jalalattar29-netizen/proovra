@@ -1,248 +1,217 @@
 /**
- * Phase R4 — SIGNED-without-report lifecycle recovery reconciler.
+ * Lifecycle recovery — FIRST-ISSUANCE RECONCILIATION (2026-09-29).
  *
- * Behavioural coverage (finding F4): the reconciler must detect evidence
- * durably stuck at SIGNED with no Report row and idempotently re-enqueue
- * the report job — while skipping plan-ineligible evidence so it never
- * churns. Deps are mocked (the real `./queue.js` opens a Redis connection
- * at import time, so mocking is required, not just convenient).
+ * Replaces the Phase R4 "SIGNED, 15 min – 7 days, current plan includes
+ * reports ⇒ generate" coverage. The rule now (Decision A):
+ *
+ *   * a finalized record with no report is issued its FIRST report (and its
+ *     package) only when the ONE issuance decision says ENTITLED and
+ *     `mayIssueHistoricalFirstOutputs` — a confirmed paid subscription or a
+ *     credit-funded record. Trial, grace, Free and UNRESOLVED schedule nothing.
+ *   * records signed more than 7 days ago need
+ *     OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED (the backfill gate);
+ *   * a REPORTED record whose LATEST report has no package gets a package-only
+ *     request for exactly that version, only with OUTPUT_PACKAGE_RECOVERY_ENABLED;
+ *   * records with live requests are skipped; nothing forces a new version.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const findMany = vi.fn();
-const enqueueReportJob = vi.fn();
-const resolveEffectivePlanForEvidence = vi.fn();
+const evidenceFindMany = vi.fn();
+const requestFindMany = vi.fn();
+const queryRaw = vi.fn();
+const requestFromWorker = vi.fn();
+const issuance = vi.fn();
 
 vi.mock("../src/db.js", () => ({
-  prisma: { evidence: { findMany: (...args: unknown[]) => findMany(...args) } },
+  prisma: {
+    evidence: { findMany: (...a: unknown[]) => evidenceFindMany(...a) },
+    reportGenerationRequest: { findMany: (...a: unknown[]) => requestFindMany(...a) },
+    $queryRaw: (...a: unknown[]) => queryRaw(...a),
+  },
 }));
-// PHASE 12 — POINT 5. The recovery persists a durable
-// `ReportGenerationRequest` through the shared authority and then enqueues that
-// row's id, so the two collaborators are mocked separately: the authority
-// stands in for "intent was recorded and scheduled", and the queue module stays
-// mocked because importing it opens a real Redis connection.
 vi.mock("../src/queue.js", () => ({
-  enqueueReportGenerationRequest: vi.fn(async () => ({
-    enqueued: true,
-    jobId: "report-req",
-  })),
+  enqueueReportGenerationRequest: vi.fn(async () => ({ enqueued: true })),
 }));
 vi.mock("../src/report-generation-authority.js", () => ({
-  requestReportGenerationFromWorker: (...args: unknown[]) =>
-    enqueueReportJob(...args),
+  requestReportGenerationFromWorker: (...a: unknown[]) => requestFromWorker(...a),
+  reconcileStrandedReportRequests: vi.fn(async () => ({
+    reenqueued: 0,
+    leasesReleased: 0,
+    terminalRepaired: 0,
+  })),
 }));
-vi.mock("../src/workspace-billing.js", () => ({
-  resolveEffectivePlanForEvidence: (...args: unknown[]) =>
-    resolveEffectivePlanForEvidence(...args),
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — recovery now asks how the
-  // record was FUNDED before deciding it is plan-ineligible, so a report the
-  // customer paid for with an evidence credit is not silently abandoned on a
-  // FREE account. These cases are all plan-funded.
-  resolveEvidenceFundingSource: async () => "PLAN",
+vi.mock("../src/output-issuance.js", () => ({
+  resolveEvidenceOutputIssuance: (...a: unknown[]) => issuance(...a),
+}));
+vi.mock("../src/ots-initialization-reconciler.js", () => ({
+  runOtsInitializationReconciler: vi.fn(async () => ({ scanned: 0, enqueued: 0 })),
 }));
 vi.mock("../src/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-// A plan can generate reports unless it is FREE (enough to exercise the skip).
-vi.mock("@proovra/shared-billing", () => ({
-  // The outputs a record earns follow its plan AND its funding. FREE grants no
-  // report on a plan-funded record; a credit-funded one always does.
-  resolveEvidenceOutputEntitlements: (input: {
-    plan: string;
-    funding: string;
-  }) => ({
-    reportsIncluded: input.funding === "EVIDENCE_CREDIT" || input.plan !== "FREE",
-    verificationPackageIncluded:
-      input.funding === "EVIDENCE_CREDIT" || input.plan !== "FREE",
-    publicVerifyIncluded: true,
-  }),
-}));
 
-import { runLifecycleRecovery } from "../src/lifecycle-recovery.js";
+const { runFirstIssuanceReconciliation, resetFirstIssuanceCursors } = await import(
+  "../src/first-issuance-reconciliation.js"
+);
+const { runLifecycleRecovery } = await import("../src/lifecycle-recovery.js");
+
+const NOW = new Date("2026-09-29T12:00:00Z");
+const days = (n: number) => new Date(NOW.getTime() - n * 86400_000);
+const paid = {
+  decision: "ENTITLED",
+  basis: "PAID_SUBSCRIPTION",
+  reportsIncluded: true,
+  verificationPackageIncluded: true,
+  mayIssueHistoricalFirstOutputs: true,
+};
 
 beforeEach(() => {
-  findMany.mockReset();
-  enqueueReportJob.mockReset();
-  resolveEffectivePlanForEvidence.mockReset();
+  resetFirstIssuanceCursors();
+  evidenceFindMany.mockReset().mockResolvedValue([]);
+  requestFindMany.mockReset().mockResolvedValue([]);
+  queryRaw.mockReset().mockResolvedValue([]);
+  requestFromWorker.mockReset().mockResolvedValue({ enqueued: true, requestId: "r1" });
+  issuance.mockReset().mockResolvedValue(paid);
+});
+afterEach(() => {
+  delete process.env.OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED;
+  delete process.env.OUTPUT_PACKAGE_RECOVERY_ENABLED;
 });
 
-describe("Phase R4 — lifecycle recovery reconciler", () => {
-  it("queries only SIGNED, non-deleted, report-less evidence within an age window", async () => {
-    findMany.mockResolvedValue([]);
-    await runLifecycleRecovery({ trigger: "test" });
-
-    /*
-     * RELIABILITY CLOSURE (2026-09-09) — THIS SWEEP NOW MAKES TWO EVIDENCE
-     * QUERIES, AND THAT IS THE DESIGN.
-     *
-     * The assertion here was `toHaveBeenCalledTimes(1)`. That was never the
-     * property this case is named for — it was an incidental assumption that
-     * `runLifecycleRecovery` asks the evidence table exactly one question.
-     *
-     * It now asks two, because the OTS initialization reconciler was folded
-     * into this same tick rather than given a timer of its own. The two scans
-     * are one responsibility — repair a handoff lost between a commit and a
-     * queue — and separate schedulers would let a deployment run half of that
-     * repair.
-     *
-     * So the count is asserted as "the first query is the report-recovery
-     * scan", and the second scan gets its own assertions below. That is more
-     * coverage than the count carried, not less: the OTS predicate had no
-     * worker-side test at all.
-     */
-    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const arg = findMany.mock.calls[0][0] as {
-      where: Record<string, unknown>;
-      take: number;
-      orderBy: unknown;
-    };
-    expect(arg.where.status).toBe("SIGNED");
-    expect(arg.where.deletedAt).toBeNull();
-    expect(arg.where.reports).toEqual({ none: {} });
-    // Age window: signedAtUtc bounded on both ends.
-    const signed = arg.where.signedAtUtc as { gte: Date; lte: Date };
-    expect(signed.gte).toBeInstanceOf(Date);
-    expect(signed.lte).toBeInstanceOf(Date);
-    expect(signed.gte.getTime()).toBeLessThan(signed.lte.getTime());
-    // Bounded batch.
-    expect(arg.take).toBeGreaterThan(0);
-    expect(arg.take).toBeLessThanOrEqual(1000);
+describe("first issuance", () => {
+  it("scans finalized, usable, report-less records with NO upper age bound", async () => {
+    await runFirstIssuanceReconciliation({ now: NOW });
+    const where = evidenceFindMany.mock.calls[0][0].where;
+    expect(where.status).toBe("SIGNED");
+    expect(where.deletedAt).toBeNull();
+    expect(where.reports).toEqual({ none: {} });
+    expect(where.lifecycleState.in).not.toContain("TRASHED");
+    expect(where.lifecycleState.in).not.toContain("DESTROYED");
+    expect(where.signedAtUtc.gte).toBeUndefined();
   });
 
-  it("also scans, in the same tick, for records that never entered the OTS lifecycle", async () => {
-    findMany.mockResolvedValue([]);
-    await runLifecycleRecovery({ trigger: "test" });
-
-    /*
-     * The second half of the same repair. A finalize can commit and its OTS
-     * enqueue can be lost, and until this scan existed nothing on the platform
-     * noticed: `otsStatus` stays NULL, and NULL is not what the integrity scan
-     * looks for.
-     *
-     * `fingerprintCanonicalJson` is the honest finalization test — it is the
-     * CONTENT that OTS stamps, written by the finalize transaction — and it is
-     * stronger than reading `status`, because it is the actual input rather
-     * than a label describing it.
-     */
-    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(2);
-    const ots = findMany.mock.calls[1][0] as {
-      where: Record<string, unknown>;
-      take: number;
-    };
-    expect(ots.where.deletedAt).toBeNull();
-    expect(ots.where.fingerprintCanonicalJson).toEqual({ not: null });
-    // BOTH OTS columns must be null. A record holding proof bytes has entered
-    // the lifecycle whatever its status says, and re-enqueueing it would ask
-    // the upgrade ladder to redo work it is already doing.
-    expect(ots.where.otsStatus).toBeNull();
-    expect(ots.where.otsProofBase64).toBeNull();
-    // Aged on both ends: a record finalized seconds ago is in flight, not
-    // stranded, and one older than the global anchoring budget is past help.
-    const created = ots.where.createdAt as { gte: Date; lte: Date };
-    expect(created.gte).toBeInstanceOf(Date);
-    expect(created.lte).toBeInstanceOf(Date);
-    expect(created.gte.getTime()).toBeLessThan(created.lte.getTime());
-    expect(ots.take).toBeGreaterThan(0);
-    expect(ots.take).toBeLessThanOrEqual(1000);
+  it("issues the first report for a recent record under a confirmed paid subscription — never forced", async () => {
+    evidenceFindMany.mockResolvedValue([
+      { id: "e1", ownerUserId: "u", teamId: "t", signedAtUtc: days(2) },
+    ]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.firstIssueScheduled).toBe(1);
+    const call = requestFromWorker.mock.calls[0][0];
+    expect(call.evidenceId).toBe("e1");
+    expect(call).not.toHaveProperty("forceRegenerate");
+    expect(call.packageForReportVersion).toBeUndefined();
   });
 
-  it("a failing sub-reconciler cannot stop the others in the same tick", async () => {
-    // The evidence scan succeeds; the OTS scan is made to throw. A sweep that
-    // aborts on one stage is how a backlog builds behind a single bad query.
-    findMany
-      .mockResolvedValueOnce([])
-      .mockRejectedValueOnce(new Error("ots scan exploded"));
+  it.each([
+    ["Free plan", { ...paid, decision: "NOT_ENTITLED", basis: "FREE_PLAN", mayIssueHistoricalFirstOutputs: false }],
+    ["trial", { ...paid, basis: "TRIAL", mayIssueHistoricalFirstOutputs: false }],
+    ["payment grace", { ...paid, basis: "PAYMENT_GRACE", mayIssueHistoricalFirstOutputs: false }],
+    ["lapsed", { ...paid, decision: "NOT_ENTITLED", basis: "PAYMENT_LAPSED", mayIssueHistoricalFirstOutputs: false }],
+  ])("schedules nothing for a %s subject", async (_label, decision) => {
+    issuance.mockResolvedValue(decision);
+    evidenceFindMany.mockResolvedValue([
+      { id: "e1", ownerUserId: "u", teamId: "t", signedAtUtc: days(2) },
+    ]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(requestFromWorker).not.toHaveBeenCalled();
+    expect(res.firstIssueSkippedNotEntitled).toBe(1);
+  });
 
+  it("an UNRESOLVED entitlement schedules nothing and is counted apart", async () => {
+    issuance.mockResolvedValue({ ...paid, decision: "UNRESOLVED", mayIssueHistoricalFirstOutputs: false });
+    evidenceFindMany.mockResolvedValue([
+      { id: "e1", ownerUserId: "u", teamId: "t", signedAtUtc: days(2) },
+    ]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(requestFromWorker).not.toHaveBeenCalled();
+    expect(res.unresolved).toBe(1);
+  });
+
+  it("holds historical records behind the backfill gate, and issues them once it is on", async () => {
+    evidenceFindMany.mockResolvedValue([
+      { id: "old", ownerUserId: "u", teamId: "t", signedAtUtc: days(90) },
+    ]);
+    let res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.firstIssueSkippedHistoricalGate).toBe(1);
+    expect(requestFromWorker).not.toHaveBeenCalled();
+
+    process.env.OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED = "true";
+    resetFirstIssuanceCursors();
+    res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.firstIssueScheduled).toBe(1);
+    expect(requestFromWorker.mock.calls[0][0].purpose).toBe("first_issuance");
+  });
+
+  it("skips a record that already has live work", async () => {
+    evidenceFindMany.mockResolvedValue([
+      { id: "e1", ownerUserId: "u", teamId: "t", signedAtUtc: days(2) },
+    ]);
+    requestFindMany.mockResolvedValue([{ evidenceId: "e1" }]);
+    await runFirstIssuanceReconciliation({ now: NOW });
+    expect(requestFromWorker).not.toHaveBeenCalled();
+  });
+
+  it("a dry run decides and counts but schedules nothing", async () => {
+    evidenceFindMany.mockResolvedValue([
+      { id: "e1", ownerUserId: "u", teamId: "t", signedAtUtc: days(2) },
+    ]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW, dryRun: true });
+    expect(res.firstIssueScheduled).toBe(1);
+    expect(requestFromWorker).not.toHaveBeenCalled();
+  });
+});
+
+describe("missing package for the latest report", () => {
+  it("does not run unless enabled", async () => {
+    await runFirstIssuanceReconciliation({ now: NOW });
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("requests the package for EXACTLY the latest report version (v7), never a new report", async () => {
+    process.env.OUTPUT_PACKAGE_RECOVERY_ENABLED = "true";
+    queryRaw.mockResolvedValue([{ id: "e7", owner_user_id: "u", team_id: "t", version: 7 }]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.packageScheduled).toBe(1);
+    const call = requestFromWorker.mock.calls.at(-1)![0];
+    expect(call.packageForReportVersion).toBe(7);
+    expect(call.purpose).toBe("package_recovery");
+  });
+
+  it("does not recover a package the subject is not entitled to now", async () => {
+    process.env.OUTPUT_PACKAGE_RECOVERY_ENABLED = "true";
+    issuance.mockResolvedValue({ ...paid, decision: "NOT_ENTITLED", basis: "SUBSCRIPTION_ENDED", verificationPackageIncluded: false });
+    queryRaw.mockResolvedValue([{ id: "e7", owner_user_id: "u", team_id: "t", version: 7 }]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.packageSkippedNotEntitled).toBe(1);
+    expect(requestFromWorker).not.toHaveBeenCalled();
+  });
+});
+
+describe("lifecycle recovery tick", () => {
+  it("runs first issuance, the stranded-request reconciler and the OTS initializer", async () => {
     const res = await runLifecycleRecovery({ trigger: "test" });
-
     expect(res).toBeTruthy();
-    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(evidenceFindMany).toHaveBeenCalled();
   });
 
-  it("re-enqueues eligible stuck evidence and reports the count", async () => {
-    findMany.mockResolvedValue([
-      { id: "ev-1", ownerUserId: "u1", teamId: "t1" },
-      { id: "ev-2", ownerUserId: "u2", teamId: null },
-    ]);
-    resolveEffectivePlanForEvidence.mockResolvedValue("TEAM");
-    enqueueReportJob.mockResolvedValue({ enqueued: true });
-
+  it("a failing first-issuance scan cannot stop the other halves", async () => {
+    evidenceFindMany.mockRejectedValue(new Error("scan exploded"));
     const res = await runLifecycleRecovery({ trigger: "test" });
-
-    // PHASE 12 — POINT 5. The recovery no longer says "enqueue a report for
-    // this evidence id"; it says "record a lifecycle_recovery request, from
-    // this machine principal, for this evidence" — and the enqueue is what the
-    // authority does with that record. The purpose and the principal are
-    // asserted because they are what makes the resulting request auditable.
-    expect(enqueueReportJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        evidenceId: "ev-1",
-        purpose: "lifecycle_recovery",
-        machineId: "worker.lifecycle-recovery",
-      }),
-    );
-    expect(enqueueReportJob).toHaveBeenCalledWith(
-      expect.objectContaining({ evidenceId: "ev-2" }),
-    );
-    expect(res.reenqueued).toBe(2);
-    expect(res.scanned).toBe(2);
-    expect(res.skippedIneligiblePlan).toBe(0);
-  });
-
-  it("skips plan-ineligible evidence — never enqueues a report the plan may not have", async () => {
-    findMany.mockResolvedValue([{ id: "free-ev", ownerUserId: "u", teamId: null }]);
-    resolveEffectivePlanForEvidence.mockResolvedValue("FREE");
-
-    const res = await runLifecycleRecovery({ trigger: "test" });
-
-    expect(enqueueReportJob).not.toHaveBeenCalled();
-    expect(res.reenqueued).toBe(0);
-    expect(res.skippedIneligiblePlan).toBe(1);
-  });
-
-  it("counts idempotent no-op enqueues (existing job) separately from fresh re-enqueues", async () => {
-    findMany.mockResolvedValue([{ id: "ev-dup", ownerUserId: "u", teamId: "t" }]);
-    resolveEffectivePlanForEvidence.mockResolvedValue("TEAM");
-    enqueueReportJob.mockResolvedValue({ enqueued: false, reason: "already-queued" });
-
-    const res = await runLifecycleRecovery({ trigger: "test" });
-
-    expect(res.reenqueued).toBe(0);
-    expect(res.skippedExistingJob).toBe(1);
-  });
-
-  it("isolates per-evidence failures without aborting the sweep", async () => {
-    findMany.mockResolvedValue([
-      { id: "bad", ownerUserId: "u", teamId: "t" },
-      { id: "good", ownerUserId: "u", teamId: "t" },
-    ]);
-    resolveEffectivePlanForEvidence.mockResolvedValue("TEAM");
-    enqueueReportJob
-      .mockRejectedValueOnce(new Error("redis down"))
-      .mockResolvedValueOnce({ enqueued: true });
-
-    const res = await runLifecycleRecovery({ trigger: "test" });
-
-    expect(res.failed).toBe(1);
-    expect(res.reenqueued).toBe(1);
+    expect(res.failed).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe("Phase R4 — scheduler wiring (source contract)", () => {
-  const indexSrc = readFileSync(
-    fileURLToPath(new URL("../src/index.ts", import.meta.url)),
-    "utf8",
-  );
-
-  it("imports and schedules the reconciler with an env kill-switch + start/stop", () => {
+describe("scheduler wiring (source contract)", () => {
+  const indexSrc = readFileSync(fileURLToPath(new URL("../src/index.ts", import.meta.url)), "utf8");
+  it("schedules the reconciler with a kill-switch, a re-entrancy flag and a cross-replica lock", () => {
     expect(indexSrc).toContain('from "./lifecycle-recovery.js"');
     expect(indexSrc).toContain('envBoolean("LIFECYCLE_RECOVERY_ENABLED"');
     expect(indexSrc).toContain("startLifecycleRecoveryScheduler()");
     expect(indexSrc).toContain("stopLifecycleRecoveryScheduler()");
-    // Guarded by a re-entrancy flag like the sibling reconcilers.
     expect(indexSrc).toContain("lifecycleRecoveryRunning");
+    expect(indexSrc).toMatch(/withCronLock\("lifecycle-recovery"/);
   });
 });

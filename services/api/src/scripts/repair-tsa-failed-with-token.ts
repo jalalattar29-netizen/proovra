@@ -63,7 +63,6 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../db.js";
 import { appendCustodyEventTx } from "../services/custody-events.service.js";
-import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
 import { parseTsaReply } from "../services/timestamp/parse-tsa-reply.js";
 
 const execFileAsync = promisify(execFile);
@@ -276,8 +275,10 @@ async function main(): Promise<void> {
     // -------- APPLY path: transactional update + custody event. --------
     try {
       await prisma.$transaction(async (tx) => {
-        await tx.evidence.update({
-          where: { id: row.id },
+        // Compare-and-set: only a row that is STILL FAILED is repaired. A row
+        // another run (or anything else) changed since selection is left alone.
+        const claimed = await tx.evidence.updateMany({
+          where: { id: row.id, tsaStatus: "FAILED" },
           data: {
             tsaStatus: "STAMPED",
             tsaSerialNumber: parsed.serialNumber,
@@ -296,6 +297,9 @@ async function main(): Promise<void> {
             integrityCorrelationId: repairExecutionId,
           },
         });
+        if (claimed.count !== 1) {
+          throw new Error("TSA_REPAIR_ROW_CHANGED_SINCE_SELECTION");
+        }
         await appendCustodyEventTx(tx, {
           evidenceId: row.id,
           eventType: prismaPkg.CustodyEventType.TIMESTAMP_APPLIED,
@@ -329,32 +333,16 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Enqueue the report regen OUTSIDE the transaction so any failure
-    // in the queue doesn't roll back the DB correction. The persisted
-    // tsaStatus='STAMPED' is the durable record; the regen is a
-    // downstream view update.
-    try {
-      const result = await requestReportGeneration({
-        evidenceId: row.id,
-        purpose: "tsa_repair",
-        forceRegenerate: true,
-        regenerateReason: "tsa_repaired",
-        requestedByMachineId: "script.repair-tsa",
-      });
-      if (result.requested && result.enqueued) {
-        summary.enqueuedJobs += 1;
-        console.log(`[repair-tsa]   → enqueued report regen for ${idShort}`);
-      } else {
-        console.log(
-          `[repair-tsa]   report job already in-flight for ${idShort} (skipped)`,
-        );
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[repair-tsa]   enqueue failed for ${idShort}: ${message.slice(0, 200)}`,
-      );
-    }
+    /*
+     * NO REPORT IS RE-ISSUED (2026-09-29).
+     *
+     * This used to force a new report version for every repaired row. The
+     * repair corrects how the ORIGINAL finalize-time token is read; it is
+     * recorded above as a custody event with its own time. Issued reports keep
+     * what they said when they were issued, Public Verify shows the corrected
+     * timestamp state from now on, and an updated report documenting it is an
+     * explicit, authorized user action ("Issue updated report").
+     */
   }
 
   console.log("[repair-tsa] summary " + JSON.stringify(summary));

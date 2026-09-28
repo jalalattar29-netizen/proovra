@@ -234,8 +234,8 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 4: report regen gating", () => {
     expect(anchoredBranchStart, "FULLY_ANCHORED branch missing").toBeGreaterThan(
       -1,
     );
-    const otsAnchoredRegenIdx = proc.indexOf('regenerateReason: "ots_anchored"');
-    expect(otsAnchoredRegenIdx).toBeGreaterThan(anchoredBranchStart);
+    // 2026-09-29: no branch re-issues a report any more.
+    expect(proc).not.toMatch(/regenerateReason:\s*"ots_anchored"/);
 
     // The ANCHOR_MATERIAL_RECOVERED branch must NOT enqueue an
     // `ots_anchored` regen. The legitimate "anchor material
@@ -249,9 +249,8 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 4: report regen gating", () => {
     // The recovered branch should only use the
     // `ots_anchor_material_recovered` reason (when it enqueues at
     // all — and that path is gated on `txidRecoveredWhileAnchored`).
-    expect(proc).toMatch(
-      /regenerateReason:\s*"ots_anchor_material_recovered"/,
-    );
+    expect(proc).not.toMatch(/regenerateReason:\s*"ots_anchor_material_recovered"/);
+    expect(proc).not.toMatch(/enqueueReportJob/);
   });
 });
 

@@ -752,7 +752,10 @@ async function runLifecycleRecoverySafe(trigger: string) {
   if (lifecycleRecoveryRunning) return;
   lifecycleRecoveryRunning = true;
   try {
-    await runLifecycleRecovery({ trigger });
+    // One replica at a time (2026-09-29): the sweep now also schedules first
+    // issuance and package recovery. Every write is idempotent, but running it
+    // on every replica at once multiplied commercial reads and log volume.
+    await withCronLock("lifecycle-recovery", () => runLifecycleRecovery({ trigger }));
   } catch (err) {
     logger.error({ err, trigger }, "lifecycle.recovery.failed");
     captureException(err, { trigger });

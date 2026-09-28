@@ -115,9 +115,9 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
       { fileName: "ots-upgrade.processor.ts" },
     );
     expect(block).toMatch(/status:\s*"ANCHORED"/);
-    // FULLY_ANCHORED enqueues report regen but NOT another upgrade job.
-    expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);
-    expect(block).toMatch(/regenerateReason:\s*"ots_anchored"/);
+    // FULLY_ANCHORED neither re-issues a report (2026-09-29) nor enqueues
+    // another upgrade job.
+    expect(block).not.toMatch(/enqueueReportJob|forceRegenerate/);
     // No enqueueOtsUpgradeJob in this branch.
     expect(block.match(/enqueueOtsUpgradeJob\(/)).toBeNull();
   });

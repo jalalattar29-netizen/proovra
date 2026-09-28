@@ -409,28 +409,32 @@ export async function mintRequestForLegacyJob(input: {
 }
 
 /**
- * The worker's own report producer.
+ * The worker's own output producer (2026-09-29).
  *
- * The worker legitimately originates report generation in two places: the OTS
- * upgrade, which must regenerate the report once the timestamp is anchored,
- * and the lifecycle-recovery sweep, which finds evidence that was SIGNED but
- * whose report job never ran. Both go through the SAME durable-row-then-enqueue
- * path the api uses, so there is one request model rather than two.
+ * The worker originates exactly two kinds of work, both from the first-issuance
+ * reconciliation (lifecycle-recovery.ts): the FIRST report (with its package)
+ * for a finalized record that is owed one, and the MISSING PACKAGE for a report
+ * version that exists without one. It never forces a new report version: an
+ * updated report is an explicit, authorized user action, and the OTS path that
+ * used to force one no longer does. Both go through the SAME durable-row-then-
+ * enqueue path the api uses, so there is one request model rather than two.
  */
 export async function requestReportGenerationFromWorker(input: {
   evidenceId: string;
   purpose: ReportGenerationPurpose;
-  forceRegenerate?: boolean;
-  regenerateReason?: string | null;
   machineId: string;
+  /** Package-only recovery for exactly this report version. */
+  packageForReportVersion?: number | null;
   enqueue: (requestId: string) => Promise<{ enqueued: boolean; reason?: string }>;
 }): Promise<{ enqueued: boolean; requestId?: string; reason?: string }> {
+  const packageOnly = input.packageForReportVersion != null;
   const persisted = await createReportGenerationRequest(prisma, {
     evidenceId: input.evidenceId,
     purpose: input.purpose,
-    artifactType: "REPORT",
-    forceRegenerate: input.forceRegenerate === true,
-    regenerateReason: input.regenerateReason ?? null,
+    artifactType: packageOnly ? "VERIFICATION_PACKAGE" : "REPORT",
+    reportVersion: packageOnly ? input.packageForReportVersion : null,
+    intent: packageOnly ? "RECOVER" : "GENERATE",
+    forceRegenerate: false,
     requestedByMachineId: input.machineId,
   });
   if (!persisted.created) {

@@ -25,7 +25,6 @@ import {
 } from "./ots.service.js";
 import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
-import { enqueueReportJob } from "./processor.js";
 import { logger, withJobContext } from "./logger.js";
 import {
   classifyOtsResult,
@@ -443,15 +442,19 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         });
       });
 
-      // PHASE 12 — POINT 5. The regeneration is authorized HERE, by the worker
-      // that just anchored the timestamp, and that decision is PERSISTED on the
-      // request row. It is not a flag on a queue message any more.
-      await enqueueReportJob(evidenceId, {
-        forceRegenerate: true,
-        regenerateReason: "ots_anchored",
-        purpose: "ots_upgrade_completed",
-        machineId: "worker.ots-upgrade",
-      });
+      /*
+       * NO REPORT IS RE-ISSUED BECAUSE A PROOF IMPROVED (2026-09-29).
+       *
+       * Anchoring used to force a NEW report version here. A report is a dated
+       * statement of what was true when it was issued; an anchor that lands
+       * later is a LATER FACT. It is recorded above (evidence columns + the
+       * OTS_ANCHORED custody event) and shown by Public Verify and the record
+       * as current proof state, while every issued PDF keeps saying what it
+       * said. It also minted report versions whose packages were never built,
+       * leaving a latest report with no paired package. An updated report that
+       * documents the anchor is an explicit, authorized "Issue updated report"
+       * action — never a side effect.
+       */
 
       logger.info(
         {
@@ -568,12 +571,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       });
 
       if (txidRecoveredWhileAnchored) {
-        await enqueueReportJob(evidenceId, {
-          forceRegenerate: true,
-          regenerateReason: "ots_anchor_material_recovered",
-          purpose: "ots_upgrade_completed",
-          machineId: "worker.ots-upgrade",
-        });
+        // Recovered anchor material is a later fact about the proof, recorded
+        // above. No report is re-issued for it (see the anchoring branch).
       } else {
         // Phase Final-Worker-Visibility — global attempt budget. The
         // budget window is anchored on the evidence row's

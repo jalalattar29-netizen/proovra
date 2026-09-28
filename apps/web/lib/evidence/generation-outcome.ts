@@ -75,7 +75,9 @@ const FALLBACK_MESSAGE: Record<GenerationRequestOutcome, string> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not included for this evidence record.",
+    "Reports and verification packages are not issued for this evidence record under its current plan. The original evidence remains finalized and verifiable.",
+  ENTITLEMENT_UNAVAILABLE:
+    "We could not confirm your subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:
     "Generation is currently blocked for this record. It becomes possible again when the block is lifted.",
   TERMINAL:
@@ -108,6 +110,7 @@ const TONE: Record<GenerationRequestOutcome, GenerationOutcomeTone> = {
   SUPERSEDED: "success",
   ALREADY_ACTIVE: "info",
   QUEUE_UNAVAILABLE: "info",
+  ENTITLEMENT_UNAVAILABLE: "info",
   NOT_INCLUDED: "info",
   RECOVERABLE_BLOCKED: "info",
   TERMINAL: "info",

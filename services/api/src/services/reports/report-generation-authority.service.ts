@@ -166,18 +166,44 @@ export async function requestReportGeneration(
    * be the authority — making it fail closed would let a slow commercial lookup
    * refuse an entitled customer's report.
    */
+  /*
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — FAIL CLOSED, TRUTHFULLY.
+   *
+   * This precheck used to fail OPEN on a resolution error ("the worker's gate
+   * is the enforcement point"). The worker now refuses an unreadable
+   * entitlement too, so an open precheck only created requests that would be
+   * refused. An unreadable entitlement answers ENTITLEMENT_UNAVAILABLE: nothing
+   * is requested, and the caller is told to try again, not that the output is
+   * excluded or under way. The decision includes the subscription LIFECYCLE
+   * (past due beyond grace, cancelled) — not just the plan name.
+   */
   const evidenceSubject = await prisma.evidence
     .findUnique({
       where: { id: input.evidenceId },
       select: { ownerUserId: true, teamId: true },
     })
-    .catch(() => null);
+    .catch(() => undefined);
+  if (evidenceSubject === undefined) {
+    return {
+      requested: false,
+      reason: "entitlement_unresolved",
+      outcome: "ENTITLEMENT_UNAVAILABLE",
+    };
+  }
   if (evidenceSubject?.ownerUserId) {
     const eligibility = await resolveEvidenceOutputEligibility({
       evidenceId: input.evidenceId,
       ownerUserId: evidenceSubject.ownerUserId,
       teamId: evidenceSubject.teamId ?? null,
     }).catch(() => null);
+    if (!eligibility || eligibility.issuance.decision === "UNRESOLVED") {
+      bump("report_generation_entitlement_unresolved_total");
+      return {
+        requested: false,
+        reason: "entitlement_unresolved",
+        outcome: "ENTITLEMENT_UNAVAILABLE",
+      };
+    }
     /*
      * P3-7 CLOSURE (2026-09-10) — THE PAIR, NOT JUST THE REPORT.
      *

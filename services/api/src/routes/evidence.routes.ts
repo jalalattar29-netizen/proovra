@@ -91,7 +91,9 @@ const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not included for this evidence record.",
+    "Reports and verification packages are not issued for this evidence record under its current plan. The original evidence remains finalized and verifiable.",
+  ENTITLEMENT_UNAVAILABLE:
+    "We could not confirm the subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:
     "Generation is currently blocked for this record. It becomes possible again when the block is lifted.",
   TERMINAL:
@@ -10778,8 +10780,32 @@ if (
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      const body = (req.body ?? {}) as { intent?: unknown; clientRequestKey?: unknown };
+      const body = (req.body ?? {}) as {
+        intent?: unknown;
+        clientRequestKey?: unknown;
+        reason?: unknown;
+      };
       const intent = normalizeGenerationIntent(body.intent);
+      /*
+       * AN UPDATED REPORT CARRIES A REASON (2026-09-29).
+       *
+       * A new report version is an exceptional, explicitly authorized issuance
+       * that documents later facts. It is never a recovery and never a side
+       * effect, and it records WHY it was issued — the reason is persisted on
+       * the request, on the new report row (issue_reason) and in its
+       * REPORT_GENERATED custody event. Bounded, single-line, no markup.
+       */
+      const updatedReportReason =
+        typeof body.reason === "string"
+          ? body.reason.replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)
+          : "";
+      if (intent === "NEW_VERSION" && updatedReportReason.length < 3) {
+        return reply.code(400).send({
+          code: "UPDATED_REPORT_REASON_REQUIRED",
+          message:
+            "Say why an updated report is being issued (for example, which later facts it should document).",
+        });
+      }
       const headerKey = req.headers["idempotency-key"];
       const rawKey =
         typeof headerKey === "string"
@@ -10938,8 +10964,8 @@ if (
           actorUserId: userId,
           intent,
           clientRequestKey,
-          purpose: "operator_regenerate",
-          regenerateReason: isNewVersion ? "new_version_requested" : "recovery_requested",
+          purpose: isNewVersion ? "updated_report" : "operator_regenerate",
+          regenerateReason: isNewVersion ? updatedReportReason : "recovery_requested",
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to request generation.";

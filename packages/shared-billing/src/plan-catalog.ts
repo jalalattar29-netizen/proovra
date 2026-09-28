@@ -815,6 +815,164 @@ export function resolveEvidenceOutputEntitlements(input: {
 }
 
 /**
+ * ===========================================================================
+ * EVIDENCE OUTPUT ISSUANCE — THE ONE DECISION (2026-09-29)
+ * ===========================================================================
+ *
+ * `resolveEvidenceOutputEntitlements` answers what a PLAN includes. Whether a
+ * report or package may be ISSUED right now also depends on the subscription's
+ * commercial lifecycle (active, trial, past due, cancelled) and on whether that
+ * lifecycle could be read at all. Every producer — finalization, the
+ * first-issuance reconciliation, recovery, Operations, the worker gates — asks
+ * this function, with the same inputs, and gets the same answer.
+ *
+ * POLICY (documented in docs/architecture/evidence-output-lifecycle-2026-09-29.md):
+ *
+ *   funding EVIDENCE_CREDIT      ENTITLED   — the record itself was paid for.
+ *   plan excludes outputs (FREE) NOT_ENTITLED FREE_PLAN — original evidence is
+ *                                            finalized and verifiable; no PDF
+ *                                            or package is issued.
+ *   lifecycle not resolvable     UNRESOLVED — issue nothing, grant nothing;
+ *                                            retry later. Never read as FREE,
+ *                                            never read as paid.
+ *   ACTIVE, provider ACTIVE /
+ *     authoritative plan /
+ *     cancelled before period end ENTITLED PAID_SUBSCRIPTION — the only basis
+ *                                            that schedules FIRST ISSUANCE for
+ *                                            records finalized before it.
+ *   ACTIVE, provider TRIALING    ENTITLED TRIAL — new records get outputs as
+ *                                            they always have; historical
+ *                                            records wait for a confirmed
+ *                                            payment.
+ *   GRACE (past due, in grace)   ENTITLED PAYMENT_GRACE — same as trial:
+ *                                            no historical first issuance
+ *                                            while payment is failing.
+ *   PAST_DUE_EXPIRED             NOT_ENTITLED PAYMENT_LAPSED
+ *   CANCELLED                    NOT_ENTITLED SUBSCRIPTION_ENDED
+ *
+ * A pending checkout, an approval page or a client callback never changes the
+ * inputs: only the server-side subscription/entitlement rows do. Refunds and
+ * disputes are recorded as billing review items and do not change entitlement
+ * until the provider ends the subscription.
+ *
+ * Losing entitlement never deletes or relabels an issued artifact; it only
+ * stops NEW issuance (and download access follows the paid-access policy).
+ */
+export const OUTPUT_ISSUANCE_DECISIONS = [
+  "ENTITLED",
+  "NOT_ENTITLED",
+  "UNRESOLVED",
+] as const;
+export type OutputIssuanceDecision = (typeof OUTPUT_ISSUANCE_DECISIONS)[number];
+
+export const OUTPUT_ISSUANCE_BASES = [
+  "EVIDENCE_CREDIT",
+  "PAID_SUBSCRIPTION",
+  "TRIAL",
+  "PAYMENT_GRACE",
+  "FREE_PLAN",
+  "PAYMENT_LAPSED",
+  "SUBSCRIPTION_ENDED",
+  "UNKNOWN",
+] as const;
+export type OutputIssuanceBasis = (typeof OUTPUT_ISSUANCE_BASES)[number];
+
+/** The commercial lifecycle as the resolver reads it; `null` = could not be read. */
+export type OutputIssuanceLifecycle = {
+  state: "ACTIVE" | "GRACE" | "PAST_DUE_EXPIRED" | "CANCELLED" | "INACTIVE";
+  providerStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED" | null;
+} | null;
+
+export type OutputIssuanceEntitlement = {
+  decision: OutputIssuanceDecision;
+  basis: OutputIssuanceBasis;
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  /**
+   * May the reconciliation schedule the FIRST report/package for a record that
+   * was finalized before this entitlement existed? Only a confirmed paid
+   * subscription (or a credit-funded record) does that.
+   */
+  mayIssueHistoricalFirstOutputs: boolean;
+};
+
+export function resolveOutputIssuanceEntitlement(input: {
+  plan: PlanType | null;
+  funding: EvidenceFundingSource | null;
+  lifecycle: OutputIssuanceLifecycle;
+}): OutputIssuanceEntitlement {
+  if (input.funding === "EVIDENCE_CREDIT") {
+    return {
+      decision: "ENTITLED",
+      basis: "EVIDENCE_CREDIT",
+      reportsIncluded: true,
+      verificationPackageIncluded: true,
+      mayIssueHistoricalFirstOutputs: true,
+    };
+  }
+  if (input.plan === null || input.funding === null) {
+    return unresolvedIssuance();
+  }
+  const outputs = resolveEvidenceOutputEntitlements({
+    plan: input.plan,
+    funding: input.funding,
+  });
+  if (!outputs.reportsIncluded && !outputs.verificationPackageIncluded) {
+    return {
+      decision: "NOT_ENTITLED",
+      basis: "FREE_PLAN",
+      reportsIncluded: false,
+      verificationPackageIncluded: false,
+      mayIssueHistoricalFirstOutputs: false,
+    };
+  }
+  const lifecycle = input.lifecycle;
+  if (!lifecycle) return unresolvedIssuance();
+
+  const granted = (basis: OutputIssuanceBasis, historical: boolean): OutputIssuanceEntitlement => ({
+    decision: "ENTITLED",
+    basis,
+    reportsIncluded: outputs.reportsIncluded,
+    verificationPackageIncluded: outputs.verificationPackageIncluded,
+    mayIssueHistoricalFirstOutputs: historical,
+  });
+  const denied = (basis: OutputIssuanceBasis): OutputIssuanceEntitlement => ({
+    decision: "NOT_ENTITLED",
+    basis,
+    reportsIncluded: false,
+    verificationPackageIncluded: false,
+    mayIssueHistoricalFirstOutputs: false,
+  });
+
+  switch (lifecycle.state) {
+    case "ACTIVE":
+      return lifecycle.providerStatus === "TRIALING"
+        ? granted("TRIAL", false)
+        : granted("PAID_SUBSCRIPTION", true);
+    case "GRACE":
+      return granted("PAYMENT_GRACE", false);
+    case "PAST_DUE_EXPIRED":
+      return denied("PAYMENT_LAPSED");
+    case "CANCELLED":
+      return denied("SUBSCRIPTION_ENDED");
+    case "INACTIVE":
+      // A paid plan with an INACTIVE lifecycle is a contradiction in the
+      // inputs; it is not evidence of payment.
+      return unresolvedIssuance();
+  }
+}
+
+function unresolvedIssuance(): OutputIssuanceEntitlement {
+  return {
+    decision: "UNRESOLVED",
+    basis: "UNKNOWN",
+    reportsIncluded: false,
+    verificationPackageIncluded: false,
+    mayIssueHistoricalFirstOutputs: false,
+  };
+}
+
+/**
  * THE INTAKE ENTITLEMENT DECISION — plan OR a funded credit wallet.
  *
  * ---------------------------------------------------------------------------

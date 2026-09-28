@@ -33,7 +33,10 @@ import {
   resolveEffectivePlanForEvidence,
   resolveEvidenceFundingSource,
 } from "./workspace-billing.js";
-import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
+import {
+  OUTPUT_ENTITLEMENT_UNRESOLVED,
+  resolveEvidenceOutputIssuance,
+} from "./output-issuance.js";
 import {
   type EvidenceAssetKind as ReportEvidenceAssetKind,
   type EvidenceContentSummary as ReportEvidenceContentSummary,
@@ -2104,15 +2107,26 @@ async function prepareReportArtifacts(
   // the RECORD and its funding, not to the account's recurring plan. An
   // evidence-credit buyer is on FREE, so asking the plan alone refused the
   // report for a record the customer had already paid for.
-  const evidenceFunding = await resolveEvidenceFundingSource(evidence.id);
-  const evidenceOutputs = resolveEvidenceOutputEntitlements({
-    plan: effectivePlan,
-    funding: evidenceFunding,
+  //
+  // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the ONE issuance decision: plan,
+  // funding AND the subscription lifecycle. A lapsed or ended subscription no
+  // longer receives newly issued outputs; an unreadable lifecycle issues
+  // nothing and retries later.
+  const issuance = await resolveEvidenceOutputIssuance({
+    id: evidence.id,
+    ownerUserId: evidence.ownerUserId,
+    teamId: evidence.teamId ?? null,
   });
-
-  if (!evidenceOutputs.reportsIncluded) {
+  if (issuance.decision === "UNRESOLVED") {
+    throw createWorkerError(OUTPUT_ENTITLEMENT_UNRESOLVED, true);
+  }
+  if (issuance.decision !== "ENTITLED" || !issuance.reportsIncluded) {
     throw createWorkerError("REPORT_NOT_INCLUDED_IN_PLAN", false);
   }
+  const evidenceOutputs = {
+    reportsIncluded: issuance.reportsIncluded,
+    verificationPackageIncluded: issuance.verificationPackageIncluded,
+  };
 
   let workspaceTeam:
     | {
@@ -3268,20 +3282,20 @@ async function runReportGeneration(
      * declare a pair complete that is not, because that is the silent state this
      * whole closure exists to end.
      */
-    const verificationPackageEntitled = await (async () => {
-      try {
-        const plan = await resolveEffectivePlanForEvidence({
-          ownerUserId: evidence.ownerUserId,
-          teamId: evidence.teamId ?? null,
-        });
-        return resolveEvidenceOutputEntitlements({
-          plan,
-          funding: await resolveEvidenceFundingSource(evidenceId),
-        }).verificationPackageIncluded;
-      } catch {
-        return true;
-      }
-    })();
+    const packageIssuance = await resolveEvidenceOutputIssuance({
+      id: evidence.id,
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? null,
+    });
+    // Never guessed: an unreadable entitlement is neither "owed" nor "not
+    // owed". The run stops and retries later rather than declaring a pair
+    // complete (or incomplete) on a guess. (This guard used to fail OPEN.)
+    if (packageIssuance.decision === "UNRESOLVED") {
+      throw createWorkerError(OUTPUT_ENTITLEMENT_UNRESOLVED, true);
+    }
+    const verificationPackageEntitled =
+      packageIssuance.decision === "ENTITLED" &&
+      packageIssuance.verificationPackageIncluded;
 
     /*
      * RELIABILITY CLOSURE (2026-09-09) — THE PACKAGE FAILURE THIS RUN SAW.
@@ -5640,75 +5654,12 @@ export async function processPurgeDeletedEvidence(job: Job<unknown>) {
   }
 }
 
-/**
- * PHASE 12 — POINT 5: the worker's report producer.
+/*
+ * RETIRED (2026-09-29): `enqueueReportJob`.
  *
- * It no longer forwards `{ evidenceId, forceRegenerate }` to a queue. It
- * persists a `ReportGenerationRequest` through the ONE writer both services
- * share, and enqueues that row's id. A caller that wants a regeneration is
- * recording an authorization decision in the database, not setting a flag on a
- * message.
+ * Its only producers were the OTS anchoring paths, which forced a new report
+ * version whenever a proof improved. Those no longer re-issue reports (see
+ * ots-upgrade.processor.ts), so the forced-regeneration producer is gone
+ * rather than left callable. Every worker producer now goes through
+ * `requestReportGenerationFromWorker` from the first-issuance reconciliation.
  */
-export async function enqueueReportJob(
-  evidenceId: string,
-  options?: {
-    forceRegenerate?: boolean;
-    regenerateReason?: string | null;
-    purpose?: ReportGenerationPurpose;
-    machineId?: string;
-  }
-): Promise<{ enqueued: boolean; requestId?: string; reason?: string }> {
-  /**
-   * COMMERCIAL CLOSURE (2026-09-08) — THE PRECHECK THE WORKER PRODUCER LACKED.
-   *
-   * `lifecycle-recovery` already asks this question before it mints a request,
-   * and correctly — plan AND funding, through the shared authority. The OTS
-   * upgrade path did not: on anchoring it enqueued a forced regeneration for
-   * every record unconditionally, so a record on a plan without reports got a
-   * request that could only ever be refused, and — before the supersession fix
-   * — that refusal permanently poisoned the record's idempotency key.
-   *
-   * Asking here rather than in each caller puts the check on the one producer
-   * both of them reach. `lifecycle-recovery`'s own check is left in place: it
-   * runs per candidate in a batch scan and skipping early is what keeps that
-   * sweep cheap.
-   *
-   * FAIL OPEN. The worker's generation gate is the enforcement point; this only
-   * avoids scheduling work that would be refused.
-   */
-  try {
-    const subject = await prisma.evidence.findUnique({
-      where: { id: evidenceId },
-      select: { ownerUserId: true, teamId: true },
-    });
-    if (subject) {
-      const plan = await resolveEffectivePlanForEvidence({
-        ownerUserId: subject.ownerUserId,
-        teamId: subject.teamId ?? null,
-      });
-      const outputs = resolveEvidenceOutputEntitlements({
-        plan,
-        funding: await resolveEvidenceFundingSource(evidenceId),
-      });
-      if (!outputs.reportsIncluded) {
-        logger.info(
-          { evidenceId, plan, purpose: options?.purpose ?? null },
-          "report.enqueue.skipped_not_included",
-        );
-        return { enqueued: false, reason: "not_included_in_plan" };
-      }
-    }
-  } catch {
-    // Commercial resolution failed — fall through and let the generation gate
-    // decide. Never refuse an entitled record because a lookup was slow.
-  }
-
-  return requestReportGenerationFromWorker({
-    evidenceId,
-    purpose: options?.purpose ?? "lifecycle_recovery",
-    forceRegenerate: options?.forceRegenerate === true,
-    regenerateReason: options?.regenerateReason ?? null,
-    machineId: options?.machineId ?? "worker",
-    enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
-  });
-}
