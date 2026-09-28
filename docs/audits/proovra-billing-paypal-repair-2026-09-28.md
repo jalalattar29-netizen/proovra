@@ -258,3 +258,108 @@ Compatibility: old `custom_id` formats parse unchanged (3-segment plan ids,
 `sa1`, JSON); pre-attempt TRIALING subscriptions are treated as legacy plan
 attempts; old API instances never read the new table; the removed storage-only
 routes were never deployed.
+
+## 11. Follow-up — the seven remaining items
+
+Legend: **Impl** implemented in code · **Tested** automated tests on this branch
+(simulated providers, live PostgreSQL 16) · **Sandbox** verified against PayPal
+Sandbox / Stripe test mode · **Deployed** on production. Nothing in this
+section is Sandbox-verified or deployed.
+
+| # | Item | Impl | Tested | Sandbox | Deployed | Unresolved |
+|---|---|---|---|---|---|---|
+| R1 | Stripe durable attempts | yes | yes | no | no | Real Stripe behaviour of `Idempotency-Key` reuse and `/expire` not proven |
+| R2 | Restart / resubscribe | Stripe yes; PayPal refused truthfully | yes | no | no | Dependent storage add-ons already scheduled to end are NOT restarted (told to the customer) |
+| R3 | Legacy `teamId` billing rows | yes (payer-owned only) | yes, incl. cross-owner negative | no | no | Rows for a workspace someone else now owns; dependent-cancellation convergence still `teamId: null` only; production inventory not run |
+| R4 | PayPal abandonment + duplicate subscriptions | yes | yes | no | no | Whether PayPal can cancel an `APPROVAL_PENDING` subscription (expected 422); duplicates are detected, not prevented |
+| R5 | Actual billed currency | yes | yes | no | no | Legacy rows show no price until a provider event / re-check records it |
+| R6 | Reports / Windows test failures | test-level fixes (`3c4d9af`) | partly | n/a | no | Reports summary integration: 3 behavioural failures (Reports source not touched — your local uncommitted Reports work); ~6 Windows files need your JSON report |
+| R7 | Two historical PayPal attempts | read-only verifier | ran against local DB only | no | no | Disposition still requires deployment + owner's per-attempt Check status → Abandon |
+
+### R1 — Stripe durable attempts
+* `stripe-checkout-start.service.ts`: `startStripePlanCheckout` /
+  `startStripeCreditCheckout` / `startStripeStorageCheckout` commit an attempt
+  (advisory lock) **before** Stripe is called, then create the Checkout
+  Session with `Idempotency-Key: proovra-checkout-<attemptId>`,
+  `metadata[attemptId]` and `client_reference_id`, and bind the session id.
+  A Stripe 4xx (not 409/429) → `FAILED / PROVIDER_REJECTED`; anything else →
+  `PROVIDER_OUTCOME_UNKNOWN` (may exist). A duplicate click within 2 min
+  re-reads the open session and returns it (one session, never two).
+* PLAN attempts now share one lock and block **across providers**: an open
+  Stripe plan checkout refuses a PayPal one (`PLAN_CHECKOUT_ALREADY_OPEN`, copy
+  names the card checkout) and vice versa.
+* `stripe-settlement.service.ts` is the one settlement for a session, used by
+  `checkout.session.completed`, the new `checkout.session.expired` handler and
+  the per-attempt re-check. Credits are granted only when `payment_status=paid`
+  AND the amount equals the catalogue price (else `NEEDS_REVIEW`); completed
+  but unpaid is `CAPTURE_PENDING` (never abandonable). **Defect fixed:** the
+  webhook previously granted a credit on `checkout.session.completed` without
+  checking `payment_status`. **Defect fixed:** monthly storage lifecycle
+  webhooks were dropped because the billing-cycle parser rejected `MONTHLY`.
+* Recovery: Stripe attempts are read live (`GET /checkout/sessions/:id`);
+  401/404/400 are classified (not "outage"). Abandon of an open session
+  **expires it at Stripe** (`cancelsAtProvider: true` only when Stripe
+  confirms); if Stripe cannot confirm, nothing is written and the row stays
+  open (`PROVIDER_CANCEL_FAILED`).
+* Billing activity: Stripe rows say "Card" / "Stripe", never PayPal; storage
+  attempts carry their SKU. Web resume links accept only
+  `https://checkout.stripe.com` (plus PayPal hosts); the checkout drawer now
+  validates the Stripe redirect host too.
+* Migration `20280710000000_billing_stripe_attempts_billed_currency`
+  (additive; drain older API instances before the first Stripe storage checkout).
+
+### R2 — Restart
+`POST /v1/billing/subscription/resume` (BILLING_MANAGE) →
+`subscription-resume.service.ts`: Stripe `cancel_at_period_end=false`
+provider-first; local row changes only on Stripe's confirmation; ended
+subscriptions refused. PayPal: `409 PROVIDER_CANNOT_RESTART` — "PayPal ends a
+subscription as soon as it is cancelled … after that you can subscribe again".
+The plan-change refusal no longer says "Restart it first" for PayPal. Web:
+"Restart subscription" in Manage plan, with confirmation.
+
+### R3 — Legacy `teamId` rows
+Personal "Re-check purchases and billing" now covers subscriptions and
+recurring storage rows where `userId`/`ownerUserId` is this person AND
+(`teamId` is null OR that workspace is still owned by this person). A row the
+person paid for against a workspace now owned by someone else is **not**
+reconciled into either account. Read-only inventory for production:
+
+```sql
+SELECT s.id, s.provider, s.status, s.plan, s.team_id,
+       (t.owner_user_id = s.user_id) AS payer_owns_workspace
+FROM subscriptions s LEFT JOIN teams t ON t.id = s.team_id
+WHERE s.team_id IS NOT NULL AND s.status IN ('ACTIVE','PAST_DUE','TRIALING');
+```
+
+### R4 — PayPal abandonment + duplicates
+Abandoning an open PayPal **plan** approval now asks PayPal to cancel it;
+`cancelsAtProvider` is true only on PayPal's 2xx. PayPal documents cancel for
+ACTIVE/SUSPENDED only, so a 422 is expected and the attempt is abandoned
+locally (the confirmation says so and does not promise a provider stop).
+PayPal storage and credit abandonment remain local-only (unchanged). Two
+live base subscriptions now raise a CRITICAL action-required banner with no
+"nothing charged" reassurance; neither is cancelled automatically.
+
+### R5 — Billed currency
+`subscriptions.billed_currency` / `billed_unit_amount_cents` are written from
+the provider (PayPal plan id / last payment, Stripe subscription currency /
+unit amount) by the canonical writers. The plan card prints that currency, or
+no figure when unknown — never the display-currency guess.
+
+### R6 — Reports / Windows
+Unchanged from `3c4d9af`: `phase-ia-self-serve-regression-fix`,
+`phase-e10-2-operational-readiness`, the Reports integration typecheck and the
+Windows `read-only-scan` harness issue are fixed at test level. Open: the
+Reports summary integration test's 3 behavioural failures (`packagesFailed`
+0 vs 1, empty `package_blocked`) — diagnosis points at fixture plan
+eligibility; not fixed because the aggregator is part of your uncommitted
+Reports work. The remaining ~6 Windows-only files need the JSON report.
+
+### R7 — Historical attempts
+`pnpm --filter proovra-api ops:verify-historical-billing-attempts [--provider]`
+prints each row's status, checkout state, binding, activation, payment
+references, and (with `--provider`) one PayPal GET result. It refuses
+`--apply`/`--write`/`--abandon`/`--cancel`/`--fix`. Disposition remains §7
+steps 5–8, after deployment. Historical facts are not rewritten.
+
+### Follow-up gates (Linux, this branch)
