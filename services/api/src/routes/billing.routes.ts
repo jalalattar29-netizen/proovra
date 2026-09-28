@@ -76,10 +76,8 @@ import {
   readBillingActivityForAccount,
   recheckBillingAttempt,
 } from "../services/billing/billing-activity.service.js";
-import {
-  requestSubscriptionCancellation,
-  requestSubscriptionResume,
-} from "../services/billing/subscription-cancellation.service.js";
+import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
+import { requestSubscriptionResume } from "../services/billing/subscription-resume.service.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE authority that
 // decides what a requested plan change IS. No route compares plans itself.
 import {

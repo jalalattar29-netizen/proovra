@@ -205,9 +205,17 @@ describe("§9.10 — stale/out-of-order provider events cannot restore old entit
   });
 
   it("metadata plan strings cannot mint an unknown plan (webhook normalizer is closed)", () => {
+    // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the Stripe normalizer moved to
+    // stripe-settlement.service.ts (shared by the webhook and the re-check);
+    // the webhook imports it rather than defining its own.
     const webhooks = readFileSync(join(SRC, "routes", "webhooks.routes.ts"), "utf8");
+    const settlement = readFileSync(join(SRC, "services", "billing", "stripe-settlement.service.ts"), "utf8");
+    expect(webhooks).toMatch(/parsePlan[\s\S]*from "\.\.\/services\/billing\/stripe-settlement\.service\.js"/);
+    expect(webhooks).not.toMatch(/function parsePlan/);
     // parsePlan validates against the Prisma enum and rejects unknowns.
-    expect(webhooks).toMatch(/function parsePlan/);
+    expect(settlement).toMatch(/export function parsePlan/);
+    // A closed comparison against the Prisma enum: anything else is null.
+    expect(settlement).toMatch(/export function parsePlan[\s\S]{0,300}=== prismaPkg\.PlanType\.TEAM[\s\S]{0,40}\? value[\s\S]{0,20}: null/);
 
     // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the second half of
     // this test asserted that team activation re-checked the acting owner,

@@ -90,31 +90,10 @@ export async function createPayPalStorageAddonCheckout(params: {
 export type CheckoutProductKey = "PLAN" | "EVIDENCE_CREDIT";
 
 /**
- * BILLING PRODUCTION CLOSURE (2026-08-27) — the modern evidence-credit
- * checkout.
- *
- * Buying a credit is a PRODUCT purchase, so the caller names no plan, no
- * amount, no currency conversion and no quantity. Everything comes from
- * `EVIDENCE_CREDIT_PRODUCT` and the server price map; the one-time payment
- * machinery underneath is the same machinery the legacy route used, which is
- * why in-flight sessions created before this change still settle correctly.
+ * The PayPal evidence-credit checkout. (Its Stripe counterpart is
+ * `startStripeCreditCheckout`, which calls `createStripeCheckoutSession` with
+ * `productKey: "EVIDENCE_CREDIT"` under a durable attempt.)
  */
-export async function createStripeEvidenceCreditCheckout(params: {
-  userId: string;
-  currency?: string | null;
-  attemptId?: string | null;
-}) {
-  return createStripeCheckoutSession({
-    userId: params.userId,
-    plan: prismaPkg.PlanType.PAYG,
-    currency: params.currency,
-    teamId: null,
-    productKey: "EVIDENCE_CREDIT",
-    attemptId: params.attemptId ?? null,
-  });
-}
-
-/** PayPal counterpart of `createStripeEvidenceCreditCheckout`. */
 export async function createPayPalEvidenceCreditCheckout(params: {
   userId: string;
   currency?: string | null;

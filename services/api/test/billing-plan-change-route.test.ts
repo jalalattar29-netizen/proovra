@@ -222,7 +222,6 @@ vi.mock("../src/services/billing-checkout.service.js", () => ({
     H.calls.push("paypalCheckout");
     return { mode: "SUBSCRIPTION", currency: "EUR", amountCents: 1900, approvalUrl: "https://paypal.test/a", subscriptionId: "I-1", orderId: null };
   },
-  createStripeEvidenceCreditCheckout: async () => ({ session: { id: "cs_c" } }),
   createPayPalEvidenceCreditCheckout: async () => ({ approvalUrl: "x", orderId: "o" }),
   createStripeStorageAddonCheckoutSession: async () => ({ session: { id: "cs_s" } }),
   createPayPalStorageAddonCheckout: async () => ({ approvalUrl: "y", subscriptionId: "s" }),
