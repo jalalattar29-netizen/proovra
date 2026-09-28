@@ -1,8 +1,9 @@
 import * as prismaPkg from "@prisma/client";
 import { stripeRequest } from "./stripe.service.js";
 import {
-  createPayPalOrder,
+  createPayPalOrderWithDiagnostics,
   createPayPalSubscription,
+  type PayPalCreateDiagnostics,
   createPayPalStorageAddonCheckout as createPayPalStorageAddonCheckoutApi,
 } from "./paypal.service.js";
 import { isPayPalRecurringPlan } from "./paypal-plan-map.service.js";
@@ -89,32 +90,15 @@ export async function createPayPalStorageAddonCheckout(params: {
 export type CheckoutProductKey = "PLAN" | "EVIDENCE_CREDIT";
 
 /**
- * BILLING PRODUCTION CLOSURE (2026-08-27) — the modern evidence-credit
- * checkout.
- *
- * Buying a credit is a PRODUCT purchase, so the caller names no plan, no
- * amount, no currency conversion and no quantity. Everything comes from
- * `EVIDENCE_CREDIT_PRODUCT` and the server price map; the one-time payment
- * machinery underneath is the same machinery the legacy route used, which is
- * why in-flight sessions created before this change still settle correctly.
+ * The PayPal evidence-credit checkout. (Its Stripe counterpart is
+ * `startStripeCreditCheckout`, which calls `createStripeCheckoutSession` with
+ * `productKey: "EVIDENCE_CREDIT"` under a durable attempt.)
  */
-export async function createStripeEvidenceCreditCheckout(params: {
-  userId: string;
-  currency?: string | null;
-}) {
-  return createStripeCheckoutSession({
-    userId: params.userId,
-    plan: prismaPkg.PlanType.PAYG,
-    currency: params.currency,
-    teamId: null,
-    productKey: "EVIDENCE_CREDIT",
-  });
-}
-
-/** PayPal counterpart of `createStripeEvidenceCreditCheckout`. */
 export async function createPayPalEvidenceCreditCheckout(params: {
   userId: string;
   currency?: string | null;
+  /** Durable local checkout attempt (PayPal-Request-Id + custom_id). */
+  attemptId?: string | null;
 }) {
   return createPayPalCheckout({
     userId: params.userId,
@@ -122,6 +106,7 @@ export async function createPayPalEvidenceCreditCheckout(params: {
     currency: params.currency,
     teamId: null,
     productKey: "EVIDENCE_CREDIT",
+    attemptId: params.attemptId ?? null,
   });
 }
 
@@ -141,6 +126,8 @@ export async function createStripeCheckoutSession(params: {
    * recurring path is unchanged.
    */
   productKey?: CheckoutProductKey;
+  /** Durable local checkout attempt (Idempotency-Key + metadata). */
+  attemptId?: string | null;
 }) {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
@@ -163,6 +150,10 @@ export async function createStripeCheckoutSession(params: {
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
   searchParams.append("payment_method_types[]", "card");
+  if (params.attemptId) {
+    searchParams.append("metadata[attemptId]", params.attemptId);
+    searchParams.append("client_reference_id", params.attemptId);
+  }
 
   if (params.teamId) {
     searchParams.append("metadata[teamId]", params.teamId);
@@ -207,7 +198,9 @@ export async function createStripeCheckoutSession(params: {
     }
   }
 
-  const session = await stripeRequest("/checkout/sessions", searchParams);
+  const session = await stripeRequest("/checkout/sessions", searchParams, {
+    idempotencyKey: params.attemptId ? `proovra-checkout-${params.attemptId}` : null,
+  });
 
   return {
     mode,
@@ -224,6 +217,8 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   currency?: string | null;
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
+  /** Durable local checkout attempt (Idempotency-Key + metadata). */
+  attemptId?: string | null;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
@@ -289,6 +284,10 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("metadata[workspacePlan]", params.workspacePlan);
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
+  if (params.attemptId) {
+    searchParams.append("metadata[attemptId]", params.attemptId);
+    searchParams.append("client_reference_id", params.attemptId);
+  }
 
   if (params.teamId) {
     searchParams.append("metadata[teamId]", params.teamId);
@@ -323,7 +322,9 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     searchParams.append("line_items[0][quantity]", "1");
   }
 
-  const session = await stripeRequest("/checkout/sessions", searchParams);
+  const session = await stripeRequest("/checkout/sessions", searchParams, {
+    idempotencyKey: params.attemptId ? `proovra-checkout-${params.attemptId}` : null,
+  });
 
   return {
     mode,
@@ -340,7 +341,26 @@ export async function createPayPalCheckout(params: {
   teamId?: string | null;
   /** See `createStripeCheckoutSession`. */
   productKey?: CheckoutProductKey;
-}) {
+  /** Durable local checkout attempt (PayPal-Request-Id + custom_id). */
+  attemptId?: string | null;
+}): Promise<
+  | {
+      mode: "order";
+      currency: "USD" | "EUR";
+      amountCents: number;
+      amount: string;
+      order: Record<string, unknown>;
+      diagnostics: PayPalCreateDiagnostics;
+    }
+  | {
+      mode: "subscription";
+      currency: "USD" | "EUR";
+      amountCents: number;
+      amount: string;
+      subscription: Record<string, unknown>;
+      diagnostics: PayPalCreateDiagnostics | null;
+    }
+> {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
   });
@@ -367,7 +387,7 @@ export async function createPayPalCheckout(params: {
   );
 
   if (params.plan === prismaPkg.PlanType.PAYG) {
-    const order = await createPayPalOrder({
+    const { order, diagnostics } = await createPayPalOrderWithDiagnostics({
       userId: params.userId,
       plan: params.plan,
       currency,
@@ -375,6 +395,7 @@ export async function createPayPalCheckout(params: {
       teamId: null,
       returnUrl: successUrl,
       cancelUrl,
+      requestId: params.attemptId ?? null,
     });
 
     return {
@@ -383,6 +404,7 @@ export async function createPayPalCheckout(params: {
       amountCents,
       amount,
       order,
+      diagnostics,
     };
   }
 
@@ -397,6 +419,7 @@ export async function createPayPalCheckout(params: {
     teamId: params.teamId ?? null,
     returnUrl: successUrl,
     cancelUrl,
+    requestId: params.attemptId ?? null,
   });
 
   const subscriptionId = String(
@@ -411,6 +434,7 @@ export async function createPayPalCheckout(params: {
       status: prismaPkg.SubscriptionStatus.TRIALING,
       currentPeriodEnd: null,
       teamId: params.teamId ?? null,
+      billedCurrency: currency,
     });
   }
 
@@ -420,5 +444,6 @@ export async function createPayPalCheckout(params: {
     amountCents,
     amount,
     subscription,
+    diagnostics: subscription.__diagnostics ?? null,
   };
 }

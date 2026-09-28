@@ -93,105 +93,21 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:326",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:345",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:361",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v1/billing/plans/:id.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:386",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v1/billing/subscriptions/:id.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:393",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal GET /v2/checkout/orders/:id (server-side order read for evidence-credit capture and webhook settlement). The path is PayPal's, not PROOVRA's.",
-      "reviewedAtUtc": "2026-09-25"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:413",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v2/checkout/orders.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:456",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v1/billing/subscriptions (plan checkout).",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:519",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:550",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal subscription cancel.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:581",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal webhook-signature verification API.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:621",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal order capture. Now sends PayPal-Request-Id for idempotent capture (PayPal end-to-end, 2026-09-25).",
-      "reviewedAtUtc": "2026-09-25"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:71",
-      "verdict": "EXTERNAL",
-      "originBinding": "function apiBase() { return process.env.PAYPAL_API_BASE || \"https://api-m.paypal.com\" }",
-      "evidence": "services/api/src/services/paypal.service.ts:39 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
-      "reviewedAtUtc": "2026-08-27"
-    },
-    {
-      "site": "services/api/src/services/stripe.service.ts:228",
+      "site": "services/api/src/services/stripe.service.ts:240",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:87",
+      "site": "services/api/src/services/stripe.service.ts:98",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:108",
+      "site": "services/api/src/services/stripe.service.ts:120",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
@@ -226,10 +142,10 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/worker/src/index.ts:458",
+      "site": "services/worker/src/index.ts:459",
       "verdict": "OURS",
       "originBinding": "url built from the worker's apiBaseUrl()",
-      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored :408 -> :412 (2026-08-24, trash-grace reconciler registered above it) and :412 -> :438 (2026-09-05, Phase 5 added the queue-replay correlation import and its two completion hooks above it). The call itself is byte-identical each time and the verdict is unchanged; this manifest is keyed by file:line, so ANY insertion above a reviewed site invalidates the review until it is re-anchored. That is the point of the key, and re-anchoring is a re-review, not a formality: the fetch was read again and still builds its url from the worker apiBaseUrl(). RE-READ 2026-09-09 (RELIABILITY CLOSURE) AND THE ANCHOR DID NOT MOVE: it is still :438. An earlier pass in that change re-anchored this to :440 on the expectation that the OTS initialization reconciler would add an import above it; that import went into lifecycle-recovery.ts instead, so nothing above this call changed and the :440 anchor was simply wrong. The site was re-read at :438 and the verdict is unchanged: the fetch builds its url from the worker apiBaseUrl() and is otherwise byte-identical. Recorded because a manifest keyed by file:line is only worth having if a wrong anchor is corrected out loud rather than left to be re-derived. Re-anchored :438 -> :458 (2026-09-09, GOVERNANCE CLOSURE: the RECOVERED_WORK_TYPES declaration was added above it). Re-read at the new anchor: the fetch still builds its url from the worker apiBaseUrl() and is otherwise byte-identical. This time the anchor genuinely moved — contrast the previous entry in this history, which recorded a re-anchor for a change that never happened.",
+      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored :408 -> :412 (2026-08-24, trash-grace reconciler registered above it) and :412 -> :438 (2026-09-05, Phase 5 added the queue-replay correlation import and its two completion hooks above it). The call itself is byte-identical each time and the verdict is unchanged; this manifest is keyed by file:line, so ANY insertion above a reviewed site invalidates the review until it is re-anchored. That is the point of the key, and re-anchoring is a re-review, not a formality: the fetch was read again and still builds its url from the worker apiBaseUrl(). RE-READ 2026-09-09 (RELIABILITY CLOSURE) AND THE ANCHOR DID NOT MOVE: it is still :438. An earlier pass in that change re-anchored this to :440 on the expectation that the OTS initialization reconciler would add an import above it; that import went into lifecycle-recovery.ts instead, so nothing above this call changed and the :440 anchor was simply wrong. The site was re-read at :438 and the verdict is unchanged: the fetch builds its url from the worker apiBaseUrl() and is otherwise byte-identical. Recorded because a manifest keyed by file:line is only worth having if a wrong anchor is corrected out loud rather than left to be re-derived. Re-anchored :438 -> :458 (2026-09-09, GOVERNANCE CLOSURE: the RECOVERED_WORK_TYPES declaration was added above it). Re-read at the new anchor: the fetch still builds its url from the worker apiBaseUrl() and is otherwise byte-identical. This time the anchor genuinely moved — contrast the previous entry in this history, which recorded a re-anchor for a change that never happened. Re-anchored :458 -> :459 (2026-09-28): e9efd55 added the package-signer import above it.",
       "reviewedAtUtc": "2026-09-09"
     },
     {
@@ -266,6 +182,48 @@
       "originBinding": "config.s3Endpoint — the disposable MinIO the UC-1 acceptance harness itself starts (127.0.0.1, refused if not local)",
       "evidence": "scripts/uc1-acceptance-windows.mjs:246 — waitForMinioAndBucket() polls `${config.s3Endpoint}/minio/health/ready` to know the disposable object store is up before booting the stack. It is our own local disposable infra (assertLocalDisposable refuses any non-local s3-endpoint), not an external service and not a /v1 route; it calls no product API. Dev acceptance harness only, never production.",
       "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:132",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/oauth2/token (client-credentials token). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:393",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalRequest — PayPal REST POST/GET (orders, subscriptions, revise); sends PayPal-Request-Id for idempotent creates. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:418",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalGet — PayPal REST GET (plans, subscriptions, orders, captures, transactions). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:740",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/billing/subscriptions/:id/cancel. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:773",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/notifications/verify-webhook-signature. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:813",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v2/checkout/orders/:id/capture with PayPal-Request-Id proovra-capture-{orderId}. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "reviewedAtUtc": "2026-09-28"
     }
   ]
 }

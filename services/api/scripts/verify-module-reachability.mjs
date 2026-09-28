@@ -109,6 +109,9 @@ const ENTRYPOINTS = Object.freeze({
     "services/api/src/scripts/repair-tsa-failed-with-token.ts",
     "services/api/src/scripts/smoke-evidence-forward-path.ts",
     "services/api/src/scripts/twilio-message-recheck.ts",
+    // BILLING (2026-09-28) — READ-ONLY verifier for the two historical PayPal
+    // storage attempts. `pnpm --filter proovra-api ops:verify-historical-billing-attempts`
+    "services/api/src/scripts/verify-historical-billing-attempts.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     "services/worker/src/scripts/diagnose-ots-evidence.ts",

@@ -10,14 +10,11 @@ import { prisma } from "../db.js";
 // subscription state MEANS. This route now applies that meaning rather than
 // deciding it.
 import {
-  ensureEntitlement,
   recordPayment,
   upsertWorkspaceStorageAddon,
 } from "../services/billing.service.js";
-// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — evidence credits are granted
-// through the canonical wallet, which writes the auditable ledger entry in the
-// same transaction as the balance and is idempotent on the provider payment id.
-import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
+// Evidence credits are granted through the canonical wallet by the shared
+// Stripe/PayPal settlement services (idempotent on the provider payment id).
 import {
   storageAddonStatusFromSubscription,
   syncPlanForSubscription,
@@ -51,72 +48,20 @@ import { auditWebhookSignatureVerification } from "../services/security/webhook-
 // storage add-on guard, which now lives in paypal-settlement.service.ts
 // (assertWebhookStorageAddonAllowed, imported above) and imports it from
 // @proovra/shared-billing directly.
-import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 import { webhookDuplicateDisposition } from "../services/billing/webhook-delivery-lease.js";
+// STRIPE SETTLEMENT (2026-09-28) — the session handler and its parsers are
+// shared with provider-first recovery, so both apply a session identically.
+import {
+  dateFromUnixSeconds,
+  parsePlan,
+  parseStorageAddonBillingCycle,
+  parseStorageAddonKey,
+  parseStripeSubscriptionStatus,
+  recordStripeSessionAttemptOutcome,
+  settleStripeCheckoutSession,
+  type StripeCheckoutSession,
+} from "../services/billing/stripe-settlement.service.js";
 
-// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit grant per purchase
-// is a property of the PRODUCT, read from the canonical catalog, not a literal
-// maintained beside the webhook handler.
-const PAYG_CREDITS_PER_PURCHASE =
-  EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase;
-
-function parsePlan(value: unknown): prismaPkg.PlanType | null {
-  if (
-    value === prismaPkg.PlanType.FREE ||
-    value === prismaPkg.PlanType.PAYG ||
-    value === prismaPkg.PlanType.PRO ||
-    value === prismaPkg.PlanType.TEAM
-  ) {
-    return value;
-  }
-  return null;
-}
-
-function parseStorageAddonKey(
-  value: unknown
-): prismaPkg.StorageAddonKey | null {
-  if (
-    value === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
-    value === prismaPkg.StorageAddonKey.PERSONAL_50_GB ||
-    value === prismaPkg.StorageAddonKey.PERSONAL_200_GB ||
-    value === prismaPkg.StorageAddonKey.TEAM_100_GB ||
-    value === prismaPkg.StorageAddonKey.TEAM_500_GB ||
-    value === prismaPkg.StorageAddonKey.TEAM_1_TB
-  ) {
-    return value;
-  }
-  return null;
-}
-
-function parseStorageAddonBillingCycle(
-  value: unknown
-): prismaPkg.StorageAddonBillingCycle | null {
-  if (value === prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    return prismaPkg.StorageAddonBillingCycle.ONE_TIME;
-  }
-  return null;
-}
-
-function parseStripeSubscriptionStatus(
-  status?: string
-): prismaPkg.SubscriptionStatus {
-  const normalized = (status ?? "").trim().toLowerCase();
-
-  if (normalized === "active") return prismaPkg.SubscriptionStatus.ACTIVE;
-  if (normalized === "trialing") return prismaPkg.SubscriptionStatus.TRIALING;
-  if (normalized === "past_due") return prismaPkg.SubscriptionStatus.PAST_DUE;
-  if (normalized === "unpaid") return prismaPkg.SubscriptionStatus.PAST_DUE;
-  if (normalized === "canceled" || normalized === "incomplete_expired") {
-    return prismaPkg.SubscriptionStatus.CANCELED;
-  }
-
-  return prismaPkg.SubscriptionStatus.CANCELED;
-}
-
-function dateFromUnixSeconds(value: unknown): Date | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return new Date(value * 1000);
-}
 
 function tryParseAddonContextFromCustomId(raw: unknown): {
   userId?: string;
@@ -183,12 +128,6 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
         ? prismaPkg.StorageAddonBillingCycle.ONE_TIME
         : null,
   };
-}
-
-function parseAmountCents(value: unknown): number | null {
-  if (typeof value !== "string") return null;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 
@@ -312,158 +251,40 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
 
     if (event.type === "checkout.session.completed") {
-      const session = event.data.object as {
-        id: string;
-        subscription?: string | null;
-        mode?: string;
-        amount_total?: number;
-        currency?: string;
-        metadata?: {
-          userId?: string;
-          plan?: string;
-          teamId?: string;
-          storageAddonKey?: string;
-          billingCycle?: string;
-          currency?: string;
-          amountCents?: string;
-          productKey?: string;
-        };
-      };
-
-      const userId = session.metadata?.userId;
-      const plan = parsePlan(session.metadata?.plan);
-      const teamId = session.metadata?.teamId ?? null;
-      const storageAddonKey = parseStorageAddonKey(
-        session.metadata?.storageAddonKey
+      // One settlement path for the webhook and for recovery. Credits are
+      // granted only for a PAID session at the server price; storage is
+      // activated from the session's subscription; the attempt that started
+      // the session is updated either way.
+      const settled = await settleStripeCheckoutSession({
+        session: event.data.object as StripeCheckoutSession,
+        log: req.log,
+      });
+      req.log.info(
+        { provider: "STRIPE", eventId: event.id, product: settled.product, outcome: settled.outcome, reason: settled.reason ?? null },
+        "stripe.checkout_session_settled",
       );
+    }
 
-      // BILLING PRODUCTION CLOSURE (2026-08-27) — identify the PRODUCT, not a
-      // plan.
-      //
-      // This asked whether the session's metadata named the PAYG plan, so a
-      // legacy recurring-plan row carried the identity of a one-time product
-      // and no other product could ever be added without another plan row.
-      // The server now stamps `productKey` at checkout and it is read first.
-      //
-      // The `plan === PAYG` arm is retained DELIBERATELY and only as a
-      // compatibility path: a customer who opened checkout before this deploy
-      // has a live Stripe session whose metadata carries no `productKey`, and
-      // refusing to settle it would take money without granting the credit.
-      const isEvidenceCreditPurchase =
-        session.metadata?.productKey === "EVIDENCE_CREDIT" ||
-        plan === prismaPkg.PlanType.PAYG;
-
-      if (userId && isEvidenceCreditPurchase) {
-        await ensureEntitlement(userId);
-        await grantEvidenceCredits({
+    if (event.type === "checkout.session.expired") {
+      // The payment page closed unpaid. Nothing was charged; the attempt
+      // records the provider's own terminal answer.
+      const session = event.data.object as StripeCheckoutSession;
+      const userId = session.metadata?.userId;
+      if (userId) {
+        const credit =
+          session.metadata?.productKey === "EVIDENCE_CREDIT" ||
+          parsePlan(session.metadata?.plan) === prismaPkg.PlanType.PAYG;
+        await recordStripeSessionAttemptOutcome({
+          session,
           userId,
-          credits: PAYG_CREDITS_PER_PURCHASE,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerRef: session.id,
+          product: credit
+            ? prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT
+            : parseStorageAddonKey(session.metadata?.storageAddonKey)
+              ? prismaPkg.BillingCheckoutProduct.STORAGE_ADDON
+              : prismaPkg.BillingCheckoutProduct.PLAN,
+          status: prismaPkg.BillingCheckoutAttemptStatus.EXPIRED,
+          checkoutState: "PROVIDER_EXPIRED",
         });
-
-        await recordPayment({
-          userId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerPaymentId: session.id,
-          amountCents: session.amount_total ?? 0,
-          currency: (
-            session.currency ??
-            session.metadata?.currency ??
-            "usd"
-          ).toUpperCase(),
-          status: prismaPkg.PaymentStatus.SUCCEEDED,
-          teamId: null,
-        });
-      }
-
-      if (userId && storageAddonKey) {
-        try {
-          await assertWebhookStorageAddonAllowed({
-            userId,
-            addonKey: storageAddonKey,
-            teamId,
-          });
-
-          const storageAddonBillingCycle = parseStorageAddonBillingCycle(
-            session.metadata?.billingCycle
-          );
-
-          const effectiveCurrency = (
-            session.currency ??
-            session.metadata?.currency ??
-            "usd"
-          ).toUpperCase();
-
-          const effectiveAmountCents =
-            session.amount_total ??
-            parseAmountCents(session.metadata?.amountCents) ??
-            0;
-
-          await recordPayment({
-            userId,
-            provider: prismaPkg.PaymentProvider.STRIPE,
-            providerPaymentId: session.id,
-            amountCents: effectiveAmountCents,
-            currency: effectiveCurrency,
-            status: prismaPkg.PaymentStatus.SUCCEEDED,
-            teamId,
-          });
-
-          /**
-           * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is
-           * a recurring subscription, so the SUBSCRIPTION id is its durable
-           * identity and the branch that required its ABSENCE is gone.
-           *
-           * The previous condition was `!session.subscription && cycle ===
-           * ONE_TIME`, which is now unreachable by construction: the checkout
-           * runs in subscription mode. Keeping it would have meant a completed
-           * add-on purchase activating nothing at all.
-           */
-          if (session.subscription) {
-            await upsertWorkspaceStorageAddon({
-              ownerUserId: userId,
-              teamId,
-              addonKey: storageAddonKey,
-              billingCycle:
-                storageAddonBillingCycle ??
-                prismaPkg.StorageAddonBillingCycle.MONTHLY,
-              status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-              paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-              // Keyed on the SUBSCRIPTION so every later renewal, failure and
-              // cancellation event finds the same row.
-              externalSubscriptionId: String(session.subscription),
-              externalPaymentId: session.id,
-              amountCents: effectiveAmountCents,
-              currency: effectiveCurrency,
-              metadata: {
-                source: "stripe.checkout.session.completed",
-                mode: session.mode ?? null,
-              },
-            });
-          } else {
-            req.log.warn(
-              {
-                provider: "STRIPE",
-                sessionId: session.id,
-                storageAddonKey,
-              },
-              "stripe.storage_addon_checkout_without_subscription_ignored"
-            );
-          }
-        } catch (err) {
-          req.log.warn(
-            {
-              err,
-              provider: "STRIPE",
-              sessionId: session.id,
-              userId,
-              teamId,
-              storageAddonKey,
-            },
-            "stripe.storage_addon_checkout_ignored"
-          );
-        }
       }
     }
 
@@ -476,6 +297,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
         id: string;
         status?: string;
         current_period_end?: number;
+        currency?: string;
+        items?: { data?: Array<{ price?: { unit_amount?: number | null; currency?: string } }> };
         metadata?: {
           userId?: string;
           plan?: string;
@@ -510,6 +333,13 @@ export async function webhooksRoutes(app: FastifyInstance) {
             ? new Date(subscription.current_period_end * 1000)
             : null,
           observedAtUtc: stripeObservedAt,
+          // What Stripe bills: the subscription's currency and its price's
+          // unit amount — provider facts, never the display currency.
+          billedCurrency: subscription.currency ? subscription.currency.toUpperCase() : null,
+          billedUnitAmountCents:
+            typeof subscription.items?.data?.[0]?.price?.unit_amount === "number"
+              ? subscription.items.data[0].price.unit_amount
+              : null,
         });
       }
 
@@ -534,6 +364,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           currentPeriodEnd: subscription.current_period_end
             ? new Date(subscription.current_period_end * 1000)
             : null,
+          observedAtUtc: stripeObservedAt,
           metadata: { source: event.type },
         }).catch((err: unknown) => {
           req.log.warn(
@@ -793,10 +624,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
             .send({ ok: true, deduplicated: true, eventId: paypalEventId });
         }
 
-        if (
-          hashMatches &&
-          webhookDuplicateDisposition(existing ?? {}) === "RETRY_LATER"
-        ) {
+        // BILLING CHECKOUT ATTEMPTS (2026-09-28) — an ACTIVE lease defers
+        // every redelivery of this event id, whatever its bytes. Gating this
+        // on a matching hash let a byte-different redelivery fall through to
+        // the reclaim below while the first delivery was still running, so
+        // two processes applied the same provider event concurrently.
+        if (webhookDuplicateDisposition(existing ?? {}) === "RETRY_LATER") {
           return reply.code(503).send({ ok: false, retryable: true });
         }
 

@@ -242,6 +242,10 @@
       "command": "tsx src/commands/audit-tenant-scope-readiness.ts"
     },
     {
+      "id": "services/api/package.json:ops:verify-historical-billing-attempts",
+      "command": "tsx src/scripts/verify-historical-billing-attempts.ts"
+    },
+    {
       "id": "services/api/package.json:verify:runbook-endpoints",
       "command": "node scripts/verify-runbook-endpoints.mjs"
     }
@@ -4245,9 +4249,7 @@
       "path": "services/api/test/phase-12-point5-report-authority.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [
-        "services/worker/src/report-generation-authority.js"
-      ],
+      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5692,15 +5694,7 @@
       "path": "services/api/test/point5/family-reconciliation.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [
-        "services/worker/src/subsystem-queue-processors.js",
-        "services/worker/src/search-indexing.processor.js",
-        "services/worker/src/search-index-reconciler.js",
-        "services/worker/src/lifecycle-recovery.js",
-        "services/worker/src/orphan-scan.js",
-        "services/worker/src/governance/immutable-storage-reconciliation.worker.js",
-        "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.js"
-      ],
+      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -6160,9 +6154,7 @@
       "path": "services/api/test/search-durable-reconciliation.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [
-        "services/worker/src/search-index-reconciler.js"
-      ],
+      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],

@@ -24,7 +24,7 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 
 import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
-import { GlobalRuntimeIndicator, ServiceStatusIndicator } from "../operational";
+import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import {
   readsNothing,
@@ -199,13 +199,24 @@ export function AppAccountToolbar({
       ? envelope.activeSpace.id
       : null;
   /*
-   * THE OPERATOR PILL IS FOR ACTORS WHO CAN READ OPERATIONS.
+   * THE OPERATOR PILL IS FOR ACTORS WHO CAN READ OPERATIONS — AND IT IS THE
+   * ONLY STATUS CONTROL THE SHELL MOUNTS.
    *
    * It was mounted for every member of an organization workspace. For a
    * member without operational read access every source is gated off, so the
-   * pill sat at "Status pending" forever. Operators get the operator pill;
-   * everyone else — Personal included — gets `ServiceStatusIndicator`, which
-   * shows nothing unless a service capability is actually affected.
+   * pill sat at "Status pending" forever.
+   *
+   * SHELL BOUNDARY (2026-09-28) — everyone else used to get
+   * `ServiceStatusIndicator`, which polled `/v1/runtime/status` for EVERY
+   * context with no gate at all: missing envelope, suspended account, a
+   * mismatched workspace, Personal Free/Pro, a withheld capability, a
+   * platform administrator with no membership. `resolveRuntimeReadAccess`
+   * is the one predicate the shell asks before reading runtime, and it
+   * grants `readiness` only with OPERATIONS_VIEW; the indicator bypassed it
+   * (operations-shell-boundary.spec.ts counts exactly that request). A
+   * refused context now makes ZERO shell runtime requests. Service impact for
+   * a non-operator is said beside the action it affects
+   * (`RuntimeStatusBanner`), which is not shell chrome.
    */
   const runtimeTeamId = useMemo(
     () =>
@@ -372,10 +383,10 @@ export function AppAccountToolbar({
 
           <span className="app-header-divider" aria-hidden="true" />
 
-          {/* ONE global status control. Operators: the operational pill
-              (service impact + their incidents + escalations). Everyone
-              else: the service indicator, which renders nothing — no
-              wrapper, no gap — while every service capability is healthy. */}
+          {/* ONE global status control, for operators only: the operational
+              pill (service impact + their incidents + escalations). A context
+              the runtime gate refuses mounts nothing — no request, no wrapper,
+              no gap. */}
           {runtimeTeamId ? (
             <div
               className="app-topbar-v2-runtime"
@@ -384,9 +395,7 @@ export function AppAccountToolbar({
             >
               <GlobalRuntimeIndicator teamId={runtimeTeamId} />
             </div>
-          ) : (
-            <ServiceStatusIndicator />
-          )}
+          ) : null}
 
           <NotificationBell />
 

@@ -40,6 +40,9 @@ export type LiveBaseSubscriptionRow = {
   plan: prismaPkg.PlanType;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  /** Provider-billed currency / unit amount; null when never observed. */
+  billedCurrency?: string | null;
+  billedUnitAmountCents?: number | null;
   pendingPlan: prismaPkg.PlanType | null;
   pendingPlanEffectiveAtUtc: Date | null;
   teamId: string | null;
@@ -79,6 +82,8 @@ const LIVE_BASE_SELECT = {
   plan: true,
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
+  billedCurrency: true,
+  billedUnitAmountCents: true,
   pendingPlan: true,
   pendingPlanEffectiveAtUtc: true,
   teamId: true,

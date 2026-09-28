@@ -12,13 +12,19 @@ import { View } from "react-native";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraCard, ProovraLoadingState, ProovraText } from "./index";
 import { ProovraEmpty } from "./patterns";
-import { BILLING_PAGE_COPY as COPY, billingStatusLabel, billingStatusTone, formatMoney } from "../product/billing-account";
+import {
+  BILLING_PAGE_COPY as COPY,
+  billingStatusLabel,
+  billingStatusTone,
+  formatMoney,
+  type OpenPurchaseRow,
+} from "../product/billing-account";
 import type { PaymentRow } from "../product/billing";
 import { billingDate } from "./billing-account-sections";
 
 export type HistoryState =
   | { kind: "LOADING" }
-  | { kind: "READY"; rows: PaymentRow[] }
+  | { kind: "READY"; rows: PaymentRow[]; openPurchases?: OpenPurchaseRow[] }
   | { kind: "DENIED" }
   | { kind: "ERROR" };
 
@@ -93,10 +99,46 @@ export function BillingHistoryCard({
           {notice}
         </ProovraText>
       ) : null}
+      {state.kind === "READY" && (state.openPurchases?.length ?? 0) > 0 ? (
+        <View testID="billing-activity" style={{ gap: theme.space.s2 }}>
+          <ProovraText variant="bodySm" weight="semibold">
+            Billing activity
+          </ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            Purchases that have not produced a completed payment. Check or abandon them on Billing on the web.
+          </ProovraText>
+          {state.openPurchases!.map((a) => (
+            <View key={a.id} testID={`billing-activity-${a.id}`} style={{ gap: 2, paddingVertical: theme.space.s1, borderTopWidth: 1, borderTopColor: theme.color.border.subtle }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
+                <ProovraText variant="bodySm" weight="semibold" numberOfLines={2} style={{ flex: 1 }}>
+                  {a.description}
+                </ProovraText>
+                <ProovraText variant="label" weight="semibold">
+                  {a.statusLabel}
+                </ProovraText>
+              </View>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {[a.providerLabel, a.createdAtUtc ? `Started ${billingDate(a.createdAtUtc)}` : null].filter(Boolean).join(" · ")}
+              </ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {a.explanation}
+              </ProovraText>
+            </View>
+          ))}
+        </View>
+      ) : null}
       {state.kind === "LOADING" ? (
         <ProovraLoadingState label="Loading payments" />
       ) : state.rows.length === 0 ? (
-        <ProovraEmpty presence="inline" title="No payments yet" purpose="Payments for this account will appear here." />
+        <ProovraEmpty
+          presence="inline"
+          title="No payments yet"
+          purpose={
+            (state.openPurchases?.length ?? 0) > 0
+              ? "No payment has been completed on this account yet. The purchases above appear here once the provider confirms a payment."
+              : "Payments for this account will appear here."
+          }
+        />
       ) : (
         state.rows.map((p) => {
           const busy = rowBusyId === p.id;

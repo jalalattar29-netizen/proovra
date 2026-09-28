@@ -31,14 +31,12 @@ import {
   getStorageAddonDefinition,
   setPersonalPlan,
 } from "../services/billing.service.js";
+import { createPayPalStorageAddonCheckout } from "../services/billing-checkout.service.js";
 import {
-  createStripeCheckoutSession,
-  createStripeEvidenceCreditCheckout,
-  createPayPalCheckout,
-  createPayPalEvidenceCreditCheckout,
-  createStripeStorageAddonCheckoutSession,
-  createPayPalStorageAddonCheckout,
-} from "../services/billing-checkout.service.js";
+  startStripeCreditCheckout,
+  startStripePlanCheckout,
+  startStripeStorageCheckout,
+} from "../services/billing/stripe-checkout-start.service.js";
 import { prisma } from "../db.js";
 // PAYPAL END-TO-END (2026-09-25) — the return routes settle through the SAME
 // service the verified webhook uses; neither trusts the browser's success flag.
@@ -72,7 +70,14 @@ import {
   buildBillingAccountProjection,
   readBillingHistoryForAccount,
 } from "../services/billing/billing-account-projection.service.js";
+import { withoutProviderStatus } from "../services/billing/reconciliation/types.js";
+import {
+  abandonBillingAttempt,
+  readBillingActivityForAccount,
+  recheckBillingAttempt,
+} from "../services/billing/billing-activity.service.js";
 import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
+import { requestSubscriptionResume } from "../services/billing/subscription-resume.service.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE authority that
 // decides what a requested plan change IS. No route compares plans itself.
 import {
@@ -82,16 +87,14 @@ import {
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
 import {
-  pendingCheckoutHttpResponse,
   resolvePendingPayPalCheckout,
-  withPendingProviderCheckoutGate,
   withPendingStorageAddonCheckoutGate,
 } from "../services/billing/pending-checkout-attempt.service.js";
 import {
-  abandonStorageAddonAttempt,
-  reconcileBillingAccount,
-  reconcileStorageAddonAttempt,
-} from "../services/billing/reconciliation/reconciliation.service.js";
+  startPayPalCreditCheckout,
+  startPayPalPlanCheckout,
+} from "../services/billing/paypal-checkout-start.service.js";
+import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
 import {
   abandonPendingPayment,
   cancelPendingPayment,
@@ -661,15 +664,24 @@ export async function billingRoutes(app: FastifyInstance) {
         account,
         limit: query.data.limit,
       });
+      // BILLING ACTIVITY (2026-09-28) — checkout attempts that have not
+      // produced a payment, on the SAME account and capability as the
+      // payments, so "No payments yet" is never the only thing a customer
+      // with an open purchase sees.
+      const activity = await readBillingActivityForAccount({ account });
 
       auditBillingAction(req, {
         userId,
         action: "billing.account_history_view",
         outcome: "success",
-        metadata: { accountType: account.type, count: items.length },
+        metadata: {
+          accountType: account.type,
+          count: items.length,
+          activityCount: activity.length,
+        },
       });
 
-      return reply.code(200).send({ items, count: items.length });
+      return reply.code(200).send({ items, count: items.length, activity });
     }
   );
 
@@ -994,6 +1006,50 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   /**
+   * BILLING RESTART (2026-09-28) — undo a cancellation that is SCHEDULED for
+   * period end. Stripe only: a PayPal cancellation is immediate and final at
+   * PayPal, and the service refuses it with that explanation. The provider is
+   * asked first; nothing local changes unless it confirms.
+   */
+  app.post(
+    "/v1/billing/subscription/resume",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      CancelSubscriptionBody.parse(req.body ?? {});
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+      const subscription = await findLivePersonalSubscription(userId);
+      if (!subscription) {
+        return reply.code(404).send({
+          error: {
+            code: "SUBSCRIPTION_NOT_FOUND",
+            message: "There is no subscription to restart.",
+          },
+        });
+      }
+      const outcome = await requestSubscriptionResume({ subscriptionId: subscription.id });
+      auditBillingAction(req, {
+        userId,
+        action: "billing.subscription_resume",
+        outcome: "success",
+        resourceId: subscription.id,
+        providerEventId: subscription.providerSubId,
+        metadata: {
+          result: outcome.result,
+          provider: outcome.provider,
+          dependentAddonsStillEnding: outcome.dependentAddonsStillEnding,
+        },
+      });
+      return reply.code(200).send({ resume: outcome });
+    }
+  );
+
+  /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — cancel a RECURRING storage
    * add-on.
    *
@@ -1268,59 +1324,139 @@ export async function billingRoutes(app: FastifyInstance) {
       // Counts and categories only. Nothing here can carry a provider id, a
       // provider error string or a disputed amount, because the surface
       // renders it verbatim.
-      return reply.code(200).send({ outcome: summary.outcome, summary });
+      return reply.code(200).send({
+        outcome: summary.outcome,
+        summary: {
+          ...summary,
+          storageAttempts: summary.storageAttempts.map(withoutProviderStatus),
+        },
+      });
     },
   );
 
+  /**
+   * BILLING ACTIVITY (2026-09-28) — ONE checkout attempt, any product (plan,
+   * storage, evidence credit), re-checked or abandoned.
+   *
+   * The attempt must belong to the account in the path; the capability is
+   * the one that could have started it (BILLING_MANAGE for a plan,
+   * BILLING_ADDON_PURCHASE for storage and credits). A re-check READS the
+   * provider and applies its answer through the canonical writers; it creates
+   * nothing. Abandonment is local only, provider-first, and needs an explicit
+   * confirmation that states it cancels nothing at the provider.
+   */
+  const AttemptParams = z.object({
+    type: z.enum(["PERSONAL", "ORGANIZATION"]),
+    id: z.string().min(1).max(200),
+    attemptId: z.string().uuid(),
+  });
+
+  async function attemptActionGuard(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    action: "recheck" | "abandon",
+  ) {
+    const userId = getAuthUserId(req);
+    const params = AttemptParams.safeParse(req.params ?? {});
+    if (!params.success) {
+      reply.code(400).send({ error: { code: "invalid_params" } });
+      return null;
+    }
+    const account = await assertBillingCapability({
+      viewerUserId: userId,
+      type: params.data.type,
+      id: params.data.id,
+      capability: "BILLING_HISTORY_VIEW",
+    });
+    const rate = await enforceRateLimit({
+      key: `ratelimit:billing_attempt_${action}:${userId}`,
+      max: 20,
+      windowSec: 300,
+    });
+    if (!rate.allowed) {
+      reply.code(429).send(
+        createErrorResponse(
+          ErrorCode.RATE_LIMIT_EXCEEDED,
+          req.id,
+          undefined,
+          "Purchases have been checked several times just now. Please try again in a few minutes.",
+        ),
+      );
+      return null;
+    }
+    // One action per attempt at a time is enforced by the service's advisory
+    // lock (BILLING_ATTEMPT_BUSY, 409), held only while the action runs.
+    return { userId, account, attemptId: params.data.attemptId };
+  }
+
   app.post(
-    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/recheck",
+    "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const params = z.object({
-        type: z.enum(["PERSONAL", "ORGANIZATION"]),
-        id: z.string().min(1).max(200),
-        attemptId: z.string().uuid(),
-      }).parse(req.params);
-      const account = await assertBillingCapability({
-        viewerUserId: userId,
-        type: params.type,
-        id: params.id,
-        capability: "BILLING_MANAGE",
+      const guard = await attemptActionGuard(req, reply, "recheck");
+      if (!guard) return;
+      const result = await recheckBillingAttempt({
+        account: guard.account,
+        attemptId: guard.attemptId,
       });
-      const result = await reconcileStorageAddonAttempt({
-        account,
-        attemptId: params.attemptId,
+      auditBillingAction(req, {
+        userId: guard.userId,
+        action: "billing.checkout_attempt_rechecked",
+        resourceId: guard.attemptId,
+        outcome: "success",
+        metadata: {
+          accountType: guard.account.type,
+          product: result.product,
+          result: result.outcome,
+          status: result.currentStatus,
+        },
       });
       return reply.code(200).send(result);
     },
   );
 
   app.post(
-    "/v1/billing/accounts/:type/:id/storage-attempts/:attemptId/abandon",
+    "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const params = z.object({
-        type: z.enum(["PERSONAL", "ORGANIZATION"]),
-        id: z.string().min(1).max(200),
-        attemptId: z.string().uuid(),
-      }).parse(req.params);
-      const body = z.object({ confirmed: z.boolean().optional() }).parse(req.body ?? {});
-      const account = await assertBillingCapability({
-        viewerUserId: userId,
-        type: params.type,
-        id: params.id,
-        capability: "BILLING_MANAGE",
+      const body = z.object({ confirmed: z.boolean().optional() }).safeParse(req.body ?? {});
+      if (!body.success) {
+        return reply.code(400).send({ error: { code: "invalid_body" } });
+      }
+      const guard = await attemptActionGuard(req, reply, "abandon");
+      if (!guard) return;
+      const result = await abandonBillingAttempt({
+        account: guard.account,
+        attemptId: guard.attemptId,
+        confirmed: body.data.confirmed === true,
       });
-      const result = await abandonStorageAddonAttempt({
-        account,
-        attemptId: params.attemptId,
-        confirmed: body.confirmed,
+      auditBillingAction(req, {
+        userId: guard.userId,
+        action: "billing.checkout_attempt_abandoned",
+        resourceId: guard.attemptId,
+        outcome: "success",
+        metadata: {
+          accountType: guard.account.type,
+          result: result.outcome,
+          act:
+            result.outcome === "ABANDONED"
+              ? "LOCAL_ABANDONMENT"
+              : result.outcome === "ABANDON_CONFIRMATION_REQUIRED"
+                ? "CONFIRMATION_REQUESTED"
+                : "NO_LOCAL_ABANDONMENT",
+          cancelsAtProvider: false,
+        },
       });
       return reply.code(200).send(result);
     },
   );
+
+  // BILLING ACTIVITY (2026-09-28) — the storage-only
+  // `/storage-attempts/:attemptId/recheck|abandon` routes (added in e9efd55,
+  // never deployed) were REMOVED. The checkout-attempt routes above serve
+  // storage, plan and credit attempts through the same provider-first
+  // services, and a second path to the same action is a second place for the
+  // rules to drift.
 
   /**
    * BILLING SURFACE CORRECTION (2026-08-29) — ONE pending payment, re-checked.
@@ -1578,12 +1714,21 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_MANAGE",
       });
 
-      const result = await createStripeCheckoutSession({
+      // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a durable attempt first,
+      // then the session under that attempt's Idempotency-Key.
+      const started = await startStripePlanCheckout({
         userId,
-        plan: body.plan,
+        plan: body.plan as "PRO" | "TEAM",
         currency: body.currency,
         teamId: body.teamId ?? null,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,
@@ -1809,10 +1954,17 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_ADDON_PURCHASE",
       });
 
-      const result = await createStripeEvidenceCreditCheckout({
+      const started = await startStripeCreditCheckout({
         userId,
         currency: body.currency,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,
@@ -1852,27 +2004,36 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_ADDON_PURCHASE",
       });
 
-      const result = await createPayPalEvidenceCreditCheckout({
+      // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a durable attempt first; its
+      // id is the PayPal-Request-Id and rides in custom_id.
+      const started = await startPayPalCreditCheckout({
         userId,
         currency: body.currency,
       });
+      if (started.kind === "BLOCKED") {
+        return reply.code(409).send(started.httpBody);
+      }
 
       auditBillingAction(req, {
         userId,
         action: "billing.evidence_credit_checkout_created",
         outcome: "success",
+        resourceId: started.attemptId,
+        providerEventId: String(started.resource.id ?? "") || null,
         metadata: {
           productKey: EVIDENCE_CREDIT_PRODUCT.productKey,
           credits: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
-          currency: result.currency,
-          amountCents: result.amountCents,
+          currency: started.currency,
+          amountCents: started.amountCents,
+          attemptId: started.attemptId,
+          reused: started.kind === "REUSED",
         },
       });
 
       return reply.code(200).send({
         provider: "PAYPAL",
-        mode: result.mode,
-        order: "order" in result ? result.order : undefined,
+        mode: "order",
+        order: started.resource,
       });
     },
   );
@@ -1896,6 +2057,15 @@ export async function billingRoutes(app: FastifyInstance) {
         .object({ orderId: PayPalResourceIdParam })
         .parse(req.params);
       const userId = getAuthUserId(req);
+
+      // The same capability that could start the purchase. Ownership of the
+      // order is still proven from PayPal's custom_id below.
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
 
       const result = await settlePayPalEvidenceCreditOrder({
         orderId,
@@ -2041,14 +2211,20 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
-      const result = await createStripeStorageAddonCheckoutSession({
+      const started = await startStripeStorageCheckout({
         userId,
         addonKey: body.addonKey,
-        billingCycle: body.billingCycle,
         currency: offerCurrency,
         teamId: body.teamId ?? null,
         workspacePlan: scope.plan,
       });
+      if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
+      const result = {
+        mode: started.mode,
+        currency: started.currency,
+        amountCents: started.amountCents,
+        session: started.session,
+      };
 
       auditBillingAction(req, {
         userId,
@@ -2127,28 +2303,19 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_MANAGE",
       });
 
-      const gated = await withPendingProviderCheckoutGate({
+      // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the attempt is committed
+      // before PayPal is called; its id is the PayPal-Request-Id and rides in
+      // custom_id, so a lost response still correlates.
+      const started = await startPayPalPlanCheckout({
         userId,
-        provider: prismaPkg.PaymentProvider.PAYPAL,
-        targetPlan: body.plan,
-        create: () =>
-          createPayPalCheckout({
-            userId,
-            plan: body.plan,
-            currency: body.currency,
-            teamId: body.teamId ?? null,
-          }),
+        plan: body.plan,
+        currency: body.currency,
       });
-      if (gated.kind === "BLOCKED") {
-        return reply.code(409).send(pendingCheckoutHttpResponse(gated.attempt));
+      if (started.kind === "BLOCKED") {
+        return reply.code(409).send(started.httpBody);
       }
 
-      const result = gated.result;
-
-      const resourceId =
-        "subscription" in result
-          ? String((result.subscription as { id?: string } | undefined)?.id ?? "")
-          : String((result.order as { id?: string } | undefined)?.id ?? "");
+      const resourceId = String(started.resource.id ?? "");
 
       auditBillingAction(req, {
         userId,
@@ -2157,11 +2324,12 @@ export async function billingRoutes(app: FastifyInstance) {
         resourceId,
         providerEventId: resourceId || null,
         metadata: {
-          mode: result.mode,
+          mode: started.mode,
           plan: body.plan,
-          currency: result.currency,
-          amountCents: result.amountCents,
-          teamId: body.teamId ?? null,
+          currency: started.currency,
+          amountCents: started.amountCents,
+          attemptId: started.attemptId,
+          reused: started.kind === "REUSED",
         },
       });
 
@@ -2172,26 +2340,17 @@ export async function billingRoutes(app: FastifyInstance) {
         entityId: resourceId,
         metadata: {
           provider: "PAYPAL",
-          mode: result.mode,
+          mode: started.mode,
           plan: body.plan,
-          amountCents: result.amountCents,
-          currency: result.currency,
-          teamId: body.teamId ?? null,
+          amountCents: started.amountCents,
+          currency: started.currency,
         },
       });
-
-      if (result.mode === "order") {
-        return reply.code(200).send({
-          provider: "PAYPAL",
-          mode: "order",
-          order: result.order,
-        });
-      }
 
       return reply.code(200).send({
         provider: "PAYPAL",
         mode: "subscription",
-        subscription: result.subscription,
+        subscription: started.resource,
       });
     }
   );

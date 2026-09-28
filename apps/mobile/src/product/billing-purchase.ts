@@ -3,7 +3,9 @@ export type PurchaseProvider = "stripe" | "paypal";
 export type PurchaseIntent =
   | { kind: "PLAN"; plan: "PRO" | "TEAM"; transition: boolean }
   | { kind: "CREDITS" }
-  | { kind: "STORAGE"; addonKey: string };
+  /** `currency` is the SELECTED OFFER's own currency (storage SKUs are priced
+   * in one currency each). Never the pricing catalogue's display currency. */
+  | { kind: "STORAGE"; addonKey: string; currency?: string | null };
 
 export function externalCheckoutEnabled(): boolean {
   return process.env.EXPO_PUBLIC_DISTRIBUTION === "PRIVATE" &&
@@ -18,6 +20,12 @@ export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvid
     return { path: intent.transition ? "/v1/billing/subscription/plan" : `/v1/billing/checkout/${provider}`, body };
   }
   if (intent.kind === "CREDITS") return { path: `/v1/billing/credits/checkout/${provider}`, body };
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the same USD/EUR defect the web
+  // drawer had: the catalogue's display currency (USD by default) was sent
+  // for an EUR-only storage SKU. The server now refuses a mismatch with 409,
+  // so send the offer's own currency, or none and let the server decide.
+  delete body.currency;
+  if (intent.currency === "EUR" || intent.currency === "USD") body.currency = intent.currency;
   body.addonKey = intent.addonKey;
   body.billingCycle = "MONTHLY";
   return { path: `/v1/billing/storage-addons/checkout/${provider}`, body };

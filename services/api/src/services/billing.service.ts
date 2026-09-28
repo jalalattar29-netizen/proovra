@@ -473,7 +473,19 @@ export async function upsertSubscription(params: {
   currentPeriodEnd?: Date | null;
   teamId?: string | null;
   observedAtUtc?: Date | null;
+  /**
+   * BILLING (2026-09-28) — what the PROVIDER bills, when this fact carries
+   * it. Absent leaves the recorded value; it is never guessed.
+   */
+  billedCurrency?: string | null;
+  billedUnitAmountCents?: number | null;
 }) {
+  const billed = {
+    ...(params.billedCurrency ? { billedCurrency: params.billedCurrency.toUpperCase() } : {}),
+    ...(typeof params.billedUnitAmountCents === "number" && params.billedUnitAmountCents >= 0
+      ? { billedUnitAmountCents: params.billedUnitAmountCents }
+      : {}),
+  };
   const existing = await prisma.subscription.findUnique({
     where: {
       provider_providerSubId: {
@@ -565,6 +577,7 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
@@ -598,6 +611,7 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...billed,
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
@@ -627,6 +641,14 @@ export async function upsertSubscription(params: {
   });
 
   return subscription;
+}
+
+function existingMetadata(
+  value: prismaPkg.Prisma.JsonValue | null | undefined,
+): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 export async function upsertWorkspaceStorageAddon(params: {
@@ -723,9 +745,14 @@ export async function upsertWorkspaceStorageAddon(params: {
     // rewrote a recurring add-on's own identity on every webhook update.
     billingCycle: params.billingCycle,
     status,
-    paymentProvider: params.paymentProvider ?? null,
-    externalSubscriptionId: params.externalSubscriptionId ?? null,
-    externalPaymentId: params.externalPaymentId ?? null,
+    // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a lifecycle event that does
+    // not name a field leaves it as it was. These were written
+    // `params.x ?? null`, so a subscription webhook (which carries no payment
+    // id) erased the row's recorded payment id and provider.
+    paymentProvider: params.paymentProvider ?? existing?.paymentProvider ?? null,
+    externalSubscriptionId:
+      params.externalSubscriptionId ?? existing?.externalSubscriptionId ?? null,
+    externalPaymentId: params.externalPaymentId ?? existing?.externalPaymentId ?? null,
     // Provider lifecycle events do not repeat the checkout price. Preserve the
     // durable attempt's commercial identity instead of silently replacing it
     // with catalogue defaults during webhook settlement.
@@ -744,12 +771,21 @@ export async function upsertWorkspaceStorageAddon(params: {
       params.billingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY
         ? params.currentPeriodEnd ?? existing?.currentPeriodEnd ?? null
         : null,
-    expiresAtUtc: params.expiresAtUtc ?? null,
+    expiresAtUtc: params.expiresAtUtc ?? existing?.expiresAtUtc ?? null,
     canceledAtUtc:
       status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
-        ? new Date()
+        ? existing?.canceledAtUtc ?? new Date()
         : existing?.canceledAtUtc ?? null,
-    metadata: toNullableJsonInput(params.metadata),
+    // MERGED, never replaced. The create route records the safe correlation
+    // diagnostics (HTTP status, paypal-debug-id, plan id, approval-link
+    // identity) seconds before PayPal's CREATED webhook arrives; replacing the
+    // object with `{ source }` erased exactly the evidence the 2026-09-26
+    // incident lacked.
+    metadata: toNullableJsonInput(
+      params.metadata === undefined || params.metadata === null
+        ? existingMetadata(existing?.metadata)
+        : { ...(existingMetadata(existing?.metadata) ?? {}), ...params.metadata },
+    ),
     ...(params.observedAtUtc
       ? { providerStateAtUtc: params.observedAtUtc }
       : {}),

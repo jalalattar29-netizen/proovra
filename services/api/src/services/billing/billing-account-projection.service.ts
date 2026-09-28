@@ -1090,6 +1090,8 @@ export async function buildBillingAccountProjection(input: {
             // change, so the plan card can say what is coming and when.
             pendingPlan: true,
             pendingPlanEffectiveAtUtc: true,
+            billedCurrency: true,
+            billedUnitAmountCents: true,
           },
         });
 
@@ -1237,10 +1239,26 @@ export async function buildBillingAccountProjection(input: {
      * a customer a monthly charge nobody was making, and there is no honest
      * way for a surface to render a figure it has been handed.
      */
+    /*
+     * BILLING (2026-09-28) — the price in the currency the PROVIDER bills.
+     *
+     * This printed the catalogue price in the page's display currency (USD
+     * unless asked), so an EUR PayPal subscriber read "$19.00 / month". The
+     * subscription now records what its provider bills; the amount is the
+     * provider's own unit amount when known, else the server price in THAT
+     * currency. A legacy row whose billed currency was never observed shows no
+     * figure at all rather than a guessed one.
+     */
     ...(showAmounts && accessKind === "SUBSCRIPTION"
       ? {
-          priceCents: caps.monthlyPriceCents,
-          currency,
+          ...(subscription?.billedCurrency === "USD" || subscription?.billedCurrency === "EUR"
+            ? {
+                priceCents:
+                  subscription.billedUnitAmountCents ??
+                  getPlanPriceCents(scope.plan as prismaPkg.PlanType, subscription.billedCurrency),
+                currency: subscription.billedCurrency,
+              }
+            : {}),
           paymentProviderLabel: providerLabel(subscription?.provider ?? null),
           graceEndsAtUtc: iso(ctx.lifecycle.graceEndsAtUtc),
         }
@@ -1566,6 +1584,30 @@ export async function buildBillingAccountProjection(input: {
     );
   }
 
+  // BILLING DUPLICATE SUBSCRIPTIONS (2026-09-28) — two LIVE base plan
+  // subscriptions for one person (for example an old PayPal approval that was
+  // abandoned in PROOVRA and later approved at PayPal, next to a newer one)
+  // both bill. Neither is cancelled automatically: which to keep is the
+  // customer's decision, and cancelling the wrong one ends paid access. It is
+  // shown until one of them ends.
+  const duplicateBase = scope.teamId
+    ? 0
+    : await prisma.subscription.count({
+        where: {
+          userId: scope.ownerUserId,
+          OR: [{ teamId: null }, { team: { ownerUserId: scope.ownerUserId } }],
+          plan: { in: [prismaPkg.PlanType.PRO, prismaPkg.PlanType.TEAM] },
+          providerSubId: { not: "" },
+          status: { in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE] },
+        },
+      });
+  const duplicateBaseSubscriptions = duplicateBase > 1;
+  if (duplicateBaseSubscriptions) {
+    bannerMessages.push(
+      `${duplicateBase} plan subscriptions are active and may each be billing you. PROOVRA does not cancel either automatically — contact support so the one you do not want is cancelled at the provider.`,
+    );
+  }
+
   // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the PERSISTENT
   // half of the failure.
   //
@@ -1603,11 +1645,11 @@ export async function buildBillingAccountProjection(input: {
             // measure as a failed payment: money is moving against the
             // customer's stated intent.
             severity:
-              lifecycleNeedsAction || dependentCancellation
+              lifecycleNeedsAction || dependentCancellation || duplicateBaseSubscriptions
                 ? "CRITICAL"
                 : "WARNING",
             title:
-              lifecycleNeedsAction || dependentCancellation
+              lifecycleNeedsAction || dependentCancellation || duplicateBaseSubscriptions
                 ? "Action required"
                 : "Attention needed",
             messages: bannerMessages,
@@ -1621,7 +1663,9 @@ export async function buildBillingAccountProjection(input: {
              */
             reassurance: dependentCancellation
               ? "We are still working on this and will keep trying. Nothing further has been started from our side."
-              : "Nothing further has been charged from our side.",
+              : duplicateBaseSubscriptions
+                ? null
+                : "Nothing further has been charged from our side.",
           }
         : null,
     ...(wallet

@@ -129,6 +129,12 @@ export type PaymentObservation = {
    */
   resumeUrl?: string | null;
   failure?: ObservationFailure;
+  /**
+   * The provider's own status word (e.g. PayPal `APPROVED` vs `CREATED`),
+   * for decisions the coarse state cannot make — such as refusing to abandon
+   * an order the buyer has already approved. Never shown to a customer.
+   */
+  providerStatus?: string | null;
 };
 
 /** ONE provider subscription, as observed. */
@@ -151,6 +157,8 @@ export type SubscriptionObservation = {
   /** Fresh provider approval URL, only while customer action is still valid. */
   resumeUrl?: string | null;
   failure?: ObservationFailure;
+  /** See PaymentObservation.providerStatus. */
+  providerStatus?: string | null;
 };
 
 export type Observation = PaymentObservation | SubscriptionObservation;
@@ -201,7 +209,7 @@ export type PaymentCancellationResult =
   /** It had already settled or already ended. Nothing to stop. */
   | { outcome: "ALREADY_TERMINAL"; state: ObservedState }
   /** Unreachable or malformed. Nothing was written anywhere. */
-  | { outcome: "PROVIDER_UNAVAILABLE" };
+  | { outcome: "PROVIDER_UNAVAILABLE"; failure?: ObservationFailure };
 
 /** A safe, user-facing reconciliation outcome. Contains no provider data. */
 export type ReconciliationOutcome =
@@ -233,6 +241,30 @@ export type StorageAttemptReconciliation = {
   previousStatus: prismaPkg.WorkspaceStorageAddonStatus;
   currentStatus: prismaPkg.WorkspaceStorageAddonStatus;
   outcome: StorageAttemptOutcome;
+  resumeUrl?: string | null;
+  /** Raw provider status (server-side decisions only). */
+  providerStatus?: string | null;
+};
+
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — ONE result shape for every kind of
+ * checkout attempt a re-check examined: plan, storage and evidence credit.
+ * The Billing page composes its message from these, so it can say exactly how
+ * many were checked, which changed and which still need the customer.
+ */
+export type CheckoutAttemptProduct = "PLAN" | "STORAGE" | "EVIDENCE_CREDIT";
+
+export type CheckoutAttemptReconciliation = {
+  attemptId: string;
+  product: CheckoutAttemptProduct;
+  createdAtUtc: string;
+  provider: prismaPkg.PaymentProvider | null;
+  providerBound: boolean;
+  previousStatus: string;
+  currentStatus: string;
+  outcome: StorageAttemptOutcome;
+  /** The customer had already abandoned this attempt locally. */
+  locallyAbandoned: boolean;
   resumeUrl?: string | null;
 };
 
@@ -270,6 +302,10 @@ export type ReconciliationSummary = {
   discrepancies: number;
   /** Safe per-attempt outcomes. Provider resource ids never leave the API. */
   storageAttempts: StorageAttemptReconciliation[];
+  /** Every checkout attempt examined, all products. */
+  attempts: CheckoutAttemptReconciliation[];
+  /** Attempts whose recorded state changed because the provider said so. */
+  attemptsUpdated: number;
 };
 
 export function emptySummary(): ReconciliationSummary {
@@ -284,6 +320,8 @@ export function emptySummary(): ReconciliationSummary {
     unavailable: 0,
     discrepancies: 0,
     storageAttempts: [],
+    attempts: [],
+    attemptsUpdated: 0,
   };
 }
 
@@ -305,10 +343,23 @@ export function resolveOutcome(
   if (
     summary.creditsRestored > 0 ||
     summary.paymentsRecorded > 0 ||
-    summary.subscriptionsUpdated > 0
+    summary.subscriptionsUpdated > 0 ||
+    summary.attemptsUpdated > 0
   ) {
     return "UPDATED";
   }
   if (summary.pending > 0) return "PENDING";
   return "NO_CHANGE";
+}
+
+/**
+ * A copy without the raw provider status word, which drives server-side
+ * decisions only and is never sent to a client.
+ */
+export function withoutProviderStatus<T extends { providerStatus?: string | null }>(
+  value: T,
+): Omit<T, "providerStatus"> {
+  const copy: T = { ...value };
+  delete copy.providerStatus;
+  return copy;
 }

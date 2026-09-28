@@ -58,6 +58,7 @@ import {
   buildReconcilePath,
   parseBillingProjection,
   reconcileMessage,
+  parseBillingActivity,
   retryStorageMessage,
   subscriptionCancelConsequence,
   subscriptionCancelMessage,
@@ -150,7 +151,8 @@ export default function BillingScreen() {
   const loadHistory = useCallback(async (account: BillingAccountRef) => {
     setHistory({ kind: "LOADING" });
     try {
-      setHistory({ kind: "READY", rows: parsePaymentHistory(await apiFetch(buildBillingHistoryPath(account.type, account.id))) });
+      const body = await apiFetch(buildBillingHistoryPath(account.type, account.id));
+      setHistory({ kind: "READY", rows: parsePaymentHistory(body), openPurchases: parseBillingActivity(body) });
     } catch (err) {
       // A missing capability is a DENIAL, never an empty list.
       setHistory({ kind: (err as { statusCode?: number } | null)?.statusCode === 403 ? "DENIED" : "ERROR" });
@@ -647,7 +649,11 @@ export default function BillingScreen() {
           <View style={{ gap: theme.space.s2 }}>
             {projection.storageAddons.offers.map(offer => {
               const published = addonOffers.find(a => a.key === offer.key);
-              return <ProovraButton key={offer.key} label={`Buy ${offer.label}${published?.priceCents != null ? ` · ${(published.priceCents / 100).toFixed(2)} ${catalogue?.currency ?? ""}/month` : ""}`} variant="secondary" onPress={() => offerPurchase({ kind: "STORAGE", addonKey: offer.key })} />;
+              // The offer's OWN price and currency (the account projection's),
+              // falling back to the published catalogue only for the amount.
+              const priceCents = offer.priceCents ?? published?.priceCents ?? null;
+              const currency = offer.currency ?? null;
+              return <ProovraButton key={offer.key} label={`Buy ${offer.label}${priceCents != null && currency ? ` · ${(priceCents / 100).toFixed(2)} ${currency}/month` : ""}`} variant="secondary" onPress={() => offerPurchase({ kind: "STORAGE", addonKey: offer.key, currency })} />;
             })}
           </View>
         </ProovraSheet>

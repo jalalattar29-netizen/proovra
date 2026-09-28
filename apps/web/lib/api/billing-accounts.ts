@@ -507,16 +507,61 @@ export async function readBillingAccount(input: {
   )) as BillingAccountProjection;
 }
 
+/**
+ * BILLING ACTIVITY (2026-09-28) — a checkout attempt that has not produced a
+ * completed payment: awaiting approval at the provider, unconfirmed, failed,
+ * canceled, expired or abandoned. Every string is the server's; the page
+ * renders it and decides nothing. No provider id or internal reference is
+ * carried — `id` is the opaque handle the per-attempt actions take.
+ */
+export type BillingActivityItem = {
+  id: string;
+  product: "PLAN" | "STORAGE" | "EVIDENCE_CREDIT";
+  description: string;
+  providerLabel: string | null;
+  createdAtUtc: string;
+  state:
+    | "STARTING"
+    | "AWAITING_APPROVAL"
+    | "NOT_CONFIRMED_BY_PROVIDER"
+    | "PROVIDER_NO_RECORD"
+    | "PROVIDER_UNREACHABLE"
+    | "PROVIDER_UNVERIFIED"
+    | "PROCESSING"
+    | "NEEDS_REVIEW"
+    | "FAILED"
+    | "CANCELED"
+    | "EXPIRED"
+    | "ABANDONED";
+  statusLabel: string;
+  explanation: string;
+  recurring: boolean;
+  lastCheckedAtUtc: string | null;
+  amountCents?: number;
+  currency?: string;
+  actions: { canRecheck: boolean; canAbandon: boolean };
+};
+
+export type BillingHistory = {
+  /** Completed-or-recorded PAYMENTS only. */
+  items: BillingHistoryEntry[];
+  /** Checkout attempts that have not produced a payment. */
+  activity: BillingActivityItem[];
+};
+
 export async function readBillingHistory(input: {
   type: BillingAccountType;
   id: string;
   limit?: number;
-}): Promise<BillingHistoryEntry[]> {
+}): Promise<BillingHistory> {
   const qs = input.limit ? `?limit=${input.limit}` : "";
   const res = (await apiFetch(
     `/v1/billing/accounts/${input.type}/${encodeURIComponent(input.id)}/history${qs}`,
-  )) as { items?: BillingHistoryEntry[] } | null;
-  return Array.isArray(res?.items) ? res.items : [];
+  )) as { items?: BillingHistoryEntry[]; activity?: BillingActivityItem[] } | null;
+  return {
+    items: Array.isArray(res?.items) ? res.items : [],
+    activity: Array.isArray(res?.activity) ? res.activity : [],
+  };
 }
 
 /**
@@ -571,6 +616,26 @@ export async function requestCancellation(): Promise<CancellationResult> {
   return res.cancellation;
 }
 
+/**
+ * BILLING RESTART (2026-09-28) — undo a cancellation scheduled for period end.
+ * Only a provider that schedules cancellations (Stripe) can; the server
+ * refuses PayPal with an explanation (409 PROVIDER_CANNOT_RESTART).
+ */
+export type ResumeResult = {
+  result: "RESUMED" | "NOT_SCHEDULED_TO_END";
+  provider: string;
+  currentPeriodEnd: string | null;
+  dependentAddonsStillEnding: number;
+};
+
+export async function requestResume(): Promise<ResumeResult> {
+  const res = (await apiFetch("/v1/billing/subscription/resume", {
+    method: "POST",
+    body: JSON.stringify({}),
+  })) as { resume: ResumeResult };
+  return res.resume;
+}
+
 /** What the server did about a requested plan change. */
 export type PlanChangeResult = {
   outcome:
@@ -623,42 +688,84 @@ export type ReconciliationResult = {
     actionRequired: number;
     unavailable: number;
     discrepancies: number;
-    storageAttempts: StorageAttemptResult[];
+    /** Attempts whose recorded state changed because the provider said so. */
+    attemptsUpdated: number;
+    /** Every checkout attempt examined, all products. */
+    attempts: CheckoutAttemptResult[];
   } | null;
 };
 
-export type StorageAttemptResult = {
+/**
+ * The result of checking ONE checkout attempt (any product) with its provider.
+ * `resumeUrl` is present only while the provider still holds the approval
+ * open, and is never stored.
+ */
+export type CheckoutAttemptResult = {
   attemptId: string;
-  kind: "STORAGE_ADDON";
-  addonKey: string;
+  product: "PLAN" | "STORAGE" | "EVIDENCE_CREDIT";
   createdAtUtc: string;
   provider: string | null;
   providerBound: boolean;
   previousStatus: string;
   currentStatus: string;
-  outcome: string;
+  outcome:
+    | "NOT_PROVIDER_BOUND"
+    | "STILL_PENDING"
+    | "UPDATED"
+    | "NO_CHANGE"
+    | "STALE_IGNORED"
+    | "PROVIDER_UNAVAILABLE"
+    | "PROVIDER_REFERENCE_NOT_FOUND"
+    | "PROVIDER_REFERENCE_INVALID"
+    | "PROVIDER_AUTHORIZATION_FAILED"
+    | "PROVIDER_MALFORMED";
+  locallyAbandoned: boolean;
   resumeUrl?: string | null;
 };
 
-export async function recheckStorageAttempt(
+export type CheckoutAttemptAbandonResult = {
+  attemptId: string;
+  outcome:
+    | "ABANDON_CONFIRMATION_REQUIRED"
+    | "ABANDONED"
+    | "ALREADY_ABANDONED"
+    | "ALREADY_RESOLVED"
+    | "ABANDON_NOT_ALLOWED"
+    | "PROVIDER_CANCEL_FAILED"
+    | "PROVIDER_STATE_RECORDED";
+  warning?: string;
+  /**
+   * True only when the provider confirmed it stopped the checkout (a Stripe
+   * session expired), or — on a confirmation request — will be asked to.
+   */
+  cancelsAtProvider: boolean;
+};
+
+/** Ask the provider about ONE attempt. Creates nothing, charges nothing new. */
+export async function recheckCheckoutAttempt(
   account: BillingAccountRef,
   attemptId: string,
-): Promise<StorageAttemptResult> {
+): Promise<CheckoutAttemptResult> {
   return (await apiFetch(
-    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/storage-attempts/${encodeURIComponent(attemptId)}/recheck`,
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/checkout-attempts/${encodeURIComponent(attemptId)}/recheck`,
     { method: "POST", body: "{}" },
-  )) as StorageAttemptResult;
+  )) as CheckoutAttemptResult;
 }
 
-export async function abandonStorageAttempt(
+/**
+ * Provider-first local abandonment. The first call (unconfirmed) asks the
+ * provider and returns what abandoning would and would not mean; only a second
+ * call with `confirmed` records it.
+ */
+export async function abandonCheckoutAttempt(
   account: BillingAccountRef,
   attemptId: string,
   confirmed = false,
-): Promise<StorageAttemptResult | { attemptId: string; outcome: string; warning?: string }> {
+): Promise<CheckoutAttemptAbandonResult> {
   return (await apiFetch(
-    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/storage-attempts/${encodeURIComponent(attemptId)}/abandon`,
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/checkout-attempts/${encodeURIComponent(attemptId)}/abandon`,
     { method: "POST", body: JSON.stringify({ confirmed }) },
-  )) as StorageAttemptResult | { attemptId: string; outcome: string; warning?: string };
+  )) as CheckoutAttemptAbandonResult;
 }
 
 /**

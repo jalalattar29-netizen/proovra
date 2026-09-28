@@ -42,6 +42,7 @@ export function ManagePlanDrawer({
   onClose,
   onChangePlan,
   onCancel,
+  onResume,
   changeBusyPlan,
   cancelBusy,
 }: {
@@ -52,6 +53,8 @@ export function ManagePlanDrawer({
   onChangePlan: (offer: PlanOffer) => void;
   /** Provider-first cancellation, ending on FREE. */
   onCancel: () => void;
+  /** Undo a scheduled (period-end) cancellation. Absent: not offered. */
+  onResume?: () => void;
   changeBusyPlan: string | null;
   cancelBusy: boolean;
 }) {
@@ -296,6 +299,18 @@ export function ManagePlanDrawer({
                 {periodEnd
                   ? `Cancels on ${periodEnd}. You keep ${plan.displayName} until then, and nothing is charged again.`
                   : "This subscription is cancelling at the end of the period you have paid for. Nothing is charged again."}
+                {onResume && plan.paymentProviderLabel !== "PayPal" ? (
+                  <span className="bill-stacked-actions" style={{ display: "flex", marginBlockStart: 12 }}>
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={onResume}
+                      data-billing-manage-resume
+                    >
+                      Restart subscription
+                    </Button>
+                  </span>
+                ) : null}
               </p>
             ) : actions.canRequestCancellation ? (
               <>

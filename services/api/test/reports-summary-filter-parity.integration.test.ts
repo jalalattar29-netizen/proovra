@@ -109,6 +109,31 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     const A = harness.fixtures.teamA;
     const B = harness.fixtures.teamB;
 
+    /*
+     * FUNDING. The package expectations below (one failed, one gate-blocked)
+     * describe a workspace whose plan INCLUDES verification packages. The
+     * harness organization is a customer organization with no contract, which
+     * the canonical commercial resolver answers as FREE — and on FREE the
+     * canonical output derivation ranks NOT_INCLUDED above a failure or a
+     * gate block, so those records are (correctly) "unavailable", not failed
+     * or blocked. Workspace A is therefore funded the way a real entitled
+     * organization is: an ENTERPRISE workspace with an ACTIVE contract.
+     * Workspace B stays FREE and carries its own blocked record, so the
+     * NOT_INCLUDED ≠ BLOCKED distinction is asserted too.
+     */
+    const orgA = await prisma.team.update({
+      where: { id: A.teamId },
+      data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
+      select: { organizationId: true },
+    });
+    if (orgA.organizationId) {
+      await prisma.enterpriseContract.upsert({
+        where: { organizationId: orgA.organizationId },
+        create: { organizationId: orgA.organizationId, status: "ACTIVE" },
+        update: { status: "ACTIVE" },
+      });
+    }
+
     // Ready report AND package, two versions each (v2, v7): ONE record.
     await artifacts(await evidence(A.teamId, A.ownerUserId, "readyBoth", "REPORTED"), [2, 7], ["report", "package"]);
     // Report only.
@@ -161,6 +186,12 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     // Workspace B: pending work that must never show up in A.
     await request(B.teamId, await evidence(B.teamId, B.ownerUserId, "otherQueued", "SIGNED"), "QUEUED");
     await request(B.teamId, await evidence(B.teamId, B.ownerUserId, "otherFailed", "SIGNED"), "FAILED_RETRYABLE");
+    // Workspace B is FREE: a gate-blocked record there is NOT_INCLUDED, never "blocked".
+    const freeBlocked = await evidence(B.teamId, B.ownerUserId, "freePackageBlocked", "SIGNED");
+    await prisma.evidence.update({
+      where: { id: freeBlocked },
+      data: { verificationPackageMetadata: { blocked: true, reason: "PACKAGE_GATE_DENIED" } },
+    });
   }, 180_000);
 
   afterAll(async () => {
@@ -246,11 +277,25 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     // readyBoth (v2 + v7 of each), reportOnly and latestPackageFailed.
     expect(s.reportsReady).toBe(3);
     expect(s.packagesReady).toBe(1);
-    expect(s.packagesFailed).toBe(1);
+    /*
+     * Package-failed is a SET, stated rather than counted. A REPORT request
+     * is the worker's NEW_REPORT run, which builds the report AND its package
+     * as one pair (services/worker/src/processor.ts); when it fails, neither
+     * output was produced, so the package failed with it — the same rule this
+     * file relies on for pending, where a queued REPORT request is package-
+     * pending. `latestPackageFailed` is the package-only failure for v7. This
+     * read `1` when the file first landed, but the file never compiled, so the
+     * number had never been checked against the aggregator.
+     */
+    const pkgFailed = (await walk(harness.fixtures.teamA.teamId, "package_failed", 100)).rows;
+    expect(pkgFailed.map((r) => r.evidenceId).sort()).toEqual(
+      [ids.latestPackageFailed, ids.failedRetryable, ids.failedTerminal, ids.olderQueuedNowFailed].sort(),
+    );
+    expect(s.packagesFailed).toBe(4);
     expect(s.totalEvidenceWithArtifacts).toBe(3);
     expect(s.totalArtifactVersions).toBe(8);
 
-    const failedRow = (await walk(A.teamId, "package_failed", 100)).rows[0];
+    const failedRow = pkgFailed.find((r) => r.evidenceId === ids.latestPackageFailed);
     expect(failedRow?.evidenceId).toBe(ids.latestPackageFailed);
     expect(failedRow?.report.version).toBe(7);
     expect(failedRow?.package.version).toBeNull();
@@ -274,6 +319,20 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
       expect(pending).not.toContain(id);
       expect(pkgPending).not.toContain(id);
     }
+  });
+
+  it("NOT_INCLUDED is not BLOCKED: a gate-blocked record on a plan without packages reads unavailable in its row, filter and tile", async () => {
+    const B = harness.fixtures.teamB;
+    const { rows: all } = await walk(B.teamId, "all", 100);
+    const row = all.find((r) => r.evidenceId === ids.freePackageBlocked);
+    expect(row?.package.state).toBe("unavailable");
+    expect((await walk(B.teamId, "package_blocked", 100)).rows.map((r) => r.evidenceId)).not.toContain(
+      ids.freePackageBlocked,
+    );
+    expect((await summaryOf(B.teamId)).packagesBlocked).toBe(0);
+    // ...while the same metadata on an entitled workspace IS blocked.
+    const A = harness.fixtures.teamA;
+    expect((await walk(A.teamId, "package_blocked", 100)).rows.map((r) => r.evidenceId)).toEqual([ids.packageBlocked]);
   });
 
   it("failed is the latest request's state and stays inside the workspace", async () => {

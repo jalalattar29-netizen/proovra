@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**170 bindings — OK 170, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**171 bindings — OK 171, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -37,7 +37,8 @@ top level of it.
 | OK | `parseBatchJobs` | `GET /v1/batch-analysis` | data | data |
 | OK | `parseBillingAccounts` | `GET /v1/billing/accounts` | accounts | accounts |
 | OK | `parseBillingProjection` | `GET /v1/billing/accounts/:type/:id` | <SPREAD>, account, actionRequired, actions, collaboration, plan, usage | account, actionRequired, actions, collaboration, contract, dependentStorageCancellation,… |
-| OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | count, items | items |
+| OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | items |
+| OK | `parseBillingActivity` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | activity, map |
 | OK | `parseBillingOverview` | `GET /v1/billing/overview` | entitlement, storageAddons, summary, workspaces | storageAddons, summary, workspaces |
 | OK | `parsePricingCatalogue` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | currency, enterprise |
 | OK | `parseStorageAddons` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | storageAddons |

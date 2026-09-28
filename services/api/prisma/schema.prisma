@@ -969,6 +969,7 @@ model User {
   cookieConsentRecords              CookieConsentRecord[]
   legalAcceptances                  UserLegalAcceptance[]
   storageAddons                     WorkspaceStorageAddon[]
+  billingCheckoutAttempts           BillingCheckoutAttempt[]
   evidenceAiCategorizations         EvidenceAiCategorization[]
   evidenceAnnotations               EvidenceAnnotation[]
   evidenceLegalNotes                EvidenceLegalNote[]
@@ -2325,6 +2326,13 @@ model Subscription {
   /// customer has already paid the current period for. Both columns are set
   /// only after the provider accepts the schedule, and are cleared by the
   /// webhook that applies it.
+  /// BILLING CHECKOUT ATTEMPTS (2026-09-28) — what the PROVIDER bills this
+  /// subscription in, recorded from provider facts (Stripe `currency` and
+  /// price `unit_amount`; PayPal `plan_id` currency and last payment). NULL =
+  /// never observed (legacy rows); the Billing page then shows no price rather
+  /// than a guessed one.
+  billedCurrency            String?            @map("billed_currency") @db.VarChar(8)
+  billedUnitAmountCents     Int?               @map("billed_unit_amount_cents")
   pendingPlan               PlanType?          @map("pending_plan")
   pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
   createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -3629,6 +3637,77 @@ enum DependentCancellationState {
   /// Fast retries are exhausted. Still charging, still escalated; only
   /// provider truth may resolve it.
   MANUAL_INTERVENTION
+}
+
+/// BILLING CHECKOUT ATTEMPTS (2026-09-28) — the durable pre-provider record of
+/// a PayPal PLAN or EVIDENCE-CREDIT checkout.
+///
+/// Written and committed BEFORE the provider is called. Its id is the
+/// `PayPal-Request-Id` of the create request and is carried in the provider
+/// resource's `custom_id`, so a lost create response, a crash or a delayed
+/// webhook still correlates the provider resource to this row.
+///
+/// NOT an entitlement or payment authority. Plans are still written only by
+/// `syncPlanForSubscription`, credits only by `grantEvidenceCredits`, payments
+/// only by `recordPayment`. This row records what the customer started and
+/// what the provider has said about it, so Billing can show an attempt that
+/// has not (yet) produced a payment. Storage add-on attempts keep using their
+/// own `workspace_storage_addons` rows, which already model this lifecycle.
+model BillingCheckoutAttempt {
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String                       @map("user_id") @db.Uuid
+  product            BillingCheckoutProduct
+  provider           PaymentProvider
+  /// PLAN attempts only: the tier being bought.
+  planKey            PlanType?                    @map("plan_key")
+  /// STORAGE_ADDON attempts only (Stripe): the SKU being bought. PayPal
+  /// storage attempts keep using their own `workspace_storage_addons` rows.
+  storageAddonKey    StorageAddonKey?             @map("storage_addon_key")
+  /// Server price at creation. Never a client value.
+  amountCents        Int                          @map("amount_cents")
+  currency           String                       @db.VarChar(8)
+  status             BillingCheckoutAttemptStatus @default(PENDING)
+  /// Finer-grained state inside PENDING/FAILED, from a closed vocabulary:
+  /// PROVIDER_CREATE_IN_PROGRESS, PROVIDER_OUTCOME_UNKNOWN,
+  /// AWAITING_CUSTOMER_APPROVAL, CAPTURE_PENDING, PROVIDER_REJECTED,
+  /// NEEDS_REVIEW.
+  checkoutState      String                       @map("checkout_state") @db.VarChar(48)
+  /// PayPal subscription id (PLAN) or order id (EVIDENCE_CREDIT).
+  providerResourceId String?                      @map("provider_resource_id") @db.VarChar(128)
+  /// The settled payment reference (PayPal capture id) once COMPLETED.
+  providerPaymentRef String?                      @map("provider_payment_ref") @db.VarChar(128)
+  providerStateAtUtc DateTime?                    @map("provider_state_at_utc") @db.Timestamptz(6)
+  completedAtUtc     DateTime?                    @map("completed_at_utc") @db.Timestamptz(6)
+  /// Safe correlation diagnostics only (HTTP status, paypal-debug-id,
+  /// environment, plan id, redacted approval-link identity, last provider
+  /// check). Never an approval token or provider payload.
+  metadata           Json?
+  createdAt          DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerResourceId])
+  @@index([userId, status, createdAt])
+  @@map("billing_checkout_attempts")
+}
+
+enum BillingCheckoutProduct {
+  PLAN
+  EVIDENCE_CREDIT
+  /// Stripe storage add-on checkouts (2026-09-28).
+  STORAGE_ADDON
+}
+
+enum BillingCheckoutAttemptStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELED
+  EXPIRED
+  /// The customer stopped pursuing the attempt locally. Not a provider
+  /// cancellation: a later provider-proven completion still wins.
+  ABANDONED
 }
 
 enum WorkspaceStorageAddonStatus {

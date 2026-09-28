@@ -198,14 +198,19 @@ describe("Phase IA-self-serve-regression-fix — BUG 3: user-scoped reports", ()
     // The fallback helper is wired:
     expect(INDEX).toMatch(/tryUserScopedReports/);
     // Trigger 1: empty workspace result → recover via user-scoped.
+    //
+    // e9efd55 (2026-09-28) scoped the fallback to the SELECTED workspace: it
+    // used to call `/v1/reports` with no workspace at all, which returned the
+    // caller's reports from EVERY workspace under the one they had selected.
+    // Both triggers must now pass the workspace, and the adapter must send it.
     expect(INDEX).toMatch(
-      /envelope\.sections\.artifacts\.status === "ok"[\s\S]{0,200}items\.length === 0[\s\S]{0,400}tryUserScopedReports\(\)/,
+      /envelope\.sections\.artifacts\.status === "ok"[\s\S]{0,200}items\.length === 0[\s\S]{0,400}tryUserScopedReports\(workspaceId\)/,
     );
     // Trigger 2: 404 from workspace endpoint → recover.
     expect(INDEX).toMatch(
-      /e\.statusCode === 404[\s\S]{0,200}tryUserScopedReports\(\)/,
+      /e\.statusCode === 404[\s\S]{0,200}tryUserScopedReports\(workspaceId\)/,
     );
-    // The fallback adapter calls GET /v1/reports.
-    expect(INDEX).toMatch(/apiFetch\(`?\/v1\/reports`?/);
+    // The fallback adapter calls GET /v1/reports, scoped to that workspace.
+    expect(INDEX).toMatch(/apiFetch\(`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}`/);
   });
 });

@@ -143,7 +143,7 @@ vi.mock("../src/services/stripe.service.js", () => ({
   stripeGet: async (path: string) => {
     H.providerCalls.push(`stripeGet ${path}`);
     if (H.providerFails) throw new Error("stripe unavailable");
-    return { items: { data: [{ id: "si_1" }] } };
+    return { items: { data: [{ id: "si_1" }] }, currency: "eur" };
   },
   stripeRequest: async (path: string, body: URLSearchParams) => {
     H.providerCalls.push(`stripePost ${path}`);
@@ -159,6 +159,13 @@ vi.mock("../src/services/stripe.service.js", () => ({
 }));
 
 vi.mock("../src/services/paypal.service.js", () => ({
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a change reads the live
+  // subscription's billed plan first, so it stays in that currency.
+  getPayPalSubscription: async (id: string) => {
+    H.providerCalls.push(`paypalGet /v1/billing/subscriptions/${id}`);
+    if (H.providerFails) throw new Error("paypal unavailable");
+    return { id, plan_id: "P-PRO-EUR-LIVE" };
+  },
   paypalRequest: async (path: string) => {
     H.providerCalls.push(`paypalPost ${path}`);
     if (H.providerFails) throw new Error("paypal unavailable");
@@ -178,6 +185,10 @@ vi.mock("../src/services/billing-pricing.service.js", () => ({
   getStripePlanPriceId: (plan: string) =>
     plan === "NOPRICE" ? null : `price_${plan}`,
   resolveCheckoutCurrency: () => "EUR",
+}));
+
+vi.mock("../src/services/paypal-plan-map.service.js", () => ({
+  currencyForPayPalBasePlanId: (id: string) => (id === "P-PRO-EUR-LIVE" ? "EUR" : null),
 }));
 
 vi.mock("../src/services/paypal-checkout-policy.service.js", () => ({
@@ -525,6 +536,8 @@ describe("applyPersonalPlanChange — UPGRADE (Stripe)", () => {
     H.subscription = live({ plan: "PRO" });
     await upgrade();
     expect(H.providerCalls).toEqual([
+      // the billed currency, then the item to move
+      "stripeGet /subscriptions/sub_ext_1",
       "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscriptions/sub_ext_1",
     ]);
@@ -622,6 +635,8 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
   it("schedules at the provider — it does not update the live subscription", async () => {
     await downgrade();
     expect(H.providerCalls).toEqual([
+      // a READ of the billed currency, never a write to the live subscription
+      "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscription_schedules",
       "stripePost /subscription_schedules/sched_1",
     ]);
@@ -675,7 +690,10 @@ describe("applyPersonalPlanChange — PayPal", () => {
 
   it("revises the existing agreement — never a second one", async () => {
     await paypal("UPGRADE");
-    expect(H.providerCalls).toEqual(["paypalPost /v1/billing/subscriptions/sub_ext_1/revise"]);
+    expect(H.providerCalls).toEqual([
+      "paypalGet /v1/billing/subscriptions/sub_ext_1",
+      "paypalPost /v1/billing/subscriptions/sub_ext_1/revise",
+    ]);
   });
 
   it("an approval link means the buyer has NOT agreed — nothing is claimed as done", async () => {

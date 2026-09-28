@@ -48,13 +48,15 @@ import {
   readBillingAccount,
   readBillingHistory,
   requestCancellation,
+  requestResume,
   changePlan,
   reconcileAccount,
   recheckPayment,
   cancelPayment,
   abandonPayment,
-  abandonStorageAttempt,
-  recheckStorageAttempt,
+  abandonCheckoutAttempt,
+  recheckCheckoutAttempt,
+  type BillingActivityItem,
   retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
@@ -79,6 +81,11 @@ import { CheckoutDrawer, type CheckoutIntent } from "./_sections/CheckoutDrawer"
 import { ManagePlanDrawer } from "./_sections/ManagePlanDrawer";
 import { usePayPalReturn } from "./_sections/usePayPalReturn";
 import { formatDate } from "./_sections/format";
+import {
+  describeAttemptRecheck,
+  describeReconciliation,
+  safeCheckoutResumeUrl,
+} from "./_sections/billingMessages";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
 // responsive table, the action tiers — stays on the canonical app-* set.
@@ -160,6 +167,12 @@ function BillingPageInner() {
   const [projection, setProjection] = useState<BillingAccountProjection | null>(null);
 
   const [history, setHistory] = useState<BillingHistoryEntry[]>([]);
+  // BILLING ACTIVITY (2026-09-28) — checkout attempts without a payment, read
+  // in the SAME request as the payments so the two can never disagree about
+  // which account they belong to.
+  const [activity, setActivity] = useState<BillingActivityItem[]>([]);
+  const [attemptBusyId, setAttemptBusyId] = useState<string | null>(null);
+  const [attemptResumeUrls, setAttemptResumeUrls] = useState<Record<string, string>>({});
   const [historyState, setHistoryState] =
     useState<"LOADING" | "READY" | "DENIED" | "ERROR">("LOADING");
 
@@ -247,15 +260,19 @@ function BillingPageInner() {
       const captured = stamp();
       setHistoryState("LOADING");
       try {
-        const items = await readBillingHistory({
+        const { items, activity: attempts } = await readBillingHistory({
           type: account.type,
           id: account.id,
         });
         if (isStale(captured)) return;
         setHistory(items);
+        setActivity(attempts);
+        // A resume link is only valid for the answer that produced it.
+        setAttemptResumeUrls({});
         setHistoryState("READY");
       } catch (err) {
         if (isStale(captured)) return;
+        setActivity([]);
         const status = (err as { statusCode?: number })?.statusCode;
         // A missing capability is a DENIAL, never an empty list — otherwise it
         // reads as "you have no payments".
@@ -336,6 +353,45 @@ function BillingPageInner() {
   }, [selected, addonRetryBusy, addToast, refresh]);
 
   // ---- Cancellation ------------------------------------------------------
+  /*
+   * BILLING RESTART (2026-09-28) — undo a scheduled cancellation. The server
+   * asks the provider first; a PayPal subscription is refused with the reason.
+   */
+  const handleResume = useCallback(async () => {
+    if (!selected || !projection || cancelBusy) return;
+    const ok = await confirm({
+      title: `Restart ${projection.plan.displayName}?`,
+      description:
+        "Your subscription will renew as normal at the end of the current period, and you will be charged then. Storage add-ons already set to end are not restarted.",
+      confirmLabel: "Restart subscription",
+      cancelLabel: "Keep it cancelling",
+      tone: "neutral",
+      testId: "billing-resume-subscription",
+    });
+    if (!ok) return;
+    setCancelBusy(true);
+    try {
+      const result = await requestResume();
+      addToast(
+        result.result === "RESUMED"
+          ? result.dependentAddonsStillEnding > 0
+            ? "Subscription restarted. Storage add-ons that were set to end will still end."
+            : "Subscription restarted. It will renew as normal."
+          : "This subscription was not set to end; nothing changed.",
+        "success",
+      );
+      await refresh();
+    } catch (err) {
+      captureException(err, { feature: "billing_resume_subscription" });
+      const safe = toSafeUserError(err, {
+        message: "We could not restart this subscription. Nothing has changed; it is still set to end.",
+      });
+      addToast(safe.message, "error");
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [selected, projection, cancelBusy, confirm, addToast, refresh]);
+
   const handleCancel = useCallback(async () => {
     if (!selected || !projection) return;
 
@@ -689,45 +745,12 @@ function BillingPageInner() {
     setRecheckBusy(true);
     try {
       const result = await reconcileAccount(selected);
-      switch (result.outcome) {
-        case "UPDATED":
-          addToast(
-            "Your provider had something we had not recorded. Your billing is now up to date.",
-            "success",
-          );
-          refresh();
-          break;
-        case "PENDING": {
-          const pendingAttempts =
-            result.summary?.storageAttempts.filter(
-              (attempt) => attempt.outcome === "STILL_PENDING",
-            ).length ?? 0;
-          addToast(
-            pendingAttempts > 0
-              ? `${pendingAttempts} storage approval ${pendingAttempts === 1 ? "is" : "are"} still awaiting customer action at the provider.`
-              : "Your provider confirms that a billing item is still pending.",
-            "info",
-          );
-          break;
-        }
-        case "ACTION_REQUIRED":
-          addToast(
-            "Something on this account needs our help. Please contact support.",
-            "error",
-          );
-          break;
-        case "PROVIDER_UNAVAILABLE":
-          addToast(
-            "We could not reach your payment provider just now. Your billing records are unchanged.",
-            "error",
-          );
-          break;
-        default:
-          addToast(
-            "Everything on this account already matches your payment provider.",
-            "success",
-          );
-      }
+      // BILLING ACTIVITY (2026-09-28) — one specific, truthful sentence built
+      // from what was checked, what changed and what still needs the
+      // customer. "Pending" only when the provider itself said so.
+      const notice = describeReconciliation(result);
+      addToast(notice.message, notice.tone);
+      refresh();
     } catch (err) {
       captureException(err, { feature: "billing_restore" });
       const safe = toSafeUserError(err, {
@@ -850,86 +873,94 @@ function BillingPageInner() {
     [confirm, addToast, refresh],
   );
 
-  const handleRecheckAddon = useCallback(
-    async (addonId: string) => {
-      if (!selected || cancelAddonBusy) return;
-      setCancelAddonBusy(addonId);
+  /*
+   * BILLING ACTIVITY (2026-09-28) — ONE attempt's actions, for every product.
+   *
+   * "Check status" asks the provider and reports its answer in words; it
+   * never redirects on its own. A still-open PayPal approval yields a
+   * "Continue at PayPal" link the customer chooses to follow. "Abandon" asks
+   * the provider first; only when the provider cannot settle it does the
+   * customer see — and confirm — what abandoning does and does not mean.
+   */
+  const handleRecheckAttempt = useCallback(
+    async (item: BillingActivityItem) => {
+      if (!selected || attemptBusyId) return;
+      setAttemptBusyId(item.id);
       try {
-        const result = await recheckStorageAttempt(selected, addonId);
-        if (result.outcome === "STILL_PENDING" && result.resumeUrl) {
-          const url = new URL(result.resumeUrl);
-          if (
-            url.protocol !== "https:" ||
-            !["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)
-          ) {
-            throw new Error("Unexpected PayPal approval URL");
-          }
-          window.location.href = url.toString();
-          return;
-        }
-        addToast(
-          result.outcome === "UPDATED"
-            ? "The provider confirmed a new state for this storage attempt."
-            : result.outcome === "STILL_PENDING"
-              ? "PayPal still has this approval open, but did not provide a resumable approval link."
-              : "This attempt could not be resolved automatically. Its local status was not guessed.",
-          result.outcome === "UPDATED" ? "success" : "info",
-        );
-        refresh();
+        const result = await recheckCheckoutAttempt(selected, item.id);
+        const resume = result.outcome === "STILL_PENDING" ? safeCheckoutResumeUrl(result.resumeUrl) : null;
+        const notice = describeAttemptRecheck({ ...result, resumeUrl: resume });
+        addToast(notice.message, notice.tone);
+        await loadHistory(selected);
+        if (resume) setAttemptResumeUrls((prev) => ({ ...prev, [item.id]: resume }));
+        if (result.outcome === "UPDATED") void loadProjection(selected);
       } catch (err) {
-        captureException(err, { feature: "billing_storage_attempt_recheck" });
-        addToast("We could not verify this storage attempt. Nothing was changed.", "error");
+        captureException(err, { feature: "billing_checkout_attempt_recheck" });
+        const safe = toSafeUserError(err, {
+          message: "We could not check this purchase just now. Nothing was changed.",
+        });
+        addToast(safe.message, "error");
       } finally {
-        setCancelAddonBusy(null);
+        setAttemptBusyId(null);
       }
     },
-    [selected, cancelAddonBusy, addToast, refresh],
+    [selected, attemptBusyId, addToast, loadHistory, loadProjection],
   );
 
-  const handleAbandonAddon = useCallback(
-    async (addonId: string) => {
-      if (!selected || cancelAddonBusy) return;
-      setCancelAddonBusy(addonId);
+  const handleAbandonAttempt = useCallback(
+    async (item: BillingActivityItem) => {
+      if (!selected || attemptBusyId) return;
+      setAttemptBusyId(item.id);
       try {
-        const first = await abandonStorageAttempt(selected, addonId);
-        if (first.outcome !== "ABANDON_CONFIRMATION_REQUIRED") {
-          addToast(
-            first.outcome === "STILL_PENDING"
-              ? "The provider still has this approval open, so it was not abandoned locally."
-              : "The provider supplied a definitive state, so PROOVRA recorded that instead.",
-            "info",
-          );
-          refresh();
-          return;
+        const first = await abandonCheckoutAttempt(selected, item.id);
+        if (first.outcome === "ABANDON_CONFIRMATION_REQUIRED") {
+          const ok = await confirm({
+            title: `Abandon this purchase? (${item.description})`,
+            description:
+              first.warning ??
+              "Abandoning only removes this from PROOVRA's open purchases. It does not cancel anything at the payment provider.",
+            confirmLabel: first.cancelsAtProvider ? "Close checkout" : "Abandon in PROOVRA",
+            cancelLabel: "Keep it",
+            tone: "warning",
+            testId: "billing-abandon-attempt",
+          });
+          if (!ok) return;
+          const confirmed = await abandonCheckoutAttempt(selected, item.id, true);
+          if (confirmed.outcome === "PROVIDER_CANCEL_FAILED") {
+            addToast(
+              confirmed.warning ?? "The payment provider could not confirm this was closed, so it is still shown as open.",
+              "error",
+            );
+          } else {
+            addToast(
+              confirmed.outcome !== "ABANDONED"
+                ? "This purchase had already been resolved; nothing was changed."
+                : confirmed.cancelsAtProvider
+                  ? "Closed at the payment provider. Nothing was charged."
+                  : "Abandoned in PROOVRA. Nothing was cancelled or charged at the payment provider.",
+              confirmed.outcome === "ABANDONED" ? "success" : "info",
+            );
+          }
+        } else if (first.outcome === "ABANDON_NOT_ALLOWED") {
+          addToast(first.warning ?? "This purchase is being processed and cannot be abandoned.", "info");
+        } else if (first.outcome === "PROVIDER_STATE_RECORDED") {
+          addToast("The provider had already settled this purchase, so its answer was recorded instead.", "info");
+        } else {
+          addToast("This purchase had already been resolved; nothing was changed.", "info");
         }
-        const ok = await confirm({
-          title: "Abandon this storage attempt?",
-          description:
-            (("warning" in first && first.warning) ??
-              "The provider could not verify this attempt.") +
-            " If the provider later confirms activation, PROOVRA will still apply it.",
-          confirmLabel: "Abandon local attempt",
-          cancelLabel: "Keep pending",
-          tone: "warning",
-          testId: "billing-abandon-storage-attempt",
-        });
-        if (!ok) return;
-        const result = await abandonStorageAttempt(selected, addonId, true);
-        addToast(
-          result.outcome === "ABANDONED"
-            ? "The unresolved local attempt is no longer blocking a new checkout. Nothing was changed at the provider."
-            : "This storage attempt was already resolved.",
-          result.outcome === "ABANDONED" ? "success" : "info",
-        );
-        refresh();
+        await loadHistory(selected);
+        void loadProjection(selected);
       } catch (err) {
-        captureException(err, { feature: "billing_storage_attempt_abandon" });
-        addToast("We could not abandon this attempt. Nothing was changed.", "error");
+        captureException(err, { feature: "billing_checkout_attempt_abandon" });
+        const safe = toSafeUserError(err, {
+          message: "We could not abandon this purchase just now. Nothing was changed.",
+        });
+        addToast(safe.message, "error");
       } finally {
-        setCancelAddonBusy(null);
+        setAttemptBusyId(null);
       }
     },
-    [selected, cancelAddonBusy, confirm, addToast, refresh],
+    [selected, attemptBusyId, confirm, addToast, loadHistory, loadProjection],
   );
 
   /**
@@ -1164,8 +1195,6 @@ function BillingPageInner() {
                 onManageStorage={() => setCheckout({ kind: "STORAGE" })}
                 onChoosePlan={() => openPlanManagement()}
                 onCancelAddon={(id) => void handleCancelAddon(id)}
-                onRecheckAddon={(id) => void handleRecheckAddon(id)}
-                onAbandonAddon={(id) => void handleAbandonAddon(id)}
                 cancelBusyId={cancelAddonBusy}
               />
             </div>
@@ -1188,11 +1217,11 @@ function BillingPageInner() {
               onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
               rowBusyId={paymentBusyId}
               resumeUrls={resumeUrls}
-              storageAttempts={
-                projection.storageAddons?.active.filter(
-                  (addon) => addon.status !== "ACTIVE" && addon.status !== "PAST_DUE",
-                ) ?? []
-              }
+              activity={activity}
+              onRecheckAttempt={(item) => void handleRecheckAttempt(item)}
+              onAbandonAttempt={(item) => void handleAbandonAttempt(item)}
+              attemptBusyId={attemptBusyId}
+              attemptResumeUrls={attemptResumeUrls}
               onRecheck={() => void handleAccountRecheck()}
               accessKind={projection.plan.accessKind}
             />
@@ -1259,6 +1288,7 @@ function BillingPageInner() {
             onClose={() => setManagePlanOpen(false)}
             onChangePlan={(offer) => void handleChangePlan(offer)}
             onCancel={() => void handleCancel()}
+            onResume={() => void handleResume()}
             changeBusyPlan={changeBusyPlan}
             cancelBusy={cancelBusy}
           />

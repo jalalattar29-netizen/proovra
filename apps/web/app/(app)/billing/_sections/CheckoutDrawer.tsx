@@ -19,6 +19,7 @@
  * browser could be wrong about.
  */
 
+import { safeCheckoutResumeUrl, safePayPalResumeUrl } from "./billingMessages";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../../../components/ui/Button";
@@ -144,7 +145,10 @@ export function CheckoutDrawer({
       }
       const stripeUrl = (data as { session?: { url?: string } })?.session?.url;
       if (stripeUrl) {
-        window.location.href = stripeUrl;
+        // Only Stripe's own hosted checkout page, never an arbitrary URL.
+        const safe = safeCheckoutResumeUrl(stripeUrl);
+        if (!safe || safePayPalResumeUrl(stripeUrl)) throw new Error("Unexpected Stripe checkout URL");
+        window.location.href = safe;
         return;
       }
       const links =

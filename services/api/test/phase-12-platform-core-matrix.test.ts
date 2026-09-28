@@ -243,6 +243,9 @@ vi.mock("../src/db.js", () => ({
       findUnique: async () => null,
       updateMany: async () => ({ count: 0 }),
     },
+    // BILLING ACTIVITY (2026-09-28) — history also lists checkout attempts
+    // that have not produced a payment (none for this caller).
+    billingCheckoutAttempt: { findMany: async () => [] },
     user: {
       findUnique: async () => ({
         id: H.actorUserId,
@@ -302,6 +305,11 @@ vi.mock(
         actionRequired: 0,
         unavailable: 0,
         discrepancies: 0,
+        // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the summary now itemizes
+        // every checkout attempt it examined (none here).
+        storageAttempts: [],
+        attempts: [],
+        attemptsUpdated: 0,
       };
     },
     /*

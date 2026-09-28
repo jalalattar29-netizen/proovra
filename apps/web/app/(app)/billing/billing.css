@@ -663,6 +663,10 @@
   margin: 0;
   padding: 0;
   display: grid;
+  /* A single track that may shrink below its content's min-content. Without
+     it the implicit `auto` track grew to the widest row's unwrappable actions
+     and every row overflowed the card at 390px (Billing activity, 2026-09-28). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -680,6 +684,7 @@
 
 .bill-addon__facts {
   min-inline-size: 0;
+  flex: 1 1 16rem;
   display: grid;
   gap: 2px;
 }
@@ -698,8 +703,15 @@
 
 .bill-addon__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+/* A status WORD in an activity row keeps its words together rather than
+   stacking one per line beside the buttons. */
+[data-billing-activity-status] {
+  white-space: nowrap;
 }
 
 .bill-addon__actions > button {

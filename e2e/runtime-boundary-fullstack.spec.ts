@@ -199,7 +199,9 @@ test.describe("runtime boundary — generation outage (worker stopped past the h
     await expect(notice).not.toContainText(/stale|corrupt|incomplete|partial/i);
     expect(await page.locator("body").innerText()).not.toMatch(PANEL);
     await expect(page.locator('[data-evidence-artifact-download="report"]')).toBeEnabled();
-    await expect(page.locator('[data-service-status-indicator="ISSUE"]')).toHaveCount(1);
+    // A non-operator's shell reads no status (operations-shell-boundary.spec.ts);
+    // the outage is said beside the action above.
+    await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
     // The existing artifact is really retrievable during the outage.
     const pdf = await downloadBytes(s.a.token, `/v1/evidence/${s.evidenceId}/report/latest`);
     expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");

@@ -83,12 +83,24 @@ export function stripeApiBase() {
   return "https://api.stripe.com/v1";
 }
 
-export async function stripeRequest(path: string, body: URLSearchParams) {
+export async function stripeRequest(
+  path: string,
+  body: URLSearchParams,
+  options: {
+    /**
+     * BILLING CHECKOUT ATTEMPTS (2026-09-28) — Stripe's `Idempotency-Key`. A
+     * retried create with the same key returns the original object instead
+     * of a second session.
+     */
+    idempotencyKey?: string | null;
+  } = {},
+) {
   const res = await fetch(`${stripeApiBase()}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${must("STRIPE_SECRET_KEY")}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
     },
     body,
   });

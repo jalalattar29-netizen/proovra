@@ -449,6 +449,28 @@ describe("PayPal webhooks — captures", () => {
     expect(state.ledger.size).toBe(1);
   });
 
+  it("a byte-different redelivery while the first delivery still holds its lease is deferred (503), not processed concurrently", async () => {
+    creditOrder("ORDER-LEASE", "APPROVED");
+    captureOrder("ORDER-LEASE", "COMPLETED");
+    // The first delivery is mid-flight: RECEIVED, lease fresh, different bytes.
+    state.webhookEvents.set("WH-IN-FLIGHT", {
+      processingStatus: "RECEIVED",
+      payloadHash: "hash-of-the-first-delivery",
+      receivedAt: new Date(),
+    } as never);
+
+    const redelivery = await deliver("PAYMENT.CAPTURE.COMPLETED", {
+      id: "CAP-ORDER-LEASE",
+      status: "COMPLETED",
+      supplementary_data: { related_ids: { order_id: "ORDER-LEASE" } },
+    }, "WH-IN-FLIGHT");
+
+    expect(redelivery.statusCode).toBe(503);
+    expect(redelivery.json()).toMatchObject({ retryable: true });
+    expect(grantEvidenceCredits).not.toHaveBeenCalled();
+    expect(state.captureCalls).toEqual([]);
+  });
+
   it("CHECKOUT.ORDER.APPROVED captures server-side (buyer closed the tab) and the later capture event does not grant again", async () => {
     creditOrder("ORDER-WH-3", "APPROVED");
     await deliver("CHECKOUT.ORDER.APPROVED", { id: "ORDER-WH-3", status: "APPROVED" });

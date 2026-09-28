@@ -9,9 +9,10 @@
  *   * no platform diagnostic panel above the record, under any status;
  *   * a real generation incident is one line beside Regenerate in Artifacts,
  *     and the existing report download stays enabled;
- *   * the header carries the one global status control, silent when healthy;
- *   * a failed status read is "Status unavailable" in the header, never a
- *     warning on the record and never an all-clear;
+ *   * the SHELL reads no runtime status for a caller without operational
+ *     access (operations-shell-boundary.spec.ts): the header carries no status
+ *     control for them; service impact is said beside the action it affects;
+ *   * a failed status read is never a warning on the record;
  *   * navigating between tabs neither duplicates the notice nor re-polls;
  *   * the page recovers when the next poll succeeds;
  *   * no horizontal overflow at phone width with a notice showing.
@@ -64,7 +65,7 @@ test("healthy: no panel on the record, no notice in Artifacts, no header status 
   await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
 });
 
-test("generation degraded: one line beside Regenerate, download stays enabled, header says 'Service issue'", async ({ page }) => {
+test("generation degraded: one line beside Regenerate, download stays enabled, no header control for a non-operator", async ({ page }) => {
   await serve(page, () => ({
     status: 200,
     body: { status: "DEGRADED", capabilities: caps({ artifactGeneration: "DEGRADED" }), checkedAt: new Date().toISOString() },
@@ -82,15 +83,10 @@ test("generation degraded: one line beside Regenerate, download stays enabled, h
   // The existing report is still downloadable.
   await expect(page.locator('[data-evidence-artifact-download="report"]')).toBeEnabled();
   await expect(page.locator('[data-evidence-action="download-report"]')).toBeEnabled();
-  // The one global control.
-  const chip = page.locator("[data-service-status-indicator]");
-  await expect(chip).toHaveCount(1);
-  await expect(chip).toHaveAttribute("data-service-status-indicator", "ISSUE");
-  await chip.getByRole("button").click();
-  await expect(page.locator("[data-service-status-dropdown]")).toContainText("Report and package generation is delayed");
-  // No admin destination offered to this user.
-  const hrefs = await page.locator("[data-service-status-dropdown] a").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
-  expect(hrefs.filter((h) => h?.startsWith("/admin"))).toEqual([]);
+  // The shell carries no status control for a caller without operational
+  // access — the contextual notice above is where this user learns it.
+  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
+  await expect(page.locator("[data-global-runtime-indicator]")).toHaveCount(0);
 });
 
 test("tab navigation neither duplicates the notice nor re-polls the status", async ({ page }) => {
@@ -104,27 +100,17 @@ test("tab navigation neither duplicates the notice nor re-polls the status", asy
     await page.getByRole("tab", { name: tab }).click();
   }
   await expect(page.locator('[data-service-notice="artifactGeneration"]')).toHaveCount(1);
-  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(1);
+  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
   expect(reads.length).toBe(1);
 });
 
-test("a failed status read: nothing on the record, 'Status unavailable' in the header — then recovery on the next poll", async ({ page }) => {
-  await page.clock.install();
-  let fail = true;
-  await serve(page, () =>
-    fail
-      ? { status: 503, body: { message: "unavailable" } }
-      : { status: 200, body: { status: "HEALTHY", capabilities: caps() } },
-  );
+test("a failed status read: nothing on the record, and no header control claims a status", async ({ page }) => {
+  const reads = await serve(page, () => ({ status: 503, body: { message: "unavailable" } }));
   await openArtifacts(page);
-  await page.clock.runFor(1_500);
-  await expect(page.locator('[data-service-status-indicator="UNKNOWN"]')).toHaveCount(1, { timeout: 5000 });
+  await expect.poll(() => reads.length, { timeout: 5000 }).toBeGreaterThan(0);
   await expect(page.locator("[data-service-notice]")).toHaveCount(0);
   expect(await page.locator("body").innerText()).not.toMatch(PANEL);
-  // The service recovers; the next 60s poll clears the header control.
-  fail = false;
-  await page.clock.runFor(61_000);
-  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
 });
 
 test("phone width with a notice showing: no horizontal overflow", async ({ page }) => {
@@ -139,14 +125,15 @@ test("phone width with a notice showing: no horizontal overflow", async ({ page 
   expect(over).toBeLessThanOrEqual(0);
 });
 
-test("an organization member without operational access gets the service indicator, not a permanently pending operator pill", async ({ page }) => {
+test("an organization member without operational access gets no status control — neither the service indicator nor a permanently pending operator pill", async ({ page }) => {
   await serve(
     page,
     () => ({ status: 200, body: { status: "DEGRADED", capabilities: caps({ search: "DEGRADED" }) } }),
     "organization",
   );
   await openArtifacts(page);
-  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(1, { timeout: 5000 });
+  await page.waitForTimeout(1200);
+  await expect(page.locator("[data-service-status-indicator]")).toHaveCount(0);
   await expect(page.locator("[data-global-runtime-indicator]")).toHaveCount(0);
   // Search is unrelated to this record: nothing on the record.
   await expect(page.locator("[data-service-notice]")).toHaveCount(0);

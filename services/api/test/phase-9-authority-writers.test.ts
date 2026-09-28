@@ -74,6 +74,11 @@ const AUTHORITY_WRITERS: Array<{
       // state.
       "services/billing/subscription-cancellation.service.ts":
         "canonical: provider-confirmed cancel-at-period-end (never the terminal CANCELED)",
+      // BILLING RESTART (2026-09-28) — the inverse of the entry above: clears
+      // cancel-at-period-end ONLY after Stripe confirms
+      // `cancel_at_period_end=false`. Never writes status; PayPal is refused.
+      "services/billing/subscription-resume.service.ts":
+        "canonical: provider-confirmed un-cancel (cancelAtPeriodEnd=false); never writes status",
       // BILLING RECONCILIATION (2026-08-27) — the ORDERING STAMP, and nothing
       // else.
       //
@@ -183,6 +188,15 @@ const AUTHORITY_WRITERS: Array<{
       // capacity the customer paid for is not taken early.
       "routes/billing.routes.ts":
         "canonical: direct add-on cancellation, recording only what the provider confirmed",
+      // BILLING STORAGE ATTEMPTS (2026-09-27, registered 2026-09-28) — the
+      // durable PENDING attempt row committed BEFORE the PayPal create call,
+      // then bound to the returned subscription id (or marked FAILED on a
+      // provider refusal, PROVIDER_OUTCOME_UNKNOWN otherwise). It never writes
+      // ACTIVE: activation stays with `upsertWorkspaceStorageAddon` on
+      // provider truth. It shipped unregistered, which is why this test was
+      // red at e9efd55.
+      "services/billing/pending-checkout-attempt.service.ts":
+        "canonical: pre-provider storage checkout attempt (PENDING/FAILED + provider binding only, never ACTIVE)",
     },
   },
 ];
@@ -229,7 +243,16 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
     "MAPPING: provider observation -> canonical SubscriptionStatus, applied through the shared handler",
   "services/billing/subscription-lifecycle.handlers.ts":
     "CANONICAL: the shared lifecycle handler the webhook and reconciliation both call",
-  "routes/webhooks.routes.ts": "PROVIDER PROJECTION: normalizes Stripe/PayPal event strings → SubscriptionStatus + write routing (no capability decision)",
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the Stripe normalizer moved out of
+  // webhooks.routes.ts so the webhook and the per-attempt re-check settle a
+  // Checkout Session ONE way; webhooks.routes.ts no longer names the enum.
+  "services/billing/stripe-settlement.service.ts":
+    "PROVIDER PROJECTION: normalizes Stripe subscription status → SubscriptionStatus and applies it through the shared handler (no capability decision)",
+  // BILLING RESTART (2026-09-28) — refuses a restart of a subscription that has
+  // already ended (status/period check), then asks the provider. No
+  // active/grace decision.
+  "services/billing/subscription-resume.service.ts":
+    "PROVIDER INTERACTION: refuses to restart an ended subscription; provider-first write of the confirmed flag (no capability decision)",
   "services/billing.service.ts": "PERSISTENCE: upsertSubscription status write",
   // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `routes/billing.routes.ts`
   // LEFT this allowlist, which is the direction that matters: it now names no
@@ -271,6 +294,14 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   // route normalize PayPal's status ONE way. It hands the status to
   // `syncPlanForSubscription` / `storageAddonStatusFromSubscription`; the
   // active/grace decision stays in commercial-context.
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — both read TRIALING only to find
+  // PayPal plan approvals that predate durable attempts, and hand every
+  // provider answer to `applyPayPalSubscriptionState`. Neither decides
+  // whether a subscription is active.
+  "services/billing/checkout-attempt-recovery.service.ts":
+    "ATTEMPT LOOKUP: finds pre-attempt TRIALING PayPal approvals; provider answers applied through the shared handler (no capability decision)",
+  "services/billing/billing-activity.service.ts":
+    "READ PROJECTION: lists pre-attempt TRIALING PayPal approvals as Billing activity (no capability decision)",
   "services/billing/paypal-settlement.service.ts":
     "PROVIDER PROJECTION: normalizes PayPal subscription status → SubscriptionStatus and applies it through the shared handler (no capability decision)",
   "services/billing/plan-transition.service.ts":
