@@ -68,7 +68,8 @@ export function NewVersionMenu({
    */
   loadOffer?: () => Promise<NewVersionOffer | null>;
   busy: boolean;
-  request: (clientRequestKey: string) => Promise<NewVersionRequestResult>;
+  /** `reason` is required: an updated report records why it was issued. */
+  request: (clientRequestKey: string, reason: string) => Promise<NewVersionRequestResult>;
   /** Accessible name for the trigger; names the record, not merely "Actions". */
   menuLabel: string;
   dataPrefix: string;
@@ -76,6 +77,7 @@ export function NewVersionMenu({
 }) {
   const { confirm } = useConfirmAction();
   const pendingKey = useRef<string | null>(null);
+  const reasonRef = useRef("");
   if (!offer || offer.action !== NEW_VERSION_ACTION) return null;
 
   const open = async () => {
@@ -107,14 +109,31 @@ export function NewVersionMenu({
     const ok = await confirm({
       title:
         offer.nextVersion != null
-          ? `Create version ${offer.nextVersion}?`
-          : "Create a new version?",
+          ? `Issue updated report (version ${offer.nextVersion})?`
+          : "Issue an updated report?",
       description: (
         <div data-new-version-consequence>
           <p style={{ marginBlockStart: 0 }}>
             Nothing needs recovering: this record&apos;s report and verification
-            package are complete. A new version is optional.
+            package are complete. An updated report is optional and documents
+            later facts; it does not replace the earlier report.
           </p>
+          <label style={{ display: "block", marginBlock: "8px 12px" }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+              Reason for the updated report (required)
+            </span>
+            <textarea
+              data-new-version-reason
+              required
+              maxLength={120}
+              rows={2}
+              style={{ width: "100%", boxSizing: "border-box" }}
+              placeholder="For example: document the Bitcoin anchor confirmed after the first report"
+              onChange={(e) => {
+                reasonRef.current = e.target.value;
+              }}
+            />
+          </label>
           <ul>
             {newVersionConsequence({
               currentVersion: offer.currentVersion ?? null,
@@ -138,8 +157,19 @@ export function NewVersionMenu({
       testId: testId ? `${testId}-confirm` : "new-version-confirm",
     });
     if (!ok) return;
+    const reason = reasonRef.current.trim();
+    if (reason.length < 3) {
+      await confirm({
+        title: "A reason is required",
+        description:
+          "An updated report records why it was issued. Open the action again and describe the later facts it should document.",
+        noticeOnly: true,
+        testId: testId ? `${testId}-reason-required` : "new-version-reason-required",
+      });
+      return;
+    }
     pendingKey.current ??= makeClientRequestKey();
-    const result = await request(pendingKey.current);
+    const result = await request(pendingKey.current, reason);
     if (result === "answered") pendingKey.current = null;
   };
 

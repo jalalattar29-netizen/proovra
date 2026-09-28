@@ -216,10 +216,27 @@ export type ReportsArtifactsEnvelope = {
         packagesBlocked: number;
         /** Records whose latest-report package generation failed. */
         packagesFailed: number;
-        /** Eligible records for which report generation has never been requested. */
+        /**
+         * DEPRECATED (2026-09-29) — kept for older clients. Equals
+         * `reportsAwaitingFirstIssuance`. "Not requested" was untruthful: it
+         * mixed never-requested, succeeded-without-artifact and newly eligible
+         * records.
+         */
         reportsNotRequested: number;
-        /** Eligible records for which package generation has never been requested. */
+        /**
+         * DEPRECATED (2026-09-29) — kept for older clients. Records with no
+         * package at the latest report version and nothing in flight (both
+         * "no report yet" and "report without its package").
+         */
         packagesNotRequested: number;
+        /** Finalized records whose plan does not issue a report (e.g. Free). */
+        reportsNotIssued: number;
+        /** Entitled records with no report and nothing in flight: first issuance owed. */
+        reportsAwaitingFirstIssuance: number;
+        /** Records whose latest report has no package and nothing is in flight. */
+        packagesMissingForLatestReport: number;
+        /** Records whose output entitlement could not be read right now. */
+        outputsEntitlementUnavailable: number;
         /** Records with at least one real artifact (report or package). */
         totalEvidenceWithArtifacts: number;
         /** Stored report plus package version rows, including history. */
@@ -254,7 +271,34 @@ export type ReportLifecycleFilter =
   | "package_ready"
   | "package_pending"
   | "package_failed"
-  | "package_blocked";
+  | "package_blocked"
+  /*
+   * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the states "not requested" used to
+   * hide, each with its own filter so every card is a drill-down:
+   */
+  /** Finalized; the plan does not issue a report (e.g. Free). Not a failure. */
+  | "report_not_issued"
+  /** Entitled, no report yet, nothing in flight: first issuance is owed. */
+  | "report_awaiting_issuance"
+  /** A report exists but its LATEST version has no package. */
+  | "package_missing"
+  /** Whether outputs are owed could not be read (subscription state). */
+  | "entitlement_unavailable";
+
+export const REPORT_LIFECYCLE_FILTERS: readonly ReportLifecycleFilter[] = [
+  "all",
+  "report_ready",
+  "report_pending",
+  "report_failed",
+  "package_ready",
+  "package_pending",
+  "package_failed",
+  "package_blocked",
+  "report_not_issued",
+  "report_awaiting_issuance",
+  "package_missing",
+  "entitlement_unavailable",
+];
 
 // ---------------------------------------------------------------------------
 // Lifecycle mapping (mirror of Phase 32.6.x artifact-status semantics)
@@ -509,6 +553,10 @@ export async function listWorkspaceArtifacts(input: {
         packagesFailed,
         reportsNotRequested: classified.reportNotRequested.length,
         packagesNotRequested: classified.packageNotRequested.length,
+        reportsNotIssued: classified.reportNotIssued.length,
+        reportsAwaitingFirstIssuance: classified.reportNotRequested.length,
+        packagesMissingForLatestReport: classified.packageMissingForLatestReport.length,
+        outputsEntitlementUnavailable: classified.entitlementUnavailable.length,
         totalEvidenceWithArtifacts,
         totalArtifactVersions: reportVersionCount + packageVersionCount,
       },
@@ -532,8 +580,9 @@ export async function listWorkspaceArtifacts(input: {
       // The SAME `scope` the summary above counted through. The list and the
       // header are now population-identical by construction, not by two edits
       // that happen to agree.
-      AND: [scope],
-      status: { in: FINALIZED_STATUSES },
+      // Exactly the summary population (finalizedPopulation), so a tile and
+      // its filter can never describe different records.
+      AND: [finalizedPopulation(scope)],
     };
     /*
      * RESTRICTED CASES STAY RESTRICTED (2026-09-29).
@@ -828,13 +877,13 @@ export async function listWorkspaceArtifacts(input: {
           : generation;
 
         const reportCanonicalState = deriveEvidenceOutputState({
-          eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+          eligibility: eligibility?.reportEligibility ?? "UNRESOLVED",
           generation,
           availability: report !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
         const packageCanonicalState = deriveEvidenceOutputState({
-          eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+          eligibility: eligibility?.packageEligibility ?? "UNRESOLVED",
           generation: blocked ? "BLOCKED" : packageGeneration,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           record,
@@ -966,9 +1015,22 @@ export async function listWorkspaceArtifacts(input: {
 
 const FINALIZED_STATUSES: Array<"SIGNED" | "REPORTED"> = ["SIGNED", "REPORTED"];
 
-/** The population every tile, filter and row of this page describes. */
+/**
+ * The population every tile, filter and row of this page describes.
+ *
+ * EVIDENCE OUTPUT LIFECYCLE (2026-09-29): finalized records that still exist
+ * as records — not in the trash, not bound for or past destruction. The page
+ * used to count and list trashed and destroyed evidence in every tile and
+ * filter, inflating "Records with artifacts" and "Artifact versions". Archived
+ * records stay: archiving is a storage tier, not removal.
+ */
 function finalizedPopulation(scope: WorkspaceEvidenceScope): Prisma.EvidenceWhereInput {
-  return { AND: [scope], status: { in: FINALIZED_STATUSES } };
+  return {
+    AND: [scope],
+    status: { in: FINALIZED_STATUSES },
+    deletedAt: null,
+    lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
+  };
 }
 
 /**
@@ -986,11 +1048,17 @@ export type ClassifiedWorkspaceOutputs = {
   reportPending: string[];
   reportFailed: string[];
   reportNotRequested: string[];
+  /** Report NOT_INCLUDED: finalized, the plan does not issue one. */
+  reportNotIssued: string[];
   packageReady: string[];
   packagePending: string[];
   packageFailed: string[];
   packageBlocked: string[];
   packageNotRequested: string[];
+  /** Report READY, package ELIGIBLE_NOT_GENERATED at the latest version. */
+  packageMissingForLatestReport: string[];
+  /** Either output's entitlement could not be read. */
+  entitlementUnavailable: string[];
 };
 
 const CLASSIFY_BATCH = 1000;
@@ -1013,11 +1081,14 @@ export async function classifyWorkspaceOutputs(input: {
     reportPending: [],
     reportFailed: [],
     reportNotRequested: [],
+    reportNotIssued: [],
     packageReady: [],
     packagePending: [],
     packageFailed: [],
     packageBlocked: [],
     packageNotRequested: [],
+    packageMissingForLatestReport: [],
+    entitlementUnavailable: [],
   };
   let after: string | null = null;
   for (;;) {
@@ -1100,13 +1171,13 @@ export async function classifyWorkspaceOutputs(input: {
       const packageBlocked = readPackageBlocked(row.verificationPackageMetadata).blocked;
 
       const reportState = deriveEvidenceOutputState({
-        eligibility: elig?.reportEligibility ?? "ELIGIBLE",
+        eligibility: elig?.reportEligibility ?? "UNRESOLVED",
         generation: reportGeneration,
         availability: latestReportVersion != null ? "READY" : "NO_ARTIFACT",
         record,
       });
       const packageState = deriveEvidenceOutputState({
-        eligibility: elig?.packageEligibility ?? "ELIGIBLE",
+        eligibility: elig?.packageEligibility ?? "UNRESOLVED",
         generation: packageBlocked ? "BLOCKED" : rawPackageGeneration,
         availability: packageAtLatest ? "READY" : "NO_ARTIFACT",
         record,
@@ -1116,12 +1187,19 @@ export async function classifyWorkspaceOutputs(input: {
       else if (reportState === "QUEUED" || reportState === "GENERATING") out.reportPending.push(row.id);
       else if (reportState === "RETRYABLE_FAILURE" || reportState === "TERMINAL_FAILURE") out.reportFailed.push(row.id);
       else if (reportState === "ELIGIBLE_NOT_GENERATED") out.reportNotRequested.push(row.id);
+      else if (reportState === "NOT_INCLUDED") out.reportNotIssued.push(row.id);
 
       if (packageState === "READY") out.packageReady.push(row.id);
       else if (packageState === "QUEUED" || packageState === "GENERATING") out.packagePending.push(row.id);
       else if (packageState === "RETRYABLE_FAILURE" || packageState === "TERMINAL_FAILURE") out.packageFailed.push(row.id);
       else if (packageState === "BLOCKED") out.packageBlocked.push(row.id);
-      else if (packageState === "ELIGIBLE_NOT_GENERATED") out.packageNotRequested.push(row.id);
+      else if (packageState === "ELIGIBLE_NOT_GENERATED") {
+        out.packageNotRequested.push(row.id);
+        if (reportState === "READY") out.packageMissingForLatestReport.push(row.id);
+      }
+      if (reportState === "ENTITLEMENT_UNAVAILABLE" || packageState === "ENTITLEMENT_UNAVAILABLE") {
+        out.entitlementUnavailable.push(row.id);
+      }
     }
 
     if (batch.length < CLASSIFY_BATCH) break;
@@ -1171,5 +1249,13 @@ async function lifecycleWhere(
       return { id: { in: (await classified()).packageFailed } };
     case "package_blocked":
       return { id: { in: (await classified()).packageBlocked } };
+    case "report_not_issued":
+      return { id: { in: (await classified()).reportNotIssued } };
+    case "report_awaiting_issuance":
+      return { id: { in: (await classified()).reportNotRequested } };
+    case "package_missing":
+      return { id: { in: (await classified()).packageMissingForLatestReport } };
+    case "entitlement_unavailable":
+      return { id: { in: (await classified()).entitlementUnavailable } };
   }
 }

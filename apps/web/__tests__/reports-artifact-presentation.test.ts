@@ -164,7 +164,8 @@ test("report and package states are TEXT, not capsules", () => {
 test("integrity says the word once", () => {
   // `RECORDED_INTEGRITY_VERIFIED` humanised under a label that already said
   // "Integrity" produced "Integrity Recorded Integrity Verified".
-  assert.match(INDEX, /Integrity: \{integrityLabel\(row\.verificationStatus\)\}/);
+  // 2026-09-29: it names WHAT was verified — the original evidence.
+  assert.match(INDEX, /Original evidence: \{integrityLabel\(row\.verificationStatus\)\}/);
   assert.doesNotMatch(INDEX, /Integrity \{humanize\(row\.verificationStatus\)\}/);
 });
 
@@ -281,9 +282,11 @@ test("stored rows with missing objects return an explicit unavailable-artifact c
 });
 
 test("a historical package is disclosed without making the latest report package-ready", () => {
-  assert.match(INDEX, /Historical package ready/);
+  // 2026-09-29: the older package says it certifies an EARLIER report, so it
+  // is never read as proof for the latest one.
+  assert.match(INDEX, /Older package v\{row\.outputs\.verificationPackage\.latestAvailableVersion\} certifies/);
   assert.match(INDEX, /row\.outputs\?\.verificationPackage\.latestAvailableVersion/);
-  assert.match(INDEX, /latest\s*\n?\s*report \{row\.report\.version \? `v\$\{row\.report\.version\}`/);
+  assert.match(INDEX, /not the latest report/);
 });
 
 test("the summary is fetched independently of the list", () => {

@@ -237,6 +237,11 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
     ["packagesPending", "package_pending"],
     ["packagesFailed", "package_failed"],
     ["packagesBlocked", "package_blocked"],
+    // 2026-09-29 — the buckets "not requested" used to hide, each a drill-down.
+    ["reportsNotIssued", "report_not_issued"],
+    ["reportsAwaitingFirstIssuance", "report_awaiting_issuance"],
+    ["packagesMissingForLatestReport", "package_missing"],
+    ["outputsEntitlementUnavailable", "entitlement_unavailable"],
   ];
 
   it("every tile with a filter equals that filter's total, and every page walk reaches it", async () => {
@@ -262,6 +267,14 @@ describe("Reports summary ⇔ lifecycle filter parity (live PostgreSQL 16)", () 
       package_pending: (r) => r.package.state === "pending",
       package_failed: (r) => r.package.state === "failed",
       package_blocked: (r) => r.package.state === "blocked",
+      report_not_issued: (r) => r.outputs.report.state === "NOT_INCLUDED",
+      report_awaiting_issuance: (r) => r.outputs.report.state === "ELIGIBLE_NOT_GENERATED",
+      package_missing: (r) =>
+        r.outputs.report.state === "READY" &&
+        r.outputs.verificationPackage.state === "ELIGIBLE_NOT_GENERATED",
+      entitlement_unavailable: (r) =>
+        r.outputs.report.state === "ENTITLEMENT_UNAVAILABLE" ||
+        r.outputs.verificationPackage.state === "ENTITLEMENT_UNAVAILABLE",
     };
     for (const [filter, predicate] of Object.entries(expectFor) as Array<[Exclude<Filter, "all">, (r: (typeof all)[number]) => boolean]>) {
       const { rows } = await walk(teamId, filter, 100);

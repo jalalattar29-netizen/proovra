@@ -130,8 +130,13 @@ export type ReportsSummary = {
   packagesPending: number;
   packagesBlocked: number;
   packagesFailed?: number;
+  /** Deprecated server fields, kept by the API for older clients. */
   reportsNotRequested?: number;
   packagesNotRequested?: number;
+  reportsNotIssued?: number;
+  reportsAwaitingFirstIssuance?: number;
+  packagesMissingForLatestReport?: number;
+  outputsEntitlementUnavailable?: number;
   totalEvidenceWithArtifacts: number;
   totalArtifactVersions?: number;
 };
@@ -165,4 +170,9 @@ export type LifecycleFilter =
   | "package_ready"
   | "package_pending"
   | "package_failed"
-  | "package_blocked";
+  | "package_blocked"
+  // 2026-09-29 — the buckets "not requested" used to hide.
+  | "report_not_issued"
+  | "report_awaiting_issuance"
+  | "package_missing"
+  | "entitlement_unavailable";

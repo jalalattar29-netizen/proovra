@@ -115,8 +115,17 @@ const SUMMARY_METRICS = [
   { key: "packages_pending", field: "packagesPending", filter: "package_pending", label: "Packages pending", tone: "indigo" },
   { key: "packages_failed", field: "packagesFailed", filter: "package_failed", label: "Packages failed", tone: "red" },
   { key: "packages_blocked", field: "packagesBlocked", filter: "package_blocked", label: "Packages blocked", tone: "red" },
-  { key: "reports_not_requested", field: "reportsNotRequested", filter: null, label: "Reports not requested", tone: "slate" },
-  { key: "packages_not_requested", field: "packagesNotRequested", filter: null, label: "Packages not requested", tone: "slate" },
+  /*
+   * "Reports / Packages not requested" are gone (2026-09-29): the label was
+   * untruthful — it mixed never-requested records, records whose request
+   * succeeded without the artifact, and records newly eligible after an
+   * upgrade — and neither card led anywhere. Each state now has its own card
+   * AND filter.
+   */
+  { key: "reports_not_issued", field: "reportsNotIssued", filter: "report_not_issued", label: "Not issued (plan)", tone: "slate" },
+  { key: "reports_awaiting_issuance", field: "reportsAwaitingFirstIssuance", filter: "report_awaiting_issuance", label: "First issuance pending", tone: "orange" },
+  { key: "packages_missing", field: "packagesMissingForLatestReport", filter: "package_missing", label: "Package missing for latest report", tone: "orange" },
+  { key: "entitlement_unavailable", field: "outputsEntitlementUnavailable", filter: "entitlement_unavailable", label: "Subscription check pending", tone: "slate" },
   { key: "total_artifacts", field: "totalEvidenceWithArtifacts", filter: null, label: "Records with artifacts", tone: "slate" },
   { key: "artifact_versions", field: "totalArtifactVersions", filter: null, label: "Artifact versions", tone: "blue" },
 ] as const satisfies ReadonlyArray<{
@@ -650,6 +659,10 @@ export function ReportsIndex() {
     ["package_pending", "Package pending"],
     ["package_failed", "Package failed"],
     ["package_blocked", "Package blocked"],
+    ["package_missing", "Package missing"],
+    ["report_awaiting_issuance", "First issuance pending"],
+    ["report_not_issued", "Not issued (plan)"],
+    ["entitlement_unavailable", "Subscription check pending"],
   ];
 
   return (
@@ -708,7 +721,28 @@ export function ReportsIndex() {
               (m) => typeof summarySection.data![m.field] === "number",
             ).map((m) => (
               <li key={m.key}>
+                {/*
+                  A card with a filter IS that filter (2026-09-29): its number
+                  equals the filter's total, so it opens it. Cards without one
+                  are workspace totals that describe no row set.
+                */}
                 <div
+                  role={m.filter ? "button" : undefined}
+                  tabIndex={m.filter ? 0 : undefined}
+                  aria-pressed={m.filter ? filter === m.filter : undefined}
+                  aria-label={m.filter ? `${m.label}: ${summarySection.data![m.field]}. Show these records` : undefined}
+                  onClick={m.filter ? () => changeFilter(m.filter as LifecycleFilter) : undefined}
+                  onKeyDown={
+                    m.filter
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            changeFilter(m.filter as LifecycleFilter);
+                          }
+                        }
+                      : undefined
+                  }
+                  style={m.filter ? { cursor: "pointer" } : undefined}
                   className="app-metric-card rpt-metric"
                   data-rpt-tone={m.tone}
                   data-reports-summary-key={m.key}
@@ -934,10 +968,11 @@ function ArtifactRowView({
                   row.outputs.verificationPackage.latestAvailableVersion
                 }
               >
-                Historical package ready · v
-                {row.outputs.verificationPackage.latestAvailableVersion}; latest
-                report {row.report.version ? `v${row.report.version}` : "version"} has
-                no package
+                {/* It names the report it certifies, so it is never read as proof for
+                    the latest report (2026-09-29). */}
+                Older package v{row.outputs.verificationPackage.latestAvailableVersion} certifies
+                an earlier report — not the latest report{" "}
+                {row.report.version ? `v${row.report.version}` : ""}, which has no package yet
               </span>
             ) : null}
             {row.verificationStatus ? (
@@ -950,7 +985,9 @@ function ArtifactRowView({
                 data-tone={integrityToneAttr(row.verificationStatus)}
                 data-reports-verification={row.verificationStatus}
               >
-                Integrity: {integrityLabel(row.verificationStatus)}
+                {/* The ORIGINAL evidence integrity check — not a statement about
+                    any report or package (2026-09-29). */}
+                Original evidence: {integrityLabel(row.verificationStatus)}
               </span>
             ) : null}
             {row.caseId ? (
@@ -1163,6 +1200,7 @@ function ArtifactRowActions({
 
   const requestNewVersion = async (
     clientRequestKey: string,
+    reason: string,
   ): Promise<NewVersionRequestResult> => {
     if (busy) return "unanswered";
     setBusy("regen");
@@ -1173,7 +1211,7 @@ function ArtifactRowActions({
         `/v1/evidence/${row.evidenceId}/reports/regenerate`,
         {
           method: "POST",
-          body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey }),
+          body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey, reason }),
         },
       )) as GenerationResponse;
       setRegenNotice(readGenerationOutcome(resp).message);

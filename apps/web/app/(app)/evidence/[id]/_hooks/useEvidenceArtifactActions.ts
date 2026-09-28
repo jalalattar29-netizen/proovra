@@ -67,7 +67,7 @@ export type EvidenceArtifactActions = {
   downloadVerificationPackageVersion: (version: number) => Promise<void>;
   generateOutputs: (intent?: OutputRequestIntent) => Promise<void>;
   /** "answered": the server decided (keep no key); "unanswered": reuse the key on retry. */
-  createNewVersion: (clientRequestKey: string) => Promise<"answered" | "unanswered">;
+  createNewVersion: (clientRequestKey: string, reason: string) => Promise<"answered" | "unanswered">;
   generateOutputsBusy: boolean;
 };
 
@@ -355,6 +355,7 @@ const generateOutputs = async (intent?: OutputRequestIntent) => {
  */
 const createNewVersion = async (
   clientRequestKey: string,
+  reason: string,
 ): Promise<"answered" | "unanswered"> => {
   if (!evidenceId || generateOutputsBusy) return "unanswered";
   setGenerateOutputsBusy(true);
@@ -362,7 +363,7 @@ const createNewVersion = async (
     const read = readGenerationOutcome(
       (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
         method: "POST",
-        body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey }),
+        body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey, reason }),
       })) as GenerationResponse,
     );
     addToast(read.message, read.tone);

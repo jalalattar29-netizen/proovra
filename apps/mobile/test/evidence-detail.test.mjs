@@ -358,23 +358,24 @@ test("each output's verb is the shared table; a new version is its own confirmed
   assert.equal(mod.outputActionLabel("verificationPackage", "RETRY"), "Retry package recovery");
   assert.equal(mod.outputActionLabel("report", "GENERATE"), "Generate report & verification package");
   assert.equal(mod.outputActionLabel("report", "RETRY"), "Retry report generation");
-  assert.equal(mod.NEW_VERSION_LABEL, "Create new version");
+  assert.equal(mod.NEW_VERSION_LABEL, "Issue updated report");
   // Only GENERATE / RETRY / RECOVER are per-output verbs; nothing else posts.
   for (const a of ["GENERATE", "RETRY", "RECOVER"]) assert.equal(mod.asOutputRequestIntent(a), a);
   for (const a of ["REGENERATE", "NONE", "CREATE_NEW_VERSION", null, undefined]) {
     assert.equal(mod.asOutputRequestIntent(a), null, String(a));
   }
   assert.deepEqual(JSON.parse(mod.buildOutputRequestBody("RECOVER")), { intent: "RECOVER" });
-  assert.deepEqual(JSON.parse(mod.buildNewVersionBody("nv-abc12345")), {
+  assert.deepEqual(JSON.parse(mod.buildNewVersionBody("nv-abc12345", "Document the later anchor")), {
     intent: "NEW_VERSION",
     clientRequestKey: "nv-abc12345",
+    reason: "Document the later anchor",
   });
   const lines = mod.newVersionConsequence({
     currentVersion: 3,
     nextVersion: 4,
     estimate: { estimatedBytes: String(2 * 1024 * 1024), basis: "PREVIOUS_PAIR" },
   });
-  assert.equal(lines[0], "Creates report version 4 and its verification package, alongside version 3.");
+  assert.equal(lines[0], "Issues report version 4, dated today, and its verification package, alongside version 3.");
   assert.match(lines.join(" "), /Earlier versions are kept unchanged/);
   assert.match(lines.join(" "), /Estimated additional storage: about 2\.0 MB/);
   assert.match(lines.join(" "), /No evidence credit is charged/);

@@ -137,7 +137,7 @@ export type EvidenceDetailCtx = {
    * The separate, confirmed "create a new version". "unanswered" means the
    * request may have landed, so the caller retries with the SAME key.
    */
-  createNewVersion: (clientRequestKey: string) => Promise<"answered" | "unanswered">;
+  createNewVersion: (clientRequestKey: string, reason: string) => Promise<"answered" | "unanswered">;
   generateOutputsBusy: boolean;
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;

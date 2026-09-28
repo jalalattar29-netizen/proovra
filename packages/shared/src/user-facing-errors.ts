@@ -464,6 +464,12 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "The request could not be sent safely. Reload the page and try again; no new version was created.",
     severity: "error",
   },
+  UPDATED_REPORT_REASON_REQUIRED: {
+    title: "Add a reason for the updated report",
+    message:
+      "An updated report records why it was issued. Describe the later facts it should document, then try again; nothing was created.",
+    severity: "info",
+  },
   CONCURRENCY_LIMITED: {
     title: "Several versions are already being created",
     message:

@@ -31,7 +31,7 @@ export async function listEvidenceArtifacts(evidenceId: string) {
     }),
   ]);
   // "Latest" for a package means: paired with the latest REPORT (2026-09-29).
-  const latestReportVersion = reports[0]?.version ?? null;
+  const newestReportVersion = reports[0]?.version ?? null;
 
   return {
     reports: reports.map((item, index) => ({
@@ -55,8 +55,8 @@ export async function listEvidenceArtifacts(evidenceId: string) {
       certifiesReportVersion: item.reportVersion ?? item.version,
       sealed: (item.packageFormatVersion ?? 0) >= 5,
       latest:
-        latestReportVersion !== null &&
-        (item.reportVersion ?? item.version) === latestReportVersion,
+        newestReportVersion !== null &&
+        (item.reportVersion ?? item.version) === newestReportVersion,
     })),
   };
 }

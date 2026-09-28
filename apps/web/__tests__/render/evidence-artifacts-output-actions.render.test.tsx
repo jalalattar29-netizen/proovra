@@ -237,7 +237,7 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(panel?.textContent).not.toMatch(/Support can investigate/);
   });
 
-  it("a complete record offers no verb; Create new version is in the overflow and confirmed with versions and the estimate", async () => {
+  it("a complete record offers no verb; Issue updated report is in the overflow, needs a reason, and is confirmed with versions and the estimate", async () => {
     const { container, calls } = mount(
       workspace({
         report: NOT_REQUIRED,
@@ -270,11 +270,15 @@ describe("Evidence Artifacts — per-output actions", () => {
       return el as HTMLElement;
     });
     const text = modal.textContent ?? "";
-    expect(text).toContain("Create version 4?");
-    expect(text).toContain("Creates report version 4 and its verification package, alongside version 3.");
-    expect(text).toContain("Earlier versions are kept unchanged and stay downloadable.");
+    expect(text).toContain("Issue updated report (version 4)?");
+    expect(text).toContain("Issues report version 4, dated today, and its verification package, alongside version 3.");
+    expect(text).toContain("Earlier versions are kept unchanged, keep their own dates and stay downloadable.");
     expect(text).toContain("Estimated additional storage: about 12 MB (based on the original evidence");
     expect(calls).toEqual([]);
+    // An updated report records why it was issued.
+    fireEvent.change(modal.querySelector("[data-new-version-reason]")!, {
+      target: { value: "Document the later anchor" },
+    });
     fireEvent.click(modal.querySelector("[data-confirm-action-submit='true']")!);
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]!.kind).toBe("newVersion");

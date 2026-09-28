@@ -31,13 +31,13 @@ import {
 } from "../product/evidence-detail";
 import { projectNewVersionOffer, type NewVersionOfferView } from "../product/evidence-record";
 import { theme } from "../theme/theme";
-import { ProovraButton, ProovraText } from "./index";
+import { ProovraButton, ProovraInput, ProovraText } from "./index";
 import { ProovraConfirmSheet, ProovraSheet } from "./patterns";
 
 /** The confirmation's body, one sentence per line. */
 export function newVersionConfirmText(offer: NewVersionOfferView): string {
   const lines = [
-    "Nothing needs recovering: this record's report and verification package are complete. A new version is optional.",
+    "Nothing needs recovering: this record's report and verification package are complete. An updated report is optional and documents later facts; it does not replace the earlier report.",
     ...newVersionConsequence({
       currentVersion: offer.currentVersion,
       nextVersion: offer.nextVersion,
@@ -71,6 +71,7 @@ export function NewVersionAction({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const pendingKey = useRef<string | null>(null);
+  const [reason, setReason] = useState("");
 
   if (!offer || offer.action !== NEW_VERSION_ACTION) return null;
 
@@ -106,7 +107,7 @@ export function NewVersionAction({
       const read = readGenerationOutcome(
         await apiFetch(buildRegeneratePath(evidenceId), {
           method: "POST",
-          body: buildNewVersionBody(pendingKey.current),
+          body: buildNewVersionBody(pendingKey.current, reason.trim()),
         }),
       );
       pendingKey.current = null;
@@ -146,13 +147,28 @@ export function NewVersionAction({
       </ProovraSheet>
       <ProovraConfirmSheet
         visible={confirming !== null}
-        title={confirming?.nextVersion != null ? `Create version ${confirming.nextVersion}?` : "Create a new version?"}
+        title={
+          confirming?.nextVersion != null
+            ? `Issue updated report (version ${confirming.nextVersion})?`
+            : "Issue an updated report?"
+        }
         consequence={confirming ? newVersionConfirmText(confirming) : undefined}
         confirmLabel={NEW_VERSION_LABEL}
         busy={busy}
+        confirmDisabled={reason.trim().length < 3}
         onConfirm={() => void submit()}
         onCancel={() => setConfirming(null)}
-      />
+      >
+        <ProovraText variant="label" weight="semibold">Reason for the updated report (required)</ProovraText>
+        <ProovraInput
+          value={reason}
+          onChangeText={setReason}
+          placeholder="Which later facts should it document?"
+          multiline
+          accessibilityLabel="Reason for the updated report"
+          testID="new-version-reason"
+        />
+      </ProovraConfirmSheet>
       <ProovraConfirmSheet
         visible={withdrawn !== null}
         title="A new version can't be created right now"

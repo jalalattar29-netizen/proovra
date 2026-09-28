@@ -93,24 +93,30 @@ test("each output shows the server's own verb: a missing package is Recover pack
   r.unmount();
 });
 
-test("a complete record offers no verb; Create new version is behind ⋯ and confirmed with versions and the estimate", async () => {
+test("a complete record offers no verb; Issue updated report is behind ⋯, needs a reason, and is confirmed with versions and the estimate", async () => {
   const r = await render();
   // No per-output verb on a complete record.
   assert.equal(r.byLabel("Generate report & package: Roof photo").length, 0);
   await r.press("More actions: Roof photo");
   await settle();
-  await r.press("Create new version: Roof photo");
+  await r.press("Issue updated report: Roof photo");
   await settle();
   const t = r.texts().join(" | ");
-  assert.ok(r.hasText("Create version 3?"), t);
-  assert.ok(r.hasText("Creates report version 3 and its verification package, alongside version 2."), t);
-  assert.ok(r.hasText("Earlier versions are kept unchanged and stay downloadable."), t);
+  assert.ok(r.hasText("Issue updated report (version 3)?"), t);
+  assert.ok(r.hasText("Issues report version 3, dated today, and its verification package, alongside version 2."), t);
+  assert.ok(r.hasText("It documents facts as they stand now. Earlier versions are kept unchanged, keep their own dates and stay downloadable."), t);
   assert.ok(r.hasText("Estimated additional storage: about 3.0 MB"), t);
   // Nothing is sent until the new version is confirmed.
   assert.deepEqual(posts, []);
-  await r.press("Create new version");
+  // Without a reason the confirmation cannot be sent.
+  await r.press("Issue updated report");
+  await settle();
+  assert.deepEqual(posts, []);
+  await r.type("Reason for the updated report", "Document the later anchor");
+  await r.press("Issue updated report");
   await settle();
   assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.reason, "Document the later anchor");
   assert.equal(posts[0].path, "/v1/evidence/e1/reports/regenerate");
   assert.equal(posts[0].body.intent, "NEW_VERSION");
   assert.match(posts[0].body.clientRequestKey, /^nv-/);

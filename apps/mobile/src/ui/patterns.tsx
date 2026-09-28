@@ -513,6 +513,8 @@ export function ProovraConfirmSheet({
   busy,
   onConfirm,
   onCancel,
+  children,
+  confirmDisabled,
 }: {
   visible: boolean;
   title: string;
@@ -523,6 +525,10 @@ export function ProovraConfirmSheet({
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Optional inputs the confirmation needs (e.g. a required reason). */
+  children?: React.ReactNode;
+  /** Disable the confirm button until the inputs are valid. */
+  confirmDisabled?: boolean;
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
@@ -536,12 +542,13 @@ export function ProovraConfirmSheet({
             {consequence}
           </ProovraText>
         ) : null}
+        {children ? <View style={styles.gapTop}>{children}</View> : null}
         <View style={styles.sheetActions}>
           <ProovraButton label={cancelLabel} variant="ghost" disabled={!!busy} onPress={onCancel} />
           <ProovraButton
             label={busy ? "Working…" : confirmLabel}
             variant={tone === "danger" ? "danger" : "primary"}
-            disabled={!!busy}
+            disabled={!!busy || !!confirmDisabled}
             onPress={onConfirm}
           />
         </View>

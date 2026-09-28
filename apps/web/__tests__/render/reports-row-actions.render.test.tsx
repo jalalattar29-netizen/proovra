@@ -289,23 +289,28 @@ describe("Reports row — generation actions", () => {
       expect(el).toBeTruthy();
       return el as HTMLButtonElement;
     });
-    expect(item.textContent).toContain("Create new version");
+    expect(item.textContent).toContain("Issue updated report");
     fireEvent.click(item);
-    return waitFor(() => {
-      const modal = document.querySelector("[data-confirm-action-modal]");
-      expect(modal).toBeTruthy();
-      return modal as HTMLElement;
+    const modal = await waitFor(() => {
+      const m = document.querySelector("[data-confirm-action-modal]");
+      expect(m).toBeTruthy();
+      return m as HTMLElement;
     });
+    // An updated report records why it was issued.
+    fireEvent.change(modal.querySelector("[data-new-version-reason]")!, {
+      target: { value: "Document the later anchor" },
+    });
+    return modal;
   }
 
-  it("Create new version is behind the overflow menu and states versions, retention and the estimate before posting", async () => {
+  it("Issue updated report is behind the overflow menu and states versions, retention and the estimate before posting", async () => {
     const { container } = await mount();
     const modal = await openNewVersion(container);
     // The offer is read from the record's own status, not assumed by the row.
     expect(requests.some((r) => r.path === "/v1/evidence/ev-ready/artifacts/status")).toBe(true);
     const text = modal.textContent ?? "";
-    expect(text).toContain("Create version 8?");
-    expect(text).toContain("Creates report version 8 and its verification package, alongside version 7.");
+    expect(text).toContain("Issue updated report (version 8)?");
+    expect(text).toContain("Issues report version 8, dated today, and its verification package, alongside version 7.");
     expect(text).toContain("Earlier versions are kept unchanged");
     expect(text).toMatch(/Estimated additional storage: about 5\.0 MB/);
     expect(text).toContain("Workspace storage now: 200 MB used of 1.0 GB.");
@@ -329,6 +334,7 @@ describe("Reports row — generation actions", () => {
     expect(post!.path).toBe("/v1/evidence/ev-ready/reports/regenerate");
     expect(post!.body?.intent).toBe("NEW_VERSION");
     expect(String(post!.body?.clientRequestKey)).toMatch(/^nv-[A-Za-z0-9._:-]{6,}$/);
+    expect(post!.body?.reason).toBe("Document the later anchor");
 
     const before = requests.filter((r) => r.path.startsWith("/v1/reports/artifacts")).length;
     await act(async () => {

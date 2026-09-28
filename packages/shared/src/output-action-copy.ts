@@ -55,8 +55,15 @@ export function outputActionLabel(
   return "";
 }
 
-/** The separate, optional action. Never a recovery verb. */
-export const NEW_VERSION_LABEL = "Create new version";
+/**
+ * The separate, optional action. Never a recovery verb.
+ *
+ * 2026-09-29: an UPDATED REPORT is an exceptional, authorized issuance that
+ * documents later facts (a later anchor, a corrected timestamp reading, new
+ * custody events). It carries its own issue date and a stated reason, and it
+ * never replaces or relabels the first issue.
+ */
+export const NEW_VERSION_LABEL = "Issue updated report";
 
 /**
  * A sentence for a reason no action is offered — only for reasons a person
@@ -182,12 +189,12 @@ export function newVersionConsequence(input: {
   const lines: string[] = [];
   lines.push(
     input.nextVersion != null
-      ? `Creates report version ${input.nextVersion} and its verification package${
+      ? `Issues report version ${input.nextVersion}, dated today, and its verification package${
           input.currentVersion != null ? `, alongside version ${input.currentVersion}` : ""
         }.`
-      : "Creates a new report and its verification package.",
+      : "Issues a new report, dated today, and its verification package.",
   );
-  lines.push("Earlier versions are kept unchanged and stay downloadable.");
+  lines.push("It documents facts as they stand now. Earlier versions are kept unchanged, keep their own dates and stay downloadable.");
   const size = input.estimate ? formatEstimatedBytes(input.estimate.estimatedBytes) : null;
   lines.push(
     size

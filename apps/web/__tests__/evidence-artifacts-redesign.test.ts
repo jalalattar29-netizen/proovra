@@ -181,7 +181,8 @@ test("version rows render the real fields, from the real formatters", () => {
   assert.match(HISTORY, /v\{item\.version\}/);
   assert.match(HISTORY, /\{formatDateTime\(item\.generatedAtUtc\)\}/);
   assert.match(HISTORY, /\{formatBytes\(item\.sizeBytes\)\}/);
-  assert.match(HISTORY, /\(item as PackageVersion\)\.packageType \|\| "Package type not recorded"/);
+  // 2026-09-29: a package row names the report version it certifies.
+  assert.match(HISTORY, /Certifies report v\$\{certifies\}/);
 });
 
 test("immutable-recorded renders ONLY when the backend recorded it", () => {

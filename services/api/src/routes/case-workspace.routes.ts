@@ -212,6 +212,11 @@ const ArtifactsQuery = z.object({
       "package_pending",
       "package_failed",
       "package_blocked",
+      // 2026-09-29 — the states "not requested" used to hide.
+      "report_not_issued",
+      "report_awaiting_issuance",
+      "package_missing",
+      "entitlement_unavailable",
     ])
     .optional(),
   search: z.string().min(1).max(80).optional(),

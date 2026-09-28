@@ -210,6 +210,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_REQUIRED: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_INVALID: { disposition: "customer", where: "global" },
+  // An updated report records why it was issued (2026-09-29); the server's
+  // message says what to write.
+  UPDATED_REPORT_REASON_REQUIRED: { disposition: "customer", where: "global" },
   CONCURRENCY_LIMITED: { disposition: "customer", where: "global" },
   OUTPUT_ACTION_UNAVAILABLE: { disposition: "customer", where: "global" },
   AI_CHAT_RATE_LIMITED: { disposition: "customer", where: "global" },
