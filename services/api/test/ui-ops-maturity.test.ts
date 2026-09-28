@@ -223,12 +223,17 @@ describe("AppAccountToolbar — runtime indicator wiring", () => {
     expect(src).toMatch(/envelope[\s\S]{0,200}activeSpace\.id/);
   });
 
-  it("operators get the operational pill; everyone else the service indicator — never both", () => {
+  it("operators get the operational pill; a refused context mounts no status reader at all", () => {
     // The operator pill used to mount for every member of an organization
     // workspace and sat at "Status pending" for anyone without operational
     // read access. It now requires that access.
     expect(src).toMatch(/!readsNothing\(resolveRuntimeReadAccess\(\{ envelope, teamId: organizationTeamId \}\)\)/);
-    expect(src).toMatch(/runtimeTeamId \? \([\s\S]*?<GlobalRuntimeIndicator[\s\S]*?\) : \([\s\S]*?<ServiceStatusIndicator \/>/);
+    // SHELL BOUNDARY (2026-09-28) — everyone else used to get
+    // ServiceStatusIndicator, which polled /v1/runtime/status with no gate
+    // (operations-shell-boundary.spec.ts). The shell now mounts nothing for a
+    // refused context: no request, no wrapper.
+    expect(src).toMatch(/runtimeTeamId \? \([\s\S]*?<GlobalRuntimeIndicator[\s\S]*?\) : null\}/);
+    expect(src).not.toMatch(/<ServiceStatusIndicator\b/);
   });
 
   it("renders the indicator inside the topbar actions, before the language switcher", () => {
