@@ -64,6 +64,10 @@ import {
 } from "../paypal.service.js";
 import { grantEvidenceCredits } from "./evidence-credits.service.js";
 import {
+  recordCheckoutAttemptProviderOutcome,
+  type CheckoutState,
+} from "./checkout-attempts.service.js";
+import {
   storageAddonStatusFromSubscription,
   syncPlanForSubscription,
 } from "./subscription-lifecycle.handlers.js";
@@ -238,6 +242,8 @@ export type PayPalCreditSettlement =
 
 type CreditPurchase = {
   userId: string;
+  /** The durable checkout attempt named in custom_id, when present. */
+  attemptId: string | null;
   amountCents: number;
   currency: "USD" | "EUR";
   /** The server price for this currency matches what PayPal holds. */
@@ -258,6 +264,7 @@ function readCreditPurchase(unit: Json | null): CreditPurchase | null {
   if ((rawCurrency !== "USD" && rawCurrency !== "EUR") || cents === null) {
     return {
       userId: parsed.userId,
+      attemptId: parsed.attemptId ?? null,
       amountCents: cents ?? 0,
       currency: normalizeBillingCurrency(rawCurrency),
       priceMatches: false,
@@ -266,6 +273,7 @@ function readCreditPurchase(unit: Json | null): CreditPurchase | null {
   const currency = normalizeBillingCurrency(rawCurrency);
   return {
     userId: parsed.userId,
+    attemptId: parsed.attemptId ?? null,
     amountCents: cents,
     currency,
     priceMatches: cents === getEvidenceCreditPriceCents(currency),
@@ -387,6 +395,92 @@ export async function settlePayPalEvidenceCreditOrder(params: {
   /** The capture a webhook is about, when it names one. */
   captureId?: string | null;
 }): Promise<PayPalCreditSettlement> {
+  const sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null } = {
+    purchase: null,
+    observedAtUtc: null,
+  };
+  const result = await settleCreditOrder(params, sink);
+  if (sink.purchase) {
+    await recordCreditAttemptOutcome({
+      orderId: params.orderId,
+      purchase: sink.purchase,
+      result,
+      observedAtUtc: sink.observedAtUtc,
+    });
+  }
+  return result;
+}
+
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — what a credit settlement means for
+ * the durable attempt that started the order. Every path that settles an
+ * order (return route, both webhooks, re-check) passes through here, so the
+ * attempt converges however the answer arrived.
+ */
+async function recordCreditAttemptOutcome(input: {
+  orderId: string;
+  purchase: CreditPurchase;
+  result: PayPalCreditSettlement;
+  observedAtUtc: Date | null;
+}): Promise<void> {
+  const { result } = input;
+  if (!input.orderId) return;
+  const A = prismaPkg.BillingCheckoutAttemptStatus;
+  let status: prismaPkg.BillingCheckoutAttemptStatus;
+  let checkoutState: CheckoutState;
+  let providerPaymentRef: string | null = null;
+  switch (result.outcome) {
+    case "GRANTED":
+    case "ALREADY_GRANTED":
+      status = A.COMPLETED;
+      checkoutState = "SETTLED";
+      providerPaymentRef = result.captureId;
+      break;
+    case "PENDING":
+      status = A.PENDING;
+      checkoutState =
+        result.reason === "AWAITING_APPROVAL" ? "AWAITING_CUSTOMER_APPROVAL" : "CAPTURE_PENDING";
+      providerPaymentRef = result.captureId;
+      break;
+    case "CANCELED":
+      status = A.CANCELED;
+      checkoutState = "PROVIDER_CANCELED";
+      break;
+    case "FAILED":
+      status = A.FAILED;
+      checkoutState = "PAYMENT_DECLINED";
+      providerPaymentRef = result.captureId;
+      break;
+    case "REJECTED":
+      // Only an amount mismatch on a genuine credit order is the attempt's
+      // business: money or approval exists that the catalog does not match.
+      if (result.reason !== "AMOUNT_MISMATCH") return;
+      status = A.PENDING;
+      checkoutState = "NEEDS_REVIEW";
+      break;
+  }
+  await recordCheckoutAttemptProviderOutcome({
+    provider: PROVIDER,
+    userId: input.purchase.userId,
+    product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
+    providerResourceId: input.orderId,
+    attemptId: input.purchase.attemptId,
+    status,
+    checkoutState,
+    observedAtUtc: input.observedAtUtc,
+    providerPaymentRef,
+  }).catch(() => false);
+}
+
+async function settleCreditOrder(
+  params: {
+    orderId: string;
+    expectedUserId?: string | null;
+    capture: boolean;
+    captureId?: string | null;
+  },
+  sink: { purchase: CreditPurchase | null; observedAtUtc: Date | null },
+): Promise<PayPalCreditSettlement> {
   const { orderId } = params;
   let order = rec(await getPayPalOrder(orderId));
   if (!order || str(order.id) !== orderId) {
@@ -400,6 +494,8 @@ export async function settlePayPalEvidenceCreditOrder(params: {
   if (params.expectedUserId && purchase.userId !== params.expectedUserId) {
     return { outcome: "REJECTED", orderId, reason: "NOT_OWNED" };
   }
+  sink.purchase = purchase;
+  sink.observedAtUtc = dateFromIso(order.update_time ?? order.create_time);
 
   const status = str(order.status)?.toUpperCase() ?? "";
 
@@ -753,6 +849,15 @@ export async function applyPayPalSubscriptionState(params: {
     observedAtUtc,
   });
 
+  await recordPlanAttemptOutcome({
+    userId: parsed.userId,
+    subscriptionId,
+    attemptId: parsed.attemptId ?? null,
+    status,
+    rawStatus: str(sub.status),
+    observedAtUtc,
+  });
+
   return {
     outcome: "APPLIED",
     kind: "PLAN",
@@ -762,4 +867,54 @@ export async function applyPayPalSubscriptionState(params: {
     plan,
     storageAddonKey: null,
   };
+}
+
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — a base-plan subscription's state,
+ * as it concerns the checkout attempt that created it.
+ *
+ * Only the ATTEMPT is described here: ACTIVE completes it; approval states
+ * keep it awaiting the customer; CANCELLED/EXPIRED before activation end it.
+ * A later cancellation of an already-completed attempt is subscription
+ * lifecycle, not checkout, and the monotonic transition rule ignores it.
+ */
+async function recordPlanAttemptOutcome(input: {
+  userId: string;
+  subscriptionId: string;
+  attemptId: string | null;
+  status: prismaPkg.SubscriptionStatus;
+  rawStatus: string | null;
+  observedAtUtc: Date | null;
+}): Promise<void> {
+  const A = prismaPkg.BillingCheckoutAttemptStatus;
+  const raw = (input.rawStatus ?? "").toUpperCase();
+  let status: prismaPkg.BillingCheckoutAttemptStatus;
+  let checkoutState: CheckoutState;
+  switch (input.status) {
+    case prismaPkg.SubscriptionStatus.ACTIVE:
+      status = A.COMPLETED;
+      checkoutState = "SETTLED";
+      break;
+    case prismaPkg.SubscriptionStatus.TRIALING:
+      status = A.PENDING;
+      checkoutState = "AWAITING_CUSTOMER_APPROVAL";
+      break;
+    case prismaPkg.SubscriptionStatus.PAST_DUE:
+      status = A.FAILED;
+      checkoutState = "PAYMENT_DECLINED";
+      break;
+    default:
+      status = raw === "EXPIRED" ? A.EXPIRED : A.CANCELED;
+      checkoutState = raw === "EXPIRED" ? "PROVIDER_EXPIRED" : "PROVIDER_CANCELED";
+  }
+  await recordCheckoutAttemptProviderOutcome({
+    provider: PROVIDER,
+    userId: input.userId,
+    product: prismaPkg.BillingCheckoutProduct.PLAN,
+    providerResourceId: input.subscriptionId,
+    attemptId: input.attemptId,
+    status,
+    checkoutState,
+    observedAtUtc: input.observedAtUtc,
+  }).catch(() => false);
 }

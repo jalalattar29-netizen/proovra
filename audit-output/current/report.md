@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | b1458c9c52b7aa9515f25ec7401ee4f4777be9aedbd254f6c14b4d114b848ef4 |
+| engineHash    | bbb008e38132752d9b5999d36dc15444b461802a68c448a1393fc838a9601516 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1164  |
+| registeredRoutes              | 1168  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 963   |
+| productConsumerRoutes         | 965   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 195   |
+| noConsumerRoutes              | 197   |
 | dispositionedNonProductRoutes | 200   |
-| undisposedRoutes              | 0     |
+| undisposedRoutes              | 2     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 23    |
 
@@ -46,7 +46,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
 | DynamicUnresolvedConsumers                     | 0     |
-| UnreviewedOriginConsumers                      | 6     |
+| UnreviewedOriginConsumers                      | 0     |
 | AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
 | ClassificationConflicts                        | 0     |
@@ -200,9 +200,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: UnreviewedOriginConsumers = 6
-- REACHABILITY VERIFIER RED: 132 problems
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- INSTRUMENT: UnreviewedOriginConsumers = 6
+- CHECKPOINT: 7 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1163, facts say 1167 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1164, facts say 1168 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 2 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1284, facts say 1297 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1136, facts say 1149
+- ArchitectureBacklog: UndisposedRoutes = 2 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

@@ -192,6 +192,12 @@ const FAMILY_RULES = Object.freeze([
   [/^batchAnalysisJob(Item)?$/, "AUTOMATION_QUEUE_WEBHOOK"],
   /** The provider's own inbound event log, written by the signed webhook. */
   [/^(stripeWebhookEvent|paypalWebhookEvent)$/, "BILLING_SUBSCRIPTION_SEAT"],
+  /**
+   * BILLING CHECKOUT ATTEMPTS (2026-09-28) — the durable pre-provider record
+   * of a PayPal plan or evidence-credit checkout. Billing state (what a payer
+   * started and what the provider said about it), never an entitlement.
+   */
+  [/^billingCheckoutAttempt$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** The public verification page's view record for a shared package. */
   [/^verificationView$/, "EXTERNAL_REVIEW_INTAKE_SHARE"],
   /** SCIM/SSO-driven membership provisioning grants. */

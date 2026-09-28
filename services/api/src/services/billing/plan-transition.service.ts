@@ -44,7 +44,8 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeGet, stripeRequest } from "../stripe.service.js";
-import { paypalRequest } from "../paypal.service.js";
+import { getPayPalSubscription, paypalRequest } from "../paypal.service.js";
+import { currencyForPayPalBasePlanId } from "../paypal-plan-map.service.js";
 import { getPayPalPlanId } from "../paypal-checkout-policy.service.js";
 import {
   getStripePlanPriceId,
@@ -369,11 +370,88 @@ export async function applyPersonalPlanChange(input: {
     });
   }
 
-  if (subscription.provider === prismaPkg.PaymentProvider.STRIPE) {
-    return applyStripePlanChange({ transition, subscription, currency });
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the PROVIDER's currency for this
+  // subscription, not the request's. A client value (or its USD default) is
+  // at most an assertion; a change must stay in the currency the subscription
+  // is already billed in, or the provider is asked to move it onto another
+  // currency's price.
+  // A target with no configured provider price in ANY currency is refused
+  // before the provider is contacted at all.
+  const configuredSomewhere = (["USD", "EUR"] as const).some((c) =>
+    subscription.provider === prismaPkg.PaymentProvider.STRIPE
+      ? Boolean(getStripePlanPriceId(transition.targetPlan, c))
+      : Boolean(safePayPalPlanId(transition.targetPlan, c)),
+  );
+  if (!configuredSomewhere) {
+    throw new DomainError(`No provider price configured for ${transition.targetPlan}`, {
+      httpStatus: 409,
+      publicCode: "PLAN_CHANGE_NOT_AVAILABLE",
+      publicMessage:
+        "Changing to this plan is not available right now. Please contact support.",
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+    });
   }
 
-  return applyPayPalPlanChange({ transition, subscription, currency });
+  const providerCurrency = await liveSubscriptionCurrency(subscription);
+  const effectiveCurrency = providerCurrency ?? currency;
+
+  if (subscription.provider === prismaPkg.PaymentProvider.STRIPE) {
+    return applyStripePlanChange({ transition, subscription, currency: effectiveCurrency });
+  }
+
+  return applyPayPalPlanChange({ transition, subscription, currency: effectiveCurrency });
+}
+
+function safePayPalPlanId(plan: prismaPkg.PlanType, currency: BillingCurrency): string | null {
+  try {
+    return getPayPalPlanId({ plan, currency });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the billed currency from the provider. A read failure changes nothing
+ * locally (thrown as a provider failure). PayPal: the currency of the live
+ * `plan_id`; an unrecognised plan id refuses rather than guesses.
+ */
+async function liveSubscriptionCurrency(
+  subscription: PersonalSubscriptionRow,
+): Promise<BillingCurrency | null> {
+  if (subscription.provider === prismaPkg.PaymentProvider.STRIPE) {
+    let sub: { currency?: string };
+    try {
+      sub = (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as {
+        currency?: string;
+      };
+    } catch (err) {
+      throw providerFailure(
+        err instanceof Error ? err.message : "stripe subscription read failed",
+      );
+    }
+    const c = String(sub.currency ?? "").toUpperCase();
+    return c === "EUR" || c === "USD" ? c : null;
+  }
+
+  let sub: { plan_id?: string };
+  try {
+    sub = (await getPayPalSubscription(subscription.providerSubId)) as { plan_id?: string };
+  } catch (err) {
+    throw providerFailure(err instanceof Error ? err.message : "paypal subscription read failed");
+  }
+  const c = currencyForPayPalBasePlanId(sub.plan_id);
+  if (!c) {
+    throw new DomainError("PayPal subscription is on an unrecognised plan id", {
+      httpStatus: 409,
+      publicCode: "PLAN_CHANGE_NOT_AVAILABLE",
+      publicMessage:
+        "Changing this subscription is not available right now. Please contact support.",
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+    });
+  }
+  return c;
 }
 
 async function applyStripePlanChange(args: {

@@ -1333,6 +1333,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Artifact recovery (2026-09-26): nullable report/package pairing and
       // per-request progress columns + one guarded unique index. EXPAND.
       "20280680000000_artifact_recovery_progress",
+      // Billing storage attempts (2026-09-27): enum value ABANDONED. EXPAND.
+      "20280690000000_billing_storage_attempt_abandoned",
+      // Billing checkout attempts (2026-09-28): one new table + two enums
+      // for durable PayPal plan / evidence-credit checkout attempts. EXPAND.
+      "20280700000000_billing_checkout_attempts",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

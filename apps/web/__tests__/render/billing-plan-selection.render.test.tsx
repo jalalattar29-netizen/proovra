@@ -1144,8 +1144,11 @@ describe("the FREE storage card", () => {
       />,
     );
 
-    expect(container.textContent).toMatch(/Waiting for payment approval/);
-    expect(container.textContent).toMatch(/not counted in your capacity yet/);
+    // BILLING ACTIVITY (2026-09-28) — the pending attempt is not listed as a
+    // storage row at all; the card says it is not capacity and where it is.
+    expect(container.querySelector('[data-billing-addon="PERSONAL_50_GB"]')).toBeNull();
+    expect(container.textContent).toMatch(/has not completed yet and is not counted in your capacity/);
+    expect(container.textContent).toMatch(/See Billing activity below/);
     expect(container.querySelector("[data-billing-cancel-addon]")).toBeNull();
   });
 });

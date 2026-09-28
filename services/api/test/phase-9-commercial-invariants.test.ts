@@ -66,8 +66,13 @@ describe("Phase 9 §12.6 — billing failure/cancellation never deletes Evidence
     const fn = handlers.slice(at);
 
     // Cancellation writes the plan down to FREE, and that is the whole action.
+    //
+    // BILLING CHECKOUT ATTEMPTS (2026-09-28) — but only for the subscription
+    // that CARRIED the entitlement: a never-activated approval, or one while
+    // another base subscription is live, takes nothing away. The branch still
+    // ends in exactly one write, the FREE plan.
     expect(fn).toMatch(
-      /SubscriptionStatus\.CANCELED\)\s*\{\s*await setPersonalPlan\(\s*params\.userId,\s*prismaPkg\.PlanType\.FREE,?\s*\);\s*return;/,
+      /SubscriptionStatus\.CANCELED\)\s*\{[\s\S]*?if \(!everCarriedEntitlement\) return;[\s\S]*?if \(otherLive\) return;\s*await setPersonalPlan\(\s*params\.userId,\s*prismaPkg\.PlanType\.FREE,?\s*\);\s*return;/,
     );
 
     // NEVER deletes evidence or purges memberships on cancellation.

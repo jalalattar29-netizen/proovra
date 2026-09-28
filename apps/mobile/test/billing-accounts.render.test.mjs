@@ -161,3 +161,50 @@ test("a pending payment offers the server's Re-check and Cancel payment, each sa
   assert.deepEqual(posts, ["recheck", "cancel"]);
   assert.ok(r.hasText("Your provider has closed this payment. Nothing was charged."));
 });
+
+/* ---- BILLING ACTIVITY (2026-09-28) ---- */
+
+test("open purchases are listed as Billing activity beside 'No payments yet', in the server's words and without provider ids", async () => {
+  routes["/v1/billing/accounts"] = () => ({ body: { accounts: [{ type: "PERSONAL", id: "p-1", displayName: "Me" }] } });
+  routes["/v1/billing/accounts/PERSONAL/p-1"] = () => ({ body: { plan: { planKey: "FREE" } } });
+  const item = (id) => ({
+    id,
+    product: "STORAGE",
+    description: "+50 GB storage add-on",
+    providerLabel: "PayPal",
+    createdAtUtc: "2026-09-26T09:46:37.000Z",
+    state: "PROVIDER_NO_RECORD",
+    statusLabel: "No record at PayPal",
+    explanation: "PayPal no longer has a record of this checkout, and it was never approved through PROOVRA.",
+    recurring: true,
+    lastCheckedAtUtc: null,
+    actions: { canRecheck: true, canAbandon: true },
+  });
+  routes["/v1/billing/accounts/PERSONAL/p-1/history"] = () => ({
+    body: { items: [], activity: [item("a-1"), item("a-2")] },
+  });
+  const r = await render();
+  assert.ok(r.hasText("Billing activity"));
+  assert.equal(r.byTestId("billing-activity-a-1").length, 1);
+  assert.equal(r.byTestId("billing-activity-a-2").length, 1);
+  assert.ok(r.hasText("No record at PayPal"));
+  assert.ok(r.hasText("No payments yet"));
+  assert.ok(!r.hasText("I-4P6XLPVJEMBK"));
+});
+
+test("the account re-check never calls a provider 404 'settling'", async () => {
+  const B = await loadModule("app/(stack)/billing.tsx", ["src/product/billing-account.ts"]);
+  const reconcileMessage = B.reconcileMessage;
+  assert.equal(typeof reconcileMessage, "function");
+  const res = reconcileMessage({
+    outcome: "ACTION_REQUIRED",
+    summary: {
+      checked: 2, creditsRestored: 0, paymentsRecorded: 0, subscriptionsUpdated: 0, attemptsUpdated: 0,
+      pending: 0, actionRequired: 2, unavailable: 0, discrepancies: 0,
+      attempts: [{ outcome: "PROVIDER_REFERENCE_NOT_FOUND" }, { outcome: "PROVIDER_REFERENCE_NOT_FOUND" }],
+    },
+  });
+  assert.doesNotMatch(res.message, /settling|pending/i);
+  assert.match(res.message, /2 purchases could not be confirmed/);
+  assert.match(res.message, /Checked 2 items/);
+});

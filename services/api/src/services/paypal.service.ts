@@ -466,6 +466,67 @@ export async function getPayPalOrder(orderId: string) {
   return paypalGet(`/v2/checkout/orders/${encodeURIComponent(orderId)}`);
 }
 
+/** Safe create-response correlation facts. Never a token or payload. */
+export type PayPalCreateDiagnostics = {
+  httpStatus: number;
+  debugId: string | null;
+  environment: PayPalEnvironment;
+  clientIdFingerprint: string;
+  planId: string | null;
+  currency: string;
+  approvalLink: PayPalApprovalLinkIdentity | null;
+};
+
+function createDiagnostics(input: {
+  response: { httpStatus: number; debugId: string | null };
+  resource: Record<string, unknown>;
+  planId: string | null;
+  currency: string;
+}): PayPalCreateDiagnostics {
+  return {
+    ...input.response,
+    environment: payPalEnvironment(),
+    clientIdFingerprint: payPalClientIdFingerprint(),
+    planId: input.planId,
+    currency: input.currency,
+    approvalLink: describePayPalApprovalLink(input.resource),
+  };
+}
+
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — `requestId` is the durable local
+ * attempt id. It is sent as `PayPal-Request-Id` (PayPal's create idempotency
+ * key) and appended to `custom_id`, so a replayed create returns the same
+ * order and a lost response still correlates.
+ */
+export async function createPayPalOrderWithDiagnostics(params: {
+  userId: string;
+  plan: prismaPkg.PlanType | "PAYG";
+  currency: string;
+  amount: string;
+  teamId?: string | null;
+  returnUrl: string;
+  cancelUrl: string;
+  requestId?: string | null;
+}): Promise<{ order: Record<string, unknown>; diagnostics: PayPalCreateDiagnostics }> {
+  let response = { httpStatus: 0, debugId: null as string | null };
+  const order = await createPayPalOrder({
+    ...params,
+    onResponseDiagnostics: (value) => {
+      response = value;
+    },
+  });
+  return {
+    order,
+    diagnostics: createDiagnostics({
+      response,
+      resource: order,
+      planId: null,
+      currency: normalizePayPalCurrency(params.currency),
+    }),
+  };
+}
+
 export async function createPayPalOrder(params: {
   userId: string;
   plan: prismaPkg.PlanType | "PAYG";
@@ -474,6 +535,8 @@ export async function createPayPalOrder(params: {
   teamId?: string | null;
   returnUrl: string;
   cancelUrl: string;
+  requestId?: string | null;
+  onResponseDiagnostics?: (value: { httpStatus: number; debugId: string | null }) => void;
 }) {
   const normalizedCurrency = normalizePayPalCurrency(params.currency);
   const plan = String(params.plan).trim().toUpperCase();
@@ -491,6 +554,7 @@ export async function createPayPalOrder(params: {
             userId: params.userId,
             plan: params.plan as prismaPkg.PlanType,
             teamId: params.teamId ?? null,
+            attemptId: params.requestId ?? null,
           }),
           description,
           amount: {
@@ -506,6 +570,9 @@ export async function createPayPalOrder(params: {
         return_url: params.returnUrl,
         cancel_url: params.cancelUrl,
       },
+    }, "POST", {
+      requestId: params.requestId ?? undefined,
+      onResponseDiagnostics: params.onResponseDiagnostics,
     }),
   );
 }
@@ -517,7 +584,9 @@ export async function createPayPalSubscription(params: {
   teamId?: string | null;
   returnUrl: string;
   cancelUrl: string;
-}) {
+  /** Durable local attempt id: `PayPal-Request-Id` and `custom_id` suffix. */
+  requestId?: string | null;
+}): Promise<Record<string, unknown> & { __diagnostics?: PayPalCreateDiagnostics }> {
   const planId = resolvePayPalPlanId({
     plan: params.plan,
     currency: params.currency,
@@ -525,22 +594,45 @@ export async function createPayPalSubscription(params: {
 
   await assertPayPalPlanIsActive(planId);
 
-  return withCheckoutDiagnostics("subscription_create", () =>
-    paypalRequest("/v1/billing/subscriptions", {
-      plan_id: planId,
-      custom_id: buildPayPalCustomId({
-        userId: params.userId,
-        teamId: params.teamId ?? null,
-        plan: params.plan,
-      }),
-      application_context: {
-        brand_name: "PROOVRA",
-        user_action: "SUBSCRIBE_NOW",
-        return_url: params.returnUrl,
-        cancel_url: params.cancelUrl,
+  let response = { httpStatus: 0, debugId: null as string | null };
+  const subscription = await withCheckoutDiagnostics("subscription_create", () =>
+    paypalRequest(
+      "/v1/billing/subscriptions",
+      {
+        plan_id: planId,
+        custom_id: buildPayPalCustomId({
+          userId: params.userId,
+          teamId: params.teamId ?? null,
+          plan: params.plan,
+          attemptId: params.requestId ?? null,
+        }),
+        application_context: {
+          brand_name: "PROOVRA",
+          user_action: "SUBSCRIBE_NOW",
+          return_url: params.returnUrl,
+          cancel_url: params.cancelUrl,
+        },
       },
-    }),
+      "POST",
+      {
+        requestId: params.requestId ?? undefined,
+        onResponseDiagnostics: (value) => {
+          response = value;
+        },
+      },
+    ),
   );
+  // Non-enumerable, so the resource returned to the browser is unchanged.
+  Object.defineProperty(subscription, "__diagnostics", {
+    value: createDiagnostics({
+      response,
+      resource: subscription,
+      planId,
+      currency: normalizePayPalCurrency(params.currency),
+    }),
+    enumerable: false,
+  });
+  return subscription;
 }
 
 export async function createPayPalStorageAddonCheckout(params: {

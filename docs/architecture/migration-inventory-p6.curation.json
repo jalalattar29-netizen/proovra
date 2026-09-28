@@ -3168,6 +3168,22 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='report_generation_requests' AND column_name IN ('report_version','stage','intent','client_request_key')\"",
       "evidence": "ARTIFACT RECOVERY PROGRESS (2026-09-26). Adds nullable columns reports.pdf_sha256, verification_packages.report_version/report_sha256, report_generation_requests.report_version/stage/intent/client_request_key, and one DO-guarded unique index (evidence_id, client_request_key). EXPAND / SAFE_TO_APPLY_NOW, taken from the migration's own header: purely additive, nothing dropped, narrowed, renamed or backfilled; the prior build never reads or writes these columns. WHY: package-only recovery must embed the STORED report only after verifying its bytes against a recorded hash (pdf_sha256; legacy rows fall back to the storage-recorded checksum), a package must reference the report it certifies, and a retry must resume from the report version its request committed instead of minting another. Proven by services/api/test/point5/report-package-recovery.integration.test.ts against a real database and the real worker processor."
+    },
+    "20280690000000_billing_storage_attempt_abandoned": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='WorkspaceStorageAddonStatus' AND e.enumlabel='ABANDONED'\"",
+      "evidence": "BILLING STORAGE ATTEMPTS (2026-09-27, curated 2026-09-28). Adds the enum value ABANDONED to WorkspaceStorageAddonStatus with ALTER TYPE ... ADD VALUE IF NOT EXISTS; no row is rewritten. EXPAND / SAFE_TO_APPLY_NOW for the schema itself. Rolling-deploy caveat recorded in docs/audits/proovra-billing-incident-audit-2026-09-28.md: once any row holds ABANDONED, an API instance built from a Prisma client older than this migration cannot deserialize that row, so old instances must be drained before the abandon action is exposed. It shipped in e9efd55 without an inventory record, which is why the Point 6 / DB-010 / Point 8 gates were red at that commit."
+    },
+    "20280700000000_billing_checkout_attempts": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='billing_checkout_attempts'\"",
+      "evidence": "BILLING CHECKOUT ATTEMPTS (2026-09-28). Creates one table (billing_checkout_attempts) and two enums (BillingCheckoutProduct, BillingCheckoutAttemptStatus); nothing existing is altered, dropped or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the table, and code built after it needs the table to exist before it serves PayPal plan or evidence-credit checkouts, so apply before deploying the API. Pre-existing TRIALING PayPal subscriptions keep working without a row (read as legacy attempts)."
     }
   }
 }

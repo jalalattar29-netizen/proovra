@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "c4981443a99483b80f40838a76291000548a08f1b38b6669a15d302fc4faa6b4",
+  "capabilityRouteInventoryHash": "c695da0430f94686346a1628d1a414fd3430a4ab76bb0a4c54307891251e8976",
   "totals": {
-    "routes": 1164,
+    "routes": 1168,
     "routesWithAnyTestCaller": 40,
     "testOnlyRoutes": 3,
     "testCallSites": 70,
@@ -4015,6 +4015,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4040,6 +4052,18 @@
     },
     {
       "routeId": "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/billing/accounts/:type/:id/storage-attempts/:attemptId/abandon",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/billing/accounts/:type/:id/storage-attempts/:attemptId/recheck",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7083,5 +7107,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "17fd16a93d8c92d7c3c3a11f876a8fa39e0e97b8484951e4ba9f8b64b178188f"
+  "contentHash": "4a97694202d93025d42d843a3c1ea3ad36a06b100821933083eab6c1d6b0c25d"
 }

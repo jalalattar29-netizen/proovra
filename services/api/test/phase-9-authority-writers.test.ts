@@ -183,6 +183,15 @@ const AUTHORITY_WRITERS: Array<{
       // capacity the customer paid for is not taken early.
       "routes/billing.routes.ts":
         "canonical: direct add-on cancellation, recording only what the provider confirmed",
+      // BILLING STORAGE ATTEMPTS (2026-09-27, registered 2026-09-28) — the
+      // durable PENDING attempt row committed BEFORE the PayPal create call,
+      // then bound to the returned subscription id (or marked FAILED on a
+      // provider refusal, PROVIDER_OUTCOME_UNKNOWN otherwise). It never writes
+      // ACTIVE: activation stays with `upsertWorkspaceStorageAddon` on
+      // provider truth. It shipped unregistered, which is why this test was
+      // red at e9efd55.
+      "services/billing/pending-checkout-attempt.service.ts":
+        "canonical: pre-provider storage checkout attempt (PENDING/FAILED + provider binding only, never ACTIVE)",
     },
   },
 ];
@@ -271,6 +280,14 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   // route normalize PayPal's status ONE way. It hands the status to
   // `syncPlanForSubscription` / `storageAddonStatusFromSubscription`; the
   // active/grace decision stays in commercial-context.
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — both read TRIALING only to find
+  // PayPal plan approvals that predate durable attempts, and hand every
+  // provider answer to `applyPayPalSubscriptionState`. Neither decides
+  // whether a subscription is active.
+  "services/billing/checkout-attempt-recovery.service.ts":
+    "ATTEMPT LOOKUP: finds pre-attempt TRIALING PayPal approvals; provider answers applied through the shared handler (no capability decision)",
+  "services/billing/billing-activity.service.ts":
+    "READ PROJECTION: lists pre-attempt TRIALING PayPal approvals as Billing activity (no capability decision)",
   "services/billing/paypal-settlement.service.ts":
     "PROVIDER PROJECTION: normalizes PayPal subscription status → SubscriptionStatus and applies it through the shared handler (no capability decision)",
   "services/billing/plan-transition.service.ts":

@@ -58,6 +58,7 @@ import {
   buildReconcilePath,
   parseBillingProjection,
   reconcileMessage,
+  parseBillingActivity,
   retryStorageMessage,
   subscriptionCancelConsequence,
   subscriptionCancelMessage,
@@ -150,7 +151,8 @@ export default function BillingScreen() {
   const loadHistory = useCallback(async (account: BillingAccountRef) => {
     setHistory({ kind: "LOADING" });
     try {
-      setHistory({ kind: "READY", rows: parsePaymentHistory(await apiFetch(buildBillingHistoryPath(account.type, account.id))) });
+      const body = await apiFetch(buildBillingHistoryPath(account.type, account.id));
+      setHistory({ kind: "READY", rows: parsePaymentHistory(body), openPurchases: parseBillingActivity(body) });
     } catch (err) {
       // A missing capability is a DENIAL, never an empty list.
       setHistory({ kind: (err as { statusCode?: number } | null)?.statusCode === 403 ? "DENIED" : "ERROR" });

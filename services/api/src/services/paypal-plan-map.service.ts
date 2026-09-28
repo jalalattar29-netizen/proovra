@@ -126,3 +126,27 @@ export function isPayPalStorageAddonPlanId(params: {
       id,
   );
 }
+
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — the currency of a configured base
+ * plan id, or null when the id is not one of ours.
+ *
+ * A plan change must stay in the currency the live subscription is billed in.
+ * The change route used to take the currency from the request body, and the
+ * Billing page sends none, so every PayPal change defaulted to the USD plan —
+ * including for a subscription billed in EUR.
+ */
+export function currencyForPayPalBasePlanId(
+  planId: string | null | undefined,
+): SupportedPayPalCurrency | null {
+  const id = (planId ?? "").trim();
+  if (!id) return null;
+  for (const plan of ["PRO", "TEAM"] as const) {
+    for (const currency of ["USD", "EUR"] as const) {
+      if (process.env[`PAYPAL_${plan}_PLAN_ID_${currency}`]?.trim() === id) {
+        return currency;
+      }
+    }
+  }
+  return null;
+}

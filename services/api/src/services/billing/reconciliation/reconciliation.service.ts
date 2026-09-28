@@ -68,6 +68,12 @@ import { StripeBillingReconciliationProvider } from "./stripe.provider.js";
 import { PayPalBillingReconciliationProvider } from "./paypal.provider.js";
 import { decidePaymentTransition } from "./payment-status.js";
 import {
+  abandonWarning,
+  countAttemptOutcome,
+  reconcileCheckoutAttempts,
+  UNVERIFIABLE_OUTCOMES,
+} from "../checkout-attempt-recovery.service.js";
+import {
   emptySummary,
   resolveOutcome,
   type BillingReconciliationProvider,
@@ -172,6 +178,14 @@ export async function reconcileBillingAccount(input: {
 
   await reconcileEvidenceCredits({ account: input.account, providers, summary });
   await reconcileSubscriptions({ account: input.account, providers, summary });
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — plan and credit checkouts that
+  // have not produced a payment: unbound attempts, approvals still open,
+  // orders awaiting capture, and pre-attempt TRIALING subscriptions.
+  await reconcileCheckoutAttempts({
+    account: input.account,
+    summary,
+    deps: { providers },
+  });
   await reconcileStorageAddons({ account: input.account, providers, summary });
   await convergeDependentCancellations({
     account: input.account,
@@ -482,10 +496,12 @@ async function reconcileSubscriptions(ctx: {
   const bindings = await prisma.subscription.findMany({
     where: {
       ...where,
+      // TRIALING rows are checkouts that never activated. They are examined
+      // by the checkout-attempt pass, which classifies a 404 or an unbound
+      // attempt truthfully instead of counting it as a provider outage.
       status: {
         in: [
           prismaPkg.SubscriptionStatus.ACTIVE,
-          prismaPkg.SubscriptionStatus.TRIALING,
           prismaPkg.SubscriptionStatus.PAST_DUE,
         ],
       },
@@ -712,13 +728,28 @@ async function reconcileStorageAddons(ctx: {
   });
 
   for (const addon of addons) {
-    ctx.summary.storageAttempts.push(
-      await reconcileStorageAddonRow({
-        addon,
-        providers: ctx.providers,
-        summary: ctx.summary,
-      }),
-    );
+    const result = await reconcileStorageAddonRow({
+      addon,
+      providers: ctx.providers,
+      summary: ctx.summary,
+    });
+    ctx.summary.storageAttempts.push(result);
+    // Only never-activated rows are checkout ATTEMPTS; an ACTIVE add-on is a
+    // subscription the pass kept in step, not a purchase awaiting anything.
+    if (!addon.activatedAtUtc) {
+      ctx.summary.attempts.push({
+        attemptId: result.attemptId,
+        product: "STORAGE",
+        createdAtUtc: result.createdAtUtc,
+        provider: result.provider,
+        providerBound: result.providerBound,
+        previousStatus: result.previousStatus,
+        currentStatus: result.currentStatus,
+        outcome: result.outcome,
+        locallyAbandoned: result.previousStatus === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
+        ...(result.resumeUrl ? { resumeUrl: result.resumeUrl } : {}),
+      });
+    }
   }
 }
 
@@ -795,34 +826,31 @@ async function reconcileStorageAddonRow(input: {
     previousStatus: addon.status,
   };
   summary.checked += 1;
+  const locallyAbandoned =
+    addon.status === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED;
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the same counting rule as every
+  // other attempt. An attempt the customer already abandoned is re-read so a
+  // later provider-proven activation still wins, but a provider that no
+  // longer knows it is the expected answer, not "action required" on every
+  // re-check for ever.
+  const unresolved = async (
+    outcome: StorageAttemptReconciliation["outcome"],
+  ): Promise<StorageAttemptReconciliation> => {
+    countAttemptOutcome(summary, { outcome, locallyAbandoned });
+    await noteStorageAttemptCheck(addon.id, outcome);
+    return { ...base, currentStatus: addon.status, outcome };
+  };
 
   const provider = addon.paymentProvider;
   const ref = addon.externalSubscriptionId;
-  if (!provider || !ref) {
-    summary.actionRequired += 1;
-    return {
-      ...base,
-      currentStatus: addon.status,
-      outcome: "NOT_PROVIDER_BOUND",
-    };
-  }
+  if (!provider || !ref) return unresolved("NOT_PROVIDER_BOUND");
 
   const adapter = input.providers[provider];
-  if (!adapter) {
-    summary.unavailable += 1;
-    return {
-      ...base,
-      currentStatus: addon.status,
-      outcome: "PROVIDER_UNAVAILABLE",
-    };
-  }
+  if (!adapter) return unresolved("PROVIDER_UNAVAILABLE");
 
   const observation = await adapter.observeSubscription(ref);
   if (observation.state === "UNKNOWN") {
-    const outcome = storageAttemptFailureOutcome(observation.failure);
-    if (outcome === "PROVIDER_UNAVAILABLE") summary.unavailable += 1;
-    else summary.actionRequired += 1;
-    return { ...base, currentStatus: addon.status, outcome };
+    return unresolved(storageAttemptFailureOutcome(observation.failure));
   }
   if (!isNotStale(observation.observedAtUtc, addon.providerStateAtUtc)) {
     return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
@@ -846,7 +874,7 @@ async function reconcileStorageAddonRow(input: {
     return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
   }
 
-  if (observation.state === "PENDING") summary.pending += 1;
+  if (observation.state === "PENDING" && !locallyAbandoned) summary.pending += 1;
   if (next === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE) {
     summary.actionRequired += 1;
   }
@@ -878,11 +906,14 @@ async function reconcileStorageAddonRow(input: {
     if (!stamped) {
       return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
     }
+    const outcome = observation.state === "PENDING" ? "STILL_PENDING" : "NO_CHANGE";
+    await noteStorageAttemptCheck(addon.id, outcome);
     return {
       ...base,
       currentStatus: addon.status,
-      outcome: observation.state === "PENDING" ? "STILL_PENDING" : "NO_CHANGE",
+      outcome,
       ...(observation.resumeUrl ? { resumeUrl: observation.resumeUrl } : {}),
+      providerStatus: observation.providerStatus ?? null,
     };
   }
 
@@ -910,7 +941,39 @@ async function reconcileStorageAddonRow(input: {
     return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
   }
   summary.subscriptionsUpdated += 1;
+  await noteStorageAttemptCheck(addon.id, "UPDATED");
   return { ...base, currentStatus: next, outcome: "UPDATED" };
+}
+
+/**
+ * Remember the last provider answer on the attempt row (merged into its
+ * metadata), so Billing activity can say WHY an attempt is still open — "PayPal
+ * no longer has a record of this" — without another provider call.
+ */
+async function noteStorageAttemptCheck(
+  addonId: string,
+  outcome: StorageAttemptReconciliation["outcome"],
+): Promise<void> {
+  const row = await prisma.workspaceStorageAddon.findUnique({
+    where: { id: addonId },
+    select: { metadata: true },
+  });
+  if (!row) return;
+  const metadata =
+    row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {};
+  await prisma.workspaceStorageAddon
+    .update({
+      where: { id: addonId },
+      data: {
+        metadata: {
+          ...metadata,
+          lastProviderCheck: { outcome, atUtc: new Date().toISOString() },
+        } as prismaPkg.Prisma.InputJsonObject,
+      },
+    })
+    .catch(() => undefined);
 }
 
 /** Reconcile one storage attempt, using the same authority as account-wide re-check. */
@@ -963,11 +1026,27 @@ export type StorageAttemptAbandonResult =
   | StorageAttemptReconciliation
   | {
       attemptId: string;
-      outcome: "ABANDON_CONFIRMATION_REQUIRED" | "ABANDONED" | "ALREADY_ABANDONED";
+      outcome:
+        | "ABANDON_CONFIRMATION_REQUIRED"
+        | "ABANDONED"
+        | "ALREADY_ABANDONED"
+        | "ALREADY_RESOLVED"
+        | "ABANDON_NOT_ALLOWED";
       warning?: string;
+      /** Local disposition only; never a provider cancellation. */
+      cancelsAtProvider?: false;
     };
 
-/** Provider-first local disposition for an unverifiable storage attempt. */
+/**
+ * Provider-first local disposition for a storage attempt.
+ *
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — an approval PayPal still shows as
+ * APPROVAL_PENDING may now be abandoned too, with confirmation. It cannot
+ * charge without the buyer approving it, and refusing left the customer with
+ * no way to clear the attempt except waiting for an expiry PayPal does not
+ * announce. An APPROVED (buyer-consented, activating) subscription is never
+ * abandoned; provider truth still wins over any abandonment afterwards.
+ */
 export async function abandonStorageAddonAttempt(input: {
   account: BillingAccountRef;
   attemptId: string;
@@ -976,23 +1055,32 @@ export async function abandonStorageAddonAttempt(input: {
 }): Promise<StorageAttemptAbandonResult> {
   const checked = await reconcileStorageAddonAttempt(input);
   if (checked.currentStatus === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED) {
-    return { attemptId: input.attemptId, outcome: "ALREADY_ABANDONED" };
+    return { attemptId: input.attemptId, outcome: "ALREADY_ABANDONED", cancelsAtProvider: false };
   }
-  const unverifiable = new Set<StorageAttemptReconciliation["outcome"]>([
-    "NOT_PROVIDER_BOUND",
-    "PROVIDER_UNAVAILABLE",
-    "PROVIDER_REFERENCE_NOT_FOUND",
-    "PROVIDER_REFERENCE_INVALID",
-    "PROVIDER_AUTHORIZATION_FAILED",
-    "PROVIDER_MALFORMED",
-  ]);
-  if (!unverifiable.has(checked.outcome)) return checked;
+  if (checked.currentStatus !== prismaPkg.WorkspaceStorageAddonStatus.PENDING) {
+    // The provider (or an earlier writer) settled it; that answer stands.
+    return checked.outcome === "UPDATED"
+      ? checked
+      : { attemptId: input.attemptId, outcome: "ALREADY_RESOLVED", cancelsAtProvider: false };
+  }
+  if (checked.providerStatus === "APPROVED") {
+    return {
+      attemptId: input.attemptId,
+      outcome: "ABANDON_NOT_ALLOWED",
+      warning:
+        "PayPal shows this storage purchase as approved and activating, so it cannot be abandoned. PROOVRA will apply it as soon as PayPal activates it.",
+      cancelsAtProvider: false,
+    };
+  }
+  const eligible =
+    checked.outcome === "STILL_PENDING" || UNVERIFIABLE_OUTCOMES.has(checked.outcome);
+  if (!eligible) return checked;
   if (!input.confirmed) {
     return {
       attemptId: input.attemptId,
       outcome: "ABANDON_CONFIRMATION_REQUIRED",
-      warning:
-        "The payment provider could not prove how this attempt ended. Abandoning removes only PROOVRA's local checkout blocker; it does not cancel, reverse, or refund anything at the provider.",
+      warning: abandonWarning(checked),
+      cancelsAtProvider: false,
     };
   }
   const updated = await prisma.workspaceStorageAddon.updateMany({
@@ -1007,6 +1095,7 @@ export async function abandonStorageAddonAttempt(input: {
   return {
     attemptId: input.attemptId,
     outcome: updated.count > 0 ? "ABANDONED" : "ALREADY_ABANDONED",
+    cancelsAtProvider: false,
   };
 }
 

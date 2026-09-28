@@ -30,7 +30,9 @@ import * as prismaPkg from "@prisma/client";
 // columns, and a self-service subscription no longer has a workspace to write.
 // They remain in `billing.service` for the Enterprise provisioning path, which
 // legitimately does set an organization workspace's plan.
+import { prisma } from "../../db.js";
 import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
+import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
 
 /**
  * The add-on status a provider subscription status implies.
@@ -71,6 +73,19 @@ export async function syncPlanForSubscription(params: {
   currentPeriodEnd?: Date | null;
   observedAtUtc?: Date | null;
 }) {
+  // BILLING CHECKOUT ATTEMPTS (2026-09-28) — what this subscription was
+  // BEFORE this fact, so a cancellation can tell whether it ever carried the
+  // entitlement it would take away.
+  const before = await prisma.subscription.findUnique({
+    where: {
+      provider_providerSubId: {
+        provider: params.provider,
+        providerSubId: params.providerSubId,
+      },
+    },
+    select: { status: true },
+  });
+
   const subscription = await upsertSubscription({
     userId: params.userId,
     provider: params.provider,
@@ -103,6 +118,44 @@ export async function syncPlanForSubscription(params: {
   // the model change; only where it is recorded moves.
 
   if (subscription.status === prismaPkg.SubscriptionStatus.CANCELED) {
+    /*
+     * BILLING CHECKOUT ATTEMPTS (2026-09-28) — a cancellation removes only
+     * the entitlement THIS subscription granted.
+     *
+     * This wrote FREE unconditionally. A PayPal approval the customer never
+     * completed (TRIALING, never ACTIVE) that PayPal later cancels or expires
+     * therefore downgraded a customer who had since bought a plan another way
+     * — or who holds a granted tier with no subscription at all — to FREE.
+     * Nothing about that customer's paid access had changed.
+     *
+     *   * never activated (no prior row, or the prior row was TRIALING):
+     *     it granted nothing, so it takes nothing away;
+     *   * another self-service base subscription is still ACTIVE/PAST_DUE:
+     *     that one is the entitlement now, and is left in force;
+     *   * otherwise the paid access this subscription carried ends: FREE.
+     */
+    const everCarriedEntitlement =
+      before !== null &&
+      before.status !== prismaPkg.SubscriptionStatus.TRIALING;
+    if (!everCarriedEntitlement) return;
+
+    const otherLive = await prisma.subscription.findFirst({
+      where: {
+        userId: params.userId,
+        id: { not: subscription.id },
+        plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
+        status: {
+          in: [
+            prismaPkg.SubscriptionStatus.ACTIVE,
+            prismaPkg.SubscriptionStatus.PAST_DUE,
+          ],
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    });
+    if (otherLive) return;
+
     await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
     return;
   }

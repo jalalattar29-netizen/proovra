@@ -1,8 +1,9 @@
 import * as prismaPkg from "@prisma/client";
 import { stripeRequest } from "./stripe.service.js";
 import {
-  createPayPalOrder,
+  createPayPalOrderWithDiagnostics,
   createPayPalSubscription,
+  type PayPalCreateDiagnostics,
   createPayPalStorageAddonCheckout as createPayPalStorageAddonCheckoutApi,
 } from "./paypal.service.js";
 import { isPayPalRecurringPlan } from "./paypal-plan-map.service.js";
@@ -115,6 +116,8 @@ export async function createStripeEvidenceCreditCheckout(params: {
 export async function createPayPalEvidenceCreditCheckout(params: {
   userId: string;
   currency?: string | null;
+  /** Durable local checkout attempt (PayPal-Request-Id + custom_id). */
+  attemptId?: string | null;
 }) {
   return createPayPalCheckout({
     userId: params.userId,
@@ -122,6 +125,7 @@ export async function createPayPalEvidenceCreditCheckout(params: {
     currency: params.currency,
     teamId: null,
     productKey: "EVIDENCE_CREDIT",
+    attemptId: params.attemptId ?? null,
   });
 }
 
@@ -340,7 +344,26 @@ export async function createPayPalCheckout(params: {
   teamId?: string | null;
   /** See `createStripeCheckoutSession`. */
   productKey?: CheckoutProductKey;
-}) {
+  /** Durable local checkout attempt (PayPal-Request-Id + custom_id). */
+  attemptId?: string | null;
+}): Promise<
+  | {
+      mode: "order";
+      currency: "USD" | "EUR";
+      amountCents: number;
+      amount: string;
+      order: Record<string, unknown>;
+      diagnostics: PayPalCreateDiagnostics;
+    }
+  | {
+      mode: "subscription";
+      currency: "USD" | "EUR";
+      amountCents: number;
+      amount: string;
+      subscription: Record<string, unknown>;
+      diagnostics: PayPalCreateDiagnostics | null;
+    }
+> {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
   });
@@ -367,7 +390,7 @@ export async function createPayPalCheckout(params: {
   );
 
   if (params.plan === prismaPkg.PlanType.PAYG) {
-    const order = await createPayPalOrder({
+    const { order, diagnostics } = await createPayPalOrderWithDiagnostics({
       userId: params.userId,
       plan: params.plan,
       currency,
@@ -375,6 +398,7 @@ export async function createPayPalCheckout(params: {
       teamId: null,
       returnUrl: successUrl,
       cancelUrl,
+      requestId: params.attemptId ?? null,
     });
 
     return {
@@ -383,6 +407,7 @@ export async function createPayPalCheckout(params: {
       amountCents,
       amount,
       order,
+      diagnostics,
     };
   }
 
@@ -397,6 +422,7 @@ export async function createPayPalCheckout(params: {
     teamId: params.teamId ?? null,
     returnUrl: successUrl,
     cancelUrl,
+    requestId: params.attemptId ?? null,
   });
 
   const subscriptionId = String(
@@ -420,5 +446,6 @@ export async function createPayPalCheckout(params: {
     amountCents,
     amount,
     subscription,
+    diagnostics: subscription.__diagnostics ?? null,
   };
 }

@@ -47,14 +47,27 @@ export function assertPayPalPlanConfigured(params: {
   }
 }
 
+/**
+ * `userId:teamId:PLAN[:attemptId]`.
+ *
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — the optional fourth segment is the
+ * durable local checkout attempt, so a provider resource whose create
+ * response was lost still names the row that started it. Readers written
+ * before this change split on ":" and read only the first three segments, so
+ * old and new values stay mutually readable.
+ */
 export function buildPayPalCustomId(params: {
   userId: string;
   plan: prismaPkg.PlanType | "PRO" | "TEAM" | "PAYG";
   teamId?: string | null;
+  attemptId?: string | null;
 }) {
   const plan = String(params.plan).trim().toUpperCase();
   const teamId = params.teamId?.trim() || "";
-  return `${params.userId}:${teamId}:${plan}`;
+  const attempt = params.attemptId?.trim();
+  return attempt
+    ? `${params.userId}:${teamId}:${plan}:${attempt}`
+    : `${params.userId}:${teamId}:${plan}`;
 }
 
 /**
@@ -203,6 +216,7 @@ export function parsePayPalCustomId(value: string | null | undefined): {
   userId: string | null;
   plan: prismaPkg.PlanType | null;
   teamId: string | null;
+  attemptId?: string | null;
 } {
   const raw = (value ?? "").trim();
 
@@ -249,7 +263,7 @@ export function parsePayPalCustomId(value: string | null | undefined): {
 
     return { userId, plan, teamId };
   } catch {
-    const [userIdRaw, teamIdRaw, planRaw] = raw.split(":");
+    const [userIdRaw, teamIdRaw, planRaw, attemptRaw] = raw.split(":");
     const userId = userIdRaw?.trim() || null;
     const teamId = teamIdRaw?.trim() || null;
     const normalizedPlan = planRaw?.trim().toUpperCase() || "";
@@ -262,10 +276,12 @@ export function parsePayPalCustomId(value: string | null | undefined): {
         ? (normalizedPlan as prismaPkg.PlanType)
         : null;
 
+    const attempt = attemptRaw?.trim() ?? "";
     return {
       userId,
       plan,
       teamId,
+      attemptId: UUID_RE.test(attempt) ? attempt : null,
     };
   }
 }

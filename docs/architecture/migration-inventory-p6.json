@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 279,
-    "classifiedMigrations": 279,
+    "filesystemMigrations": 281,
+    "classifiedMigrations": 281,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 279,
+    "productionSnapshotUnknown": 281,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 279,
-    "classifiedMigrations": 279,
+    "filesystemMigrations": 281,
+    "classifiedMigrations": 281,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 279,
+    "productionSnapshotUnknown": 281,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 57,
+      "EXPAND": 59,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 68,
+      "SAFE_TO_APPLY_NOW": 70,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 279
+    "ProductionMigrationStateUnknown": 281
   },
   "gateFailures": [],
   "migrations": [
@@ -21588,7 +21588,7 @@
       "checksumSha256": "ac2cd207155942eae426622dc7c5481c18bfc243f0a5a1dfd735027f4c79b161",
       "checksumSha256Raw": "ac2cd207155942eae426622dc7c5481c18bfc243f0a5a1dfd735027f4c79b161",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -21655,8 +21655,142 @@
       "evidence": "ARTIFACT RECOVERY PROGRESS (2026-09-26). Adds nullable columns reports.pdf_sha256, verification_packages.report_version/report_sha256, report_generation_requests.report_version/stage/intent/client_request_key, and one DO-guarded unique index (evidence_id, client_request_key). EXPAND / SAFE_TO_APPLY_NOW, taken from the migration's own header: purely additive, nothing dropped, narrowed, renamed or backfilled; the prior build never reads or writes these columns. WHY: package-only recovery must embed the STORED report only after verifying its bytes against a recorded hash (pdf_sha256; legacy rows fall back to the storage-recorded checksum), a package must reference the report it certifies, and a retry must resume from the report version its request committed instead of minting another. Proven by services/api/test/point5/report-package-recovery.integration.test.ts against a real database and the real worker processor."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280690000000_billing_storage_attempt_abandoned",
       "order": 278,
+      "sqlPresent": true,
+      "byteLength": 368,
+      "checksumSha256": "54969dc8a48c796a0c234a5c19962b0e51778c2bfad04e0a137f83a3e0e9a999",
+      "checksumSha256Raw": "54969dc8a48c796a0c234a5c19962b0e51778c2bfad04e0a137f83a3e0e9a999",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "workspacestorageaddonstatus"
+        ],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='WorkspaceStorageAddonStatus' AND e.enumlabel='ABANDONED'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BILLING STORAGE ATTEMPTS (2026-09-27, curated 2026-09-28). Adds the enum value ABANDONED to WorkspaceStorageAddonStatus with ALTER TYPE ... ADD VALUE IF NOT EXISTS; no row is rewritten. EXPAND / SAFE_TO_APPLY_NOW for the schema itself. Rolling-deploy caveat recorded in docs/audits/proovra-billing-incident-audit-2026-09-28.md: once any row holds ABANDONED, an API instance built from a Prisma client older than this migration cannot deserialize that row, so old instances must be drained before the abandon action is exposed. It shipped in e9efd55 without an inventory record, which is why the Point 6 / DB-010 / Point 8 gates were red at that commit."
+    },
+    {
+      "name": "20280700000000_billing_checkout_attempts",
+      "order": 279,
+      "sqlPresent": true,
+      "byteLength": 1887,
+      "checksumSha256": "63501d4631d128af2ec865a81def921822c8e12902c570c5d7137b3732617852",
+      "checksumSha256Raw": "63501d4631d128af2ec865a81def921822c8e12902c570c5d7137b3732617852",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "billing_checkout_attempts"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "billing_checkout_attempts"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [
+          "billingcheckoutattemptstatus",
+          "billingcheckoutproduct"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "billing_checkout_attempts_provider_provider_resource_id_key",
+          "billing_checkout_attempts_user_id_status_created_at_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "billing_checkout_attempts_user_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='billing_checkout_attempts'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BILLING CHECKOUT ATTEMPTS (2026-09-28). Creates one table (billing_checkout_attempts) and two enums (BillingCheckoutProduct, BillingCheckoutAttemptStatus); nothing existing is altered, dropped or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the table, and code built after it needs the table to exist before it serves PayPal plan or evidence-credit checkouts, so apply before deploying the API. Pre-existing TRIALING PayPal subscriptions keep working without a row (read as legacy attempts)."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 280,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

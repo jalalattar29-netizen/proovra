@@ -129,9 +129,9 @@ function approvalLink(order: Record<string, unknown>): string | null {
     const link = asRecord(raw);
     const href = link?.["href"];
     if (
-      link?.["rel"] === "approve" &&
+      (link?.["rel"] === "approve" || link?.["rel"] === "payer-action") &&
       typeof href === "string" &&
-      href.startsWith("https://")
+      isPayPalHostedHttpsUrl(href)
     ) {
       return href;
     }
@@ -157,6 +157,25 @@ function approvalLink(order: Record<string, unknown>): string | null {
  * A non-HTTP throw — DNS, timeout, connection reset — really is an outage and
  * keeps the original classification.
  */
+/**
+ * BILLING CHECKOUT ATTEMPTS (2026-09-28) — a resume link is shown to the
+ * customer, so it must be PayPal's own HTTPS page and nothing else. `https://`
+ * alone accepted any host a malformed or spoofed payload named.
+ */
+export function isPayPalHostedHttpsUrl(href: string): boolean {
+  try {
+    const url = new URL(href);
+    return (
+      url.protocol === "https:" &&
+      ["paypal.com", "www.paypal.com", "sandbox.paypal.com", "www.sandbox.paypal.com"].includes(
+        url.hostname.toLowerCase(),
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function classifyPayPalFailure(err: unknown): ObservationFailure {
   if (!(err instanceof PayPalHttpError)) return "PROVIDER_UNAVAILABLE";
   if (err.status === 401 || err.status === 403) return "AUTHORIZATION_FAILED";
@@ -279,6 +298,10 @@ export class PayPalBillingReconciliationProvider
       : null;
     const amount = asRecord(unit?.["amount"]);
 
+    if (orderState(order) === "UNKNOWN") {
+      return unknownPayment(providerRef, "UNSUPPORTED_STATE");
+    }
+
     return {
       kind: "PAYMENT",
       provider: PROVIDER,
@@ -298,7 +321,10 @@ export class PayPalBillingReconciliationProvider
       // it. Read at observation time and never stored, for the same reason as
       // the Stripe session URL: it stops being valid without telling us.
       resumeUrl:
-        orderState(order) === "PENDING" ? approvalLink(order) : null,
+        order["status"] === "CREATED" || order["status"] === "PAYER_ACTION_REQUIRED"
+          ? approvalLink(order)
+          : null,
+      providerStatus: typeof order["status"] === "string" ? order["status"] : null,
     };
   }
 
@@ -332,6 +358,7 @@ export class PayPalBillingReconciliationProvider
           : null,
       quantity: null,
       observedAtUtc: utcFromIso(capture["update_time"] ?? capture["create_time"]),
+      providerStatus: typeof capture["status"] === "string" ? `CAPTURE_${capture["status"]}` : null,
     };
   }
 
@@ -396,6 +423,23 @@ export class PayPalBillingReconciliationProvider
     const billingInfo = asRecord(sub["billing_info"]);
     const nextBilling = utcFromIso(billingInfo?.["next_billing_time"]);
 
+    // A status this adapter does not know is not an outage. Reporting it as
+    // PROVIDER_UNAVAILABLE told the customer to "try again later" about a
+    // state waiting cannot change.
+    if (subscriptionState(sub) === "UNKNOWN") {
+      return {
+        kind: "SUBSCRIPTION",
+        provider: PROVIDER,
+        providerRef,
+        state: "UNKNOWN",
+        currentPeriodEndUtc: null,
+        cancelAtPeriodEnd: false,
+        observedAtUtc: null,
+        recentPayments: [],
+        failure: "UNSUPPORTED_STATE",
+      };
+    }
+
     return {
       kind: "SUBSCRIPTION",
       provider: PROVIDER,
@@ -406,9 +450,12 @@ export class PayPalBillingReconciliationProvider
       // is cancelled; saying otherwise is the defect the cancellation service
       // exists to prevent.
       cancelAtPeriodEnd: false,
-      observedAtUtc: utcFromIso(sub["update_time"] ?? sub["create_time"]),
+      observedAtUtc: utcFromIso(
+        sub["status_update_time"] ?? sub["update_time"] ?? sub["create_time"],
+      ),
       recentPayments: await this.recentTransactions(providerRef),
-      resumeUrl: subscriptionState(sub) === "PENDING" ? approvalLink(sub) : null,
+      resumeUrl: sub["status"] === "APPROVAL_PENDING" ? approvalLink(sub) : null,
+      providerStatus: typeof sub["status"] === "string" ? sub["status"] : null,
     };
   }
 

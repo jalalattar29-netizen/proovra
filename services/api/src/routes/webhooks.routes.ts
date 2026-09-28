@@ -793,10 +793,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
             .send({ ok: true, deduplicated: true, eventId: paypalEventId });
         }
 
-        if (
-          hashMatches &&
-          webhookDuplicateDisposition(existing ?? {}) === "RETRY_LATER"
-        ) {
+        // BILLING CHECKOUT ATTEMPTS (2026-09-28) — an ACTIVE lease defers
+        // every redelivery of this event id, whatever its bytes. Gating this
+        // on a matching hash let a byte-different redelivery fall through to
+        // the reclaim below while the first delivery was still running, so
+        // two processes applied the same provider event concurrently.
+        if (webhookDuplicateDisposition(existing ?? {}) === "RETRY_LATER") {
           return reply.code(503).send({ ok: false, retryable: true });
         }
 

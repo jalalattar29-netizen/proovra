@@ -24,7 +24,7 @@ import userEvent from "@testing-library/user-event";
 
 import { BillingHistorySection } from "../../app/(app)/billing/_sections/StorageAndHistory";
 import type {
-  ActiveStorageAddon,
+  BillingActivityItem,
   BillingHistoryEntry,
 } from "../../lib/api/billing-accounts";
 
@@ -75,7 +75,11 @@ function mount(
     onCancelPayment?: (e: BillingHistoryEntry) => void;
     onAbandonPayment?: (e: BillingHistoryEntry) => void;
     rowBusyId?: string | null;
-    storageAttempts?: ActiveStorageAddon[];
+    activity?: BillingActivityItem[];
+    onRecheckAttempt?: (i: BillingActivityItem) => void;
+    onAbandonAttempt?: (i: BillingActivityItem) => void;
+    attemptBusyId?: string | null;
+    attemptResumeUrls?: Record<string, string>;
   } = {},
 ) {
   return render(
@@ -91,7 +95,11 @@ function mount(
       onAbandonPayment={over.onAbandonPayment ?? noop}
       rowBusyId={over.rowBusyId ?? null}
       resumeUrls={{}}
-      storageAttempts={over.storageAttempts}
+      activity={over.activity}
+      onRecheckAttempt={over.onRecheckAttempt}
+      onAbandonAttempt={over.onAbandonAttempt}
+      attemptBusyId={over.attemptBusyId ?? null}
+      attemptResumeUrls={over.attemptResumeUrls}
     />,
   );
 }
@@ -105,37 +113,113 @@ beforeEach(() => {
 // ===========================================================================
 
 describe("a real provider cancellation and a local abandonment", () => {
-  it("shows two unpaid storage attempts while completed payment history is empty", () => {
-    const attempt = (id: string, providerReference: string): ActiveStorageAddon => ({
+  it("shows two unpaid storage attempts while completed payment history is empty — without provider ids", () => {
+    const attempt = (id: string): BillingActivityItem => ({
       id,
-      addonKey: "PERSONAL_50_GB",
-      label: "+50 GB",
-      storageLabel: "50 GB",
-      status: "PENDING",
-      billingCycle: "MONTHLY",
-      legacyOneTime: false,
-      canCancel: false,
-      canRecheck: true,
-      canAbandon: true,
-      attemptReference: `SA-${id.slice(0, 8).toUpperCase()}`,
-      paymentProvider: "PAYPAL",
-      providerReference,
+      product: "STORAGE",
+      description: "+50 GB storage add-on",
+      providerLabel: "PayPal",
       createdAtUtc: "2026-09-26T10:00:00.000Z",
-      activatedAtUtc: null,
-      currentPeriodEndUtc: null,
-      priceCents: 799,
+      state: "PROVIDER_NO_RECORD",
+      statusLabel: "No record at PayPal",
+      explanation:
+        "PayPal no longer has a record of this checkout, and it was never approved through PROOVRA. It has not produced a payment, so it is not in your payment history, and nothing has been added to your account.",
+      recurring: true,
+      lastCheckedAtUtc: "2026-09-28T10:00:00.000Z",
+      amountCents: 799,
       currency: "EUR",
+      actions: { canRecheck: true, canAbandon: true },
     });
     const { container } = mount([], {
-      storageAttempts: [
-        attempt("11111111-1111-4111-8111-111111111111", "I-FIRST"),
-        attempt("22222222-2222-4222-8222-222222222222", "I-SECOND"),
+      activity: [
+        attempt("11111111-1111-4111-8111-111111111111"),
+        attempt("22222222-2222-4222-8222-222222222222"),
       ],
     });
-    expect(container.querySelectorAll("[data-billing-purchase-attempts] li")).toHaveLength(2);
-    expect(container.textContent).toContain("No completed payments are recorded");
-    expect(container.textContent).toContain("I-FIRST");
-    expect(container.textContent).toContain("I-SECOND");
+    expect(container.querySelectorAll("[data-billing-activity-item]")).toHaveLength(2);
+    expect(container.textContent).toContain("Billing activity");
+    expect(container.textContent).toContain("No record at PayPal");
+    expect(container.textContent).toContain("not in your payment history");
+    expect(container.textContent).toContain("No payments yet");
+    expect(container.textContent).toContain("appear here once the provider confirms a payment");
+    // No provider id, no internal reference, no raw provider enum.
+    expect(container.textContent).not.toMatch(/I-[A-Z0-9]{6,}|SA-[0-9A-F]{8}|\bPAYPAL\b|11111111/);
+    // There is no generic "Cancel" on an attempt.
+    expect(screen.queryAllByRole("button", { name: /^cancel/i })).toHaveLength(0);
+  });
+
+  it("plan and credit attempts appear too, each with only the actions the server allows", async () => {
+    const onRecheckAttempt = vi.fn();
+    const onAbandonAttempt = vi.fn();
+    const plan: BillingActivityItem = {
+      id: "66666666-6666-4666-8666-666666666666",
+      product: "PLAN",
+      description: "Team plan",
+      providerLabel: "PayPal",
+      createdAtUtc: "2026-09-27T10:00:00.000Z",
+      state: "AWAITING_APPROVAL",
+      statusLabel: "Waiting for approval",
+      explanation: "Waiting for you to approve it at PayPal.",
+      recurring: true,
+      lastCheckedAtUtc: null,
+      amountCents: 7900,
+      currency: "USD",
+      actions: { canRecheck: true, canAbandon: true },
+    };
+    const credit: BillingActivityItem = {
+      ...plan,
+      id: "77777777-7777-4777-8777-777777777777",
+      product: "EVIDENCE_CREDIT",
+      description: "Evidence credit",
+      state: "PROCESSING",
+      statusLabel: "Processing",
+      recurring: false,
+      amountCents: 500,
+      actions: { canRecheck: true, canAbandon: false },
+    };
+    mount([], {
+      activity: [plan, credit],
+      onRecheckAttempt,
+      onAbandonAttempt,
+      attemptResumeUrls: { [plan.id]: "https://www.paypal.com/webapps/billing/subscriptions?ba_token=X" },
+    });
+    expect(screen.getByText(/\$79\.00 \/ month|US\$79\.00 \/ month|79\.00/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue at PayPal" })).toBeTruthy();
+    // The credit being processed cannot be abandoned.
+    expect(screen.queryByRole("button", { name: "Abandon Evidence credit" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Check status of Team plan" }));
+    await userEvent.click(screen.getByRole("button", { name: "Abandon Team plan" }));
+    expect(onRecheckAttempt).toHaveBeenCalledWith(plan);
+    expect(onAbandonAttempt).toHaveBeenCalledWith(plan);
+  });
+
+  it("a busy attempt cannot be pressed again", async () => {
+    const onRecheckAttempt = vi.fn();
+    const item: BillingActivityItem = {
+      id: "88888888-8888-4888-8888-888888888888",
+      product: "STORAGE",
+      description: "+50 GB storage add-on",
+      providerLabel: "PayPal",
+      createdAtUtc: "2026-09-27T10:00:00.000Z",
+      state: "AWAITING_APPROVAL",
+      statusLabel: "Waiting for approval",
+      explanation: "x",
+      recurring: true,
+      lastCheckedAtUtc: null,
+      actions: { canRecheck: true, canAbandon: true },
+    };
+    const { container } = mount([], {
+      activity: [item],
+      onRecheckAttempt,
+      onAbandonAttempt: vi.fn(),
+      attemptBusyId: item.id,
+    });
+    const recheck = container.querySelector(`[data-billing-activity-recheck="${item.id}"]`) as HTMLButtonElement;
+    const abandon = container.querySelector(`[data-billing-activity-abandon="${item.id}"]`) as HTMLButtonElement;
+    expect(recheck.disabled).toBe(true);
+    expect(abandon.disabled).toBe(true);
+    await userEvent.click(recheck).catch(() => undefined);
+    expect(onRecheckAttempt).not.toHaveBeenCalled();
   });
 
   it("are labelled as the different things they are", () => {

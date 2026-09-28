@@ -132,15 +132,53 @@ vi.mock("../src/services/billing/pending-checkout-attempt.service.js", async () 
       );
       return H.pendingResolution;
     },
-    withPendingProviderCheckoutGate: async (input: { create: () => Promise<unknown> }) => {
-      H.calls.push("pendingCheckoutGate");
-      if (H.pendingAttempt) {
-        return { kind: "BLOCKED", attempt: H.pendingAttempt };
-      }
-      return { kind: "CREATED", result: await input.create() };
-    },
   };
 });
+
+// BILLING CHECKOUT ATTEMPTS (2026-09-28) — the PayPal plan route now starts
+// through the durable-attempt service (its real gate is proven against
+// PostgreSQL in billing-checkout-attempts.integration.test.ts). Here it is a
+// seam, so these tests stay about the ROUTE: which refusals run first, and
+// that a refused request never reaches the provider.
+vi.mock("../src/services/billing/paypal-checkout-start.service.js", () => ({
+  startPayPalPlanCheckout: async (input: { plan: string }) => {
+    H.calls.push("pendingCheckoutGate");
+    const pending = H.pendingAttempt as
+      | { state: string; pendingPlan?: string; targetPlan: string }
+      | null
+      | undefined;
+    if (pending) {
+      const same = pending.state === "PENDING_SAME_TARGET";
+      return {
+        kind: "BLOCKED",
+        httpBody: same
+          ? { message: "pending", code: "PAYPAL_APPROVAL_PENDING", details: { plan: input.plan } }
+          : {
+              message: "pending",
+              code: "PAYPAL_DIFFERENT_PLAN_PENDING",
+              details: { pendingPlan: pending.pendingPlan, requestedPlan: input.plan },
+            },
+      };
+    }
+    H.calls.push("paypalCheckout");
+    return {
+      kind: "CREATED",
+      attemptId: "00000000-0000-4000-8000-000000000001",
+      mode: "subscription",
+      resource: { id: "I-1", links: [{ rel: "approve", href: "https://www.paypal.com/a" }] },
+      currency: "EUR",
+      amountCents: 1900,
+    };
+  },
+  startPayPalCreditCheckout: async () => ({
+    kind: "CREATED",
+    attemptId: "00000000-0000-4000-8000-000000000002",
+    mode: "order",
+    resource: { id: "O-1" },
+    currency: "EUR",
+    amountCents: 500,
+  }),
+}));
 
 vi.mock("../src/services/billing-checkout.service.js", () => ({
   createStripeCheckoutSession: async () => {

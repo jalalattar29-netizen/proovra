@@ -605,20 +605,64 @@ export function buildAbandonBody(confirmed: boolean) {
   return { confirmed };
 }
 
-/** page.tsx `handleAccountRecheck`, by the reconcile route's `outcome`. */
+/**
+ * The account-wide re-check result, in words.
+ *
+ * BILLING ACTIVITY (2026-09-28) — the same rule as the web's
+ * `describeReconciliation`: "waiting" is said ONLY for an attempt the provider
+ * itself reported as awaiting approval. This used to answer every PENDING
+ * outcome with "Your provider is still settling a payment", which a customer
+ * read about two PayPal attempts PayPal had answered 404 for.
+ */
+const UNVERIFIED_ATTEMPT = new Set([
+  "NOT_PROVIDER_BOUND",
+  "PROVIDER_REFERENCE_NOT_FOUND",
+  "PROVIDER_REFERENCE_INVALID",
+  "PROVIDER_AUTHORIZATION_FAILED",
+  "PROVIDER_MALFORMED",
+]);
+
+function count(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function reconcileMessage(result: unknown): { message: string; tone: "success" | "info" | "error"; refresh: boolean } {
-  switch (str(obj(result).outcome)) {
-    case "UPDATED":
-      return { message: "Your provider had something we had not recorded. Your billing is now up to date.", tone: "success", refresh: true };
-    case "PENDING":
-      return { message: "Your provider is still settling a payment. Check again in a few minutes — nothing is charged twice.", tone: "info", refresh: false };
-    case "ACTION_REQUIRED":
-      return { message: "Something on this account needs our help. Please contact support.", tone: "error", refresh: false };
-    case "PROVIDER_UNAVAILABLE":
-      return { message: "We could not reach your payment provider just now. Your billing records are unchanged.", tone: "error", refresh: false };
-    default:
-      return { message: "Everything on this account already matches your payment provider.", tone: "success", refresh: false };
+  const outcome = str(obj(result).outcome);
+  const s = obj(obj(result).summary);
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  if (!obj(result).summary) {
+    return outcome === "PROVIDER_UNAVAILABLE"
+      ? { message: "We could not reach your payment provider. Nothing was changed.", tone: "error", refresh: false }
+      : { message: "Billing was checked. Nothing was changed.", tone: "info", refresh: false };
   }
+  const attempts = (Array.isArray(s.attempts) ? s.attempts : [])
+    .map(obj)
+    .filter((a) => a.locallyAbandoned !== true);
+  const awaiting = attempts.filter((a) => str(a.outcome) === "STILL_PENDING").length;
+  const unverified = attempts.filter((a) => UNVERIFIED_ATTEMPT.has(str(a.outcome) ?? "")).length;
+  const unreachable = num(s.unavailable);
+  const credits = num(s.creditsRestored);
+  const changed = credits + num(s.paymentsRecorded) + num(s.subscriptionsUpdated) + num(s.attemptsUpdated);
+  const discrepancies = num(s.discrepancies);
+  const otherAction = Math.max(0, num(s.actionRequired) - unverified);
+
+  const parts = [`Checked ${count(num(s.checked), "item", "items")} with your payment provider. Nothing was charged.`];
+  if (changed > 0) parts.push(`${count(changed, "record was", "records were")} updated from what the provider confirmed.`);
+  if (credits > 0) parts.push(`${count(credits, "evidence credit was", "evidence credits were")} added.`);
+  if (awaiting > 0) parts.push(`${count(awaiting, "purchase is", "purchases are")} still waiting for your approval at PayPal.`);
+  if (unverified > 0) parts.push(`${count(unverified, "purchase", "purchases")} could not be confirmed by the provider — see Billing activity on the web.`);
+  if (unreachable > 0) parts.push(`The provider could not be reached for ${count(unreachable, "item", "items")}; those were left unchanged.`);
+  if (discrepancies > 0) parts.push("Something the provider reported did not match our prices, so nothing was applied for it. Please contact support.");
+  if (otherAction > 0) parts.push("Some storage cancellations are still outstanding; we keep retrying them.");
+  if (parts.length === 1) parts.push("Everything on this account already matches your payment provider.");
+
+  const tone =
+    unreachable > 0 && changed === 0 && awaiting === 0 && unverified === 0
+      ? "error"
+      : changed > 0 && awaiting + unverified + unreachable + discrepancies === 0
+        ? "success"
+        : "info";
+  return { message: parts.join(" "), tone, refresh: changed > 0 };
 }
 
 /** page.tsx `announceAbandonOutcome`. */
@@ -719,4 +763,34 @@ export const BILLING_PAGE_COPY = {
 /** ManagePlanDrawer title by access kind. */
 export function managePlanTitle(accessKind: string): string {
   return accessKind === "CONTRACT" ? "Your agreement" : accessKind === "GRANTED" ? "Access details" : "Manage plan";
+}
+
+/**
+ * BILLING ACTIVITY (2026-09-28) — the purchases on this account that have not
+ * produced a payment, from the same history response as the payments. Only
+ * the server's own words are kept; no id beyond the opaque attempt handle.
+ */
+export type OpenPurchaseRow = {
+  id: string;
+  description: string;
+  statusLabel: string;
+  explanation: string;
+  providerLabel: string | null;
+  createdAtUtc: string | null;
+};
+
+export function parseBillingActivity(body: unknown): OpenPurchaseRow[] {
+  const list = obj(body).activity;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(obj)
+    .filter((a) => str(a.id) && str(a.description) && str(a.statusLabel))
+    .map((a) => ({
+      id: str(a.id)!,
+      description: str(a.description)!,
+      statusLabel: str(a.statusLabel)!,
+      explanation: str(a.explanation) ?? "",
+      providerLabel: str(a.providerLabel),
+      createdAtUtc: str(a.createdAtUtc),
+    }));
 }

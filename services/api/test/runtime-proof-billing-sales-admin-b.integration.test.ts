@@ -310,11 +310,83 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(sent.plan_id).toBe("P-K7FAKEPROUSD");
       // Read back with the webhook's own parser — the binding the webhook will trust.
       const { parsePayPalCustomId } = await import("../src/services/paypal-checkout-policy.service.js");
-      expect(parsePayPalCustomId(sent.custom_id)).toEqual({ userId: t.owner.userId, plan: "PRO", teamId: null });
+      // BILLING CHECKOUT ATTEMPTS (2026-09-28) — the durable attempt committed
+      // BEFORE the call is the PayPal-Request-Id and rides in custom_id, and
+      // is bound to the returned subscription with the price it was sold at.
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({
+        where: { userId: t.owner.userId, product: "PLAN" },
+      });
+      expect(parsePayPalCustomId(sent.custom_id)).toEqual({
+        userId: t.owner.userId,
+        plan: "PRO",
+        teamId: null,
+        attemptId: attempt.id,
+      });
+      expect(create!.headers.get("paypal-request-id")).toBe(attempt.id);
+      expect(attempt).toMatchObject({
+        status: "PENDING",
+        checkoutState: "AWAITING_CUSTOMER_APPROVAL",
+        providerResourceId: subscriptionId,
+        planKey: "PRO",
+        currency: "USD",
+        amountCents: pricing.getPlanPriceCents("PRO", "USD"),
+      });
+      // The approval token is never persisted — only its redacted identity.
+      expect(JSON.stringify(attempt.metadata)).not.toContain("paypal.example.invalid/approve");
 
       const audit = await waitForAudit({ action: "billing.checkout_paypal_created", userId: t.owner.userId });
       expect(audit).toMatchObject({ resourceId: subscriptionId, outcome: "success" });
-      expect(audit.metadata).toMatchObject({ plan: "PRO", mode: "subscription", currency: "USD" });
+      expect(audit.metadata).toMatchObject({ plan: "PRO", mode: "subscription", currency: "USD", attemptId: attempt.id });
+    });
+
+    it("a lost create response leaves a durable, unbound attempt that blocks a second PayPal subscription", async () => {
+      const t = await payer();
+      const first = await withFakeProviders(
+        (req) =>
+          paypalToken(req) ??
+          (req.url === `${PAYPAL_FAKE_BASE}/v1/billing/plans/P-K7FAKEPROUSD`
+            ? { body: { id: "P-K7FAKEPROUSD", status: "ACTIVE" } }
+            : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
+              ? { status: 503, body: { name: "INTERNAL_SERVICE_ERROR", message: "x" } }
+              : undefined),
+        () => call("POST", url, t.owner.token, { plan: "PRO", currency: "USD" }),
+      );
+      expect(first.result.statusCode).toBeGreaterThanOrEqual(500);
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({
+        where: { userId: t.owner.userId, product: "PLAN" },
+      });
+      expect(attempt).toMatchObject({
+        status: "PENDING",
+        checkoutState: "PROVIDER_OUTCOME_UNKNOWN",
+        providerResourceId: null,
+      });
+
+      const second = await withFakeProviders(
+        () => ({ body: {} }),
+        () => call("POST", url, t.owner.token, { plan: "PRO", currency: "USD" }),
+      );
+      expect(second.result.statusCode).toBe(409);
+      expect(json(second.result).code).toBe("PAYPAL_APPROVAL_PENDING");
+      expect(second.calls).toEqual([]);
+    });
+
+    it("a PayPal 4xx at create records FAILED and does not block the next checkout", async () => {
+      const t = await payer();
+      const first = await withFakeProviders(
+        (req) =>
+          paypalToken(req) ??
+          (req.url === `${PAYPAL_FAKE_BASE}/v1/billing/plans/P-K7FAKEPROUSD`
+            ? { body: { id: "P-K7FAKEPROUSD", status: "ACTIVE" } }
+            : req.url === `${PAYPAL_FAKE_BASE}/v1/billing/subscriptions` && req.method === "POST"
+              ? { status: 422, body: { name: "UNPROCESSABLE_ENTITY", message: "x" } }
+              : undefined),
+        () => call("POST", url, t.owner.token, { plan: "PRO", currency: "USD" }),
+      );
+      expect(first.result.statusCode).toBe(502);
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({
+        where: { userId: t.owner.userId, product: "PLAN" },
+      });
+      expect(attempt).toMatchObject({ status: "FAILED", checkoutState: "PROVIDER_REJECTED" });
     });
 
     it("refused: a live subscriber gets 409 SUBSCRIPTION_ALREADY_ACTIVE — PayPal is never asked", async () => {
