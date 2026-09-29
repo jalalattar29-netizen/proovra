@@ -142,6 +142,10 @@ describe("BILLING — personal evidence funding boundary (live PostgreSQL 16)", 
           teamId: t.personalTeamId,
           organizationId: t.personalOrganizationId,
           type: "PHOTO",
+          // Held records are ESTABLISHED records. Since ET-INT-03 an abandoned
+          // CREATED draft older than its reservation window no longer occupies
+          // a slot, so a lifetime-cap proof must seed finalized records.
+          status: "SIGNED",
           ...(createdAt ? { createdAt } : {}),
         },
       });

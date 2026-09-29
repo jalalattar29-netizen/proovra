@@ -293,8 +293,11 @@ export function pendingWithoutProgressWhere(bounds: {
     otsStatus: "PENDING",
     otsProofBase64: { not: null },
     createdAt: { gte: bounds.notBefore },
+    // "No progress" is measured from the last write to the row, not from
+    // creation: an old record whose proof was stamped a minute ago has made
+    // progress and its ladder has just been scheduled.
     OR: [
-      { otsUpgradedAtUtc: null, createdAt: { lte: bounds.notAfter } },
+      { otsUpgradedAtUtc: null, updatedAt: { lte: bounds.notAfter } },
       { otsUpgradedAtUtc: { lte: bounds.notAfter } },
     ],
   };

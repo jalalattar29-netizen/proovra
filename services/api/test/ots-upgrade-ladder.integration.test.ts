@@ -13,7 +13,9 @@ import { randomUUID } from "node:crypto";
 
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import type { IntegrationHarness } from "./integration-harness.js";
 
 import { JOB_NAMES, enqueueCanonicalJob, getWorkEntryOrThrow } from "@proovra/shared";
 
@@ -60,6 +62,15 @@ async function runLadder(hopsWanted: number, passSelfJobId: boolean) {
 }
 
 describe("OTS upgrade ladder on real BullMQ (loopback Redis)", () => {
+  // The integration project's canonical acquisition (and its environment
+  // guard), even though the ladder itself needs only Redis.
+  let h: IntegrationHarness;
+  beforeAll(async () => {
+    const { bootIntegrationHarness } = await import("./integration-harness.js");
+    h = await bootIntegrationHarness();
+  }, 180_000);
+  afterAll(async () => { await h?.cleanup(); });
+
   it("ET-OTS-02: a self-rescheduling ladder runs every hop; no enqueue is silently dropped", async () => {
     expect(url).toMatch(/^redis:\/\/(127\.0\.0\.1|localhost)(:\d+)?/);
     const { hops, outcomes } = await runLadder(8, true);

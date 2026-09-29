@@ -38,6 +38,8 @@ runIf("ET-OTS-03 — PENDING proof recovery (live PostgreSQL + loopback Redis)",
         fingerprintCanonicalJson: "{}",
       } as never,
     });
+    // Prisma stamps updatedAt on write; the ladder has made no progress for 10h.
+    await prisma.$executeRaw`UPDATE "evidence" SET "updated_at" = now() - interval '10 hours' WHERE "id" = ${ids.evidence}::uuid`;
   }, 60_000);
 
   afterAll(async () => {
