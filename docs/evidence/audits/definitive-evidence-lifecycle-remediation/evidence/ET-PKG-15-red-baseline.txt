@@ -1,0 +1,10 @@
+ET-PKG-15 red baseline — services/worker/test/package-sealed-version.test.ts against HEAD verification-package.ts + processor.ts
+   × package streams the sealed version (ET-PKG-15) > the part stream is pinned to the file's recorded version 4ms
+     → expected 'import archiver from "archiver";\nimp…' to match /getObjectStream\(\{\s*bucket: file\.s…/
+   × package streams the sealed version (ET-PKG-15) > the processor hands the pre-read's version to the package 3ms
+     → expected 'verificationEvidenceFiles.push({\n   …' to contain 'storageVersionId: part.storageVersion…'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+  // ANCHORED → PENDING when neither txid NOR anchoredAtUtc supports it,
+ * Intake → \"Secure Intake Link\"; otherwise the flow-aware display label
+      // Role-safe display: intake → \"Secure Intake Link\"; otherwise the
+      Tests  2 failed (2)

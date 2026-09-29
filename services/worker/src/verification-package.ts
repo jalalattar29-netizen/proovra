@@ -80,6 +80,8 @@ type VerificationEvidenceFile = {
   partIndex?: number | null;
   storageBucket?: string | null;
   storageKey?: string | null;
+  /** ET-PKG-15 — the version the integrity pre-read hashed; the package streams it. */
+  storageVersionId?: string | null;
   storageRegion?: string | null;
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
@@ -953,12 +955,20 @@ async function appendEvidencePart(
     sizeBytes?: number | null;
     storageBucket?: string | null;
     storageKey?: string | null;
+    storageVersionId?: string | null;
     mimeType?: string | null;
   },
 ): Promise<void> {
   const contentType = file.mimeType ?? "application/octet-stream";
   if (file.storageBucket && file.storageKey && file.sha256 && file.sizeBytes != null) {
-    const body = await getObjectStream({ bucket: file.storageBucket, key: file.storageKey });
+    // ET-PKG-15 — the SAME version the integrity pre-read hashed. Latest-at-
+    // the-key made a newer object at the key fail the build as a digest
+    // mismatch instead of packaging the sealed bytes.
+    const body = await getObjectStream({
+      bucket: file.storageBucket,
+      key: file.storageKey,
+      versionId: file.storageVersionId ?? null,
+    });
     appendStreamedPartEntry(
       archive,
       entries,

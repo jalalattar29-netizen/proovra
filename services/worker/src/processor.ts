@@ -172,6 +172,8 @@ type VerificationEvidenceFile = {
   partIndex?: number | null;
   storageBucket?: string | null;
   storageKey?: string | null;
+  /** ET-PKG-15 — the sealed version, streamed into the package. */
+  storageVersionId?: string | null;
   storageRegion?: string | null;
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
@@ -2334,6 +2336,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         partIndex: part.partIndex,
         storageBucket: part.storageBucket,
         storageKey: part.storageKey,
+        storageVersionId: part.storageVersionId ?? null,
         storageRegion: part.storageRegion ?? null,
         storageObjectLockMode: part.storageObjectLockMode ?? null,
         storageObjectLockRetainUntilUtc:
