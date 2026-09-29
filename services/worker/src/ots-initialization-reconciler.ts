@@ -68,7 +68,7 @@ import { bump } from "@proovra/shared-runtime/ops";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import { enqueueOtsUpgradeJob } from "./queue.js";
+import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
 
 export interface RunOtsInitializationReconcilerOptions {
   trigger?: string;
@@ -96,6 +96,12 @@ export interface OtsInitializationReconcilerResult {
   /** The queue accepted nothing new because a job for it is already live. */
   collapsed: number;
   failed: number;
+  /** ET-OTS-03 — PENDING proofs examined for a lost upgrade ladder. */
+  pendingScanned: number;
+  /** ...of which a ladder step was still scheduled (left alone). */
+  pendingAlreadyScheduled: number;
+  /** ...of which the ladder was gone and an upgrade was re-scheduled. */
+  pendingRescheduled: number;
 }
 
 const DEFAULT_MIN_AGE_MS = 30 * 60 * 1000;
@@ -175,6 +181,9 @@ export async function runOtsInitializationReconciler(
     enqueued: 0,
     collapsed: 0,
     failed: 0,
+    pendingScanned: 0,
+    pendingAlreadyScheduled: 0,
+    pendingRescheduled: 0,
   };
 
   const candidates = await prisma.evidence.findMany({
@@ -200,7 +209,7 @@ export async function runOtsInitializationReconciler(
         // whole point is that its handoff never happened.
         delayMs: 0,
       });
-      if (outcome.enqueued) {
+      if (outcome.enqueued && !outcome.collapsed) {
         result.enqueued += 1;
         bump("ots_initialization_reconciled_total");
         logger.warn(
@@ -221,11 +230,72 @@ export async function runOtsInitializationReconciler(
     }
   }
 
-  if (result.enqueued > 0 || result.failed > 0) {
+  // ET-OTS-03 — THE OTHER STRANDED SHAPE: a proof that exists and is PENDING
+  // but whose upgrade ladder is gone (a lost job, a redeploy that dropped a
+  // delayed job, the pre-fix collapse). Nothing else ever revisits such a row,
+  // so it would stay PENDING forever. Re-schedule an upgrade ONLY when no step of
+  // the ladder is scheduled — never a second, parallel ladder. The processor's
+  // own 30-day budget still decides when pending becomes terminal.
+  const pending = await prisma.evidence.findMany({
+    where: pendingWithoutProgressWhere({
+      notAfter: new Date(now - PENDING_STALE_MS),
+      notBefore: new Date(now - maxAge),
+    }),
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: batchSize,
+    select: { id: true },
+  });
+  for (const row of pending) {
+    result.pendingScanned += 1;
+    try {
+      if (await isOtsUpgradeScheduled(row.id)) {
+        result.pendingAlreadyScheduled += 1;
+        continue;
+      }
+      const outcome = await enqueueOtsUpgradeJob(row.id, {
+        traceId: "ots_pending_recovery",
+        delayMs: 0,
+      });
+      if (outcome.enqueued && !outcome.collapsed) {
+        result.pendingRescheduled += 1;
+        bump("ots_pending_rescheduled_total");
+        logger.warn({ evidenceId: row.id, trigger }, "ots.pending.rescheduled");
+      } else if (outcome.enqueued) {
+        result.pendingAlreadyScheduled += 1;
+      } else {
+        result.failed += 1;
+      }
+    } catch (err) {
+      result.failed += 1;
+      logger.error({ err, evidenceId: row.id, trigger }, "ots.pending.reschedule_failed");
+    }
+  }
+
+  if (result.enqueued > 0 || result.failed > 0 || result.pendingRescheduled > 0) {
     logger.info(
       { ...result, trigger },
       "ots.initialization.reconciler.completed",
     );
   }
   return result;
+}
+
+/** A PENDING proof older than any healthy ladder step (60-minute follow-ups plus retry backoff). */
+const PENDING_STALE_MS = 6 * 60 * 60 * 1000;
+
+/** ET-OTS-03 — PENDING proofs that may have lost their ladder (the queue check decides). */
+export function pendingWithoutProgressWhere(bounds: {
+  notAfter: Date;
+  notBefore: Date;
+}): Prisma.EvidenceWhereInput {
+  return {
+    deletedAt: null,
+    otsStatus: "PENDING",
+    otsProofBase64: { not: null },
+    createdAt: { gte: bounds.notBefore },
+    OR: [
+      { otsUpgradedAtUtc: null, createdAt: { lte: bounds.notAfter } },
+      { otsUpgradedAtUtc: { lte: bounds.notAfter } },
+    ],
+  };
 }

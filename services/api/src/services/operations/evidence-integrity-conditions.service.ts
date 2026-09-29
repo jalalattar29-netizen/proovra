@@ -844,7 +844,7 @@ async function recordOtsPendingAgedCondition(
         `(warning after ${policy.warningHours}h, high after ${policy.highHours}h). ` +
         "The record's own trusted timestamp is unaffected and the record remains valid evidence; " +
         "the public-chain anchor is a second, independent proof that is still outstanding. " +
-        "The platform continues its own anchoring attempts on their existing schedule; nothing here retries, re-anchors or alters a proof.",
+        "The platform continues its own anchoring attempts on their existing schedule, and a recovery sweep re-schedules an upgrade whose schedule was lost; nothing here re-anchors or alters a proof.",
       relatedEvidenceId: evidence.id,
       runbookSlug: "ots-anchoring",
       metadata: {

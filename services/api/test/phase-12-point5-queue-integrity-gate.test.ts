@@ -47,6 +47,7 @@ import {
   assertDiagnosticsSafe,
   assertNoPayloadAuthorityFields,
   buildCanonicalJobId,
+  selfFollowUpJobId,
   buildCanonicalJobPayload,
   buildGraphDomainCommandId,
   buildMediaIntelligenceCommandId,
@@ -860,6 +861,11 @@ describe("Point 5 — the single enqueue authority", () => {
 
   function fakeQueue(opts: {
     existingState?: string | null;
+    /**
+     * State of the DERIVED self-follow-up id ("…-next-…"). Absent by default,
+     * as in BullMQ: a derived id exists only once a ladder has used it.
+     */
+    derivedState?: string | null;
     removeThrows?: boolean;
     addThrows?: boolean;
   }) {
@@ -870,11 +876,12 @@ describe("Point 5 — the single enqueue authority", () => {
       removed,
       handle: {
         async getJob(jobId: string) {
-          if (!opts.existingState) return null;
+          const state = jobId.includes("-next-") ? opts.derivedState : opts.existingState;
+          if (!state) return null;
           return {
             id: jobId,
             async getState() {
-              return opts.existingState!;
+              return state;
             },
             async remove() {
               if (opts.removeThrows) throw new Error("race");
@@ -998,6 +1005,35 @@ describe("Point 5 — the single enqueue authority", () => {
       buildCanonicalJobId({ jobIdPrefix: "ots-upgrade" }, "ev-1"),
     );
     expect(opts.jobId.startsWith("ots-upgrade-ev-1")).toBe(true);
+  });
+
+  it("ET-OTS-02: a RETAINED COMPLETED follow-up id is released before the add (BullMQ would silently ignore it)", async () => {
+    const q = fakeQueue({ existingState: "active", derivedState: "completed" });
+    const base = buildCanonicalJobId({ jobIdPrefix: "ots-upgrade" }, "ev-1");
+    const out = await enqueueCanonicalJob({
+      queue: q.handle,
+      entry: getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS),
+      commandId: "ev-1",
+      traceId: "ots_followup",
+      selfJobId: base,
+    });
+    expect(out).toMatchObject({ enqueued: true, collapsed: false });
+    expect(q.removed).toEqual([selfFollowUpJobId(base, "ev-1")]);
+    expect((q.added[0]!.opts as { jobId: string }).jobId).toBe(selfFollowUpJobId(base, "ev-1"));
+  });
+
+  it("ET-OTS-02: a LIVE follow-up id is joined, not duplicated", async () => {
+    const q = fakeQueue({ existingState: "active", derivedState: "delayed" });
+    const base = buildCanonicalJobId({ jobIdPrefix: "ots-upgrade" }, "ev-1");
+    const out = await enqueueCanonicalJob({
+      queue: q.handle,
+      entry: getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS),
+      commandId: "ev-1",
+      traceId: "ots_followup",
+      selfJobId: base,
+    });
+    expect(out).toMatchObject({ enqueued: true, collapsed: true });
+    expect(q.added).toHaveLength(0);
   });
 
   it("a PARALLEL producer still collapses onto the same live job", async () => {

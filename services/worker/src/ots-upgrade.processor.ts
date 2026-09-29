@@ -348,7 +348,10 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     });
 
     if (init.initialized && init.needsUpgrade) {
-      await enqueueOtsUpgradeJob(evidenceId, { traceId: requestId }).catch(
+      // ET-OTS-01 — this call runs INSIDE the job whose id is the canonical
+      // `ots-upgrade-<evidenceId>`. Without selfJobId the enqueue collapses onto
+      // the running job and no upgrade is ever scheduled for a new proof.
+      await enqueueOtsUpgradeJob(evidenceId, { traceId: requestId, selfJobId: job.id }).catch(
         (error: unknown) => {
           // The record is stamped and durable either way. A follow-up that
           // could not be scheduled is a queue problem, not an integrity one,

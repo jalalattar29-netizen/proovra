@@ -618,6 +618,7 @@ export const COUNTER_NAMES = [
   // sweep, so a lost enqueue was invisible by construction.
   "ots_initialization_scanned_total",
   "ots_initialization_reconciled_total",
+  "ots_pending_rescheduled_total",
   "platform_audit_chain_drift_detected_total",
   "platform_audit_append_failed_total",
   "worker_span_total",

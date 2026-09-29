@@ -37,8 +37,11 @@ import {
   QUEUE_NAMES,
   buildGraphDomainCommandId,
   buildSearchIndexCommandId,
+  buildCanonicalJobId,
   enqueueCanonicalJob,
   getWorkEntryOrThrow,
+  isLiveQueueJobState,
+  selfFollowUpJobId,
   type GraphSyncDomain,
   type QueueHandleLike,
   type SearchIndexDocumentKind,
@@ -209,7 +212,7 @@ function queueOptions(
 }
 
 export type WorkEnqueueResult =
-  | { enqueued: true; jobId: string }
+  | { enqueued: true; jobId: string; collapsed?: boolean }
   | { enqueued: false; reason: string };
 
 /**
@@ -507,9 +510,28 @@ export async function enqueueOtsUpgradeJob(
     traceparent: currentTraceparent(),
     selfJobId: options.selfJobId,
   });
+  // ET-REC-01 — carry `collapsed`: joining work already scheduled is not
+  // the same answer as scheduling new work.
   return outcome.enqueued
-    ? { enqueued: true, jobId: outcome.jobId }
+    ? { enqueued: true, jobId: outcome.jobId, collapsed: outcome.collapsed === true }
     : { enqueued: false, reason: outcome.reason };
+}
+
+/**
+ * ET-OTS-03 — is ANY step of this record's OTS upgrade ladder scheduled?
+ * The ladder alternates between the canonical id and its one derived
+ * follow-up id (selfFollowUpJobId), so both are checked. Used by the recovery
+ * sweep so it re-schedules only a ladder that is genuinely gone and never
+ * starts a second, parallel one.
+ */
+export async function isOtsUpgradeScheduled(evidenceId: string): Promise<boolean> {
+  const entry = getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS);
+  const base = buildCanonicalJobId({ jobIdPrefix: entry.jobIdPrefix! }, evidenceId);
+  for (const id of [base, selfFollowUpJobId(base, evidenceId)]) {
+    const job = await otsUpgradeQueue.getJob(id);
+    if (job && isLiveQueueJobState(await job.getState())) return true;
+  }
+  return false;
 }
 
 /** Evidence purge: the Evidence row is the authority. */

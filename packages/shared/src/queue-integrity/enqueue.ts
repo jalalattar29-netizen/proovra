@@ -49,6 +49,16 @@ export const LIVE_QUEUE_JOB_STATES: ReadonlyArray<string> = [
   "prioritized",
 ];
 
+/**
+ * THE follow-up id a job running under `baseJobId` schedules its successor
+ * under (ET-OTS-02 / ET-OTS-03). A self-rescheduling ladder alternates between
+ * exactly two ids — the base and this one — so a recovery sweep can tell
+ * whether ANY step of a ladder is scheduled by checking both.
+ */
+export function selfFollowUpJobId(baseJobId: string, commandId: string): string {
+  return `${baseJobId}-next-${baseJobId.slice(-8)}-${(commandId.length + baseJobId.length) % 997}`;
+}
+
 export function isLiveQueueJobState(state: string | null | undefined): boolean {
   return !!state && LIVE_QUEUE_JOB_STATES.includes(state);
 }
@@ -153,9 +163,25 @@ export async function enqueueCanonicalJob(input: {
         // The live job under this id is the caller. Collapsing onto it would
         // schedule nothing; removing it would delete a running job. Schedule
         // under a discriminated id instead — see `selfJobId` above.
-        jobId = `${jobId}-next-${(existing.id ?? "self").toString().slice(-8)}-${
-          (payload.commandId.length + jobId.length) % 997
-        }`;
+        jobId = selfFollowUpJobId(jobId, payload.commandId);
+        // ET-OTS-02 — the derived follow-up id is as deterministic as the base
+        // id, so it recurs every other hop. BullMQ SILENTLY ignores an add whose
+        // id belongs to a retained completed job, which is how a ladder died on
+        // its third hop while the caller was told "enqueued". Give the derived id
+        // the same treatment as the base id: collapse onto it only while it is
+        // live; otherwise release it before adding.
+        const prior = await queue.getJob(jobId);
+        if (prior) {
+          const priorState = await prior.getState();
+          if (isLiveQueueJobState(priorState)) {
+            return { enqueued: true, jobId, collapsed: true };
+          }
+          try {
+            await prior.remove();
+          } catch {
+            return { enqueued: false, reason: "job_id_release_race" };
+          }
+        }
       } else {
         const state = await existing.getState();
         if (isLiveQueueJobState(state)) {
