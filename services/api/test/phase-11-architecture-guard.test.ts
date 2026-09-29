@@ -179,8 +179,12 @@ describe("Phase 11 — final adoption metrics (machine-enforced)", () => {
      * V4 seals the identity and transition columns. Verification of historical
      * V1/V2/V3 rows is unchanged.
      */
-    const writer = API_SRC.find((f) => f.rel.endsWith("platform-audit-log.service.ts"))!;
-    const create = writer.body.slice(writer.body.indexOf("adminAuditLog.create"), writer.body.indexOf("adminAuditLog.create") + 1200);
+    // ET-CUS-05 (2026-09-29): the one writer is the shared append.
+    const writerBody = readFileSync(
+      resolve(__dirname, "../../../packages/shared-runtime/src/audit/admin-audit-chain.ts"),
+      "utf8",
+    );
+    const create = writerBody.slice(writerBody.indexOf("adminAuditLog.create"), writerBody.indexOf("adminAuditLog.create") + 1200);
     expect(create).toMatch(/chainVersion:\s*4/);
     expect(create).not.toMatch(/chainVersion:\s*[123]\b/);
   });

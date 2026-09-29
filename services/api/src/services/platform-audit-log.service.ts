@@ -4,12 +4,12 @@ import type { PrismaClient } from "@prisma/client";
 // so "safe preview" has one definition in the product rather than two.
 import { maskIpPreview, summariseUserAgent } from "@proovra/shared";
 import {
-  ADMIN_AUDIT_ADVISORY_LOCK_KEY,
+  appendAdminAuditChainRowTx,
   assertMetadataMaxDepth,
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
   METADATA_MAX_DEPTH_DEFAULT,
-} from "../lib/admin-audit-chain.js";
+} from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 
 /** Legacy sentinel kept in DB for rows created before user_id could be null. */
@@ -289,37 +289,12 @@ export async function appendPlatformAuditLog(
     await body(db as unknown as Prisma.TransactionClient);
   };
 
-  await runInTransaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
-
-    const last = await tx.adminAuditLog.findFirst({
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { hash: true },
-    });
-
-    const createdAt = new Date();
-    const metadataCanonical = canonicalJsonForAuditHash(
-      sanitized as Prisma.JsonValue
-    );
-
-    // PHASE 11 §1 — V3 binds the authoritative tenant scope columns into the
-    // hash. V3 is the ONLY new write format; historical V1/V2 rows are untouched.
-    const organizationId = params.organizationId ?? null;
-    const workspaceId = params.workspaceId ?? null;
-    // PHASE 5 — the identity and transition contract, normalised once so the
-    // hashed value and the stored value cannot possibly differ.
-    const actorType = params.actorType ?? null;
-    const actorDisplay = params.actorDisplay ?? null;
-    const actorAuthority = params.actorAuthority ?? null;
-    const targetDisplay = params.targetDisplay ?? null;
-    const previousState = params.previousState ?? null;
-    const requestedState = params.requestedState ?? null;
-    const resultingState = params.resultingState ?? null;
-    const reasonCode = params.reasonCode ?? null;
-    const eventVersion = ADMIN_AUDIT_EVENT_VERSION;
-    const hash = computeAuditLogChainHash({
-      chainVersion: 4,
+  // THE ONE APPEND (shared-runtime audit/admin-audit-chain): lock, head,
+  // strictly increasing createdAt (ET-CUS-05), V4 hash, insert.
+  await runInTransaction((tx) =>
+    appendAdminAuditChainRowTx(tx, {
       userId,
+      isPublic,
       action,
       category,
       severity,
@@ -327,56 +302,23 @@ export async function appendPlatformAuditLog(
       outcome,
       resourceType,
       resourceId,
-      organizationId,
-      workspaceId,
       requestId,
-      actorType,
-      actorDisplay,
-      actorAuthority,
-      targetDisplay,
-      previousState,
-      requestedState,
-      resultingState,
-      reasonCode,
-      eventVersion,
-      metadataCanonical,
-      createdAtIso: createdAt.toISOString(),
-      prevHash: last?.hash ?? null,
-    });
-
-    await tx.adminAuditLog.create({
-      data: {
-        userId,
-        isPublic,
-        action,
-        category,
-        severity,
-        source,
-        outcome,
-        resourceType,
-        resourceId,
-        requestId,
-        actorType,
-        actorDisplay,
-        actorAuthority,
-        targetDisplay,
-        previousState,
-        requestedState,
-        resultingState,
-        reasonCode,
-        eventVersion,
-        metadata: sanitized,
-        ipAddress: safeIpPreview(params.ipAddress ?? undefined),
-        userAgent: safeUaPreview(params.userAgent ?? undefined),
-        hash,
-        prevHash: last?.hash ?? null,
-        chainVersion: 4,
-        organizationId,
-        workspaceId,
-        createdAt,
-      },
-    });
-  });
+      organizationId: params.organizationId ?? null,
+      workspaceId: params.workspaceId ?? null,
+      actorType: params.actorType ?? null,
+      actorDisplay: params.actorDisplay ?? null,
+      actorAuthority: params.actorAuthority ?? null,
+      targetDisplay: params.targetDisplay ?? null,
+      previousState: params.previousState ?? null,
+      requestedState: params.requestedState ?? null,
+      resultingState: params.resultingState ?? null,
+      reasonCode: params.reasonCode ?? null,
+      eventVersion: ADMIN_AUDIT_EVENT_VERSION,
+      metadata: sanitized,
+      ipAddress: safeIpPreview(params.ipAddress ?? undefined),
+      userAgent: safeUaPreview(params.userAgent ?? undefined),
+    }),
+  );
 }
 
 function computeExpectedHashForRow(

@@ -60,3 +60,19 @@ describe("custody serialization has one authority", () => {
     ).toEqual(["x.ts"]);
   });
 });
+
+describe("the platform audit chain has one append (ET-CUS-05)", () => {
+  const files = TREES.flatMap((t) => walk(join(ROOT, t))).map((p) => ({
+    path: relative(ROOT, p).replace(/\\/g, "/"),
+    source: readFileSync(p, "utf8"),
+  }));
+
+  it("exactly one module inserts platform audit rows, and no copy of the chain library exists", () => {
+    const writers = files
+      .filter((f) => /\badminAuditLog\.(create|createMany|upsert)\s*\(/.test(strip(f.source)))
+      .map((f) => f.path);
+    expect(writers).toEqual(["packages/shared-runtime/src/audit/admin-audit-chain.ts"]);
+    const copies = files.filter((f) => /admin-audit-chain\.ts$/.test(f.path)).map((f) => f.path);
+    expect(copies).toEqual(["packages/shared-runtime/src/audit/admin-audit-chain.ts"]);
+  });
+});

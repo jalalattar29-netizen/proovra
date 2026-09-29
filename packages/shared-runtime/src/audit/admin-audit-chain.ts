@@ -243,3 +243,108 @@ export function computeAuditLogChainHash(
 
   return computeAuditLogChainHashV1(params);
 }
+// =============================================================================
+// THE ONE APPEND (ET-CUS-05, 2026-09-29)
+// =============================================================================
+
+/** The row a caller asks to append; the chain fields are computed here. */
+export type AdminAuditChainRow = {
+  userId: string | null;
+  isPublic: boolean;
+  action: string;
+  category: string | null;
+  severity: string | null;
+  source: string | null;
+  outcome: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  requestId: string | null;
+  organizationId: string | null;
+  workspaceId: string | null;
+  actorType: string | null;
+  actorDisplay: string | null;
+  actorAuthority: string | null;
+  targetDisplay: string | null;
+  previousState: string | null;
+  requestedState: string | null;
+  resultingState: string | null;
+  reasonCode: string | null;
+  eventVersion: number;
+  metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
+};
+
+type AuditTx = {
+  $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+  adminAuditLog: {
+    findFirst: (args: unknown) => Promise<{ hash: string | null; createdAt: Date } | null>;
+    create: (args: unknown) => Promise<unknown>;
+  };
+};
+
+/**
+ * Append one row to the platform audit chain, inside the caller's transaction.
+ *
+ * The API (platform-audit-log.service) and the Worker (platform-audit-append)
+ * each carried this block, over byte-identical copies of this library. Both
+ * now call it.
+ *
+ * ET-CUS-05: the head is the row with the greatest `createdAt` (ties by id),
+ * and the verifier walks the chain in that order. Two writers on different
+ * hosts with skewed clocks — or two writes in the same millisecond, tie-broken
+ * by a random UUID — could therefore pick a head that is not the latest append
+ * and fork the chain, so the verifier reported a break with no tampering.
+ * Under the advisory lock `createdAt` is now strictly increasing: the later of
+ * the clock and one millisecond after the current head. Ordering by
+ * `createdAt` then always equals append order.
+ */
+export async function appendAdminAuditChainRowTx(
+  txIn: unknown,
+  row: AdminAuditChainRow,
+  now: Date = new Date(),
+): Promise<void> {
+  const tx = txIn as AuditTx;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+  const last = await tx.adminAuditLog.findFirst({
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { hash: true, createdAt: true },
+  });
+  const createdAt =
+    last && last.createdAt.getTime() >= now.getTime() ? new Date(last.createdAt.getTime() + 1) : now;
+  const hash = computeAuditLogChainHash({
+    chainVersion: 4,
+    userId: row.userId,
+    action: row.action,
+    category: row.category,
+    severity: row.severity,
+    source: row.source,
+    outcome: row.outcome,
+    resourceType: row.resourceType,
+    resourceId: row.resourceId,
+    organizationId: row.organizationId,
+    workspaceId: row.workspaceId,
+    requestId: row.requestId,
+    actorType: row.actorType,
+    actorDisplay: row.actorDisplay,
+    actorAuthority: row.actorAuthority,
+    targetDisplay: row.targetDisplay,
+    previousState: row.previousState,
+    requestedState: row.requestedState,
+    resultingState: row.resultingState,
+    reasonCode: row.reasonCode,
+    eventVersion: row.eventVersion,
+    metadataCanonical: canonicalJsonForAuditHash(row.metadata),
+    createdAtIso: createdAt.toISOString(),
+    prevHash: last?.hash ?? null,
+  });
+  await tx.adminAuditLog.create({
+    data: {
+      ...row,
+      hash,
+      prevHash: last?.hash ?? null,
+      chainVersion: 4,
+      createdAt,
+    },
+  });
+}

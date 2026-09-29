@@ -1,19 +1,14 @@
 import type { Prisma } from "@prisma/client";
-import {
-  ADMIN_AUDIT_ADVISORY_LOCK_KEY,
-  canonicalJsonForAuditHash,
-  computeAuditLogChainHash,
-} from "./lib/admin-audit-chain.js";
+import { appendAdminAuditChainRowTx } from "@proovra/shared-runtime";
 import { prisma } from "./db.js";
 
 /**
- * PHASE 12 POINT 3 — this appender wrote `chainVersion: 2` and never bound
- * tenant scope, because the worker's copy of `lib/admin-audit-chain.ts` was an
- * older fork that had no V3 variant at all. Every worker-originated audit row
- * was therefore a NEW V2 write, and carried NULL organization/workspace columns
- * that the V3 hash is supposed to bind.
+ * PHASE 12 POINT 3 — this appender once wrote `chainVersion: 2` and never bound
+ * tenant scope, because the worker carried an older fork of the chain library
+ * with no V3 variant. Since 2026-09-29 (ET-CUS-05) there is no fork to drift:
+ * the library and the append itself live once, in @proovra/shared-runtime
+ * (audit/admin-audit-chain), and this writer calls it.
  *
- * The chain library is now synced with the API's, and this writer emits V3.
  * `organizationId` / `workspaceId` are supplied by the caller from the
  * PERSISTED row it is auditing (evidence.organizationId / evidence.teamId) —
  * never inferred from an actor or ambient context. When a worker action
@@ -110,32 +105,13 @@ export async function appendWorkerAuditLog(params: {
   const organizationId = params.organizationId ?? null;
   const workspaceId = params.workspaceId ?? null;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})
-    `;
-
-    const last = await tx.adminAuditLog.findFirst({
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { hash: true },
-    });
-
-    const createdAt = new Date();
-    const metadataCanonical = canonicalJsonForAuditHash(
-      metadata as Prisma.JsonValue
-    );
-
-    const actorAuthority = params.userId ? null : serviceActor;
-    const targetDisplay = params.targetDisplay?.trim().slice(0, 160) || null;
-    const previousState = params.previousState?.trim().slice(0, 64) || null;
-    const requestedState = params.requestedState?.trim().slice(0, 64) || null;
-    const resultingState = params.resultingState?.trim().slice(0, 64) || null;
-    const reasonCode = params.reasonCode?.trim().slice(0, 64) || null;
-    const eventVersion = 2;
-
-    const hash = computeAuditLogChainHash({
-      chainVersion: 4,
+  const actorAuthority = params.userId ? null : serviceActor;
+  // THE ONE APPEND (shared-runtime audit/admin-audit-chain): lock, head,
+  // strictly increasing createdAt (ET-CUS-05), V4 hash, insert.
+  await prisma.$transaction((tx) =>
+    appendAdminAuditChainRowTx(tx, {
       userId: params.userId ?? null,
+      isPublic: false,
       action,
       category,
       severity,
@@ -149,52 +125,18 @@ export async function appendWorkerAuditLog(params: {
       actorType,
       actorDisplay,
       actorAuthority,
-      targetDisplay,
-      previousState,
-      requestedState,
-      resultingState,
-      reasonCode,
-      eventVersion,
-      metadataCanonical,
-      createdAtIso: createdAt.toISOString(),
-      prevHash: last?.hash ?? null,
-    });
-
-    await tx.adminAuditLog.create({
-      data: {
-        userId: params.userId ?? null,
-        isPublic: false,
-        action,
-        category,
-        severity,
-        source,
-        outcome,
-        resourceType,
-        resourceId,
-        requestId,
-        actorType,
-        actorDisplay,
-        actorAuthority,
-        targetDisplay,
-        previousState,
-        requestedState,
-        resultingState,
-        reasonCode,
-        eventVersion,
-        metadata,
-        ipAddress: null,
-        // The worker has no browser. It used to write the literal string
-        // "proovra-worker" here, which made a machine action look like a client
-        // fingerprint; the identity now lives in actorType/actorAuthority where
-        // an operator and a query can both find it.
-        userAgent: null,
-        hash,
-        prevHash: last?.hash ?? null,
-        chainVersion: 4,
-        organizationId,
-        workspaceId,
-        createdAt,
-      },
-    });
-  });
+      targetDisplay: params.targetDisplay?.trim().slice(0, 160) || null,
+      previousState: params.previousState?.trim().slice(0, 64) || null,
+      requestedState: params.requestedState?.trim().slice(0, 64) || null,
+      resultingState: params.resultingState?.trim().slice(0, 64) || null,
+      reasonCode: params.reasonCode?.trim().slice(0, 64) || null,
+      eventVersion: 2,
+      metadata,
+      ipAddress: null,
+      // The worker has no browser. It used to write the literal string
+      // "proovra-worker" here, which made a machine action look like a client
+      // fingerprint; the identity lives in actorType/actorAuthority instead.
+      userAgent: null,
+    }),
+  );
 }

@@ -114,7 +114,7 @@ vi.mock("../src/middleware/authorize.js", () => ({
   authorizeOrFail: async () => null,
 }));
 
-import { computeAuditLogChainHash } from "../src/lib/admin-audit-chain.js";
+import { computeAuditLogChainHash } from "@proovra/shared-runtime";
 import {
   emitTenantAudit,
   emitPlatformAudit,

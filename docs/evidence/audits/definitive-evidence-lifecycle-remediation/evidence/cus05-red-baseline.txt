@@ -1,0 +1,6 @@
+[31m   [31m×[31m platform audit chain under clock skew (live PostgreSQL 16)[2m > [22ma row from a host running a minute ahead does not fork the chain[39m[32m 34[2mms[22m[39m
+[31m     → {"valid":false,"brokenAt":"57c918a7-661d-4711-9d94-0e7a170836db"}: expected false to be true // Object.is equality[39m
+[31m   [31m×[31m platform audit chain under clock skew (live PostgreSQL 16)[2m > [22mappends in the same millisecond stay in append order[39m[32m 19[2mms[22m[39m
+[31m     → {"valid":false,"brokenAt":"57c918a7-661d-4711-9d94-0e7a170836db"}: expected false to be true // Object.is equality[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m

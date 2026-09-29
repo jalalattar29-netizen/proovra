@@ -76,13 +76,17 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
    */
   async function seedLegacyRow(action: string) {
     const { computeAuditLogChainHash, canonicalJsonForAuditHash } = await import(
-      "../src/lib/admin-audit-chain.js"
+      "@proovra/shared-runtime"
     );
     const last = await prisma.adminAuditLog.findFirst({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { hash: true },
+      select: { hash: true, createdAt: true },
     });
-    const createdAt = new Date();
+    // The chain is ordered by createdAt, which the writer keeps strictly
+    // increasing (ET-CUS-05); a hand-made row must obey the same rule or it
+    // sorts before a head that another suite dated ahead of the clock.
+    const now = new Date();
+    const createdAt = last && last.createdAt >= now ? new Date(last.createdAt.getTime() + 1) : now;
     const metadata = { note: "written before the identity contract" };
     const hash = computeAuditLogChainHash({
       chainVersion: 2,

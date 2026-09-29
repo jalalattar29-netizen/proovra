@@ -100,6 +100,12 @@ vi.mock("../src/db.js", () => {
       findFirst: async () => null,
     },
     caseEvidenceLink: { findMany: async () => [] },
+    // ET-CUS-03 — an evidence-scope placement appends its custody event in
+    // the placement transaction, through the shared custody appender.
+    custodyEvent: {
+      findFirst: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => ({ id: "ce-1", ...args.data }),
+    },
     evidence: {
       findUnique: evidenceFindUnique,
       findFirst: evidenceFindFirstMock,

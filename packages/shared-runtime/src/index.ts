@@ -80,6 +80,9 @@ export * from "./evidence-analysis-revision.js";
 // THE ONE custody serialization authority (append + chain evaluation). The API,
 // the Worker and the destruction executor each carried their own appender.
 export * from "./custody/custody-chain.js";
+// THE ONE platform audit chain library + append (was byte-identical copies in
+// the API and the Worker).
+export * from "./audit/admin-audit-chain.js";
 // THE evidence reservation authority: live window, counted records, expired
 // reservations, and the one release (API discard + Worker sweep).
 export * from "./evidence-reservation/reservation.js";

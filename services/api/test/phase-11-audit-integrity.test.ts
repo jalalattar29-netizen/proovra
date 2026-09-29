@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
-import { computeAuditLogChainHash } from "../src/lib/admin-audit-chain.js";
+import { computeAuditLogChainHash } from "@proovra/shared-runtime";
 
 const baseV3 = {
   chainVersion: 3 as const,
@@ -76,13 +76,20 @@ describe("§1 — V3 hash binds the authoritative tenant scope", () => {
      * V4 seals the Phase 5 identity and transition columns. Verification of
      * historical V1/V2/V3 rows is unchanged and still exercised above.
      */
-    const src = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
+    // ET-CUS-05 (2026-09-29): the ONE writer is the shared append
+    // (packages/shared-runtime audit/admin-audit-chain) both hosts call.
+    const src = readFileSync(resolve(__dirname, "../../../packages/shared-runtime/src/audit/admin-audit-chain.ts"), "utf8");
     const block = enclosingSource(src, "tx.adminAuditLog.create", "call", {
       unique: true,
-      fileName: "platform-audit-log.service.ts",
+      fileName: "admin-audit-chain.ts",
     });
     expect(block).toMatch(/chainVersion:\s*4/);
     expect(block).not.toMatch(/chainVersion:\s*[123]\b/);
+    const hashed = enclosingSource(src, "computeAuditLogChainHash({\n    chainVersion: 4", "call", {
+      unique: true,
+      fileName: "admin-audit-chain.ts",
+    });
+    expect(hashed).toMatch(/chainVersion:\s*4/);
   });
 
   it("SOURCE CONTRACT — the worker writer emits the same version as the API's", () => {
@@ -93,17 +100,14 @@ describe("§1 — V3 hash binds the authoritative tenant scope", () => {
      * tenant columns while the API believed the chain was V3 throughout. One
      * chain, two writers, one format — asserted rather than remembered.
      */
+    // ET-CUS-05 (2026-09-29): the synced copy is gone. Both hosts call the one
+    // shared append, so they cannot write different versions.
     const api = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
     const worker = readFileSync(resolve(__dirname, "../../worker/src/platform-audit-append.ts"), "utf8");
-    const versionOf = (src: string) => {
-      const create = enclosingSource(src, "tx.adminAuditLog.create", "call", {
-        unique: true,
-        fileName: "platform-audit-append.ts",
-      });
-      return /chainVersion:\s*(\d+)/.exec(create)?.[1] ?? null;
-    };
-    expect(versionOf(worker), "the worker writes a different chain version than the API").toBe(
-      versionOf(api),
-    );
+    for (const src of [api, worker]) {
+      expect(src).toMatch(/appendAdminAuditChainRowTx\(tx,/);
+      expect(src).not.toMatch(/adminAuditLog\.create\(/);
+      expect(src).not.toMatch(/lib\/admin-audit-chain/);
+    }
   });
 });

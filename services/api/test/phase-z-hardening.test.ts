@@ -81,7 +81,7 @@ import {
   computeAuditLogChainHash,
   canonicalJsonForAuditHash,
   sortJsonValueForAuditChain,
-} from "../src/lib/admin-audit-chain.js";
+} from "@proovra/shared-runtime";
 
 function readSource(rel: string): string {
   // Normalize CRLF → LF so source-contract substring assertions are
