@@ -21,10 +21,10 @@
  * ---------------------------------------------------------------------------
  * It says which PROOVRA ingress channel received the bytes. It does not prove
  * that the content is true, who created it, that a device or app was genuine,
- * that events happened as depicted, or that the material is admissible. None of
- * the modes below is a "direct capture" mode: in every one of them PROOVRA
- * received a file whose creation it did not observe. Direct-capture adapters
- * (UC-1 onward) append their own modes here with `isDirectCapture: true`.
+ * that events happened as depicted, or that the material is admissible. In
+ * every mode PROOVRA received bytes whose creation its SERVER did not observe:
+ * the direct-capture channels (UC-1 onward, `isDirectCapture: true`) are
+ * client-attested captures, never server-observed ones (see provenanceTier).
  *
  * APPEND-ONLY. A persisted value is never renamed. Adding a mode requires the
  * `evidence_acquisition_mode_check` constraint to be widened in the same
@@ -40,19 +40,20 @@ export const EVIDENCE_ACQUISITION_MODES = [
   /** The PROOVRA mobile app, through a server-issued direct-capture session. */
   "PROOVRA_MOBILE_APP",
   /**
-   * UC-1 — the PROOVRA browser extension captured a web page directly, in a
-   * server-issued capture session started BEFORE the capture. This is the
-   * first `isDirectCapture: true` mode: PROOVRA's own adapter produced the
-   * bytes and the server recomputed every artifact's digest. It still does not
+   * UC-1 — the PROOVRA browser extension reports it captured a web page, in a
+   * server-issued capture session (the extension opens it; the server does not
+   * verify it preceded the capture — ET-DC-02). The first `isDirectCapture:
+   * true` channel: a CLIENT-ATTESTED capture (ET-DC-03) — the server recomputed
+   * every artifact's digest but did not observe the capture. It still does not
    * prove the page's content, the site's genuineness or the bytes' server
    * origin (see the limitations below).
    */
   "DIRECT_WEB_CAPTURE_EXTENSION",
   /**
-   * UC-2 — the PROOVRA Android app captured the device screen directly, through
-   * Android's MediaProjection consent, in a server-issued capture session started
-   * BEFORE the capture. Like the UC-1 web mode this is `isDirectCapture: true`:
-   * PROOVRA's own adapter produced the frame bytes and the server recomputed
+   * UC-2 — the PROOVRA Android app reports it captured the device screen,
+   * through Android's MediaProjection consent, in a server-issued capture
+   * session (opened by the app after the capture; never verified as preceding
+   * it — ET-DC-02). Like UC-1 a CLIENT-ATTESTED capture: the server recomputed
    * every artifact's digest. It still does not prove the displayed content, who
    * or what produced it, or that the Android device was uncompromised (see the
    * limitations below). It is NOT the same as `PROOVRA_MOBILE_APP`, which is a
@@ -72,11 +73,11 @@ export const EVIDENCE_ACQUISITION_MODES = [
    */
   "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
   /**
-   * UC-5 — the PROOVRA iOS app captured the device screen directly through
+   * UC-5 — the PROOVRA iOS app reports it captured the device screen through
    * Apple's user-authorized system screen broadcast (ReplayKit
    * `RPSystemBroadcastPickerView` + a PROOVRA Broadcast Upload Extension), in a
-   * server-issued capture session started BEFORE the capture. Like the Android
-   * direct-screen modes this is `isDirectCapture: true` and the server recomputes
+   * server-issued capture session (not verified as preceding the capture). Like
+   * the Android screen modes a CLIENT-ATTESTED capture; the server recomputes
    * every segment's digest. It is a DISTINCT mode from the Android screen modes
    * because the provenance differs: iOS capture is a SYSTEM-CONTROLLED broadcast
    * — the user starts and stops it from Apple's own broadcast UI, protected/DRM
@@ -138,6 +139,39 @@ export type EvidenceAcquisitionCategory =
   (typeof EVIDENCE_ACQUISITION_CATEGORIES)[number];
 
 /**
+ * PROVENANCE TIERS (owner decision 4, ET-DC-03, 2026-09-29).
+ *
+ *   SERVER_OBSERVED_CAPTURE   the PROOVRA server itself observed the capture
+ *                             (verifiable proof — e.g. a positive platform
+ *                             attestation verdict — binds the bytes to
+ *                             PROOVRA's capture code). NO ingress channel
+ *                             reaches this tier today: no attestation provider
+ *                             can return a positive verdict.
+ *   CLIENT_ATTESTED_CAPTURE   PROOVRA software on the user's device reports it
+ *                             produced the bytes in a server-issued session.
+ *                             The server recomputed every digest, but it did
+ *                             not observe the capture; the claim is the
+ *                             client's.
+ *   IMPORTED_EXISTING_MEDIA   a file PROOVRA did not see being created.
+ *
+ * The tier, not `isDirectCapture`, is what a surface may state about WHO
+ * produced the bytes. `isDirectCapture` only names the ingress channel: the
+ * caller chose the channel's mode string, and nothing proves the client.
+ */
+export const EVIDENCE_PROVENANCE_TIERS = [
+  "SERVER_OBSERVED_CAPTURE",
+  "CLIENT_ATTESTED_CAPTURE",
+  "IMPORTED_EXISTING_MEDIA",
+] as const;
+export type EvidenceProvenanceTier = (typeof EVIDENCE_PROVENANCE_TIERS)[number];
+
+export const EVIDENCE_PROVENANCE_TIER_LABELS: Readonly<Record<EvidenceProvenanceTier, string>> = {
+  SERVER_OBSERVED_CAPTURE: "Capture observed by PROOVRA",
+  CLIENT_ATTESTED_CAPTURE: "Capture reported by PROOVRA software (client-attested)",
+  IMPORTED_EXISTING_MEDIA: "Existing media received by PROOVRA",
+};
+
+/**
  * The global qualifier appended wherever an acquisition statement appears in a
  * report, on public Verify, or in a verification package.
  */
@@ -151,10 +185,11 @@ type ModeDescriptor = {
   /** One factual sentence. Never a trust assertion. */
   statement: string;
   /**
-   * True only when PROOVRA's own capture adapter produced the bytes under a
-   * server-issued session. No UC-0 mode qualifies.
+   * True for the direct-capture CHANNELS (a PROOVRA capture client in a
+   * server-issued session). It names the channel only — see provenanceTier.
    */
   isDirectCapture: boolean;
+  provenanceTier: EvidenceProvenanceTier;
   /** Bounded limitation codes that always accompany the statement. */
   limitations: ReadonlyArray<AcquisitionLimitationCode>;
 };
@@ -164,6 +199,8 @@ export const ACQUISITION_LIMITATION_CODES = [
   "ACQUISITION_NOT_RECORDED",
   "CLIENT_REPORTED_CAPTURE_SOURCE",
   "DEVICE_INTEGRITY_NOT_VERIFIED",
+  // ET-DC-02/03: every direct-capture channel.
+  "CAPTURE_CLIENT_ATTESTED",
   // UC-1 direct web capture.
   "WEB_CONTENT_TRUTH_NOT_PROVEN",
   "WEB_SERVER_ORIGIN_NOT_PROVEN",
@@ -194,6 +231,8 @@ export const ACQUISITION_LIMITATION_TEXT: Readonly<
     "Whether an item came from the app's camera or from files on the device is reported by the app and is not independently verified.",
   DEVICE_INTEGRITY_NOT_VERIFIED:
     "The integrity of the submitting device and app was not independently verified.",
+  CAPTURE_CLIENT_ATTESTED:
+    "The capture ran on the user's device. The PROOVRA server did not observe it: that PROOVRA's software produced these bytes, and when the capture happened relative to the session, are reported by the client and not independently proven.",
   WEB_CONTENT_TRUTH_NOT_PROVEN:
     "A web capture preserves the representation PROOVRA acquired. It does not establish that the page's content is true, who authored it, or that a website or account is genuine.",
   WEB_SERVER_ORIGIN_NOT_PROVEN:
@@ -225,6 +264,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     statement:
       "This material was uploaded to PROOVRA by a signed-in account. PROOVRA established integrity when the upload was completed.",
     isDirectCapture: false,
+    provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
   },
   SECURE_INTAKE_LINK: {
@@ -233,6 +273,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     statement:
       "This material was submitted to PROOVRA through a secure intake link. PROOVRA established integrity when the submission was completed.",
     isDirectCapture: false,
+    provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
   },
   PROOVRA_MOBILE_APP: {
@@ -241,6 +282,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     statement:
       "This material was submitted through the PROOVRA mobile app in a server-issued capture session. PROOVRA established integrity when the session was completed.",
     isDirectCapture: false,
+    provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: [
       "CREATION_NOT_OBSERVED_BY_PROOVRA",
       "CLIENT_REPORTED_CAPTURE_SOURCE",
@@ -249,11 +291,13 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
   },
   DIRECT_WEB_CAPTURE_EXTENSION: {
     category: "DIRECT_WEB_CAPTURE",
-    label: "Captured from the web with PROOVRA",
+    label: "Web capture — PROOVRA extension (client-attested)",
     statement:
-      "PROOVRA captured this web page directly through its browser extension, in a server-issued capture session started before the capture. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
+      "The PROOVRA browser extension reports that it captured this web page, in a server-issued capture session. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
     isDirectCapture: true,
+    provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
+      "CAPTURE_CLIENT_ATTESTED",
       "WEB_CONTENT_TRUTH_NOT_PROVEN",
       "WEB_SERVER_ORIGIN_NOT_PROVEN",
       "WEB_PAGE_STATE_AT_CAPTURE",
@@ -261,11 +305,13 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
   },
   DIRECT_SCREEN_CAPTURE_ANDROID: {
     category: "DIRECT_SCREEN_CAPTURE",
-    label: "Captured from an Android screen with PROOVRA",
+    label: "Android screen capture — PROOVRA app (client-attested)",
     statement:
-      "PROOVRA captured this Android device screen directly through its app, using Android's screen-capture consent, in a server-issued capture session started before the capture. PROOVRA independently recomputed the digest of every captured frame and established integrity when the session was completed.",
+      "The PROOVRA Android app reports that it captured this device screen, using Android's screen-capture consent, in a server-issued capture session. PROOVRA independently recomputed the digest of every captured frame and established integrity when the session was completed.",
     isDirectCapture: true,
+    provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
+      "CAPTURE_CLIENT_ATTESTED",
       "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
       "SCREEN_SOURCE_APP_NOT_PROVEN",
       "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
@@ -273,11 +319,13 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
   },
   DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: {
     category: "DIRECT_SCREEN_CAPTURE",
-    label: "Recorded from an Android screen with PROOVRA",
+    label: "Android screen recording — PROOVRA app (client-attested)",
     statement:
-      "PROOVRA recorded this Android device screen continuously through its app, using Android's screen-capture consent, in a server-issued capture session. The recording is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+      "The PROOVRA Android app reports that it recorded this device screen continuously, using Android's screen-capture consent, in a server-issued capture session. The recording is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
     isDirectCapture: true,
+    provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
+      "CAPTURE_CLIENT_ATTESTED",
       "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
       "SCREEN_SOURCE_APP_NOT_PROVEN",
       "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
@@ -286,11 +334,13 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
   },
   DIRECT_SCREEN_CAPTURE_IOS: {
     category: "DIRECT_SCREEN_CAPTURE",
-    label: "Recorded from an iOS screen with PROOVRA",
+    label: "iOS screen recording — PROOVRA app (client-attested)",
     statement:
-      "PROOVRA recorded this iOS device screen through Apple's user-authorised system screen broadcast, in a server-issued capture session started before the capture. The broadcast is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+      "The PROOVRA iOS app reports that it recorded this device screen through Apple's user-authorised system screen broadcast, in a server-issued capture session. The broadcast is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
     isDirectCapture: true,
+    provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
+      "CAPTURE_CLIENT_ATTESTED",
       "SCREEN_IOS_CONTENT_TRUTH_NOT_PROVEN",
       "SCREEN_IOS_SOURCE_APP_NOT_PROVEN",
       "SCREEN_IOS_DEVICE_INTEGRITY_NOT_VERIFIED",
@@ -303,6 +353,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     statement:
       "How this record entered PROOVRA was not recorded when it was created.",
     isDirectCapture: false,
+    provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["ACQUISITION_NOT_RECORDED"],
   },
 };
@@ -318,6 +369,8 @@ export type EvidenceAcquisitionProjection = {
   label: string;
   statement: string;
   isDirectCapture: boolean;
+  /** Owner decision 4: what may be said about who produced the bytes. */
+  provenanceTier: EvidenceProvenanceTier;
   limitations: ReadonlyArray<AcquisitionLimitationCode>;
 };
 
@@ -348,6 +401,7 @@ export function resolveEvidenceAcquisition(input: {
     label: d.label,
     statement: d.statement,
     isDirectCapture: d.isDirectCapture,
+    provenanceTier: d.provenanceTier,
     limitations: d.limitations,
   };
 }
@@ -532,6 +586,8 @@ export type PublicVerifyAcquisition = {
     label: string;
     statement: string;
     isDirectCapture: boolean;
+    /** Owner decision 4 (ET-DC-03). */
+    provenanceTier: EvidenceProvenanceTier;
   };
   /** Present only when a server-issued capture session was bound. */
   captureSession: {

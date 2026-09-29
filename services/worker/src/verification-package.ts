@@ -1212,6 +1212,7 @@ export function buildPackageAcquisitionRecord(params: {
       label: acquisition.label,
       statement: acquisition.statement,
       isDirectCapture: acquisition.isDirectCapture,
+      provenanceTier: acquisition.provenanceTier,
       limitations: acquisition.limitations.map((code) => ({
         code,
         text: ACQUISITION_LIMITATION_TEXT[code],

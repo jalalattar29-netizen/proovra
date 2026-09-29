@@ -18,6 +18,7 @@ import {
   ACQUISITION_NOT_RECORDED,
   CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS,
   EVIDENCE_ACQUISITION_MODES,
+  EVIDENCE_PROVENANCE_TIERS,
   acquisitionModesForCategory,
   acquisitionTimestampLabel,
   buildEvidenceProjection,
@@ -76,8 +77,38 @@ test("UC-1 direct web capture resolves to a direct-capture projection", () => {
   assert.equal(a.mode, "DIRECT_WEB_CAPTURE_EXTENSION");
   assert.equal(a.category, "DIRECT_WEB_CAPTURE");
   assert.equal(a.isDirectCapture, true);
-  assert.equal(a.label, "Captured from the web with PROOVRA");
+  assert.equal(a.label, "Web capture — PROOVRA extension (client-attested)");
   assert.equal(acquisitionTimestampLabel("DIRECT_WEB_CAPTURE_EXTENSION", false), "Captured from the web at (server UTC)");
+});
+
+test("ET-DC-03 / owner decision 4: every direct-capture channel is CLIENT_ATTESTED, never server-observed", () => {
+  for (const mode of EVIDENCE_ACQUISITION_MODES) {
+    const a = resolveEvidenceAcquisition({ acquisitionMode: mode });
+    if (a.isDirectCapture) {
+      assert.equal(a.provenanceTier, "CLIENT_ATTESTED_CAPTURE", mode);
+      assert.ok(a.limitations.includes("CAPTURE_CLIENT_ATTESTED"), mode);
+      // The statement attributes the capture to the client's report.
+      assert.match(a.statement, /\breports that it\b/, mode);
+      assert.doesNotMatch(a.statement, /^PROOVRA (captured|recorded)\b/, mode);
+    } else {
+      assert.equal(a.provenanceTier, "IMPORTED_EXISTING_MEDIA", mode);
+    }
+    // No channel may claim a server-observed capture: no positive attestation exists.
+    assert.notEqual(a.provenanceTier, "SERVER_OBSERVED_CAPTURE", mode);
+  }
+  assert.equal(resolveEvidenceAcquisition({ acquisitionMode: null }).provenanceTier, "IMPORTED_EXISTING_MEDIA");
+  assert.deepEqual([...EVIDENCE_PROVENANCE_TIERS], [
+    "SERVER_OBSERVED_CAPTURE",
+    "CLIENT_ATTESTED_CAPTURE",
+    "IMPORTED_EXISTING_MEDIA",
+  ]);
+});
+
+test("ET-DC-02: no statement asserts the session was opened before the capture", () => {
+  for (const mode of [...EVIDENCE_ACQUISITION_MODES, null]) {
+    const a = resolveEvidenceAcquisition({ acquisitionMode: mode });
+    assert.doesNotMatch(a.statement, /before the capture/i, String(mode));
+  }
 });
 
 test("a backfilled value says so", () => {

@@ -81,6 +81,8 @@ export function toPublicVerifyAcquisition(
       label: a.label,
       statement: a.statement,
       isDirectCapture: a.isDirectCapture,
+      // Owner decision 4 (ET-DC-03): who produced the bytes, stated by tier.
+      provenanceTier: a.provenanceTier,
     },
     captureSession: bound
       ? {

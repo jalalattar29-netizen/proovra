@@ -139,6 +139,8 @@ export type SourceContext = {
     label: string;
     statement: string;
     isDirectCapture: boolean;
+    /** Owner decision 4; absent from an older API. */
+    provenanceTier?: string;
   } | null;
   /** Legacy STRUCTURE field — not acquisition. */
   captureMethod: string | null;
