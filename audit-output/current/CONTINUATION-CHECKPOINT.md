@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1305
+TerminalWriters                             1306
 ROUTE_ATTRIBUTED_REACHABLE                  1167
-JOB_ATTRIBUTED_REACHABLE                     121
+JOB_ATTRIBUTED_REACHABLE                     120
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          14
+STARTUP_OR_SCHEDULED                          16
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -536,3 +536,19 @@ node services/api/scripts/audit/index.mjs --closure-check
 
 - ET-SEC-02: the case-detach "return to the personal pool" `evidence.update({ teamId: null })`
   is deleted (Invariant C). TerminalWriters 1306 -> 1305, ROUTE_ATTRIBUTED_REACHABLE 1168 -> 1167.
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION: ONE CUSTODY APPENDER, ONE RESERVATION AUTHORITY (writers 1305 -> 1306)
+
+- Custody serialization: the three appenders (api custody-events.service
+  `appendCustodyEventTx`, worker custody-events `appendCustodyEventTxInner`,
+  executor `appendCustodyEventInTx`) collapse into shared-runtime
+  `custody/custody-chain.ts` `appendCustodyEventTx` (-3, +1).
+- ET-ACQ-02 / ET-DC-05 / ET-DC-06: the discard's hand-rolled release is replaced
+  by shared-runtime `evidence-reservation/reservation.ts`
+  `releaseEvidenceReservationTx` (-1, +1); the Worker's
+  `releaseExpiredReservations` adds the expired-session claim and the release
+  it reaches from the capture sweep (+2); the sliding session expiry adds
+  `extendDirectCaptureSessionOnActivity` (+1).
+- TerminalWriters 1305 -> 1306. JOB_ATTRIBUTED_REACHABLE 121 -> 120 (the
+  executor's own appender no longer exists; job paths reach the shared one).
+  STARTUP_OR_SCHEDULED 14 -> 16 (the capture sweep's two new writers).

@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 38,
+    "FIXED_IN_THIS_TASK": 41,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
-    "PARTIALLY_FIXED": 1,
-    "STILL_PRESENT": 114,
+    "PARTIALLY_FIXED": 0,
+    "STILL_PRESENT": 112,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,7 +18,7 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 69,
+      "P2": 66,
       "P3": 46
     }
   },
@@ -27,7 +27,6 @@
     "P1": [],
     "P2": [
       "ET-ACQ-01",
-      "ET-ACQ-02",
       "ET-ACQ-03",
       "ET-ACQ-04",
       "ET-COM-02",
@@ -44,8 +43,6 @@
       "ET-CUS-10",
       "ET-CUS-11",
       "ET-DC-04",
-      "ET-DC-05",
-      "ET-DC-06",
       "ET-DC-07",
       "ET-DC-08",
       "ET-DC-09",
@@ -1362,33 +1359,43 @@
         "services/api/src/services/billing-enforcement.service.ts:460",
         "services/worker/src/orphan-scan.ts:107"
       ],
-      "disposition": "PARTIALLY_FIXED",
-      "rootCause": "Interrupted captures leave CREATED/UPLOADING rows forever; they counted against caps and are never reaped.",
-      "canonicalAuthority": "counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented",
-      "obsoleteRemoved": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Interrupted captures left CREATED/UPLOADING rows forever; they counted against caps and nothing released them (the reaper touched DRAFT sessions only; orphan-scan only counted).",
+      "canonicalAuthority": "@proovra/shared-runtime evidence-reservation: EVIDENCE_RESERVATION_TTL_MS, countedEvidenceRecordWhere (counting), expiredEvidenceReservationWhere + releaseEvidenceReservationTx (release); the Worker capture sweep releaseExpiredReservations",
+      "obsoleteRemoved": "services/api/src/services/evidence/evidence-record-counting.ts (callers migrated); the direct-capture discard's hand-rolled soft delete + custody append",
       "productFiles": [
         "apps/web/app/intake/[token]/page.tsx",
         "apps/web/lib/feedback/error-code-registry.ts",
+        "packages/shared-runtime/src/custody/custody-chain.ts",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts",
+        "packages/shared-runtime/src/index.ts",
         "services/api/scripts/capability-authority/manifests/route-dispositions.json",
         "services/api/src/routes/external-intake.routes.ts",
         "services/api/src/services/billing-enforcement.service.ts",
         "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/custody-events.service.ts",
         "services/api/src/services/evidence-request.service.ts",
         "services/api/src/services/evidence/evidence-record-counting.ts",
         "services/api/src/services/external-intake-orchestration.service.ts",
-        "services/api/src/services/workspace-usage.service.ts"
+        "services/api/src/services/workspace-usage.service.ts",
+        "services/worker/src/capture-reaper.ts",
+        "services/worker/src/custody-events.ts",
+        "services/worker/src/index.ts"
       ],
-      "redTest": null,
-      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only)",
+      "redTest": "services/api/test/reservation-sweep.integration.test.ts [contrast: the prior sweep leaves the abandoned reservation and the expired ACTIVE session untouched]",
+      "greenTest": "services/api/test/reservation-sweep.integration.test.ts (abandoned web reservation released + object delete requested; fresh / signed / live-session-held untouched); intake-lifecycle-remediation.integration.test.ts (counting); services/api/test/reservation-authority.test.ts (structural guard)",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/reservation-sweep.integration.test.ts [concurrent sweeps release a reservation exactly once]",
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
+      "compatibilityImpact": "unsealed records untouched for 24h and held by no live session are soft-deleted with EVIDENCE_DELETED(RESERVATION_EXPIRED); their storage keys are deleted best-effort (a versioned/Object Lock bucket keeps retained versions until retention ends)",
       "commits": [
-        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire"
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire",
+        "cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)"
       ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN — reaper for expired reservations and orphan objects still required"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-ACQ-03",
@@ -1805,20 +1812,36 @@
         "services/worker/src/capture-reaper.ts:77",
         "apps/extension/src/lib/api-client.ts:57"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Reaper scoped to drafts.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "No reaper ended ACTIVE/INTERRUPTED direct-capture sessions past expiry, and the extension never discards, so failed captures left permanent empty records and orphan objects.",
+      "canonicalAuthority": "capture-reaper releaseExpiredReservations (session claim under the capture-session lock) + releaseEvidenceReservationTx(CAPTURE_SESSION_EXPIRED)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/custody/custody-chain.ts",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts",
+        "packages/shared-runtime/src/index.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/custody-events.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/workspace-usage.service.ts",
+        "services/worker/src/capture-reaper.ts",
+        "services/worker/src/custody-events.ts",
+        "services/worker/src/index.ts"
+      ],
+      "redTest": "services/api/test/reservation-sweep.integration.test.ts [contrast: expired ACTIVE session stays ACTIVE under the prior sweep]",
+      "greenTest": "services/api/test/reservation-sweep.integration.test.ts [ET-DC-05: session EXPIRED, reservation released with CAPTURE_SESSION_EXPIRED]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-06",
@@ -1829,20 +1852,36 @@
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:155",
         "apps/mobile/src/continuous-capture.ts:216"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "TTL not sized for the continuous mode.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The session expiry was fixed at open (1h), so a continuous capture finalized or still uploading after an hour was refused — after the app had deleted its local segments.",
+      "canonicalAuthority": "direct-capture-ingest extendDirectCaptureSessionOnActivity: expiry slides to now + 1h on each accepted reservation/declaration, capped at startedAt + MAX_SESSION_LIFETIME_SECONDS (24h)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/custody/custody-chain.ts",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts",
+        "packages/shared-runtime/src/index.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/custody-events.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/workspace-usage.service.ts",
+        "services/worker/src/capture-reaper.ts",
+        "services/worker/src/custody-events.ts",
+        "services/worker/src/index.ts"
+      ],
+      "redTest": "services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (red with the extension removed: SESSION_EXPIRED at 70 min — evidence/dc06-red-baseline.txt)",
+      "greenTest": "services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (slides; capped at the lifetime; a silent session still expires)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "an active session no longer expires while it keeps declaring segments; silent sessions still expire an hour after their last activity",
+      "commits": [
+        "cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-07",

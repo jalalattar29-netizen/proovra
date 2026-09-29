@@ -158,11 +158,14 @@
       "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04]"
     },
     "ET-ACQ-02": {
-      "disposition": "PARTIALLY_FIXED",
-      "rootCause": "Interrupted captures leave CREATED/UPLOADING rows forever; they counted against caps and are never reaped.",
-      "canonicalAuthority": "counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented",
-      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only)",
-      "finalResult": "OPEN — reaper for expired reservations and orphan objects still required"
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Interrupted captures left CREATED/UPLOADING rows forever; they counted against caps and nothing released them (the reaper touched DRAFT sessions only; orphan-scan only counted).",
+      "canonicalAuthority": "@proovra/shared-runtime evidence-reservation: EVIDENCE_RESERVATION_TTL_MS, countedEvidenceRecordWhere (counting), expiredEvidenceReservationWhere + releaseEvidenceReservationTx (release); the Worker capture sweep releaseExpiredReservations",
+      "obsoleteRemoved": "services/api/src/services/evidence/evidence-record-counting.ts (callers migrated); the direct-capture discard's hand-rolled soft delete + custody append",
+      "redTest": "services/api/test/reservation-sweep.integration.test.ts [contrast: the prior sweep leaves the abandoned reservation and the expired ACTIVE session untouched]",
+      "greenTest": "services/api/test/reservation-sweep.integration.test.ts (abandoned web reservation released + object delete requested; fresh / signed / live-session-held untouched); intake-lifecycle-remediation.integration.test.ts (counting); services/api/test/reservation-authority.test.ts (structural guard)",
+      "concurrencyTest": "services/api/test/reservation-sweep.integration.test.ts [concurrent sweeps release a reservation exactly once]",
+      "compatibilityImpact": "unsealed records untouched for 24h and held by no live session are soft-deleted with EVIDENCE_DELETED(RESERVATION_EXPIRED); their storage keys are deleted best-effort (a versioned/Object Lock bucket keeps retained versions until retention ends)"
     },
     "ET-SEC-03": {
       "disposition": "FIXED_IN_THIS_TASK",
@@ -327,6 +330,21 @@
       "rootCause": "Basic Verify said a report copy 'can be checked' via its recorded digest but returned only a boolean.",
       "canonicalAuthority": "BasicVerification.report.sha256 (the latest report's pdfSha256)",
       "greenTest": "public-verify-package-seal-identity.integration.test.ts [report.sha256]"
+    },
+    "ET-DC-05": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "No reaper ended ACTIVE/INTERRUPTED direct-capture sessions past expiry, and the extension never discards, so failed captures left permanent empty records and orphan objects.",
+      "canonicalAuthority": "capture-reaper releaseExpiredReservations (session claim under the capture-session lock) + releaseEvidenceReservationTx(CAPTURE_SESSION_EXPIRED)",
+      "redTest": "services/api/test/reservation-sweep.integration.test.ts [contrast: expired ACTIVE session stays ACTIVE under the prior sweep]",
+      "greenTest": "services/api/test/reservation-sweep.integration.test.ts [ET-DC-05: session EXPIRED, reservation released with CAPTURE_SESSION_EXPIRED]"
+    },
+    "ET-DC-06": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The session expiry was fixed at open (1h), so a continuous capture finalized or still uploading after an hour was refused — after the app had deleted its local segments.",
+      "canonicalAuthority": "direct-capture-ingest extendDirectCaptureSessionOnActivity: expiry slides to now + 1h on each accepted reservation/declaration, capped at startedAt + MAX_SESSION_LIFETIME_SECONDS (24h)",
+      "redTest": "services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (red with the extension removed: SESSION_EXPIRED at 70 min — evidence/dc06-red-baseline.txt)",
+      "greenTest": "services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (slides; capped at the lifetime; a silent session still expires)",
+      "compatibilityImpact": "an active session no longer expires while it keeps declaring segments; silent sessions still expire an hour after their last activity"
     }
   }
 }
