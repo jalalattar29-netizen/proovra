@@ -431,12 +431,15 @@ describe("Phase IA-reliability — worker DLQ failures bridge into OperationalIn
 
   it("report-DLQ non-retriable terminal failure records a REPORT incident with CRITICAL severity", () => {
     expect(PROCESSOR).toMatch(/recordReportFailureIncident\(/);
-    // The bridge function declares CRITICAL for non-retriable + HIGH
-    // for retry-exhausted.
+    // The bridge declares CRITICAL for a non-retriable failure.
     expect(PROCESSOR).toMatch(
       /recordReportFailureIncident\([\s\S]{0,400}severity:\s*"CRITICAL"[\s\S]{0,400}retriable:\s*false/,
     );
-    expect(PROCESSOR).toMatch(
+    // ET-REC-10 — ONE BUDGET: BullMQ's per-run exhaustion (attempt 5) opens no
+    // "retry budget exhausted" incident while the durable budget (12 claims)
+    // keeps the request retryable; the report authority opens it at
+    // FAILED_TERMINAL (point5/report-package-recovery D3 + ET-REC-10).
+    expect(PROCESSOR).not.toMatch(
       /recordReportFailureIncident\([\s\S]{0,400}severity:\s*"HIGH"[\s\S]{0,400}retriable:\s*true/,
     );
   });

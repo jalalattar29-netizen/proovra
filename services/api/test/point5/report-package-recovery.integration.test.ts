@@ -503,6 +503,21 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     );
   });
 
+  it("ET-REC-10: the LAST BullMQ attempt of a retryable failure opens no 'budget exhausted' incident while the durable budget remains", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const id = await request({ evidenceId, teamId });
+    seam.reportHeadFailures = 1;
+    // attemptsMade 4 of attempts 5: BullMQ's own last try.
+    expect(await run(id, 4), "the report failure must surface").toBeTruthy();
+    const after = await state(evidenceId, id);
+    expect(after.req!.state, "the durable budget (12 claims) keeps the request alive").toBe("FAILED_RETRYABLE");
+    const incidents = await prisma.operationalIncident.findMany({
+      where: { teamId, fingerprint: { startsWith: `REPORT:${evidenceId}:` } },
+      select: { fingerprint: true, title: true },
+    });
+    expect(incidents, "one budget: the exhausted incident belongs to FAILED_TERMINAL (D3 below)").toEqual([]);
+  });
+
   it("a request that exhausts its retry budget is retired AND opens the deduplicated REPORT incident (D3)", async () => {
     const { evidenceId, teamId } = await signedEvidence();
     const id = await request({ evidenceId, teamId });

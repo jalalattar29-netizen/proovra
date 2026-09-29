@@ -5438,17 +5438,13 @@ trustDecisionSnapshot:
         { removeOnComplete: true, removeOnFail: false }
       );
 
-      // Phase IA-reliability — retry-exhausted DLQ move is HIGH. A
-      // retry-eligible job exhausted its retry budget; operators can
-      // re-queue from the DLQ console, so it isn't terminal in the
-      // same way a non-retriable failure is.
-      await recordReportFailureIncident({
-        evidenceId,
-        jobId: job.id,
-        error,
-        severity: "HIGH",
-        retriable: true,
-      });
+      // ET-REC-10 — ONE BUDGET. This is BullMQ's per-run budget (5 attempts);
+      // the request's DURABLE budget (REPORT_RECONCILE_MAX_ATTEMPTS = 12 claims)
+      // keeps it FAILED_RETRYABLE and the reconciler re-enqueues it. A HIGH
+      // "retry budget exhausted" incident here told operators it was over
+      // while the customer saw Retry and the supersede action was refused (not
+      // terminal). The exhausted incident is opened by the report authority
+      // when the durable row goes FAILED_TERMINAL.
 
       logger.error(
         {

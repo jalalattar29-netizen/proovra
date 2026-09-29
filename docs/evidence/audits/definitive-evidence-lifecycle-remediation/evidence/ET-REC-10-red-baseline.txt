@@ -1,0 +1,5 @@
+ET-REC-10 red baseline — point5/report-package-recovery.integration.test.ts (new ET-REC-10 case) against HEAD processor.ts
+   × report / package recovery (real processor, live PostgreSQL 16) > ET-REC-10: the LAST BullMQ attempt of a retryable failure opens no 'budget exhausted' incident while the durable budget remains 114ms
+     → one budget: the exhausted incident belongs to FAILED_TERMINAL (D3 below): expected [ { …(2) } ] to deeply equal []
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 37 passed (38)
