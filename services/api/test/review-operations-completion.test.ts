@@ -86,8 +86,17 @@ describe("export-gate wiring — source-level", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/evidenceIsReviewed\(/);
-    expect(src).toMatch(/const\s+reviewState\s*=\s*\{\s*isReviewed\s*\}/);
+    // (2026-09-29, audit D3) The gate is the ONE finalization gate every
+    // capture path asks; the route calls it, and it passes the review state.
+    expect(src).toMatch(/evaluateFinalizationGovernance\(/);
+    const gate = await readFile(
+      fileURLToPath(
+        new URL("../src/services/governance/finalization-governance.service.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    expect(gate).toMatch(/evidenceIsReviewed\(/);
+    expect(gate).toMatch(/const\s+reviewState\s*=\s*\{\s*isReviewed:/);
   });
 
   it("canGenerateReport / canGeneratePackage / canPublishPublicVerify all gate on reviewState.isReviewed", async () => {

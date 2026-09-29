@@ -56,7 +56,9 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
       // helper block is documented inline with a verbose comment
       // explaining the two-layer guard (Phase 37.95). The
       // `enforceRateLimit(` call sits inside that block.
-      /enforceRateLimit[\s\S]{0,1200}\/public\/verify\/|public\/verify[\s\S]{0,1200}enforceRateLimit/,
+      // Widened 1200→1600 (2026-09-29): the handler now opens with the
+      // no-store header every answer carries.
+      /enforceRateLimit[\s\S]{0,1600}\/public\/verify\/|public\/verify[\s\S]{0,1600}enforceRateLimit/,
     );
   });
 

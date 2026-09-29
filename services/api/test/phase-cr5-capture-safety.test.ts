@@ -326,7 +326,10 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // UC-3 PART I HARDENING rebaseline (5e20dc77, 2026-09-17): 55,830 -> 55,620.
 // Deterministic orientation transitions + a worker size backstop shrank the
 // finalize path by 11 lines; finalize-tx/custody/signing/TSA/OTS unchanged.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 55620;
+// Rebaselined 2026-09-29 (LIFECYCLE STABILIZATION): 55,620 -> 59,356 — duplicate
+// completion idempotency (D11), publication approval at the finalize claim
+// (D3), signed original VersionId recorded (D14).
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 59356;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

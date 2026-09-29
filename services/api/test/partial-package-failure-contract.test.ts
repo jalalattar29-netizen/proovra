@@ -159,7 +159,9 @@ describe("partial Report/Package failure — the state transition", () => {
      */
     const tx = PROCESSOR.slice(
       PROCESSOR.indexOf("await prisma.$transaction(async (tx) => {", PROCESSOR.indexOf("finalizedVerificationZip")),
-    ).slice(0, 3000);
+    // Widened 3000→6000 (2026-09-29): the commit transaction now opens with
+    // the advisory lock and the report-baseline re-check.
+    ).slice(0, 6000);
     expect(tx).toContain("tx.verificationPackage.create");
     expect(tx).toContain("verificationPackageVersion: prepared.version");
   });

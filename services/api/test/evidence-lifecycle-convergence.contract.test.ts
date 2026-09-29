@@ -482,8 +482,12 @@ describe("trash unpublishes as a stated rule", () => {
     // a DESTROYED tombstone, whose `deleted_at` is non-null only because it
     // passed through the trash on the way. That route would have kept serving a
     // public verify page for evidence that no longer exists.
+    // The lifecycle state stays THE gate. (2026-09-29, audit M4) A record
+    // soft-deleted outside the lifecycle — legacy routes set deletedAt without
+    // moving it to TRASHED — is not served either; restore clears deletedAt,
+    // so a restored record is unaffected.
     expect(EVIDENCE_ROUTES).toContain(
-      'where: { id, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } }',
+      'where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } }',
     );
   });
 

@@ -616,7 +616,11 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
       // session completion guard; see phase-cr5-capture-safety.test.ts.
       // UC-3 Part I hardening rebaseline (5e20dc77): 55,830 -> 55,620 — orientation
       // transitions + worker size backstop shrank the finalize path (11 lines).
-    ).toBe(55620);
+      // Rebaselined 2026-09-29 (LIFECYCLE STABILIZATION): 55,620 -> 59,356. Audited
+      // growth: duplicate completion repeats no retention, custody or fan-out
+      // (audit D11); publication approval honoured at the finalize claim (D3);
+      // the signed VersionId of each original is hashed and recorded (D14).
+    ).toBe(59356);
   });
 
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {

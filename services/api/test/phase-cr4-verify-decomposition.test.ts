@@ -233,7 +233,11 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Deterministic orientation transitions + a worker size backstop — an 11-line
     // change to the finalize path (git show 5e20dc77~1..5e20dc77). Finalize-tx,
     // custody chain, signing, TSA and OTS semantics unchanged; the file SHRANK.
-    expect(sz).toBe(55620);
+    // Rebaselined 2026-09-29 (LIFECYCLE STABILIZATION): 55,620 -> 59,356. Audited
+    // growth: duplicate completion repeats no retention, custody or fan-out
+    // (audit D11); publication approval honoured at the finalize claim (D3);
+    // the signed VersionId of each original is hashed and recorded (D14).
+    expect(sz).toBe(59356);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

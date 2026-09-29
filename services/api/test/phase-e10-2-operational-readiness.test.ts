@@ -349,7 +349,11 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // reports, while Pricing lists OTS under "Every plan includes". The
       // finalize transaction, custody chain and sealing are untouched; the
       // enqueue runs strictly after the commit, beside the report request.
-      { rel: "src/services/evidence-complete.service.ts", expected: 52223 },
+      // Rebaselined 2026-09-29 (LIFECYCLE STABILIZATION): 55,620 -> 59,356. Audited
+      // growth: duplicate completion repeats no retention, custody or fan-out
+      // (audit D11); publication approval honoured at the finalize claim (D3);
+      // the signed VersionId of each original is hashed and recorded (D14).
+      { rel: "src/services/evidence-complete.service.ts", expected: 59356 },
       {
               // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
       // convergence. The artifact query filtered `prisma.evidence` by the legacy
