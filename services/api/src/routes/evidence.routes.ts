@@ -47,7 +47,6 @@ import {
   deriveCanonicalArtifactAvailability,
   hasCaptureLocationMetadata,
   isPrimaryReviewerArtifactRole,
-  maskPublicEmailsInText,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
   resolveOtsAnchorClaim,
@@ -2988,90 +2987,13 @@ async function getEvidenceWithReadAccess(
   userId: string,
   evidenceId: string
 ): Promise<SelectedEvidence> {
-  const evidence = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    select: SAFE_EVIDENCE_SELECT,
-  });
-
-  if (!evidence) {
-    const err: Error & { statusCode?: number } = new Error("Evidence not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (evidence.ownerUserId === userId) {
-    return evidence;
-  }
-
-  // Track 1B closure — access can be granted through ANY linked case
-  // (canonical CaseEvidenceLink rows), not just a single primary one.
-  const linkedCaseIds = (
-    await prisma.caseEvidenceLink.findMany({
-      where: { evidenceId },
-      select: { caseId: true },
-      take: 100,
-    })
-  ).map((l) => l.caseId);
-  if (linkedCaseIds.length > 0) {
-    const caseItems = await prisma.case.findMany({
-      where: { id: { in: linkedCaseIds } },
-      include: { access: true },
-    });
-
-    for (const caseItem of caseItems) {
-      if (caseItem.ownerUserId === userId) {
-        return evidence;
-      }
-
-      if (caseItem.access.some((a) => a.userId === userId)) {
-        return evidence;
-      }
-
-      if (caseItem.teamId && caseItem.access.length === 0) {
-        const member = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: caseItem.teamId,
-              userId,
-            },
-          },
-          select: { status: true },
-        });
-
-        // P0 remediation (2026-07-21) — only ACTIVE membership authorizes
-        // (schema invariant: "every access check MUST reject anything
-        // other than ACTIVE"). Suspended/revoked members are denied.
-        if (member?.status === "ACTIVE") {
-          return evidence;
-        }
-      }
-    }
-  }
-
-  if (evidence.teamId) {
-    const member = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: {
-          teamId: evidence.teamId,
-          userId,
-        },
-      },
-      select: { status: true },
-    });
-
-    // P0 remediation (2026-07-21) — ACTIVE-only, as above.
-    if (member?.status === "ACTIVE") {
-      return evidence;
-    }
-  }
-
-  // PHASE 12 (anti-enumeration closure) — a cross-tenant/unauthorized read is
-  // INDISTINGUISHABLE from a missing record: same 404, same message as the
-  // not-found branch above. A 403 here leaked record existence to any
-  // authenticated outsider (caught live by the phase-37-95 runtime probe).
-  const err: Error & { statusCode?: number } = new Error("Evidence not found");
-  err.statusCode = 404;
-  throw err;
+  // ET-SEC-03 / ET-SEC-04 / ET-SEC-05 (Invariant D) — the read gate is the
+  // canonical per-record engine with the read capability. Creator identity,
+  // case ownership and CaseAccess rows no longer stand in for CURRENT
+  // authority (ACTIVE membership, role, access expiry, organization
+  // lifecycle); personal-scope records keep the personal-owner rule. Every
+  // denial is the same anti-enumeration 404.
+  return getEvidenceWithRecordAccess(userId, evidenceId, "evidence.read");
 }
 
 /**
@@ -3138,12 +3060,22 @@ async function canManageEvidenceCollaborativeContent(
   userId: string,
   evidence: SelectedEvidence
 ) {
+  // ET-SEC-05 — creator identity is provenance, not perpetual authorization.
+  // Personal scope: the owner. Workspace scope: CURRENT authority first (the
+  // canonical engine); only then do creator or OWNER/ADMIN role apply.
+  if (!evidence.teamId) {
+    return evidence.ownerUserId === userId;
+  }
+  const access = await resolveEvidenceRecordAccess({
+    userId,
+    evidenceId: evidence.id,
+    permission: "evidence.update_metadata",
+  });
+  if (!access.allowed) {
+    return false;
+  }
   if (evidence.ownerUserId === userId) {
     return true;
-  }
-
-  if (!evidence.teamId) {
-    return false;
   }
 
   const role = await getTeamMembershipRole(evidence.teamId, userId);

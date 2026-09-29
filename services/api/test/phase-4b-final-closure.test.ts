@@ -489,7 +489,9 @@ describe("7. C2 — executeDestruction with real S3 deletion", () => {
       ),
       "utf8",
     );
-    const write = executor.slice(executor.indexOf("await tx.evidence.update("));
+    // ET-SEC-12 — the tombstone write is now conditional on the executor's own
+    // claim (updateMany WHERE PENDING_DESTRUCTION + its claim stamp).
+    const write = executor.slice(executor.indexOf("const tombstoned = await tx.evidence.updateMany("));
     expect(write).toMatch(/lifecycleState:\s*"DESTROYED"/);
     expect(write).not.toMatch(/status:\s*"DESTROYED"/);
     expect(executor).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);

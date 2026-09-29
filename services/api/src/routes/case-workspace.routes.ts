@@ -14,6 +14,7 @@
  * that audit.
  */
 
+import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -142,49 +143,11 @@ async function requireCaseAccess(
   caseId: string,
 ): Promise<{ userId: string; role: string } | null> {
   const userId = getAuthUserId(req);
-  const caseRow = await prisma.case.findUnique({
-    where: { id: caseId },
-    select: {
-      id: true,
-      ownerUserId: true,
-      teamId: true,
-      access: { where: { userId }, select: { id: true } },
-    },
-  });
-  if (!caseRow) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  // Case owner — always allowed.
-  if (caseRow.ownerUserId === userId) {
-    return { userId, role: "OWNER" };
-  }
-  // Direct access — allowed.
-  if (caseRow.access.length > 0) {
-    return { userId, role: "MEMBER" };
-  }
-  // Team workspace member with no explicit access list on the case.
-  if (caseRow.teamId) {
-    const membership = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId: caseRow.teamId, userId },
-      },
-      select: { role: true, status: true },
-    });
-    if (
-      membership &&
-      membership.status === "ACTIVE" &&
-      caseRow.access.length === 0
-    ) {
-      // Case has no explicit access list — workspace membership grants
-      // read access. (Same model as /v1/cases list.)
-      const teamCaseAccessCount = await prisma.caseAccess.count({
-        where: { caseId },
-      });
-      if (teamCaseAccessCount === 0) {
-        return { userId, role: membership.role };
-      }
-    }
+  // ET-SEC-04 (Invariant D) — the ONE case-access rule: current workspace
+  // authority first; case ownership / CaseAccess only narrow it.
+  const access = await resolveCaseRecordAccess({ userId, caseId });
+  if (access.allowed) {
+    return { userId, role: access.role };
   }
   reply.code(404).send({ error: { code: "not_found" } });
   return null;

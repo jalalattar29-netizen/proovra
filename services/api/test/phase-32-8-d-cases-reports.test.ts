@@ -311,7 +311,10 @@ describe("Phase 32.8D — routes registered + workspace-gated", () => {
     // The whole helper, as parsed (WCC-NEW-027) — independent of line
     // endings and formatting drift.
     const body = functionSource(ROUTES, "requireCaseAccess");
-    expect(body).toMatch(/ownerUserId === userId/);
+    // ET-SEC-04 — the helper delegates to the ONE case-access rule (current
+    // workspace authority first; owner / CaseAccess only narrow it) and still
+    // answers an anti-enumeration 404 on refusal.
+    expect(body).toMatch(/resolveCaseRecordAccess\(/);
     expect(body).toMatch(/code\(404\)/);
   });
 

@@ -31,10 +31,17 @@
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import { resolveEvidenceRecordAccess } from "./evidence-record-access.service.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
 
 export type ArtifactKind = "report" | "package" | "original";
+
+const DOWNLOAD_PERMISSION = {
+  report: "evidence.download_report",
+  package: "evidence.download_package",
+  original: "evidence.download_original",
+} as const;
 
 const SENSITIVE_ACTION = {
   report: "download_report",
@@ -136,6 +143,31 @@ export async function evaluateArtifactDownload(input: {
       },
       { action, reason: "personal_record_owner_only" },
     );
+  }
+
+  // ET-SEC-03 (Invariant D) — CURRENT authority before any byte leaves: the
+  // canonical workspace decision for this exact download capability (ACTIVE
+  // membership, role, access expiry, organization lifecycle). An expired
+  // member or a member of a suspended organization is refused here even if a
+  // TeamMember row still says ACTIVE.
+  if (teamId) {
+    const access = await resolveEvidenceRecordAccess({
+      userId: actorUserId,
+      evidenceId: evidenceForGate.id,
+      permission: DOWNLOAD_PERMISSION[kind],
+    });
+    if (!access.allowed) {
+      return denied(
+        teamId,
+        403,
+        {
+          code: "ACCESS_DENIED",
+          reason: access.internalReason,
+          message: SUBJECT[kind] + " is not available to you in this workspace.",
+        },
+        { action, reason: access.internalReason },
+      );
+    }
   }
 
   const { enforceSensitiveAction } = await import("../governance.service.js");

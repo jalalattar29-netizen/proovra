@@ -35,7 +35,11 @@
 // relying on each caller to duplicate a `status === "ACTIVE"` comparison.
 import { teamMemberStatusGrantsAccess } from "@proovra/shared";
 
+import type { PrismaClient } from "@prisma/client";
+
 import { prisma } from "../../db.js";
+import { prisma as defaultPrisma } from "../../db.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 
 /**
  * The bounded set of case mutation classes the route layer uses to
@@ -467,4 +471,54 @@ export function resolveCaseViewerCapabilities(input: {
     canManageAccess: manageAccess.allowed,
     disabledReasons,
   };
+}
+
+/**
+ * ET-SEC-04 (Invariant D) — THE answer to "may this user open this case?".
+ *
+ * Current authority first, always: a workspace case requires the canonical
+ * workspace decision (ACTIVE membership, role, access expiry, organization
+ * lifecycle). Only a user who passes it is then narrowed by the case itself —
+ * the case owner, or a CaseAccess row when the case carries an access list.
+ * A case ownership or a CaseAccess row NEVER stands in for membership: a
+ * suspended, expired or removed member who once owned or was granted the case
+ * is refused. A case with no workspace (legacy personal scope) is owner-only.
+ */
+export type CaseRecordAccess =
+  | { allowed: true; role: string }
+  | { allowed: false; internalReason: string };
+
+export async function resolveCaseRecordAccess(
+  input: { userId: string; caseId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<CaseRecordAccess> {
+  const c = await client.case.findUnique({
+    where: { id: input.caseId },
+    select: { id: true, ownerUserId: true, teamId: true, access: { select: { userId: true } } },
+  });
+  if (!c) return { allowed: false, internalReason: "case_not_found" };
+  if (c.teamId === null) {
+    return c.ownerUserId === input.userId
+      ? { allowed: true, role: "OWNER" }
+      : { allowed: false, internalReason: "not_personal_owner" };
+  }
+  let decision: Awaited<ReturnType<typeof evaluateMemberAccess>>;
+  try {
+    decision = await evaluateMemberAccess(
+      { teamId: c.teamId, userId: input.userId, permission: "evidence.read", resourceKind: "case", resourceId: c.id },
+      client,
+    );
+  } catch {
+    return { allowed: false, internalReason: "authorization_unavailable" };
+  }
+  if (!decision.allowed) return { allowed: false, internalReason: decision.reason };
+  if (c.ownerUserId === input.userId) return { allowed: true, role: "OWNER" };
+  if (c.access.length > 0 && !c.access.some((a) => a.userId === input.userId)) {
+    return { allowed: false, internalReason: "case_access_list" };
+  }
+  const membership = await client.teamMember.findUnique({
+    where: { teamId_userId: { teamId: c.teamId, userId: input.userId } },
+    select: { role: true },
+  });
+  return { allowed: true, role: c.access.length > 0 ? "MEMBER" : (membership?.role ?? "MEMBER") };
 }

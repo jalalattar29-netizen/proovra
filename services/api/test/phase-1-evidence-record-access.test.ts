@@ -194,7 +194,10 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
           ),
         ) ?? []
       ).length;
-    expect(count("evidence.read")).toBe(1); // GET technical-metadata
+    // GET technical-metadata + the legacy read gate, which is now a delegate
+    // to the canonical loader (ET-SEC-03/04/05: creator identity, case
+    // ownership and CaseAccess rows no longer grant reads).
+    expect(count("evidence.read")).toBe(2);
     // label + parts + lock + complete + bulk case-link + relationship
     // create/update/delete = 8. The relationship writes only checked read
     // access, so a viewer could add, edit or remove a relationship (Batch K3,

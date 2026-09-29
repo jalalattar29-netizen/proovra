@@ -158,7 +158,7 @@ describe("byte-release authority (live PostgreSQL 16, real HTTP)", () => {
     expect(b).toMatchObject({ original: 404, originalUrl: false, parts: 404, partUrls: 0, report: 404 });
   });
 
-  it("Personal NULL-team record: a case collaborator may read it but NOT take the bytes", async () => {
+  it("Personal NULL-team record: a CaseAccess row grants nothing — the collaborator is refused like any outsider", async () => {
     const { personal, teamA } = h.fixtures;
     const id = await record({ teamId: null, ownerUserId: personal.userId });
     // A personal case of the owner, shared with one outside user.
@@ -169,19 +169,11 @@ describe("byte-release authority (live PostgreSQL 16, real HTTP)", () => {
     await prisma.caseAccess.create({ data: { caseId: c.id, userId: teamA.memberUserId } });
     await prisma.caseEvidenceLink.create({ data: { caseId: c.id, evidenceId: id } as never });
 
+    // ET-SEC-04 (Invariant D): a CaseAccess row is not membership. A personal
+    // record belongs to its owner alone; the collaborator reads nothing and
+    // takes nothing — the same anti-enumeration answer as an outsider.
     const b = await bytes(id, teamA.memberToken);
-    // Read access passed (the listing answers 200) — the release did not.
-    expect(b).toMatchObject({
-      original: 403,
-      originalCode: "PERSONAL_OWNER_REQUIRED",
-      originalUrl: false,
-      parts: 200,
-      partUrls: 0,
-      partsBlocked: true,
-      report: 403,
-      reportCode: "PERSONAL_OWNER_REQUIRED",
-    });
-    // A user not on the (restricted) personal case's list: nothing at all.
+    expect(b).toMatchObject({ original: 404, parts: 404, report: 404, partUrls: 0 });
     const outsider = await bytes(id, teamA.viewerToken);
     expect(outsider).toMatchObject({ original: 404, parts: 404, report: 404, partUrls: 0 });
   });

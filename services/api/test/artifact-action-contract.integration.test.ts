@@ -395,16 +395,16 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     expect((await post(A().ownerToken, broken)).statusCode).toBe(409);
   });
 
-  it("a suspended organization withdraws every action with WORKSPACE_SUSPENDED", async () => {
+  it("a suspended organization's members can no longer open the record (ET-SEC-03, canonical organization lifecycle)", async () => {
     const id = await evidence();
     await report(id, 1);
     const team = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
     await prisma.organization.update({ where: { id: team.organizationId! }, data: { status: "SUSPENDED" } });
     try {
-      expect((await status(id)).outputs.verificationPackage).toMatchObject({
-        action: "NONE",
-        actionUnavailableReason: "WORKSPACE_SUSPENDED",
-      });
+      // The canonical access engine denies every permission, reads included,
+      // while the parent organization is not ACTIVE; the read gate now asks it.
+      const res = await get(A().ownerToken, `/v1/evidence/${id}/artifacts/status`);
+      expect(res.statusCode).toBe(404);
     } finally {
       await prisma.organization.update({ where: { id: team.organizationId! }, data: { status: "ACTIVE" } });
     }
