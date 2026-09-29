@@ -1,0 +1,8 @@
+ET-PKG-11 red — services/worker/test/historical-verification-material.test.ts against HEAD (4a4affa6) verification-package-historical-material.ts:
+   × historical verification material (ET-PKG-11) > local PEM: the package purpose carries the PACKAGE key, the others the evidence key; no path anywhere 6ms
+     → expected '-----BEGIN PUBLIC KEY-----\nMCowBQYDK…' to be '-----BEGIN PUBLIC KEY-----\nMCowBQYDK…' // Object.is equality
+   × historical verification material (ET-PKG-11) > AWS KMS: the key id never reaches the file; the SPKI fingerprint does 3ms
+     → expected '{"schemaVersion":1,"schema":"PROOVRA_…' not to contain '123456789012'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed (2)
+(local PEM: the package purpose carried the EVIDENCE key; KMS: the file contained the key ARN's account id.)

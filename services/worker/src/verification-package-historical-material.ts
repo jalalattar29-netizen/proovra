@@ -28,6 +28,8 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { trace, SpanStatusCode } from "@opentelemetry/api";
 
+import { publicFingerprintOfPem } from "@proovra/shared-runtime";
+
 import { captureException } from "./sentry.js";
 
 // ---------------------------------------------------------------------------
@@ -65,8 +67,17 @@ export type HistoricalSignerEntry = {
   verificationMaterial: {
     /** Operator-safe PEM block when extractable. NEVER private key. */
     publicKeyPem: string | null;
-    /** Provider-side reference (e.g. KMS ARN). May be null. */
-    publicMaterialRef: string | null;
+    /**
+     * ET-PKG-11 — always null. It used to carry the server's key FILE PATH
+     * or the KMS key id (an ARN embeds account and region) to every
+     * recipient. Kept (nullable, schemaVersion 1) so readers do not break.
+     */
+    publicMaterialRef: null;
+    /**
+     * SHA-256 (hex) of the DER SPKI public key — the same fingerprint Public
+     * Verify publishes for a package's seal key. No infrastructure identifier.
+     */
+    publicKeySpkiSha256: string | null;
   };
   verificationMaterialType: VerificationMaterialType;
   /** Where the public material was sourced from. Bounded enum. */
@@ -121,10 +132,15 @@ export async function buildHistoricalVerificationMaterial(input: {
               ? "disabled"
               : "local_pem";
 
-        // Extract public material ONCE; the same material applies to
-        // all four signer purposes today (they share the same env-
-        // resolved keyId / keyVersion).
-        const extracted = await extractPublicMaterial(provider);
+        // ET-PKG-11 — PER PURPOSE. The package signer prefers
+        // PACKAGE_SIGNING_PUBLIC_KEY_PATH, so a distinct package key was
+        // described with the evidence key's material. KMS: both signers use
+        // KMS_KEY_ID, so one extraction serves both.
+        const extracted = await extractPublicMaterial(provider, ["SIGNING_PUBLIC_KEY_PATH"]);
+        const packageExtracted =
+          provider === "local_pem"
+            ? await extractPublicMaterial(provider, ["PACKAGE_SIGNING_PUBLIC_KEY_PATH", "SIGNING_PUBLIC_KEY_PATH"])
+            : extracted;
 
         const evidKeyId = envValue("SIGNING_KEY_ID");
         const evidKeyVersion = envValue("SIGNING_KEY_VERSION");
@@ -138,10 +154,12 @@ export async function buildHistoricalVerificationMaterial(input: {
             : provider === "local_pem"
               ? "ED25519"
               : null;
-        const statusAtSigning: HistoricalSignerEntry["signerStatusAtSigningTime"] =
+        const statusAtSigning = (
+          material: Extracted,
+        ): HistoricalSignerEntry["signerStatusAtSigningTime"] =>
           provider === "disabled"
             ? "disabled"
-            : extracted.materialType === "unsupported"
+            : material.materialType === "unsupported"
               ? "degraded"
               : "active";
 
@@ -154,6 +172,7 @@ export async function buildHistoricalVerificationMaterial(input: {
           purpose: SignerPurpose,
           keyId: string | null,
           keyVersion: string | null,
+          material: Extracted = extracted,
         ): HistoricalSignerEntry => {
           return {
             signerPurpose: purpose,
@@ -164,13 +183,14 @@ export async function buildHistoricalVerificationMaterial(input: {
             keyId,
             keyVersion,
             algorithm,
-            signerStatusAtSigningTime: statusAtSigning,
+            signerStatusAtSigningTime: statusAtSigning(material),
             verificationMaterial: {
-              publicKeyPem: extracted.publicKeyPem,
-              publicMaterialRef: extracted.publicMaterialRef,
+              publicKeyPem: material.publicKeyPem,
+              publicMaterialRef: null,
+              publicKeySpkiSha256: material.publicKeyPem ? publicFingerprintOfPem(material.publicKeyPem) : null,
             },
-            verificationMaterialType: extracted.materialType,
-            generatedFrom: extracted.generatedFrom,
+            verificationMaterialType: material.materialType,
+            generatedFrom: material.generatedFrom,
             historicalOnly: true,
           };
         };
@@ -179,7 +199,7 @@ export async function buildHistoricalVerificationMaterial(input: {
         // enum order.
         const signers: HistoricalSignerEntry[] = [
           entry("report_pdf", evidKeyId, evidKeyVersion),
-          entry("verification_package", pkgKeyId, pkgKeyVersion),
+          entry("verification_package", pkgKeyId, pkgKeyVersion, packageExtracted),
           entry("export_manifest", evidKeyId, evidKeyVersion),
           entry("custody_event", evidKeyId, evidKeyVersion),
         ];
@@ -205,6 +225,7 @@ export async function buildHistoricalVerificationMaterial(input: {
         span.setAttribute("status", "ok");
         span.setAttribute("provider", provider);
         span.setAttribute("materialType", extracted.materialType);
+        span.setAttribute("packageMaterialType", packageExtracted.materialType);
         return file;
       } catch (err) {
         span.recordException(err as Error);
@@ -230,28 +251,27 @@ export async function buildHistoricalVerificationMaterial(input: {
 
 type Extracted = {
   publicKeyPem: string | null;
-  publicMaterialRef: string | null;
   materialType: VerificationMaterialType;
   generatedFrom: HistoricalSignerEntry["generatedFrom"];
 };
 
 async function extractPublicMaterial(
   provider: SignerProvider,
+  /** local_pem only: the public-key path env names, first set wins. */
+  publicKeyPathEnv: readonly string[],
 ): Promise<Extracted> {
   if (provider === "disabled") {
     return {
       publicKeyPem: null,
-      publicMaterialRef: null,
       materialType: "unsupported",
       generatedFrom: "unavailable",
     };
   }
   if (provider === "local_pem") {
-    const pubPath = envValue("SIGNING_PUBLIC_KEY_PATH");
+    const pubPath = publicKeyPathEnv.map(envValue).find((v): v is string => v !== null) ?? null;
     if (!pubPath || !existsSync(pubPath)) {
       return {
         publicKeyPem: null,
-        publicMaterialRef: pubPath,
         materialType: "unsupported",
         generatedFrom: "unavailable",
       };
@@ -261,21 +281,18 @@ async function extractPublicMaterial(
       if (!raw.includes("BEGIN") || !raw.includes("END")) {
         return {
           publicKeyPem: null,
-          publicMaterialRef: pubPath,
           materialType: "unsupported",
           generatedFrom: "unavailable",
         };
       }
       return {
         publicKeyPem: raw.trim(),
-        publicMaterialRef: pubPath,
         materialType: "ed25519_spki_pem",
         generatedFrom: "local_pem_file",
       };
     } catch {
       return {
         publicKeyPem: null,
-        publicMaterialRef: pubPath,
         materialType: "unsupported",
         generatedFrom: "unavailable",
       };
@@ -286,7 +303,6 @@ async function extractPublicMaterial(
   if (!keyId) {
     return {
       publicKeyPem: null,
-      publicMaterialRef: null,
       materialType: "unsupported",
       generatedFrom: "unavailable",
     };
@@ -304,7 +320,6 @@ async function extractPublicMaterial(
     if (!res.PublicKey) {
       return {
         publicKeyPem: null,
-        publicMaterialRef: `kms:${keyId}`,
         materialType: "unsupported",
         generatedFrom: "unavailable",
       };
@@ -312,14 +327,12 @@ async function extractPublicMaterial(
     const pem = derToPem(Buffer.from(res.PublicKey));
     return {
       publicKeyPem: pem,
-      publicMaterialRef: `kms:${keyId}`,
       materialType: "kms_public_key_pem",
       generatedFrom: "aws_kms_get_public_key",
     };
   } catch {
     return {
       publicKeyPem: null,
-      publicMaterialRef: `kms:${keyId}`,
       materialType: "unsupported",
       generatedFrom: "unavailable",
     };
@@ -356,7 +369,7 @@ function degradedFile(input: {
     keyVersion: null,
     algorithm: null,
     signerStatusAtSigningTime: "disabled",
-    verificationMaterial: { publicKeyPem: null, publicMaterialRef: null },
+    verificationMaterial: { publicKeyPem: null, publicMaterialRef: null, publicKeySpkiSha256: null },
     verificationMaterialType: "unsupported",
     generatedFrom: "unavailable",
     historicalOnly: true,
