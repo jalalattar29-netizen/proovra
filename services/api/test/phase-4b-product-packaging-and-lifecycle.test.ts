@@ -127,7 +127,9 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     // meaning what it meant: a shared workspace's canonical scope is exactly
     // the strict `{ teamId }` filter these tests were written against.
     team: {
-      findUnique: async () => ({ isPersonal: false, ownerUserId: null }),
+      // organizationId: chain transfers bind the sending organisation to the
+      // workspace's own (ET-CUS-02).
+      findUnique: async () => ({ isPersonal: false, ownerUserId: null, organizationId: "org-1" }),
     },
     entitlementGrant: {
       findUnique: async () => null,
@@ -187,6 +189,12 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       findFirst: async () => null,
       findMany: async () => [],
       update: async () => ({}),
+      updateMany: async () => ({ count: 1 }),
+    },
+    // Transfers append custody in their own transaction (ET-CUS-02).
+    custodyEvent: {
+      findFirst: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => ({ id: "ce-1", ...args.data }),
     },
     retentionPolicyConfig: {
       create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
@@ -252,8 +260,8 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       findMany: async () => [],
       // Exchange creation checks every id belongs to the workspace (2026-09-29).
       // The default models "all owned"; a test overrides it to prove refusal.
-      count: async (args: { where: { AND: Array<{ id?: { in: string[] } }> } }) =>
-        args.where.AND[0]?.id?.in.length ?? 0,
+      count: async (args: { where: { id?: { in: string[] }; AND: Array<{ id?: { in: string[] } }> } }) =>
+        args.where.id?.in.length ?? args.where.AND[0]?.id?.in.length ?? 0,
     },
     intelligenceActivityEvent: {
       create: async () => ({}),
@@ -1348,9 +1356,9 @@ describe("14. Chain transfer state machine", () => {
           fromOrganizationId: "org-1",
           toOrganizationSlug: "org-two",
         }),
-        update: async (args: { data: Record<string, unknown> }) => {
+        updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
-          return args.data;
+          return { count: 1 };
         },
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],
@@ -1371,9 +1379,9 @@ describe("14. Chain transfer state machine", () => {
     const prisma = makePrismaStub({
       chainTransfer: {
         findFirst: async () => ({ id: "xfer-1", state: "ACCEPTED" }),
-        update: async (args: { data: Record<string, unknown> }) => {
+        updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
-          return args.data;
+          return { count: 1 };
         },
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],

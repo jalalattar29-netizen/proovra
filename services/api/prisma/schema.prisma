@@ -3212,6 +3212,8 @@ enum CustodyEventType {
   INVESTIGATION_GRAPH_EXPORTED
   INVESTIGATION_TIMELINE_EXPORTED
   INVESTIGATION_DUPLICATES_EXPORTED
+  // ET-CUS-02: a cross-organisation chain-of-custody transfer changed state.
+  CHAIN_TRANSFER_CUSTODY_EXTENDED
 }
 
 enum AuthProvider {

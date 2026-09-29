@@ -1842,6 +1842,14 @@ function summarizePublicPayload(
     case prismaPkg.CustodyEventType.EVIDENCE_CREATED:
       return "Evidence record created.";
 
+    // ET-CUS-02: bounded — the state only; never organisation identifiers.
+    case prismaPkg.CustodyEventType.CHAIN_TRANSFER_CUSTODY_EXTENDED: {
+      const state = String(obj.state ?? "");
+      return ["INITIATED", "ACCEPTED", "REJECTED", "REVOKED", "COMPLETED"].includes(state)
+        ? `Chain-of-custody transfer ${state.toLowerCase()}.`
+        : "Chain-of-custody transfer recorded.";
+    }
+
     case prismaPkg.CustodyEventType.UPLOAD_STARTED:
     case prismaPkg.CustodyEventType.UPLOAD_AUTHORIZED: {
       const uploadMode = getReviewerUploadModeLabel({

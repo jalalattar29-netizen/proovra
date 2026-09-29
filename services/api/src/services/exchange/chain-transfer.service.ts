@@ -14,7 +14,9 @@
  *     never break the operational write.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import * as prismaPkg from "@prisma/client";
+import { appendCustodyEventTx, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import {
   CHAIN_TRANSFER_STATES,
   type ChainTransferProjection,
@@ -23,7 +25,6 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendCustodyEvent } from "../custody-events.service.js";
 
 // ---------------------------------------------------------------------------
 // Forward-declared webhook emitter (implemented by the webhook-platform
@@ -61,43 +62,45 @@ async function tryEmitWebhookEvent(
 }
 
 // ---------------------------------------------------------------------------
-// Custody-event helper (I4 — custody continuity on transfer)
+// Custody continuity on transfer (ET-CUS-02)
 // ---------------------------------------------------------------------------
 
 /**
- * Appends a CHAIN_TRANSFER_CUSTODY_EXTENDED event to every evidenceId in the
- * transfer. Fire-and-forget — audit fan-out failure MUST NOT break the write.
- * Uses the existing appendCustodyEvent emitter from custody-events.service.ts
- * (Phase 1B) — no duplicate system.
+ * Appends CHAIN_TRANSFER_CUSTODY_EXTENDED to every evidence record of the
+ * transfer, INSIDE the transaction that changes the transfer's state. Until
+ * 2026-09-29 this was a fire-and-forget append of an event type that did not
+ * exist in the enum, with the failure swallowed: no hand-off between
+ * organisations ever reached a custody chain.
  */
-async function emitTransferCustodyEvents(
+async function appendTransferCustodyTx(
+  tx: Prisma.TransactionClient,
   evidenceIds: ReadonlyArray<string>,
   payload: {
     transferId: string;
     fromOrganizationId: string;
     toOrganizationSlug: string;
     state: string;
-    transitionedAtUtc: string;
+    actorUserId: string | null;
+    transitionedAt: Date;
   },
 ): Promise<void> {
   for (const evidenceId of evidenceIds) {
-    void appendCustodyEvent({
+    await appendCustodyEventTx(tx, {
       evidenceId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      eventType: "CHAIN_TRANSFER_CUSTODY_EXTENDED" as any,
+      eventType: prismaPkg.CustodyEventType.CHAIN_TRANSFER_CUSTODY_EXTENDED,
+      atUtc: payload.transitionedAt,
       payload: {
-        code: "CHAIN_TRANSFER_CUSTODY_EXTENDED",
         transferId: payload.transferId,
         fromOrganizationId: payload.fromOrganizationId,
         toOrganizationSlug: payload.toOrganizationSlug,
         state: payload.state,
-        transitionedAtUtc: payload.transitionedAtUtc,
+        actorUserId: payload.actorUserId,
       },
-    }).catch(() => {
-      /* fire-and-forget — audit fan-out must never break the operational write */
     });
   }
 }
+
+const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -130,7 +133,7 @@ export type InitiateChainTransferInput = {
 
 export type InitiateChainTransferResult =
   | { ok: true; transferId: string }
-  | { ok: false; denial: "INVALID_EVIDENCE" | "INVALID_SLUG" };
+  | { ok: false; denial: "INVALID_EVIDENCE" | "INVALID_SLUG" | "INVALID_ORGANIZATION" };
 
 export async function initiateChainTransfer(
   input: InitiateChainTransferInput,
@@ -148,19 +151,48 @@ export async function initiateChainTransfer(
       : input.expiresAtUtc instanceof Date
         ? input.expiresAtUtc
         : new Date(input.expiresAtUtc);
-  const row = await prisma.chainTransfer.create({
-    data: {
-      teamId: input.teamId,
+  // ET-CUS-02: the request body names the evidence and the sending
+  // organisation; both must be THIS workspace's. Otherwise a caller could
+  // extend other tenants' custody chains.
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+  if (!team?.organizationId || team.organizationId !== input.fromOrganizationId) {
+    return { ok: false, denial: "INVALID_ORGANIZATION" };
+  }
+  const evidenceIds = [...new Set(input.evidenceIds)];
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
+  const owned = await prisma.evidence.count({
+    where: { AND: [scope], id: { in: evidenceIds }, deletedAt: null },
+  });
+  if (owned !== evidenceIds.length) return { ok: false, denial: "INVALID_EVIDENCE" };
+
+  const initiatedAt = new Date();
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.chainTransfer.create({
+      data: {
+        teamId: input.teamId,
+        fromOrganizationId: input.fromOrganizationId,
+        toOrganizationSlug: input.toOrganizationSlug.slice(0, 120),
+        evidenceIds: evidenceIds as unknown as object,
+        caseId: input.caseId ?? null,
+        state: "INITIATED",
+        reasonNote: input.reasonNote?.slice(0, 400) ?? null,
+        expiresAtUtc: expiresAt,
+        initiatedByUserId: input.initiatedByUserId,
+      },
+      select: { id: true },
+    });
+    await appendTransferCustodyTx(tx, evidenceIds, {
+      transferId: created.id,
       fromOrganizationId: input.fromOrganizationId,
-      toOrganizationSlug: input.toOrganizationSlug.slice(0, 120),
-      evidenceIds: input.evidenceIds as unknown as object,
-      caseId: input.caseId ?? null,
+      toOrganizationSlug: input.toOrganizationSlug,
       state: "INITIATED",
-      reasonNote: input.reasonNote?.slice(0, 400) ?? null,
-      expiresAtUtc: expiresAt,
-      initiatedByUserId: input.initiatedByUserId,
-    },
-    select: { id: true },
+      actorUserId: input.initiatedByUserId,
+      transitionedAt: initiatedAt,
+    });
+    return created;
   });
   void tryEmitWebhookEvent(
     "CHAIN_TRANSFER_INITIATED",
@@ -172,14 +204,6 @@ export async function initiateChainTransfer(
     },
     { prisma, teamId: input.teamId },
   );
-  // I4 — custody continuity: extend chain for each evidenceId on initiation.
-  void emitTransferCustodyEvents(input.evidenceIds, {
-    transferId: row.id,
-    fromOrganizationId: input.fromOrganizationId,
-    toOrganizationSlug: input.toOrganizationSlug,
-    state: "INITIATED",
-    transitionedAtUtc: new Date().toISOString(),
-  });
   return { ok: true, transferId: row.id };
 }
 
@@ -209,17 +233,29 @@ export async function acceptChainTransfer(
   });
   if (!row) return { ok: false, denial: "NOT_FOUND" };
   if (row.state !== "INITIATED") return { ok: false, denial: "INVALID_STATE" };
-  await prisma.chainTransfer.update({
-    where: { id: row.id },
-    data: {
+  const at = new Date();
+  const moved = await prisma.$transaction(async (tx) => {
+    const claim = await tx.chainTransfer.updateMany({
+      where: { id: row.id, state: "INITIATED" },
+      data: {
+        state: "ACCEPTED",
+        acceptedByUserId: input.acceptingUserId,
+        respondedAtUtc: at,
+        ...(input.acceptingOrgId ? { toOrganizationId: input.acceptingOrgId } : {}),
+      },
+    });
+    if (claim.count !== 1) return false;
+    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+      transferId: row.id,
+      fromOrganizationId: row.fromOrganizationId,
+      toOrganizationSlug: row.toOrganizationSlug,
       state: "ACCEPTED",
-      acceptedByUserId: input.acceptingUserId,
-      respondedAtUtc: new Date(),
-      ...(input.acceptingOrgId
-        ? { toOrganizationId: input.acceptingOrgId }
-        : {}),
-    },
+      actorUserId: input.acceptingUserId,
+      transitionedAt: at,
+    });
+    return true;
   });
+  if (!moved) return { ok: false, denial: "INVALID_STATE" };
   void tryEmitWebhookEvent(
     "CHAIN_TRANSFER_ACCEPTED",
     {
@@ -230,17 +266,6 @@ export async function acceptChainTransfer(
     },
     { prisma, teamId: input.teamId },
   );
-  // I4 — custody continuity: extend chain for each evidenceId on acceptance.
-  const acceptEvidenceIds = Array.isArray(row.evidenceIds)
-    ? (row.evidenceIds as ReadonlyArray<string>)
-    : [];
-  void emitTransferCustodyEvents(acceptEvidenceIds, {
-    transferId: row.id,
-    fromOrganizationId: row.fromOrganizationId,
-    toOrganizationSlug: row.toOrganizationSlug,
-    state: "ACCEPTED",
-    transitionedAtUtc: new Date().toISOString(),
-  });
   return { ok: true };
 }
 
@@ -266,21 +291,33 @@ export async function rejectChainTransfer(
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.chainTransfer.findFirst({
     where: { id: input.transferId, teamId: input.teamId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, evidenceIds: true, fromOrganizationId: true, toOrganizationSlug: true },
   });
   if (!row) return { ok: false, denial: "NOT_FOUND" };
   if (row.state !== "INITIATED") return { ok: false, denial: "INVALID_STATE" };
-  await prisma.chainTransfer.update({
-    where: { id: row.id },
-    data: {
+  const at = new Date();
+  const moved = await prisma.$transaction(async (tx) => {
+    const claim = await tx.chainTransfer.updateMany({
+      where: { id: row.id, state: "INITIATED" },
+      data: {
+        state: "REJECTED",
+        rejectedByUserId: input.rejectingUserId,
+        respondedAtUtc: at,
+        ...(input.reason != null ? { reasonNote: input.reason.slice(0, 400) } : {}),
+      },
+    });
+    if (claim.count !== 1) return false;
+    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+      transferId: row.id,
+      fromOrganizationId: row.fromOrganizationId,
+      toOrganizationSlug: row.toOrganizationSlug,
       state: "REJECTED",
-      rejectedByUserId: input.rejectingUserId,
-      respondedAtUtc: new Date(),
-      ...(input.reason != null
-        ? { reasonNote: input.reason.slice(0, 400) }
-        : {}),
-    },
+      actorUserId: input.rejectingUserId,
+      transitionedAt: at,
+    });
+    return true;
   });
+  if (!moved) return { ok: false, denial: "INVALID_STATE" };
   return { ok: true };
 }
 
@@ -305,7 +342,7 @@ export async function revokeChainTransfer(
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.chainTransfer.findFirst({
     where: { id: input.transferId, teamId: input.teamId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, evidenceIds: true, fromOrganizationId: true, toOrganizationSlug: true },
   });
   if (!row) return { ok: false, denial: "NOT_FOUND" };
   if (
@@ -313,14 +350,24 @@ export async function revokeChainTransfer(
   ) {
     return { ok: false, denial: "INVALID_STATE" };
   }
-  await prisma.chainTransfer.update({
-    where: { id: row.id },
-    data: {
+  const at = new Date();
+  const moved = await prisma.$transaction(async (tx) => {
+    const claim = await tx.chainTransfer.updateMany({
+      where: { id: row.id, state: { notIn: [...TERMINAL_STATES] } },
+      data: { state: "REVOKED", respondedAtUtc: at },
+    });
+    if (claim.count !== 1) return false;
+    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+      transferId: row.id,
+      fromOrganizationId: row.fromOrganizationId,
+      toOrganizationSlug: row.toOrganizationSlug,
       state: "REVOKED",
-      respondedAtUtc: new Date(),
-    },
+      actorUserId: input.actorUserId,
+      transitionedAt: at,
+    });
+    return true;
   });
-  void input.actorUserId; // bounded actor reference; not persisted on this row.
+  if (!moved) return { ok: false, denial: "INVALID_STATE" };
   return { ok: true };
 }
 
@@ -333,6 +380,7 @@ export type CompleteChainTransferInput = {
   teamId: string;
   transferId: string;
   packageId: string;
+  actorUserId?: string | null;
 };
 
 export type CompleteChainTransferResult =
@@ -349,26 +397,24 @@ export async function completeChainTransfer(
   });
   if (!row) return { ok: false, denial: "NOT_FOUND" };
   if (row.state !== "ACCEPTED") return { ok: false, denial: "INVALID_STATE" };
-  const completedAt = new Date();
-  await prisma.chainTransfer.update({
-    where: { id: row.id },
-    data: {
+  const at = new Date();
+  const moved = await prisma.$transaction(async (tx) => {
+    const claim = await tx.chainTransfer.updateMany({
+      where: { id: row.id, state: "ACCEPTED" },
+      data: { state: "COMPLETED", packageId: input.packageId, completedAtUtc: at },
+    });
+    if (claim.count !== 1) return false;
+    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+      transferId: row.id,
+      fromOrganizationId: row.fromOrganizationId,
+      toOrganizationSlug: row.toOrganizationSlug,
       state: "COMPLETED",
-      packageId: input.packageId,
-      completedAtUtc: completedAt,
-    },
+      actorUserId: input.actorUserId ?? null,
+      transitionedAt: at,
+    });
+    return true;
   });
-  // I4 — custody continuity: extend chain for each evidenceId on completion.
-  const completeEvidenceIds = Array.isArray(row.evidenceIds)
-    ? (row.evidenceIds as ReadonlyArray<string>)
-    : [];
-  void emitTransferCustodyEvents(completeEvidenceIds, {
-    transferId: row.id,
-    fromOrganizationId: row.fromOrganizationId,
-    toOrganizationSlug: row.toOrganizationSlug,
-    state: "COMPLETED",
-    transitionedAtUtc: completedAt.toISOString(),
-  });
+  if (!moved) return { ok: false, denial: "INVALID_STATE" };
   return { ok: true };
 }
 

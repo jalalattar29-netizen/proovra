@@ -338,6 +338,8 @@ export function mapCustodyEventLabel(eventType: string | null | undefined): stri
       return "Evidence purged";
     case "OTS_APPLIED":
       return "OpenTimestamps update recorded";
+    case "CHAIN_TRANSFER_CUSTODY_EXTENDED":
+      return "Chain-of-custody transfer recorded";
     case "OTS_FAILED":
       return "OpenTimestamps provider returned failure";
     case "OTS_ATTEMPT_ERROR":

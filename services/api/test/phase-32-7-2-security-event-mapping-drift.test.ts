@@ -1359,6 +1359,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Verification package seal identity (2026-09-29, ET-PKG-02): two nullable
       // verification_packages columns. EXPAND.
       "20280803000000_verification_package_seal_identity",
+      // Custody chain transfer event (2026-09-29, ET-CUS-02): one enum value. EXPAND.
+      "20280804000000_custody_chain_transfer_event",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

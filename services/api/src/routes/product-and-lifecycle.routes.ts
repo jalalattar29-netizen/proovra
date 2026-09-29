@@ -904,6 +904,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         transferId: id,
         packageId: body.packageId,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(200).send({ ok: true });
