@@ -21,6 +21,7 @@
  * counter incremented here is what an operator alerts on.
  */
 
+import { UnrecoverableError } from "bullmq";
 import {
   LegacyJobQuarantined,
   QueuePayloadRejected,
@@ -58,12 +59,15 @@ export type CanonicalJobContext = {
  * `retryable: false` is carried explicitly rather than implied so the caller's
  * error handling does not have to special-case the class.
  */
-export class UnprocessableJobPayload extends Error {
+export class UnprocessableJobPayload extends UnrecoverableError {
   readonly code: string;
   readonly retryable = false as const;
 
   constructor(code: string, message: string) {
     super(message);
+    // ET-Q-09 — BullMQ does not retry an UnrecoverableError (instanceof), so a
+    // rejected payload fails once instead of being retried for the full
+    // attempt budget. The name stays ours for logs and callers.
     this.name = "UnprocessableJobPayload";
     this.code = code;
   }

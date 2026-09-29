@@ -114,6 +114,7 @@ import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
 import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.js";
 import { validatePackageSignerAtStartup } from "./signing/package-signer.js";
+import { isExpectedOtsPendingError, jobCommandId } from "./job-event-context.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -192,13 +193,6 @@ function getErrorMessage(err: unknown): string {
   return "";
 }
 
-function isExpectedOtsPendingError(
-  jobKind: WorkerKind,
-  err: unknown
-): boolean {
-  if (jobKind !== "ots-upgrade") return false;
-  return getErrorMessage(err).trim() === "NOT_ANCHORED_YET";
-}
 
 function bindWorkerEvents(
   workerInstance: Worker,
@@ -212,14 +206,16 @@ function bindWorkerEvents(
         : null;
 
     logger.info(
-      withJobContext({
-        requestId,
-        jobId: job.id,
-        evidenceId: (job.data as JobData | undefined)?.evidenceId,
-        attempt: job.attemptsMade + 1,
-        durationMs: durationMs ?? undefined,
-        status: "completed",
-      }),
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          attempt: job.attemptsMade + 1,
+          durationMs: durationMs ?? undefined,
+          status: "completed",
+        }),
+        commandId: jobCommandId(job) ?? null,
+      },
       `${jobKind}.job.completed`
     );
     // Phase Y — structured outcome line for log-based metrics.
@@ -260,14 +256,14 @@ function bindWorkerEvents(
       ...withJobContext({
         requestId,
         jobId: job.id,
-        evidenceId: (job.data as JobData | undefined)?.evidenceId,
         attempt: job.attemptsMade + 1,
         durationMs: durationMs ?? undefined,
         status: "failed",
       }),
+      commandId: jobCommandId(job) ?? null,
     };
 
-    if (isExpectedOtsPendingError(jobKind, err)) {
+    if (isExpectedOtsPendingError(jobKind, err, job)) {
       logger.warn(
         {
           ...context,
@@ -292,7 +288,7 @@ function bindWorkerEvents(
     logger.error({ ...context, err }, `${jobKind}.job.failed`);
     captureException(err, {
       requestId,
-      evidenceId: (job.data as JobData | undefined)?.evidenceId,
+      commandId: jobCommandId(job) ?? null,
       jobId: job.id ?? null,
       jobKind,
     });

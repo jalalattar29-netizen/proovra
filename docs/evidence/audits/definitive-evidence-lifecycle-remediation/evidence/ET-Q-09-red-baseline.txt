@@ -1,0 +1,13 @@
+ET-Q-09 red baseline — services/worker/test/job-event-context.test.ts against HEAD index.ts + canonical-job.ts
+   × worker job-event context (ET-Q-09) > a rejected payload is an UnrecoverableError, so BullMQ does not retry it 4ms
+     → expected UnprocessableJobPayload: bad payload { …(2) } to be an instance of UnrecoverableError
+   × the worker's event handlers use these rules (ET-Q-09) > index.ts classifies and logs through job-event-context, not payload.evidenceId 4ms
+     → expected 'import "./env-loader.js";\n// Phase P…' to contain 'import { isExpectedOtsPendingError, j…'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
++ // Hotfix — API readiness probe knobs. Defaults: 12 attempts × ~30s cap.
++ // completion commits (status → SIGNED) and enqueues the report job AFTER
++ // age thresholds (30d HOT→WARM, 120d WARM→COLD, 485d COLD→DEEP_ARCHIVE).
++ // API enqueue → worker handler chain visible as ONE distributed
++ // claims QUEUED→RENDERING, renders IMAGE (sharp) / PDF (pdfjs raster + pdfkit
++     // outbox rows → API-side rotation retry).
+      Tests  2 failed | 2 passed (4)
