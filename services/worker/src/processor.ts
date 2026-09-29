@@ -1838,6 +1838,61 @@ const { EvidenceStatus } = prismaPkg;
  * onto the branch that reads the record — which is what the fallback branch
  * always did, and is now simply what happens.
  */
+/**
+ * The object store answered "not found" (S3 HEAD answers a bare `NotFound`
+ * with no body; GET answers `NoSuchKey`). A 404 on a HEAD without a VersionId
+ * also covers a missing bucket and a current delete marker over a retained
+ * version, so it establishes only "not readable at the recorded location" —
+ * never "destroyed".
+ */
+export function isStorageNotFound(err: unknown): boolean {
+  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return (
+    e?.name === "NoSuchKey" ||
+    e?.name === "NotFound" ||
+    e?.Code === "NoSuchKey" ||
+    e?.$metadata?.httpStatusCode === 404
+  );
+}
+
+/**
+ * THE SIGNED ORIGINAL IS NOT READABLE AT ITS RECORDED LOCATION (2026-09-29).
+ *
+ * Incident report-8cccb175: a package recovery HEADed an original part, got a
+ * 404, and the raw `NotFound` escaped as a RETRIABLE error — five identical
+ * attempts, then the DLQ, recorded as `NotFound` with no component named. A
+ * 404 from the store is deterministic for this run; retrying cannot change it.
+ *
+ * It is terminal here, names the component (never the key, which carries a
+ * file name), and reaches an operator through the report-failure incident.
+ * Nothing is built from other bytes. Whether the object is hidden by a delete
+ * marker or truly absent is for the operator to establish from the bucket's
+ * version listing; if a retained version is restored and its bytes match the
+ * signed digest, a new request re-runs this path unchanged.
+ *
+ * Any other storage error (throttling, network, 5xx, access) stays retriable.
+ */
+export const EVIDENCE_ORIGINAL_NOT_FOUND = "EVIDENCE_ORIGINAL_NOT_FOUND";
+
+export function originalNotFoundError(component: string): WorkerError {
+  const err = createWorkerError(EVIDENCE_ORIGINAL_NOT_FOUND, false);
+  err.message =
+    `${EVIDENCE_ORIGINAL_NOT_FOUND}: object storage answered "not found" for ${component} ` +
+    "at its recorded location. It may be hidden by a delete marker or absent; " +
+    "no report or package was built from other bytes, and the evidence record is unchanged.";
+  return err;
+}
+
+/** Read an ORIGINAL object, turning a store 404 into the terminal refusal above. */
+export async function readOriginalObject<T>(component: string, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (err) {
+    if (isStorageNotFound(err)) throw originalNotFoundError(component);
+    throw err;
+  }
+}
+
 async function prepareReportArtifacts(
   evidenceId: string,
   options?: {
@@ -2227,19 +2282,24 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
               : "fallback_first",
       });
 
-      const head = await headObject({
-        bucket: part.storageBucket,
-        key: part.storageKey,
-      });
+      const component = `original part ${part.partIndex}`;
+      const head = await readOriginalObject(component, () =>
+        headObject({
+          bucket: part.storageBucket,
+          key: part.storageKey,
+        }),
+      );
 
       if (!head.sizeBytes || head.sizeBytes <= 0) {
         throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
       }
 
-      const body = await getObjectStream({
-        bucket: part.storageBucket,
-        key: part.storageKey,
-      });
+      const body = await readOriginalObject(component, () =>
+        getObjectStream({
+          bucket: part.storageBucket,
+          key: part.storageKey,
+        }),
+      );
 
       // Integrity re-hash by STREAMING — each ORIGINAL part is read once in bounded
       // chunks and never materialised as a Buffer.
@@ -2326,19 +2386,23 @@ if (
   throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
 }
   } else {
-    const head = await headObject({
-      bucket: evidence.storageBucket!,
-      key: evidence.storageKey!,
-    });
+    const head = await readOriginalObject("the original file", () =>
+      headObject({
+        bucket: evidence.storageBucket!,
+        key: evidence.storageKey!,
+      }),
+    );
 
     if (!head.sizeBytes || head.sizeBytes <= 0) {
       throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
     }
 
-    const body = await getObjectStream({
-      bucket: evidence.storageBucket!,
-      key: evidence.storageKey!,
-    });
+    const body = await readOriginalObject("the original file", () =>
+      getObjectStream({
+        bucket: evidence.storageBucket!,
+        key: evidence.storageKey!,
+      }),
+    );
 
     // Integrity re-hash by STREAMING — never buffer the whole single file.
     const singleSha256 = await sha256HexFromStream(body as unknown as Readable);
@@ -2420,7 +2484,12 @@ if (
     // extraction, then let it go — peak memory is a single part, not all parts. (A
     // future UC-4 keyframe derivative would replace even this bounded read.)
     const previewBuffer = await streamToBuffer(
-      (await getObjectStream({ bucket: artifact.storageBucket, key: artifact.storageKey })) as unknown as Readable,
+      (await readOriginalObject(
+        artifact.partIndex === 0 && artifact.id === evidence.id
+          ? "the original file"
+          : `original part ${artifact.partIndex}`,
+        () => getObjectStream({ bucket: artifact.storageBucket, key: artifact.storageKey }),
+      )) as unknown as Readable,
     );
     const extracted = await extractPreviewForAsset({
       kind: artifact.kind,
@@ -3052,15 +3121,7 @@ async function readVerifiedStoredReport(report: {
   sizeBytes: bigint | null;
   pdfSha256: string | null;
 }): Promise<{ bytes: Buffer; sha256: string }> {
-  const isNotFound = (err: unknown) => {
-    const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } } | null;
-    return (
-      e?.name === "NoSuchKey" ||
-      e?.name === "NotFound" ||
-      e?.Code === "NoSuchKey" ||
-      e?.$metadata?.httpStatusCode === 404
-    );
-  };
+  const isNotFound = isStorageNotFound;
   let head: Awaited<ReturnType<typeof headObject>>;
   try {
     head = await headObject({ bucket: report.storageBucket, key: report.storageKey });
