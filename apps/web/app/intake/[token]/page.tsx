@@ -156,6 +156,9 @@ function friendlyIntakeError(err: {
       "We couldn't accept this file for security reasons. Try a different file or contact the sender.",
     PART_INDEX_TAKEN:
       "A file with that position already exists. Please try the upload again.",
+    // A file whose upload never finished (the API refuses to finalize it).
+    PART_NOT_UPLOADED:
+      "One of your files did not finish uploading. Upload it again, then submit.",
     NOT_FOUND:
       "We couldn't find what you were trying to access. Try refreshing the page.",
     SUBMISSION_NOT_READY:

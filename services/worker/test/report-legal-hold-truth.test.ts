@@ -115,7 +115,9 @@ describe("report legal hold states the canonical record hold (ET-RPT-03)", () =>
     const call = src.indexOf("const finalizedReportPdf = await buildReportPdfV2({");
     const hold = src.lastIndexOf("const finalizedRecordLegalHold = await evaluateEffectiveLegalHold(prisma, {", call);
     expect(hold).toBeGreaterThan(0);
-    expect(src.slice(call, call + 1200)).toContain("recordLegalHold: finalizedRecordLegalHold,");
+    // The builder call itself, up to its own closing brace — no fixed budget.
+    const callBody = src.slice(call, src.indexOf("\n        });", call));
+    expect(callBody).toContain("recordLegalHold: finalizedRecordLegalHold,");
     // A failed read is UNAVAILABLE, never NONE.
     expect(src.slice(hold, call)).toMatch(/return \{ state: "UNAVAILABLE" as const, scopes: \[\] \};/);
   });
