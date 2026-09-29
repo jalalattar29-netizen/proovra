@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1306
-ROUTE_ATTRIBUTED_REACHABLE                  1168
+TerminalWriters                             1307
+ROUTE_ATTRIBUTED_REACHABLE                  1169
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -315,7 +315,23 @@ Measured against the previous commit, not asserted.
   `services/worker/src/ots-state.ts` (`applyOtsTransition`). Every other id
   change in the diff is a line shift.
 
-`ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
+### 2026-09-29 — LIFECYCLE STABILIZATION (writers 1306 -> 1307)
+
+Measured against the previous commit, not asserted.
+
+- TerminalWriters 1306 -> 1307, ROUTE_ATTRIBUTED_REACHABLE 1168 -> 1169,
+  CASE 79 -> 80: `caseSiuExport.updateMany` in
+  `packages/shared-runtime/src/evidence-destruction/executor.ts`
+  (`executeEvidenceDestruction`, inside the destruction transaction). When a
+  record is destroyed, the SIU export bundles of its cases — which carried its
+  report and package, and whose objects the executor now deletes and verifies
+  gone (audit H2) — are marked as pointing at nothing. Reached only from the two
+  existing destruction routes and the destruction orchestrator; no new route.
+- ProductionModules 916 -> 917: `services/api/src/services/governance/
+  finalization-governance.service.ts`, the one finalization governance gate
+  (audit D3). It holds no terminal writer.
+
+ from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement
 about the LOCAL evidence and nothing wider: `node services/api/scripts/audit/
 index.mjs --closure-check` reports the same verdict from the same two inputs,
