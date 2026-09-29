@@ -169,6 +169,8 @@ export type VerifyOts = {
   failureReason?: string | null;
   proofPresent?: boolean | null;
   hashMatchesFingerprintHash?: boolean | null;
+  anchorClaim?: string | null;
+  anchorCheck?: string | null;
   proofBase64?: string | null;
 } | null;
 
@@ -307,6 +309,10 @@ export type StorageProtection = {
 };
 
 export type OtsDetails = {
+  /** The server's one OTS claim (RICH responses since 2026-09-29). */
+  anchorClaim: string | null;
+  /** How the anchor was established (BITCOIN_VERIFIED | PROOF_STRUCTURE | null). */
+  anchorCheck: string | null;
   status: string | null;
   hash: string | null;
   calendar: string | null;

@@ -197,6 +197,43 @@ export function buildEvidenceDigestSet(
 }
 
 /**
+ * THE ONE TIMESTAMP DIGEST COMPARISON (2026-09-29).
+ *
+ * Compares the imprint the timestamping authority stamped with the digest the
+ * record sent (`tsaInputDigestHex`, else `fileSha256`). It is a comparison of
+ * two STORED values — it does not verify the token's signature or certificate
+ * chain, which nothing in the platform does.
+ *
+ *   true   both are present and equal
+ *   false  both are present and DIFFER — a real mismatch
+ *   null   not comparable: the status is not a positive one, or the imprint
+ *          (or the digest) was never stored
+ *
+ * Public Verify, the review workspace and the worker each computed this with
+ * `Boolean(imprint && digest) && imprint === digest`, which reads a MISSING
+ * imprint as `false`: a STAMPED record whose imprint column is empty was shown
+ * as a timestamp mismatch, its overall integrity as failed, and the worker
+ * refused to promote it — although nothing had been found to differ. A missing
+ * value is an unknown comparison, never a failure; the record's fingerprint,
+ * signature and custody results stand on their own.
+ */
+export function compareTimestampDigest(input: {
+  tsaStatus: string | null | undefined;
+  tsaMessageImprint: string | null | undefined;
+  tsaInputDigestHex: string | null | undefined;
+  fileSha256: string | null | undefined;
+}): boolean | null {
+  const status = String(input.tsaStatus ?? "").trim().toUpperCase();
+  const positive =
+    status === "STAMPED" || status === "GRANTED" || status === "VERIFIED" || status === "SUCCEEDED";
+  if (!positive) return null;
+  const imprint = normalizeHex(input.tsaMessageImprint);
+  const sent = normalizeHex(input.tsaInputDigestHex) ?? normalizeHex(input.fileSha256);
+  if (imprint === null || sent === null) return null;
+  return imprint === sent;
+}
+
+/**
  * Evaluate the row's chain against the canonical policy. Returns the
  * digest set + a bounded violation list. NEVER throws.
  *

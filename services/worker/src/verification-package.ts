@@ -624,6 +624,36 @@ function derivePackageAnchorMode(params: {
   trustDecision: ReportTrustDecision;
 }): AnchorMode {
   const normalizedRawMode = normalizeAnchorMode(params.rawMode);
+  /*
+   * THE PACKAGE'S ANCHOR MODE FOLLOWS ITS OWN ANCHOR CLAIM (2026-09-29).
+   *
+   * It used to follow the report's trust-decision signal, which requires a
+   * txid for "passed". A recorded anchor without a txid therefore produced
+   * anchorMode "bitcoin_anchoring_pending" in the manifest and anchor.json
+   * while opentimestamps.json — built from the same record — said anchored.
+   * When the package carries anchor material the mode is now the SAME shared
+   * claim the companion and anchor.json state; the trust signal is only the
+   * fallback for a package with no anchor payload.
+   */
+  if (params.anchor) {
+    const anchor = params.anchor as AnchorPayload & {
+      otsStatus?: string | null;
+      otsAnchorCheck?: string | null;
+    };
+    const legacyMaterial =
+      anchor.otsStatus == null && Boolean(anchor.transactionId || anchor.anchoredAtUtc);
+    const claim = legacyMaterial
+      ? "ANCHORED_NOT_CHECKED"
+      : resolveOtsAnchorClaim({
+          status: anchor.otsStatus ?? null,
+          anchoredAtUtc: anchor.anchoredAtUtc ?? null,
+          anchorCheck: anchor.otsAnchorCheck ?? null,
+          bitcoinTxid: anchor.transactionId ?? null,
+        });
+    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return "anchored";
+    if (claim === "PENDING") return "bitcoin_anchoring_pending";
+    if (claim === "FAILED") return "failed";
+  }
   const anchoringSignal = params.trustDecision.signals.find(
     (signal) => signal.key === "bitcoin_anchoring"
   );
@@ -814,6 +844,7 @@ export function decideOtsPackageArtifact(
     status: input.status,
     anchoredAtUtc: input.anchoredAtUtc,
     anchorCheck: input.anchorCheck ?? null,
+    bitcoinTxid: input.bitcoinTxid ?? null,
   });
 
   // Decode proof bytes ONLY when bytes exist. Never fabricated.
@@ -1872,8 +1903,34 @@ function buildReadme(params: {
   bitcoinTxid?: string | null;
   anchoringClaim?: string | null;
   metadata: VerificationPackageMetadata;
+  /** From the seal: when the report was issued and this package assembled. */
+  chronology?: {
+    reportIssuedAtUtc: string;
+    packageAssembledAtUtc: string;
+    proofMaterialsObservedAtUtc: string;
+    assembly: "WITH_REPORT_ISSUE" | "AFTER_REPORT_ISSUE";
+  } | null;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
+  /*
+   * CHRONOLOGY (2026-09-29). A package assembled after its report — a
+   * recovery, or a first issuance of an older record — states it in words, not
+   * only in package-seal.json: the embedded report is unchanged and describes
+   * the record as of its issuance, while the timestamp and anchoring files
+   * describe what was observed at assembly and may be later facts.
+   */
+  const chronologySection =
+    params.chronology && params.chronology.assembly === "AFTER_REPORT_ISSUE"
+      ? `CHRONOLOGY
+
+This package was assembled on ${params.chronology.packageAssembledAtUtc}, after report version ${
+          typeof params.reportVersion === "number" ? String(params.reportVersion) : "(not included)"
+        } was issued on ${params.chronology.reportIssuedAtUtc}.
+The embedded report is unchanged and describes the record as of its issuance.
+The OpenTimestamps and RFC 3161 materials in this package (anchor.json, opentimestamps.json, timestamp.tsr) were observed on ${params.chronology.proofMaterialsObservedAtUtc} and may record facts that are later than the report.
+
+`
+      : "";
   const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
   const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
 
@@ -1897,6 +1954,7 @@ PACKAGE OVERVIEW
 
 This package allows independent verification of the recorded digital evidence state.
 
+${chronologySection}
 Evidence ID: ${safeText(params.evidenceId, "Not included")}
 Report Version: ${
     typeof params.reportVersion === "number"
@@ -3170,6 +3228,14 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           bitcoinTxid: data.anchor?.transactionId ?? null,
           anchoringClaim: anchorSemantics?.anchoringStatus ?? null,
           metadata,
+          chronology: data.seal
+            ? {
+                reportIssuedAtUtc: data.seal.reportIssuedAtUtc,
+                packageAssembledAtUtc: data.seal.packageAssembledAtUtc,
+                proofMaterialsObservedAtUtc: data.seal.proofMaterialsObservedAtUtc,
+                assembly: data.seal.assembly,
+              }
+            : null,
         })
       ),
       "text/plain"

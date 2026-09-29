@@ -85,9 +85,17 @@ test("public Verify (basic tier): verified only with the chain check; otherwise 
     anchoredAtUtc: AT,
     bitcoinTxid: TXID,
   });
-  const unchecked = basic({ otsStatus: "ANCHORED", otsBitcoinTxid: TXID, otsAnchoredAtUtc: AT });
-  assert.equal(unchecked.state, "not_checked");
-  assert.equal(unchecked.basis, "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED");
+  // (2026-09-29) A historical anchor with NO recorded check does not claim a
+  // proof-structure check that never ran; one checked offline does.
+  const historical = basic({ otsStatus: "ANCHORED", otsBitcoinTxid: TXID, otsAnchoredAtUtc: AT });
+  assert.equal(historical.state, "not_checked");
+  assert.equal(historical.basis, "ANCHOR_RECORDED_CHECK_NOT_RECORDED");
+  const structure = basic({ otsStatus: "ANCHORED", otsBitcoinTxid: TXID, otsAnchoredAtUtc: AT, otsAnchorCheck: "PROOF_STRUCTURE" });
+  assert.equal(structure.state, "not_checked");
+  assert.equal(structure.basis, "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED");
+  // The txid precondition for a chain-checked claim: none → not verified.
+  const verifiedNoTxid = basic({ otsStatus: "ANCHORED", otsAnchoredAtUtc: AT, otsAnchorCheck: "BITCOIN_VERIFIED" });
+  assert.equal(verifiedNoTxid.state, "not_checked");
   assert.equal(basic({ otsStatus: "ANCHORED", otsBitcoinTxid: TXID }).state, "pending");
   assert.equal(basic({ otsStatus: "PENDING" }).state, "pending");
   assert.equal(basic({ otsStatus: "FAILED" }).state, "failed");

@@ -29,6 +29,9 @@ import {
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
+  otsClaimBadge,
+  parseOtsAnchorClaim,
+  resolveOtsAnchorClaim,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -387,16 +390,28 @@ export function verifyTimestampTone(status?: string | null): { label: string; to
   return { label: "Unavailable", tone: "neutral" };
 }
 
-/** verify-v2/_helpers.ts otsTone. */
-export function verifyOtsTone(status?: string | null, bitcoinTxid?: string | null): { label: string; tone: VerifyWebTone } {
-  const s = (status ?? "").toUpperCase();
-  const hasValidBitcoinTxid = typeof bitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(bitcoinTxid.trim());
-  if (s === "ANCHORED") return hasValidBitcoinTxid ? { label: "ANCHORED", tone: "success" } : { label: "ANCHORING PENDING", tone: "warning" };
-  if (s === "PENDING") return { label: "PENDING", tone: "warning" };
-  if (s === "FAILED") return { label: "FAILED", tone: "warning" };
-  if (s === "DISABLED") return { label: "DISABLED", tone: "neutral" };
-  if (s) return { label: s, tone: "info" };
-  return { label: "Unavailable", tone: "neutral" };
+/**
+ * verify-v2/_helpers.ts otsTone (2026-09-29): the badge from the ONE claim —
+ * the server's anchorClaim, else the shared resolver — never from a txid.
+ */
+export function verifyOtsTone(input: {
+  anchorClaim?: string | null;
+  status?: string | null;
+  anchoredAtUtc?: string | null;
+  anchorCheck?: string | null;
+  proofPresent?: boolean | null;
+  bitcoinTxid?: string | null;
+}): { label: string; tone: VerifyWebTone } {
+  const claim =
+    parseOtsAnchorClaim(input.anchorClaim) ??
+    resolveOtsAnchorClaim({
+      status: input.status,
+      anchoredAtUtc: input.anchoredAtUtc,
+      anchorCheck: input.anchorCheck,
+      proofPresent: input.proofPresent,
+      bitcoinTxid: input.bitcoinTxid ?? null,
+    });
+  return otsClaimBadge(claim);
 }
 
 function isPositiveTsa(status?: string | null): boolean {
@@ -1561,7 +1576,14 @@ export function verifyIntegrityTab(
     v === true ? { value: yes, tone: yesTone } : v === false ? { value: no, tone: "warning" } : { value: unknown, tone: "neutral" };
   const storage = buildStoragePresentation(s.storage);
   const ts = verifyTimestampTone(s.tsaStatus);
-  const otsT = verifyOtsTone(s.otsStatus, str(ots["bitcoinTxid"]));
+  const otsT = verifyOtsTone({
+    anchorClaim: str(ots["anchorClaim"]),
+    status: s.otsStatus,
+    anchoredAtUtc: str(ots["anchoredAtUtc"]),
+    anchorCheck: str(ots["anchorCheck"]),
+    proofPresent: bool(ots["proofPresent"]),
+    bitcoinTxid: str(ots["bitcoinTxid"]),
+  });
   const proofPresent = bool(ots["proofPresent"]) ?? (tm["otsProofPresent"] === true ? true : null);
   const keyId = str(tm["signingKeyId"]);
   const keyVersion = num(tm["signingKeyVersion"]);

@@ -368,6 +368,8 @@ function buildOtsDetails(data: VerifyResponse): OtsDetails {
   const integrity = data.integrityProof ?? data.verification ?? null;
 
   return {
+    anchorClaim: firstNonEmpty(ots?.anchorClaim),
+    anchorCheck: firstNonEmpty(ots?.anchorCheck),
     status: extractOtsStatus(data),
     hash: firstNonEmpty(ots?.hash, data.otsHash),
     calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
@@ -2806,10 +2808,21 @@ export default function VerifyPage() {
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
   const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
   const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
+  const [otsAnchorClaim, setOtsAnchorClaim] = useState<string | null>(null);
+  const [otsAnchorCheck, setOtsAnchorCheck] = useState<string | null>(null);
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
   const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
   const [otsProofBase64, setOtsProofBase64] = useState<string | null>(null);
   const [otsProofPresent, setOtsProofPresent] = useState<boolean | null>(null);
+  // The OTS badge from the ONE claim (2026-09-29), never from a txid.
+  const otsBadge = otsTone({
+    anchorClaim: otsAnchorClaim,
+    status: otsStatus,
+    anchoredAtUtc: otsAnchoredAtUtc,
+    anchorCheck: otsAnchorCheck,
+    proofPresent: otsProofPresent,
+    bitcoinTxid: otsBitcoinTxid,
+  });
 
   const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
   const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
@@ -3218,6 +3231,8 @@ setFullCustodyTimeline(fullTimeline);
     setOtsCalendar(otsDetails.calendar);
     setOtsBitcoinTxid(otsDetails.bitcoinTxid);
     setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
+    setOtsAnchorClaim(otsDetails.anchorClaim);
+    setOtsAnchorCheck(otsDetails.anchorCheck);
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
     setOtsFailureReason(otsDetails.failureReason);
     setOtsProofBase64(otsDetails.proofBase64);
@@ -4224,8 +4239,8 @@ tone={
           label: "OpenTimestamps",
           content: (
             <Badge
-              label={otsTone(otsStatus, otsBitcoinTxid).label}
-              tone={otsTone(otsStatus, otsBitcoinTxid).tone}
+              label={otsBadge.label}
+              tone={otsBadge.tone}
             />
           ),
           show: true,

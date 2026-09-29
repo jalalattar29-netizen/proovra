@@ -19,6 +19,7 @@
  * behaviour. CR4 changes ZERO logic in these helpers.
  */
 
+import { otsClaimBadge, parseOtsAnchorClaim, resolveOtsAnchorClaim } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
 // ---------------------------------------------------------------------------
@@ -125,37 +126,29 @@ export function timestampTone(
   return { label: "Unavailable", tone: "neutral" };
 }
 
-export function otsTone(
-  status?: string | null,
-  bitcoinTxid?: string | null,
-): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
-  const s = (status ?? "").toUpperCase();
-  const hasValidBitcoinTxid =
-    typeof bitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(bitcoinTxid.trim());
-
-  if (s === "ANCHORED") {
-    return hasValidBitcoinTxid
-      ? { label: "ANCHORED", tone: "success" }
-      : { label: "ANCHORING PENDING", tone: "warning" };
-  }
-
-  if (s === "PENDING") {
-    return { label: "PENDING", tone: "warning" };
-  }
-
-  if (s === "FAILED") {
-    return { label: "FAILED", tone: "warning" };
-  }
-
-  if (s === "DISABLED") {
-    return { label: "DISABLED", tone: "neutral" };
-  }
-
-  if (s) {
-    return { label: s, tone: "info" };
-  }
-
-  return { label: "Unavailable", tone: "neutral" };
+/**
+ * The OTS badge from the ONE claim (2026-09-29): the server's `anchorClaim`
+ * when it sent one, else the same shared resolver over the stored fields. A
+ * txid no longer decides green; see `otsClaimBadge`.
+ */
+export function otsTone(input: {
+  anchorClaim?: string | null;
+  status?: string | null;
+  anchoredAtUtc?: string | null;
+  anchorCheck?: string | null;
+  proofPresent?: boolean | null;
+  bitcoinTxid?: string | null;
+}): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
+  const claim =
+    parseOtsAnchorClaim(input.anchorClaim) ??
+    resolveOtsAnchorClaim({
+      status: input.status,
+      anchoredAtUtc: input.anchoredAtUtc,
+      anchorCheck: input.anchorCheck,
+      proofPresent: input.proofPresent,
+      bitcoinTxid: input.bitcoinTxid ?? null,
+    });
+  return otsClaimBadge(claim);
 }
 
 // ---------------------------------------------------------------------------

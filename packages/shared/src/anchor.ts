@@ -84,6 +84,7 @@ export function deriveAnchorSemantics(
           anchoredAtUtc,
           anchorCheck: input.otsAnchorCheck ?? null,
           proofPresent: input.otsProofPresent ?? null,
+          bitcoinTxid,
         });
   const publicAnchoringVerified = claim === "VERIFIED";
   const anchorMode: AnchorSemantics["anchorMode"] =

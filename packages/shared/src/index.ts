@@ -534,6 +534,8 @@ export {
   OTS_ANCHOR_CLAIM_LABELS,
   resolveEffectiveOtsStatus,
   resolveOtsAnchorClaim,
+  parseOtsAnchorClaim,
+  otsClaimBadge,
 } from "./ots.js";
 
 // -----------------------------------------------------------------------------

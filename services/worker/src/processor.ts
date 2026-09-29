@@ -74,6 +74,8 @@ import {
   type ReviewerArtifactRoleSource,
   // UC-0 — the acquisition authority.
   resolveEvidenceAcquisition,
+  compareTimestampDigest,
+  isCompleteOtsAnchor,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import {
@@ -926,38 +928,15 @@ function resolveTimestampDigestMatch(params: {
   tsaInputDigestHex: string | null | undefined;
   fileSha256: string;
 }): boolean | null {
-  const normalizedTsaStatus = String(params.tsaStatus ?? "")
-    .trim()
-    .toUpperCase();
-
-  const timestampInputDigestHex =
-    params.tsaInputDigestHex ?? params.fileSha256 ?? null;
-
-  const timestampStatusIsPositive =
-    normalizedTsaStatus === "STAMPED" ||
-    normalizedTsaStatus === "GRANTED" ||
-    normalizedTsaStatus === "VERIFIED" ||
-    normalizedTsaStatus === "SUCCEEDED";
-
-  const timestampStatusIsUnavailable =
-    normalizedTsaStatus === "FAILED" ||
-    normalizedTsaStatus === "UNAVAILABLE" ||
-    normalizedTsaStatus === "ERROR" ||
-    normalizedTsaStatus.length === 0;
-
-  if (timestampStatusIsPositive) {
-    return (
-      Boolean(params.tsaMessageImprint && timestampInputDigestHex) &&
-      String(params.tsaMessageImprint).toLowerCase() ===
-        String(timestampInputDigestHex).toLowerCase()
-    );
-  }
-
-  if (timestampStatusIsUnavailable) {
-    return null;
-  }
-
-  return null;
+  // The ONE comparison (2026-09-29, shared with Public Verify): a missing
+  // imprint is an unknown comparison — never the "timestamp digest mismatch"
+  // blocker that kept a record from promotion without anything differing.
+  return compareTimestampDigest({
+    tsaStatus: params.tsaStatus,
+    tsaMessageImprint: params.tsaMessageImprint,
+    tsaInputDigestHex: params.tsaInputDigestHex,
+    fileSha256: params.fileSha256,
+  });
 }
 
 function resolveRecordedIntegrityPromotionDecision(params: {
@@ -1163,9 +1142,16 @@ function buildFinalizedAnchorPayload(params: {
     generatedAtUtc: params.generatedAtUtc,
     transactionId:
       params.anchorSummary?.transactionId ?? params.otsBitcoinTxid ?? null,
+    // (2026-09-29) The recorded anchor time travels whenever the record IS
+    // anchored (status + time, the shared completeness rule). It used to be
+    // dropped without a txid, so the manifest said "pending" beside an
+    // opentimestamps.json that said anchored. A chain-checked claim still
+    // needs the txid (resolveOtsAnchorClaim).
     anchoredAtUtc:
       params.anchorSummary?.anchoredAtUtc ??
-      (params.otsBitcoinTxid ? params.otsAnchoredAtUtc ?? null : null),
+      (isCompleteOtsAnchor({ status: params.otsStatus ?? null, anchoredAtUtc: params.otsAnchoredAtUtc ?? null })
+        ? (params.otsAnchoredAtUtc ?? null)
+        : null),
     otsStatus: params.otsStatus ?? null,
     otsAnchorCheck: params.otsAnchorCheck ?? null,
   };

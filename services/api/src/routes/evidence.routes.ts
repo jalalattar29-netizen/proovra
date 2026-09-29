@@ -72,6 +72,7 @@ import {
   type EvidenceAcquisitionProjection,
   // Decision B — the basic public verification projection.
   buildBasicVerification,
+  compareTimestampDigest,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -9196,26 +9197,19 @@ return {
         const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
           .trim()
           .toUpperCase();
-        const timestampInputDigestHex =
-          evidence.tsaInputDigestHex ?? evidence.fileSha256;
         const timestampStatusIsPositive =
           normalizedTsaStatus === "STAMPED" ||
           normalizedTsaStatus === "GRANTED" ||
           normalizedTsaStatus === "VERIFIED" ||
           normalizedTsaStatus === "SUCCEEDED";
-        const timestampStatusIsUnavailable =
-          normalizedTsaStatus === "FAILED" ||
-          normalizedTsaStatus === "UNAVAILABLE" ||
-          normalizedTsaStatus === "ERROR" ||
-          normalizedTsaStatus.length === 0;
-const timestampDigestMatches: boolean | null =
-  timestampStatusIsPositive
-    ? Boolean(evidence.tsaMessageImprint && timestampInputDigestHex) &&
-      String(evidence.tsaMessageImprint).toLowerCase() ===
-        String(timestampInputDigestHex).toLowerCase()
-            : timestampStatusIsUnavailable
-              ? null
-              : null;
+// The ONE comparison (2026-09-29): a missing imprint is unknown, not a mismatch.
+const timestampDigestMatches: boolean | null = compareTimestampDigest({
+  tsaStatus: evidence.tsaStatus,
+  tsaMessageImprint: evidence.tsaMessageImprint,
+  tsaInputDigestHex: evidence.tsaInputDigestHex,
+  fileSha256: evidence.fileSha256,
+});
+
 
         const effectiveOtsStatus = resolveEffectiveOtsStatus({
           status: evidence.otsStatus,
@@ -9624,6 +9618,7 @@ const timestampDigestMatches: boolean | null =
                   anchoredAtUtc: effectiveOtsAnchoredAtUtc,
                   anchorCheck: evidence.otsAnchorCheck,
                   proofPresent: Boolean(evidence.otsProofBase64),
+                  bitcoinTxid: evidence.otsBitcoinTxid ?? null,
                 }),
                 proofPresent: Boolean(evidence.otsProofBase64),
                 hashMatches: otsHashMatches,
@@ -13188,28 +13183,20 @@ const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
   .trim()
   .toUpperCase();
 
-const timestampInputDigestHex =
-  evidence.tsaInputDigestHex ?? evidence.fileSha256;
-
 const timestampStatusIsPositive =
   normalizedTsaStatus === "STAMPED" ||
   normalizedTsaStatus === "GRANTED" ||
   normalizedTsaStatus === "VERIFIED" ||
   normalizedTsaStatus === "SUCCEEDED";
 
-const timestampStatusIsUnavailable =
-  normalizedTsaStatus === "FAILED" ||
-  normalizedTsaStatus === "UNAVAILABLE" ||
-  normalizedTsaStatus === "ERROR" ||
-  normalizedTsaStatus.length === 0;
-
-const timestampDigestMatches: boolean | null = timestampStatusIsPositive
-  ? Boolean(evidence.tsaMessageImprint && timestampInputDigestHex) &&
-    String(evidence.tsaMessageImprint).toLowerCase() ===
-      timestampInputDigestHex.toLowerCase()
-  : timestampStatusIsUnavailable
-    ? null
-    : null;
+// The ONE comparison (2026-09-29): a missing imprint is unknown, not a
+// mismatch, so it no longer fails overallIntegrity or reads as tampering.
+const timestampDigestMatches: boolean | null = compareTimestampDigest({
+  tsaStatus: evidence.tsaStatus,
+  tsaMessageImprint: evidence.tsaMessageImprint,
+  tsaInputDigestHex: evidence.tsaInputDigestHex,
+  fileSha256: evidence.fileSha256,
+});
 
 const effectiveOtsStatus = resolveEffectiveOtsStatus({
   status: evidence.otsStatus,
@@ -14066,6 +14053,7 @@ timestampedDigestNote:
         anchoredAtUtc: effectiveOtsAnchoredAtUtc,
         anchorCheck: evidence.otsAnchorCheck,
         proofPresent: Boolean(evidence.otsProofBase64),
+        bitcoinTxid: evidence.otsBitcoinTxid ?? null,
       }),
     },
     anchor,

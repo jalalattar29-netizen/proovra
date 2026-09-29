@@ -417,9 +417,12 @@ describe("stale and concurrent completions", () => {
     );
     const a = processOtsUpgrade(job() as never);
     const b = processOtsUpgrade(job() as never);
-    await b;
+    // Which job reaches the binary first is scheduler order, not code order;
+    // under load the fast behaviour can land on A. Never wait on B alone
+    // before releasing the gate — that deadlocked the suite under load.
+    await Promise.race([b.catch(() => undefined), new Promise((r) => setTimeout(r, 200))]);
     releaseSlow();
-    await a;
+    await Promise.all([a, b]);
     expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE", otsProofBase64: PROOF_V2 });
     expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["anchored_by_proof_structure"]);
   });

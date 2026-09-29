@@ -17,7 +17,7 @@
  * not_issued | not_checked. "verified" means the check named in `basis` was
  * performed and passed — never "a record of it exists".
  */
-import { resolveOtsAnchorClaim } from "./ots.js";
+import { normalizeOtsAnchorCheck, resolveOtsAnchorClaim } from "./ots.js";
 
 export const COMPONENT_VERIFICATION_STATES = [
   "verified",
@@ -59,7 +59,15 @@ export type BasicVerification = {
      * validate the authority's signature or certificate chain, so the state is
      * not_checked rather than verified.
      */
-    basis: "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED" | null;
+    /**
+     * (2026-09-29) "TOKEN_RECORDED_IMPRINT_NOT_COMPARED": a token was issued, but
+     * the imprint could not be compared (it was never stored). Unknown, not a
+     * mismatch.
+     */
+    basis:
+      | "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED"
+      | "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
+      | null;
     /** The authority's own time for the token. */
     tokenTimeUtc: string | null;
   };
@@ -72,7 +80,17 @@ export type BasicVerification = {
      * block attestation for this record (or was recorded anchored before the
      * check existed) but the chain was not checked (state not_checked).
      */
-    basis: "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY" | "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED" | null;
+    /**
+     * (2026-09-29) ANCHOR_RECORDED_CHECK_NOT_RECORDED: the record was stored as
+     * anchored before the platform recorded HOW an anchor was established
+     * (ots_anchor_check NULL). The historical proof is kept; no proof-structure
+     * or chain check is claimed for it.
+     */
+    basis:
+      | "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY"
+      | "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
+      | "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
+      | null;
     /** When the anchor was confirmed — a fact that may post-date any report. */
     anchoredAtUtc: string | null;
     bitcoinTxid: string | null;
@@ -146,6 +164,7 @@ export function buildBasicVerification(input: {
     status: input.otsStatus,
     anchoredAtUtc: input.otsAnchoredAtUtc,
     anchorCheck: input.otsAnchorCheck ?? null,
+    bitcoinTxid: input.otsBitcoinTxid ?? null,
   });
   const anchoringState: ComponentVerificationState =
     claim === "VERIFIED"
@@ -181,7 +200,12 @@ export function buildBasicVerification(input: {
     },
     timestamp: {
       state: timestampState,
-      basis: timestampState === "not_checked" ? "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED" : null,
+      basis:
+        timestampState !== "not_checked"
+          ? null
+          : input.tsaImprintMatches === true
+            ? "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED"
+            : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED",
       tokenTimeUtc: timestampState === "not_checked" ? iso(input.tsaGenTimeUtc) : null,
     },
     anchoring: {
@@ -190,7 +214,9 @@ export function buildBasicVerification(input: {
         claim === "VERIFIED"
           ? "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY"
           : claim === "ANCHORED_NOT_CHECKED"
-            ? "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
+            ? normalizeOtsAnchorCheck(input.otsAnchorCheck ?? null) === "PROOF_STRUCTURE"
+              ? "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
+              : "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
             : null,
       anchoredAtUtc: anchored ? iso(input.otsAnchoredAtUtc) : null,
       bitcoinTxid: anchored && validTxid ? input.otsBitcoinTxid : null,

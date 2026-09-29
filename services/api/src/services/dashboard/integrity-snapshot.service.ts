@@ -27,7 +27,7 @@ import { prisma } from "../../db.js";
 // evaluator runs over the persisted digest columns and reports bounded
 // violations; the snapshot flips matches → false ONLY when a real
 // digest disagreement is observed.
-import { evaluateDigestPolicy } from "@proovra/shared";
+import { compareTimestampDigest, evaluateDigestPolicy } from "@proovra/shared";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -177,7 +177,16 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     // tool can later fill in. Pre-fix we treated null genTime as PENDING,
     // which forced a re-poll loop on a row that had already succeeded.
     tsaStatus = tsaDigestPolicyViolated ? "REVIEW_REQUIRED" : "OK";
-    timestampDigestMatches = tsaDigestPolicyViolated ? false : true;
+    // (2026-09-29) Not `true` by default: a STAMPED row with no stored imprint
+    // has an UNKNOWN comparison (null), the same answer Public Verify gives.
+    timestampDigestMatches = tsaDigestPolicyViolated
+      ? false
+      : compareTimestampDigest({
+          tsaStatus: input.tsaStatus,
+          tsaMessageImprint: input.tsaMessageImprint,
+          tsaInputDigestHex: input.tsaInputDigestHex,
+          fileSha256: input.fileSha256,
+        });
     if (tsaDigestPolicyViolated) reasonCodes.push("TSA_DIGEST_POLICY_VIOLATED");
   } else if (rawTsa === "FAILED") {
     tsaStatus = "FAILED";

@@ -67,10 +67,14 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
             state={data.timestamp.state}
             detail={
               data.timestamp.state === "not_checked"
-                ? `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}) and its imprint matches the recorded digest. The authority's signature on the token is not validated here.`
+                ? data.timestamp.basis === "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
+                  ? `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}). Its imprint was not stored with this record, so it could not be compared here — this is not a mismatch. The authority's signature on the token is not validated here.`
+                  : `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}) and its imprint matches the recorded digest. The authority's signature on the token is not validated here.`
                 : data.timestamp.state === "failed"
-                  ? "No valid timestamp was obtained when this record was finalized."
-                  : "No trusted timestamp was issued for this record."
+                  ? "The trusted timestamp did not validate: either none was obtained when this record was finalized, or its imprint does not match the recorded digest."
+                  : data.timestamp.state === "pending"
+                    ? "The timestamp has not been completed yet."
+                    : "No trusted timestamp was issued for this record."
             }
           />
           <Row
@@ -79,6 +83,10 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
             detail={
               data.anchoring.state === "verified"
                 ? `Confirmed ${fmt(data.anchoring.anchoredAtUtc)} — possibly later than any report.`
+                : data.anchoring.state === "not_checked"
+                  ? data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
+                    ? `Recorded as anchored (${fmt(data.anchoring.anchoredAtUtc)}) before checks were recorded. The proof is kept; neither its structure nor the Bitcoin chain has been checked here.`
+                    : `The proof carries a Bitcoin block attestation for this record (${fmt(data.anchoring.anchoredAtUtc)}). The Bitcoin chain itself was not checked here.`
                 : data.anchoring.state === "pending"
                   ? "Submitted; confirmation has not completed yet."
                   : data.anchoring.state === "failed"

@@ -99,15 +99,23 @@ export function resolveOtsAnchorClaim(input: {
   anchoredAtUtc: Date | string | null | undefined;
   anchorCheck: string | null | undefined;
   proofPresent?: boolean | null;
+  /**
+   * (2026-09-29) The record's Bitcoin txid, when the caller holds it. A
+   * positive, chain-checked claim keeps its txid precondition: with the key
+   * present and no valid txid, a BITCOIN_VERIFIED anchor reads
+   * ANCHORED_NOT_CHECKED. Never promotes anything.
+   */
+  bitcoinTxid?: string | null;
 }): OtsAnchorClaim {
   const effective = resolveEffectiveOtsStatus({
     status: input.status,
     anchoredAtUtc: input.anchoredAtUtc,
   });
   if (effective === "ANCHORED") {
-    return normalizeOtsAnchorCheck(input.anchorCheck) === "BITCOIN_VERIFIED"
-      ? "VERIFIED"
-      : "ANCHORED_NOT_CHECKED";
+    const chainChecked = normalizeOtsAnchorCheck(input.anchorCheck) === "BITCOIN_VERIFIED";
+    const txidRequiredButMissing =
+      "bitcoinTxid" in input && !isValidOtsBitcoinTxid(input.bitcoinTxid ?? null);
+    return chainChecked && !txidRequiredButMissing ? "VERIFIED" : "ANCHORED_NOT_CHECKED";
   }
   if (effective === "PENDING") return "PENDING";
   if (effective === "FAILED") return "FAILED";
@@ -119,6 +127,48 @@ export function resolveOtsAnchorClaim(input: {
 /** True only for an anchor verified against Bitcoin. */
 export function isPublicAnchoringVerified(input: Parameters<typeof resolveOtsAnchorClaim>[0]): boolean {
   return resolveOtsAnchorClaim(input) === "VERIFIED";
+}
+
+/** A claim a server sent, or null when it is not one of the six. */
+export function parseOtsAnchorClaim(value: unknown): OtsAnchorClaim | null {
+  return value === "VERIFIED" ||
+    value === "ANCHORED_NOT_CHECKED" ||
+    value === "PENDING" ||
+    value === "FAILED" ||
+    value === "UNAVAILABLE" ||
+    value === "NOT_CONFIGURED"
+    ? value
+    : null;
+}
+
+/**
+ * THE OTS BADGE (2026-09-29) — tone and label from the ONE claim, for the web
+ * and native verify pages.
+ *
+ * The badges were keyed on a valid txid: green "ANCHORED" beside a sentence
+ * saying the chain was not checked, and "ANCHORING PENDING" for an anchor
+ * recorded without a txid. Green is now reserved for an anchor verified
+ * against the Bitcoin chain; a recorded anchor whose chain was not checked is
+ * informational, never a success and never "pending".
+ */
+export function otsClaimBadge(claim: OtsAnchorClaim): {
+  label: string;
+  tone: "success" | "warning" | "neutral" | "info";
+} {
+  switch (claim) {
+    case "VERIFIED":
+      return { label: "ANCHORED · VERIFIED", tone: "success" };
+    case "ANCHORED_NOT_CHECKED":
+      return { label: "ANCHORED · CHAIN NOT CHECKED", tone: "info" };
+    case "PENDING":
+      return { label: "PENDING", tone: "warning" };
+    case "FAILED":
+      return { label: "FAILED", tone: "warning" };
+    case "UNAVAILABLE":
+      return { label: "DISABLED", tone: "neutral" };
+    case "NOT_CONFIGURED":
+      return { label: "Unavailable", tone: "neutral" };
+  }
 }
 
 export const OTS_ANCHOR_CLAIM_LABELS: Readonly<Record<OtsAnchorClaim, string>> = {

@@ -816,7 +816,38 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       verified: false,
       claim: "pending",
     },
+    // 2026-09-29 — D7: the manifest used to say "pending" here while
+    // opentimestamps.json said anchored.
+    {
+      name: "anchor recorded by proof structure with no readable txid",
+      ots: {
+        otsStatus: "ANCHORED",
+        otsProofBase64: MAGIC_PROOF,
+        otsAnchoredAtUtc: ANCHORED_AT,
+        otsAnchorCheck: "PROOF_STRUCTURE",
+      },
+      verified: false,
+      claim: "anchored_not_checked",
+    },
+    // The txid precondition for a chain-checked claim is kept everywhere.
+    {
+      name: "chain check recorded but no txid (never verified without its txid)",
+      ots: {
+        otsStatus: "ANCHORED",
+        otsProofBase64: MAGIC_PROOF,
+        otsAnchoredAtUtc: ANCHORED_AT,
+        otsAnchorCheck: "BITCOIN_VERIFIED",
+      },
+      verified: false,
+      claim: "anchored_not_checked",
+    },
   ];
+  const MODE_FOR_CLAIM: Record<string, string> = {
+    verified: "anchored",
+    anchored_not_checked: "anchored",
+    pending: "bitcoin_anchoring_pending",
+    failed: "failed",
+  };
 
   for (const c of CASES) {
     it(`the signed manifest claims publicAnchoringVerified=${c.verified} for a ${c.name}`, async () => {
@@ -828,6 +859,8 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       if (manifest!.anchorIncluded) {
         expect(manifest!.anchoringClaim).toBe(c.claim);
         expect(json(entries, "anchor.json")).toMatchObject({ publicAnchoringVerified: c.verified, anchoringClaim: c.claim });
+        // One claim, one mode: the manifest's anchorMode never contradicts it.
+        expect(manifest!.anchorMode, "manifest anchorMode agrees with the claim").toBe(MODE_FOR_CLAIM[c.claim]);
       }
       const companion = json(entries, "opentimestamps.json");
       if (companion) {
@@ -925,6 +958,23 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.packages.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);
     const v1 = after.reports.find((x) => x.version === 1)!;
     expect(sha256Hex(packageReportBytes(after.packages[0]!, 1))).toBe(v1.pdfSha256);
+
+    // A package assembled after its report says so in words (2026-09-29).
+    const entries = readZipEntries(stored(after.packages[0]!.storageBucket, after.packages[0]!.storageKey)!);
+    const readmeKey = [...entries.keys()].find((k) => /README/i.test(k))!;
+    const readme = entries.get(readmeKey)!.toString("utf8");
+    expect(readme).toContain("CHRONOLOGY");
+    expect(readme).toMatch(/after report version 1 was issued on/);
+    expect(readme).toContain("may record facts that are later than the report");
+  });
+
+  it("CHRONOLOGY: a package issued WITH its report carries no after-issue section", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    expect(await run(await request({ evidenceId, teamId }), 0)).toBeNull();
+    const s1 = await state(evidenceId);
+    const entries = readZipEntries(stored(s1.packages[0]!.storageBucket, s1.packages[0]!.storageKey)!);
+    const readmeKey = [...entries.keys()].find((k) => /README/i.test(k))!;
+    expect(entries.get(readmeKey)!.toString("utf8")).not.toContain("CHRONOLOGY");
   });
 
   it("EXACT VERSION: a package for a report version that does not exist is refused, not queued", async () => {

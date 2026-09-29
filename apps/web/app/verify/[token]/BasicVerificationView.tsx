@@ -78,17 +78,24 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
       : o.state === "failed"
         ? "At least one integrity check did not pass."
         : "The integrity checks could not all be performed.";
+  // (2026-09-29) Each "not checked" names the check that was not performed.
   const tsaDetail =
     data.timestamp.state === "not_checked"
-      ? `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}) and its imprint matches the recorded digest. The authority's signature on the token is not validated by this page.`
+      ? data.timestamp.basis === "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
+        ? `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}). Its imprint was not stored with this record, so it could not be compared here — this is not a mismatch. The authority's signature on the token is not validated by this page.`
+        : `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}) and its imprint matches the recorded digest. The authority's signature on the token is not validated by this page.`
       : data.timestamp.state === "failed"
-        ? "No valid timestamp was obtained when this record was finalized. A timestamp cannot be issued later for that moment."
+        ? "The trusted timestamp did not validate: either none was obtained when this record was finalized, or its imprint does not match the recorded digest. A timestamp cannot be issued later for that moment."
         : data.timestamp.state === "pending"
           ? "The timestamp has not been completed yet."
           : "No trusted timestamp was issued for this record.";
   const otsDetail =
     data.anchoring.state === "verified"
       ? `Anchored in Bitcoin; confirmed ${fmt(data.anchoring.anchoredAtUtc)}. This confirmation may be later than any report issued for this record.`
+      : data.anchoring.state === "not_checked"
+        ? data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
+          ? `Recorded as anchored in Bitcoin (${fmt(data.anchoring.anchoredAtUtc)}) before this service recorded how anchors were checked. The proof is kept; neither its structure nor the Bitcoin chain has been checked here.`
+          : `The OpenTimestamps proof carries a Bitcoin block attestation for this record (${fmt(data.anchoring.anchoredAtUtc)}). The Bitcoin chain itself was not checked by this service.`
       : data.anchoring.state === "pending"
         ? "Submitted for Bitcoin anchoring; confirmation has not completed yet."
         : data.anchoring.state === "failed"
