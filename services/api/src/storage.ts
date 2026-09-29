@@ -7,7 +7,6 @@ import {
   PutObjectRetentionCommand,
   CopyObjectCommand,
   RestoreObjectCommand,
-  DeleteObjectCommand,
   type ObjectLockMode,
   type S3ClientConfig,
   type StorageClass,
@@ -788,30 +787,8 @@ export async function headObjectStorageClass(params: {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Phase 4B — Destruction governance: delete an S3 object.
-// -----------------------------------------------------------------------------
-
-/** Delete an S3 object. Best-effort: errors are caught and returned as a
- *  bounded reason string so the caller can persist the failure without
- *  throwing. */
-export async function deleteObject(params: {
-  bucket: string;
-  key: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: params.bucket,
-        Key: params.key,
-      })
-    );
-    return { ok: true };
-  } catch (err) {
-    const msg =
-      err instanceof Error
-        ? err.message.slice(0, 200)
-        : "unknown_delete_error";
-    return { ok: false, error: msg };
-  }
-}
+// RETIRED 2026-09-29 (EVIDENCE OUTPUT LIFECYCLE): the key-level `deleteObject`.
+// On a versioned (Object Lock) bucket a delete by key writes a delete marker
+// and leaves every version in place. Destruction deletes each object VERSION
+// through the shared version-aware port (services/evidence/destruction-storage-port.ts);
+// nothing may delete by key.

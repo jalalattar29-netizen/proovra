@@ -115,7 +115,27 @@ const storage = vi.hoisted(() => {
   return { objects, served, at: (bucket: string, key: string) => `${bucket}/${key}` };
 });
 
-vi.mock("../../../worker/src/storage.js", () => {
+/**
+ * Destruction is not exercised by this suite. The worker processor it imports
+ * owns the purge path, whose port (2026-09-29) talks to the S3 client directly
+ * rather than through the storage.js double above — so it is doubled here to
+ * FAIL LOUDLY if ever reached, instead of silently reaching ambient storage.
+ */
+vi.mock("../../../worker/src/governance/destruction-storage-port.js", () => {
+  const unreachable = async () => {
+    throw new Error("destruction storage is not part of this suite");
+  };
+  return {
+    workerEvidenceDestructionStorage: {
+      listObjectVersions: unreachable,
+      deleteObjectVersion: unreachable,
+    },
+  };
+});
+
+vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../worker/src/storage.js")>();
+  const { publicationS3Double } = await import("../helpers/publication-s3-double.js");
   const notFound = (key: string) => {
     // Shaped like the SDK's, because the destruction adapter narrows on it and
     // a plain Error would read to it as "could not check", not "absent".
@@ -125,6 +145,15 @@ vi.mock("../../../worker/src/storage.js", () => {
     return err;
   };
   return {
+    // THE PUBLICATION BOUNDARY (2026-09-29): reports and packages are sent by
+    // publishImmutableArtifact straight on the S3 client. The pure normalizers
+    // are the real ones; Object Lock is off, as the fixture environment says.
+    s3: publicationS3Double(storage),
+    isObjectLockEnabled: () => false,
+    readObjectLockDefaults: () => ({}),
+    normalizeContentType: actual.normalizeContentType,
+    normalizeMetadata: actual.normalizeMetadata,
+    normalizeTagging: actual.normalizeTagging,
     putObjectBuffer: async (p: {
       bucket: string;
       key: string;
@@ -435,7 +464,8 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     });
     expect(reports.length).toBe(1);
     expect(reports[0]!.version).toBe(1);
-    expect(reports[0]!.storageKey).toContain("/v1.");
+    // 2026-09-29: single-use publication keys, reports/<id>/v<N>/<request>-<uuid>.pdf
+    expect(reports[0]!.storageKey).toContain("/v1/");
     /*
      * AND THE BYTES ARE WHERE THE ROW SAYS THEY ARE.
      *

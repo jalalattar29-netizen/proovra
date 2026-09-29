@@ -48,16 +48,16 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1318
-ROUTE_ATTRIBUTED_REACHABLE                  1170
-JOB_ATTRIBUTED_REACHABLE                     130
+TerminalWriters                             1309
+ROUTE_ATTRIBUTED_REACHABLE                  1168
+JOB_ATTRIBUTED_REACHABLE                     124
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          14
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
-PORT_ATTRIBUTED_REACHABLE                      1
+PORT_ATTRIBUTED_REACHABLE                      0
 DEAD_UNREACHABLE                               0
 UNRESOLVED                                     0
 UnwiredExecutableWriters                       0
@@ -274,6 +274,30 @@ Result deltas after BILLING PAYPAL INTEGRITY (2026-09-28). One route, 18 writers
 AuditEngineIntegrity returned to PASS in this pass, from FAIL with
 DynamicUnresolvedConsumers 103, UnreviewedOriginConsumers 2,
 AmbiguousConsumerSites 1 and ClassificationConflicts 5.
+
+### 2026-09-29 — EVIDENCE OUTPUT LIFECYCLE (TerminalWriters 1318 -> 1309)
+
+Measured by diffing writer ids against the branch base (40135a80), not
+asserted. REMOVED:
+
+- `services/worker/src/processor.ts` copyObject + deleteObject and
+  `services/worker/src/storage.ts` CopyObjectCommand — the staging PUT, the
+  lock-carrying copy and the staging cleanup. ONE conditional, checksummed PUT
+  (`services/worker/src/immutable-publication.ts` PutObjectCommand, ADDED)
+  replaces them.
+- `packages/shared-runtime/src/evidence-destruction/executor.ts` and
+  `reconcile-destroyed-derivatives.ts` deleteObject — destruction now deletes
+  object VERSIONS through the shared version-aware port.
+- `services/api/src/storage.ts` DeleteObjectCommand — the API key-level
+  `deleteObject`, left with zero entrypoints by the port change, DELETED, so
+  DEAD_UNREACHABLE stays 0 and PORT_ATTRIBUTED_REACHABLE is 1 -> 0.
+- Two read-then-write updates became compare-and-set `updateMany` (same
+  writers, new ids): the TSA stored-token repair script and the source-truth
+  incident close.
+
+Bucket deltas: ROUTE_ATTRIBUTED_REACHABLE 1170 -> 1168, JOB_ATTRIBUTED_REACHABLE
+130 -> 124, PORT_ATTRIBUTED_REACHABLE 1 -> 0. Every removed writer is a retired
+path; no product capability lost its writer.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

@@ -246,6 +246,10 @@
       "command": "tsx src/scripts/verify-historical-billing-attempts.ts"
     },
     {
+      "id": "services/api/package.json:ops:destruction-certificate-audit",
+      "command": "tsx src/scripts/destruction-certificate-audit.ts"
+    },
+    {
       "id": "services/api/package.json:verify:runbook-endpoints",
       "command": "node scripts/verify-runbook-endpoints.mjs"
     }

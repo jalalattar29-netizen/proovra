@@ -435,11 +435,12 @@ const downloadVerificationPackageVersion = async (version: number) => {
       addToast(`Verification package v${version} is not available.`, "info");
       return;
     }
-    const ok = await tryDownloadFile(
-      data.url,
-      `verification-package-${evidenceId}-v${version}.zip`,
-    );
-    if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
+    // Same as downloadVerificationPackage: hoist the signed URL and the file
+    // name so the call site is two identifiers the capability map can read.
+    const packageUrl = data.url;
+    const packageFileName = `verification-package-${evidenceId}-v${version}.zip`;
+    const ok = await tryDownloadFile(packageUrl, packageFileName);
+    if (!ok) window.open(packageUrl, "_blank", "noopener,noreferrer");
   } catch (downloadError) {
     addToast(
       toSafeUserError(downloadError, {

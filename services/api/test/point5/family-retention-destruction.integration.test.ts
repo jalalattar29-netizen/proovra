@@ -139,6 +139,41 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
   };
 });
 
+/**
+ * VERSION-AWARE BOUNDARY (2026-09-29). The executor no longer deletes by key
+ * through `storage.js`: the worker's port inventories object VERSIONS, deletes
+ * each by VersionId and re-lists, straight on the S3 client — so the double
+ * above no longer sits on the destruction path, and leaving it there would
+ * reopen the ambient-infrastructure trap it was written to close. The same
+ * store is modelled at the port instead: one unretained data version per key,
+ * gone once deleted.
+ */
+vi.mock("../../../worker/src/governance/destruction-storage-port.js", () => {
+  const idOf = (i: { bucket: string; key: string }) => `${i.bucket} ${i.key}`;
+  return {
+    workerEvidenceDestructionStorage: {
+      async listObjectVersions(p: { bucket: string; key: string }) {
+        if (storageCalls.removed.has(idOf(p))) return [];
+        return [
+          {
+            versionId: "v1",
+            isDeleteMarker: false,
+            isLatest: true,
+            retainUntil: null,
+            lockMode: null,
+            legalHold: false,
+          },
+        ];
+      },
+      async deleteObjectVersion(p: { bucket: string; key: string; versionId: string }) {
+        storageCalls.deleted.push({ bucket: p.bucket, key: p.key });
+        storageCalls.removed.add(idOf(p));
+        return { ok: true };
+      },
+    },
+  };
+});
+
 describe("POINT 5 FAMILY — retention/destruction, irreversible half (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../../src/db.js")["prisma"];

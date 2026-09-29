@@ -154,10 +154,10 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:437",
+      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:442",
       "class": "OBJECT_STORE",
-      "evidence": "tryDownloadFile(data.url, `verification-package-${evidenceId}-v${version}.zip`) — data.url is the signed URL returned by GET /v1/evidence/:id/verification-packages/:version; the storage provider serves it, and it is a runtime presigned value that cannot be static. Added 2026-09-09 (RELIABILITY CLOSURE): the product retained every version, listed them, and told the operator they \"remain downloadable\" while no route served any but the newest. This is the handler for the versioned route, and its API call — the apiFetch immediately above — is resolved by the analyzer on its own. | Re-anchored :376 -> :437 on 2026-09-26 (ARTIFACT RECOVERY). The per-output generation request and the separate new-version request were added above it. Verified BY READING the site: the same tryDownloadFile(data.url, ...) call, unchanged.",
-      "reviewedAtUtc": "2026-09-09"
+      "evidence": "tryDownloadFile(data.url, `verification-package-${evidenceId}-v${version}.zip`) — data.url is the signed URL returned by GET /v1/evidence/:id/verification-packages/:version; the storage provider serves it, and it is a runtime presigned value that cannot be static. Added 2026-09-09 (RELIABILITY CLOSURE): the product retained every version, listed them, and told the operator they \"remain downloadable\" while no route served any but the newest. This is the handler for the versioned route, and its API call — the apiFetch immediately above — is resolved by the analyzer on its own. | Re-anchored :376 -> :437 on 2026-09-26 (ARTIFACT RECOVERY). The per-output generation request and the separate new-version request were added above it. Verified BY READING the site: the same tryDownloadFile(data.url, ...) call, unchanged. | Re-anchored :437 -> :442 on 2026-09-29 (EVIDENCE OUTPUT LIFECYCLE), and the call now HOISTS both arguments like the :146 latest-package download: `tryDownloadFile(packageUrl, packageFileName)`, where packageUrl is still the runtime signed URL from GET /v1/evidence/:id/verification-packages/:version (pinned to the stored S3 VersionId). Verified BY READING the site. The shift came from the required updated-report reason added to createNewVersion above it.",
+      "reviewedAtUtc": "2026-09-29"
     },
     {
       "site": "apps/mobile/app/(stack)/continuous-capture.tsx:120",

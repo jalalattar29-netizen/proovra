@@ -248,12 +248,12 @@ describe("K8 operations — platform and workspace operations mutations (live Po
     });
 
     it("retry of a STEP-UP job without a challenge is refused 401 and leaves the job failed", async () => {
-      const jobId = await failedJob("report", "GenerateReport");
+      const jobId = await failedJob("report", "GenerateReportJob");
       const res = await call({
         method: "POST",
         url: `/v1/operations/queues/report/jobs/${jobId}/retry`,
         token: operatorToken,
-        payload: { teamId: A.teamId, reason: "k8 retry without step-up", expectedJobName: "GenerateReport" },
+        payload: { teamId: A.teamId, reason: "k8 retry without step-up", expectedJobName: "GenerateReportJob" },
       });
       expect(res.statusCode).toBe(401);
       expect((json(res).error as Json).code).toBe("STEP_UP_REQUIRED");
@@ -262,9 +262,9 @@ describe("K8 operations — platform and workspace operations mutations (live Po
     });
 
     it("replay: a step-up job is replayed after an authenticator step-up bound to the job", async () => {
-      const jobId = await failedJob("report", "GenerateReport");
+      const jobId = await failedJob("report", "GenerateReportJob");
       const url = `/v1/operations/queues/report/jobs/${jobId}/replay`;
-      const payload = { teamId: A.teamId, reason: "k8 signer outage fixed", expectedJobName: "GenerateReport" };
+      const payload = { teamId: A.teamId, reason: "k8 signer outage fixed", expectedJobName: "GenerateReportJob" };
 
       const refused = await call({ method: "POST", url, token: A.adminToken, payload });
       expect(refused.statusCode).toBe(403);
@@ -294,7 +294,7 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         where: { action: "operations.queue_job.replay_requested", resourceId: `report:${jobId}` },
       });
       expect(audit).toMatchObject({ userId: operatorId, workspaceId: A.teamId, outcome: "queued" });
-      expect(audit.metadata).toMatchObject({ action: "replay", category: "requires_step_up", jobName: "GenerateReport" });
+      expect(audit.metadata).toMatchObject({ action: "replay", category: "requires_step_up", jobName: "GenerateReportJob" });
     });
 
     it("replay of a FORBIDDEN job kind is refused 403 replay_forbidden and the job stays failed", async () => {

@@ -141,6 +141,13 @@ const EXPECTED_SUCCEEDED = [
   //                             writes.
   "billing.dependent_cancellation_failed",
   "coordination.backlog_stale",
+  //   pipeline.package_generation_failed / pipeline.report_generation_failed
+  //                             (2026-09-29) the same shape: the WORKER opens
+  //                             these; the sweep only closes the ones whose
+  //                             artifact now exists at the named version. The
+  //                             fixture has none open, so nothing is written.
+  "pipeline.package_generation_failed",
+  "pipeline.report_generation_failed",
   "pipeline.signed_without_report_aged",
   "platform.worker_heartbeat_stale",
   "queue.retry_storm",

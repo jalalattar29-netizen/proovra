@@ -182,4 +182,27 @@ describe("destruction storage doubles cover the whole port", () => {
         "happen to be running",
     ).toEqual([]);
   });
+
+  it("a suite still faking the RETIRED key-level boundary also doubles the version port", () => {
+    /*
+     * 2026-09-29. Before the version-aware port, a storage.js double defining
+     * `deleteObject` + `headObject` WAS the destruction boundary. Now the port
+     * talks to the S3 client directly, so such a double no longer sits on the
+     * destruction path — yet the rule above skips it (it covers none of the
+     * NEW operations). That is how family-retention-destruction reached ambient
+     * storage and failed closed with STORAGE_VERIFY_FAILED. Such a suite must
+     * double the port module itself (or the client).
+     */
+    const stale: string[] = [];
+    for (const file of [...walk(API_TEST_DIR), ...walk(WORKER_TEST_DIR)]) {
+      const source = readFileSync(file, "utf8");
+      if (!DESTRUCTION_IMPORT.test(source)) continue;
+      const fakesKeyBoundary = /\bdeleteObject\s*:/.test(source) && /\bheadObject\s*:/.test(source);
+      if (!fakesKeyBoundary) continue;
+      const doublesPort =
+        /vi\.mock\(\s*"[^"]*destruction-storage-port\.js"/.test(source) || /(^|[^\w])s3\s*:/.test(source);
+      if (!doublesPort) stale.push(file.slice(REPO_ROOT.length + 1).replace(/\\/g, "/"));
+    }
+    expect(stale).toEqual([]);
+  });
 });

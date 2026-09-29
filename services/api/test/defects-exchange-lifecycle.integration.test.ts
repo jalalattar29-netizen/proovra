@@ -238,7 +238,9 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
       method: "POST",
       url: "/v1/exchange/packages",
       token: teamA.ownerToken,
-      payload: { kind: "EVIDENCE", evidenceIds: [randomUUID()] },
+      // A record of THIS workspace (2026-09-29: a package may no longer name
+      // an id the workspace does not hold — see the refusal case below).
+      payload: { kind: "EVIDENCE", evidenceIds: [teamA.evidenceId] },
     });
     expect(res.statusCode, res.body).toBe(201);
     const { packageId } = res.json() as { packageId: string };
@@ -254,6 +256,23 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
     });
     expect(pending.map((p) => p.id)).toContain(packageId);
     // Creation itself does not meter; the build does.
+  });
+
+  it("D8 an exchange package naming another tenant's record, or none that exists, is refused and writes nothing (2026-09-29)", async () => {
+    const { teamA, teamB } = h.fixtures;
+    const before = await prisma.evidenceExchangePackage.count({ where: { teamId: teamA.teamId } });
+    for (const evidenceIds of [[teamB.evidenceId], [teamA.evidenceId, teamB.evidenceId], [randomUUID()]]) {
+      const res = await call({
+        method: "POST",
+        url: "/v1/exchange/packages",
+        token: teamA.ownerToken,
+        payload: { kind: "EVIDENCE", evidenceIds },
+      });
+      expect(res.statusCode, res.body).toBe(409);
+      // One answer for "foreign" and "missing": it cannot be used to probe.
+      expect(res.json()).toMatchObject({ denial: "INVALID_EVIDENCE" });
+    }
+    expect(await prisma.evidenceExchangePackage.count({ where: { teamId: teamA.teamId } })).toBe(before);
   });
 
   it("D8 the worker READY step meters the export-package allowance exactly once", async () => {

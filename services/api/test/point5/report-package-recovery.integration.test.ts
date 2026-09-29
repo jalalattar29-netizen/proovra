@@ -94,7 +94,27 @@ const storage = vi.hoisted(() => {
   return { objects, served, at: (bucket: string, key: string) => `${bucket}/${key}` };
 });
 
-vi.mock("../../../worker/src/storage.js", () => {
+/**
+ * Destruction is not exercised by this suite. The worker processor it imports
+ * owns the purge path, whose port (2026-09-29) talks to the S3 client directly
+ * rather than through the storage.js double above — so it is doubled here to
+ * FAIL LOUDLY if ever reached, instead of silently reaching ambient storage.
+ */
+vi.mock("../../../worker/src/governance/destruction-storage-port.js", () => {
+  const unreachable = async () => {
+    throw new Error("destruction storage is not part of this suite");
+  };
+  return {
+    workerEvidenceDestructionStorage: {
+      listObjectVersions: unreachable,
+      deleteObjectVersion: unreachable,
+    },
+  };
+});
+
+vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../worker/src/storage.js")>();
+  const { publicationS3Double } = await import("../helpers/publication-s3-double.js");
   const notFound = (key: string) => {
     const err = new Error(`NoSuchKey: ${key}`) as Error & { name: string; $metadata: unknown };
     err.name = "NoSuchKey";
@@ -111,24 +131,29 @@ vi.mock("../../../worker/src/storage.js", () => {
     });
   const isEvidenceOriginal = (key: string) => key.startsWith("evidence/");
   return {
+    // THE PUBLICATION BOUNDARY (2026-09-29): reports and packages are sent by
+    // publishImmutableArtifact straight on the S3 client. The pure normalizers
+    // are the real ones; Object Lock is off, as the fixture environment says.
+    s3: publicationS3Double(storage, {
+      // "Uploaded, then the read-back failed": the bytes are stored, the report
+      // is not yet proven, so nothing may commit.
+      onHead: (key) => {
+        if (key.startsWith("reports/") && seam.reportHeadFailures > 0) {
+          seam.reportHeadFailures -= 1;
+          throw new Error("ACC_REPORT_HEAD_FAILED");
+        }
+      },
+    }),
+    isObjectLockEnabled: () => false,
+    readObjectLockDefaults: () => ({}),
+    normalizeContentType: actual.normalizeContentType,
+    normalizeMetadata: actual.normalizeMetadata,
+    normalizeTagging: actual.normalizeTagging,
     putObjectBuffer: async (p: { bucket: string; key: string; body: Buffer; contentType: string; metadata?: Record<string, unknown> }) => {
       storage.served.push("putObjectBuffer");
       if (!Buffer.isBuffer(p.body) || p.body.length <= 0) throw new Error("putObjectBuffer: body must be a non-empty Buffer");
       put(p.bucket, p.key, p.body, p.contentType, p.metadata);
       return { etag: `"${p.body.length}"` };
-    },
-    putObjectFromFile: async (p: { bucket: string; key: string; filePath: string; contentType: string; metadata?: Record<string, unknown> }) => {
-      storage.served.push("putObjectFromFile");
-      const { readFile } = await import("node:fs/promises");
-      put(p.bucket, p.key, await readFile(p.filePath), p.contentType, p.metadata);
-      return { etag: "staged" };
-    },
-    copyObject: async (p: { sourceBucket: string; sourceKey: string; destBucket: string; destKey: string; contentType?: string; metadata?: Record<string, unknown> }) => {
-      storage.served.push("copyObject");
-      const o = storage.objects.get(storage.at(p.sourceBucket, p.sourceKey));
-      if (!o) throw notFound(p.sourceKey);
-      put(p.destBucket, p.destKey, o.body, p.contentType ?? o.contentType, p.metadata);
-      return { copied: true };
     },
     getObjectStream: async (p: { bucket: string; key: string }) => {
       storage.served.push("getObjectStream");
@@ -662,8 +687,13 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     seam.reportHeadFailures = 1;
     expect(await run(id, 0)).toBeTruthy();
     let s = await state(evidenceId, id);
-    expect(s.reports, "the transaction rolled back").toEqual([]);
-    expect(s.req!.reportVersion).toBeNull();
+    expect(s.reports, "no report row: the commit never ran").toEqual([]);
+    // 2026-09-29: the version is RESERVED (committed) before any upload, and
+    // rendering/publication run with no transaction open. So the failure
+    // leaves the reservation — v1, stage REPORT_RESERVED — and the retry must
+    // reuse it rather than mint v2.
+    expect(s.req!.reportVersion).toBe(1);
+    expect(s.req!.stage).toBe("REPORT_RESERVED");
     expect(await run(id, 1)).toBeNull();
     s = await state(evidenceId, id);
     expect(s.req!.state).toBe("SUCCEEDED");
