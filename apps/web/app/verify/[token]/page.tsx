@@ -4355,13 +4355,16 @@ tone={
       canonicalHashMatches,
       custodyChainValid,
       custodyChainMode,
-      otsStatus,
       otsCalendar,
       otsProofPresent,
       otsAnchoredAtUtc,
       otsUpgradedAtUtc,
       otsHashMatches,
-      otsBitcoinTxid,
+      // The badge is derived from the claim, the check, the status and the
+      // txid (2026-09-29); it is what this memo reads, so it is what
+      // invalidates it.
+      otsBadge.label,
+      otsBadge.tone,
       storagePresentation,
       verdictRequiresReview,
       tsaStatus,
