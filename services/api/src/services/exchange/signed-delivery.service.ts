@@ -48,11 +48,34 @@ import { prisma as defaultPrisma } from "../../db.js";
 // HMAC primitives
 // ---------------------------------------------------------------------------
 
+/**
+ * THE SIGNING SECRET FAILS CLOSED IN PRODUCTION (2026-09-29, audit M3).
+ *
+ * An unset or empty WEBHOOK_SIGNING_SECRET used to fall back to a literal
+ * committed to this repository, so a production deployment missing the
+ * variable signed exchange manifests with a key anyone can read — and
+ * verified forged ones. In production that is now a refusal; development and
+ * tests keep the local fallback.
+ */
+export class ExchangeSigningSecretMissingError extends Error {
+  constructor() {
+    super("EXCHANGE_SIGNING_SECRET_MISSING");
+    this.name = "ExchangeSigningSecretMissingError";
+  }
+}
+
+const DEV_FALLBACK_SECRET = "proovra-exchange-dev-secret";
+
 function resolveSecret(secret?: string): string {
-  const env = process.env.WEBHOOK_SIGNING_SECRET;
-  const resolved = secret ?? env ?? "proovra-exchange-dev-secret";
+  const explicit = secret?.trim() ? secret : undefined;
+  const env = process.env.WEBHOOK_SIGNING_SECRET?.trim() ? process.env.WEBHOOK_SIGNING_SECRET : undefined;
+  const configured = explicit ?? env;
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") throw new ExchangeSigningSecretMissingError();
+    return DEV_FALLBACK_SECRET;
+  }
   // Bounded length to keep the HMAC input deterministic.
-  return resolved.slice(0, 256);
+  return configured.slice(0, 256);
 }
 
 function b64url(buf: Buffer): string {
