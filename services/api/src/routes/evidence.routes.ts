@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import {
+  lockEvidenceForByteWrite,
+  writeEvidencePart,
+} from "../services/evidence/evidence-part-writer.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
@@ -1687,16 +1691,17 @@ function mapIntegrityHeadline(params: {
     String(params.verificationStatus ?? "").toUpperCase() ===
     "RECORDED_INTEGRITY_VERIFIED";
 
-  if (
-    coreSignal?.status === "passed" &&
-    explicitlyVerified &&
-    params.overallIntegrity === true &&
-    params.timestampDigestMatches !== true
-  ) {
-    return "Core Integrity Verified; Trusted Timestamp Unavailable";
+  // ET-SEC-10 (Invariant F) — a LIVE failure dominates every stored claim, and
+  // "Verified" requires the live checks to have PASSED (true, not unknown). A
+  // snapshot that said "passed" when the report was issued is history, not the
+  // state of the record now.
+  if (params.overallIntegrity === false) {
+    return "Recorded Integrity Review Required";
   }
-  if (coreSignal?.status === "passed" && explicitlyVerified) {
-    return "Core Integrity Verified";
+  if (coreSignal?.status === "passed" && explicitlyVerified && params.overallIntegrity === true) {
+    return params.timestampDigestMatches !== true
+      ? "Core Integrity Verified; Trusted Timestamp Unavailable"
+      : "Core Integrity Verified";
   }
   if (coreSignal?.status === "partial") {
     return "Integrity Materials Recorded";
@@ -1707,9 +1712,6 @@ function mapIntegrityHeadline(params: {
       "MATERIALS_AVAILABLE"
   ) {
     return "Integrity Materials Recorded";
-  }
-  if (params.overallIntegrity === false) {
-    return "Recorded Integrity Review Required";
   }
   return "Recorded Integrity Materials Available";
 }
@@ -2090,39 +2092,21 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
     case prismaPkg.CustodyEventType.EVIDENCE_CLAIMED:
       return "Guest evidence ownership claimed.";
 
-    default: {
-      const safeEntries = Object.entries(obj)
-        .filter(([key, value]) => {
-          const lowered = key.toLowerCase();
-          if (
-            lowered.includes("bucket") ||
-            lowered.includes("storagekey") ||
-            lowered === "key" ||
-            lowered.includes("token") ||
-            lowered.includes("secret") ||
-            lowered.includes("password") ||
-            lowered.includes("lat") ||
-            lowered.includes("lng") ||
-            lowered.includes("accuracy") ||
-            lowered.includes("ip") ||
-            lowered.includes("useragent")
-          ) {
-            return false;
-          }
+    // ET-CUS-01 — the anonymous Verify answer is an ALLOW-LIST. Legal-hold
+    // events say only that a legal restriction changed: never the hold title,
+    // the internal release note, the reason, or who acted.
+    case prismaPkg.CustodyEventType.LEGAL_HOLD_PLACED:
+    case prismaPkg.CustodyEventType.CASE_LEGAL_HOLD_APPLIED:
+      return "A legal restriction was applied to this record.";
+    case prismaPkg.CustodyEventType.LEGAL_HOLD_RELEASED:
+    case prismaPkg.CustodyEventType.CASE_LEGAL_HOLD_RELEASED:
+      return "A legal restriction on this record was released.";
 
-          return (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          );
-        })
-        .slice(0, 5)
-        .map(([key, value]) =>
-          `${key}: ${maskPublicEmailsInText(String(value))}`
-        );
-
-      return safeEntries.length > 0 ? safeEntries.join(" • ") : null;
-    }
+    default:
+      // Every other event type is summarised by its public label only. Raw
+      // payload fields — internal notes, titles, reasons, actor and object ids
+      // — are never printed to an anonymous viewer, whatever the event type.
+      return null;
   }
 }
 
@@ -5992,40 +5976,13 @@ message:
 
       try {
         const result = await prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`
-            SELECT pg_advisory_xact_lock(hashtext(${id}))
-          `;
-
-          const evidence = await tx.evidence.findUnique({
-            where: { id },
-            select: SAFE_EVIDENCE_SELECT,
+          // ET-UPL-01 — the ONE byte-write authority: evidence lock, owner,
+          // CREATED|UPLOADING, not locked/trashed/archived. Refusals carry
+          // statusCode 404 (not yours / not found) or 409 (no longer writable).
+          const evidence = await lockEvidenceForByteWrite(tx, id, {
+            kind: "OWNER",
+            userId: ownerUserId,
           });
-
-          if (!evidence || evidence.deletedAt) {
-            const err: Error & { statusCode?: number } = new Error(
-              "Evidence not found"
-            );
-            err.statusCode = 404;
-            throw err;
-          }
-
-          if (evidence.ownerUserId !== ownerUserId) {
-            const err: Error & { statusCode?: number } = new Error("Forbidden");
-            err.statusCode = 403;
-            throw err;
-          }
-
-          if (
-            evidence.status === EvidenceStatus.SIGNED ||
-            evidence.status === EvidenceStatus.REPORTED ||
-            evidence.lockedAt
-          ) {
-            const err: Error & { statusCode?: number } = new Error(
-              "Evidence is immutable"
-            );
-            err.statusCode = 409;
-            throw err;
-          }
 
           const existing = await tx.evidencePart.findFirst({
             where: { evidenceId: id, partIndex: body.partIndex },
@@ -6077,10 +6034,13 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           // uploadedByUserId is stored as the presign requester for traceability,
           // but uploadedAtUtc is intentionally null until completeEvidence()
           // verifies the object via headObject() and computes its sha256.
-          const part = await tx.evidencePart.create({
-            data: {
+          const { part } = await writeEvidencePart(
+            {
               evidenceId: id,
+              principal: { kind: "OWNER", userId: ownerUserId },
               partIndex: body.partIndex,
+              onExistingIndex: "RETURN_EXISTING",
+              data: {
               storageBucket: bucket,
               storageKey: key,
               // Phase D Blocker 2 — strip any directory components the
@@ -6102,8 +6062,10 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
                     : body.clientSignals,
               uploadedByUserId: ownerUserId,
               uploadedAtUtc: null,
+              },
             },
-          });
+            tx,
+          );
 
           return { part, created: true as const };
         });
@@ -7256,7 +7218,6 @@ return {
                 caseId: link.caseId,
                 evidenceId,
                 actorUserId: userId,
-                clearEvidenceTeamIdWhenUnlinked: true,
                 ipAddress: req.ip,
                 userAgent: normalizeUserHeader(req),
               });
@@ -9387,8 +9348,12 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           })),
         });
 
-        const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
-        const trustDecisionConsistencySource = snapshotTrustDecision
+        // ET-SEC-10 (Invariant F) — a stored snapshot is what was true when the
+        // report/package was issued. When the LIVE hash, signature or custody check
+        // fails now, the live decision is the truth and the snapshot may not mask it.
+        const liveCoreChecksFailed = !(canonicalHashMatches && signatureValid && custodyChain.valid);
+        const trustDecision = liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision;
+        const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDecision
           ? latestReport?.trustDecisionSnapshot
             ? "REPORT_SNAPSHOT"
             : "VERIFICATION_PACKAGE_SNAPSHOT"
@@ -13121,8 +13086,12 @@ const liveTrustDecision = buildEvidenceTrustDecision({
   })),
 });
 
-const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
-const trustDecisionConsistencySource = snapshotTrustDecision
+// ET-SEC-10 (Invariant F) — a stored snapshot is what was true when the
+// report/package was issued. When the LIVE hash, signature or custody check
+// fails now, the live decision is the truth and the snapshot may not mask it.
+const liveCoreChecksFailed = !(canonicalHashMatches && signatureValid && custodyChain.valid);
+const trustDecision = liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision;
+const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDecision
   ? latestReport?.trustDecisionSnapshot
     ? "REPORT_SNAPSHOT"
     : "VERIFICATION_PACKAGE_SNAPSHOT"

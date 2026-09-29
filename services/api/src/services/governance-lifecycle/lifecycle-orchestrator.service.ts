@@ -450,12 +450,25 @@ export async function transitionLifecycle(
   // Mutation + ledger write happen in the same transaction so the
   // pointer + ledger stay consistent.
   const lifecycleEvent = await client.$transaction(async (tx) => {
-    await tx.evidence.update({
-      where: { id: input.evidenceId },
+    // ET-SEC-12 (merged STATEMACHINE-04) — the checks above ran on a read.
+    // Under the evidence lock the destruction executor takes, refuse an
+    // interleaved destruction claim and write CONDITIONALLY on the state that
+    // was validated: a transition can no longer resurrect a record the executor
+    // is destroying, nor overwrite a state that changed underneath it.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
+    const written = await tx.evidence.updateMany({
+      where: { id: input.evidenceId, lifecycleState: fromState as prismaPkg.EvidenceLifecycleState, destructionClaimedAtUtc: null },
       data: {
         lifecycleState: input.toState as prismaPkg.EvidenceLifecycleState,
       },
     });
+    if (written.count !== 1) {
+      throw new LifecycleOrchestratorError("LIFECYCLE_INVALID_TRANSITION", {
+        fromState,
+        toState: input.toState,
+        reason: "STATE_CHANGED_OR_DESTRUCTION_IN_PROGRESS",
+      });
+    }
     const event = await tx.evidenceLifecycleEvent.create({
       data: {
         teamId: input.teamId,

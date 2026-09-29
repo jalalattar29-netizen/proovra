@@ -69,7 +69,7 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
-import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // Error

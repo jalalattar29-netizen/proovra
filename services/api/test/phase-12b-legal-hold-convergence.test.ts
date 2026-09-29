@@ -32,7 +32,7 @@ vi.mock("../src/services/integrations/webhook-dispatcher.js", () => ({
 import {
   evaluateEffectiveLegalHold,
   isAbsentRelationError,
-} from "../src/services/governance/effective-legal-hold.js";
+} from "@proovra/shared-runtime";
 import {
   placeCanonicalLegalHold,
   releaseCanonicalLegalHold,
@@ -143,8 +143,17 @@ function makeWorld(seed: {
     };
   }
 
-  const client = {
+  const locks: string[] = [];
+  const client: Record<string, unknown> = {
     __state: state,
+    __locks: locks,
+    // ET-SEC-01 — evidence-scope placement serialises with the destruction
+    // executor on the evidence advisory lock inside a transaction.
+    $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      if (strings.join("?").includes("pg_advisory_xact_lock")) locks.push(String(values[0]));
+      return 0;
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(client),
     evidence: {
       findUnique: async (args: { where: Row }) =>
         state.evidence.find((r) => matchesWhere(r, args.where)) ?? null,
@@ -448,7 +457,7 @@ describe("PHASE 12B CLUSTER 8 — union effective-hold gate", () => {
 
   it("scope is NEVER inferred from a NULL target — no clause filters evidenceId: null", () => {
     const evaluator = readFile(
-      path.join(REPO_API, "src/services/governance/effective-legal-hold.ts"),
+      path.join(REPO_ROOT, "packages/shared-runtime/src/governance/effective-legal-hold.ts"),
     );
     // A `evidenceId: null` predicate would make every workspace hold match on
     // the absence of a target instead of on `scope`, which is exactly the
@@ -678,6 +687,25 @@ describe("PHASE 12B CLUSTER 8 — no evidence becomes destructible", () => {
     expect(
       (await evaluateEffectiveLegalHold(client, { teamId: TEAM, evidenceId: EVIDENCE })).held,
     ).toBe(true);
+  });
+
+  it("ET-SEC-01: an EVIDENCE-scoped placement takes the evidence lock the destruction executor takes", async () => {
+    const client = makeWorld({});
+    await placeCanonicalLegalHold(
+      { teamId: TEAM, scope: "EVIDENCE", evidenceId: EVIDENCE, actorUserId: USER, title: "Litigation" },
+      client,
+    );
+    expect((client as unknown as { __locks: string[] }).__locks).toEqual([EVIDENCE]);
+  });
+
+  it("ET-SEC-01: a placement on a record the executor already decided to destroy is refused, and nothing is written", async () => {
+    const client = makeWorld({
+      evidence: [{ id: EVIDENCE, teamId: TEAM, lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: new Date(), destroyedAtUtc: null }],
+    });
+    await expect(
+      placeCanonicalLegalHold({ teamId: TEAM, scope: "EVIDENCE", evidenceId: EVIDENCE, actorUserId: USER, title: "Late" }, client),
+    ).rejects.toMatchObject({ code: "destruction_committed" });
+    expect((client as unknown as { __state: { evidenceLegalHolds: unknown[] } }).__state.evidenceLegalHolds).toHaveLength(0);
   });
 
   it("MOST PROTECTIVE WINS — one RELEASED source cannot unblock an ACTIVE one", async () => {
@@ -1009,14 +1037,16 @@ describe("PHASE 12B CLUSTER 8 — step-up on every legal-hold surface", () => {
 // ===========================================================================
 
 describe("PHASE 12B CLUSTER 8 — mirrored evaluator", () => {
-  it("the api and worker copies are byte-identical", () => {
-    const api = readFile(
-      path.join(REPO_API, "src/services/governance/effective-legal-hold.ts"),
-    );
-    const worker = readFile(
-      path.join(REPO_ROOT, "services/worker/src/governance/effective-legal-hold.ts"),
-    );
-    expect(worker).toBe(api);
+  it("there is exactly ONE evaluator, in shared-runtime; the api/worker mirrors are gone (ET-SEC-01)", () => {
+    // The mirrored copies existed only because the worker could not import api
+    // services. Both processes import @proovra/shared-runtime, which is also
+    // where the destruction executor lives — so the executor now re-reads holds
+    // through the SAME evaluator inside its claim.
+    expect(fs.existsSync(path.join(REPO_API, "src/services/governance/effective-legal-hold.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(REPO_ROOT, "services/worker/src/governance/effective-legal-hold.ts"))).toBe(false);
+    expect(
+      readFile(path.join(REPO_ROOT, "packages/shared-runtime/src/governance/effective-legal-hold.ts")),
+    ).toMatch(/export async function evaluateEffectiveLegalHold/);
   });
 
   it("every destructive worker path uses the union evaluator", () => {
@@ -1188,7 +1218,7 @@ describe("PHASE 12B CLUSTER 8 — migrations", () => {
     // evaluator must therefore treat an ACTIVE one as HELD.
     expect(canonical).toMatch(/"historical" = true/);
     const evaluator = readFile(
-      path.join(REPO_API, "src/services/governance/effective-legal-hold.ts"),
+      path.join(REPO_ROOT, "packages/shared-runtime/src/governance/effective-legal-hold.ts"),
     );
     expect(evaluator).toMatch(/\{ historical: true \}/);
     expect(evaluator).toMatch(/UNRESOLVED_HOLD/);

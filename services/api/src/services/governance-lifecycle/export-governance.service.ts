@@ -45,7 +45,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
-import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 

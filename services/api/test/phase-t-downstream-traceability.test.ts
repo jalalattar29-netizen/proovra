@@ -86,8 +86,11 @@ const {
   emitWebhookEventMock: vi.fn(),
 }));
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
+vi.mock("../src/db.js", () => {
+  const prisma: Record<string, unknown> = {
+    // ET-SEC-01 — evidence-scope placement takes the evidence lock in a tx.
+    $executeRaw: async () => 0,
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     // PHASE 12 POINT 3 — the canonical writer resolves the organization
     // binding and persists into the ONE canonical table.
     team: { findUnique: async () => ({ organizationId: null }) },
@@ -115,8 +118,9 @@ vi.mock("../src/db.js", () => ({
     legalHold: {
       create: legalHoldCreateMock,
     },
-  },
-}));
+  };
+  return { prisma };
+});
 
 vi.mock("../src/services/observability/incident.service.js", () => ({
   recordIncident: recordIncidentMock,

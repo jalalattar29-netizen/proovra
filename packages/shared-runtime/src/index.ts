@@ -77,6 +77,7 @@ export * from "./evidence-analysis-revision.js";
 // destruction executor. It lives here, not in either service, because BOTH had
 // their own: four independent destroyers, two of which certified destructions
 // they never performed. Every trigger in both processes now calls this.
+export * from "./governance/effective-legal-hold.js";
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/version-port.js";
 export * from "./evidence-destruction/approval.js";

@@ -368,7 +368,8 @@ export type EvidenceLifecycleBlockReason =
   | "APP_RETENTION_ACTIVE"
   | "OBJECT_LOCK_RETENTION_ACTIVE"
   | "LEGAL_HOLD_ACTIVE"
-  | "DESTRUCTION_APPROVAL_REQUIRED";
+  | "DESTRUCTION_APPROVAL_REQUIRED"
+  | "DESTRUCTION_IN_PROGRESS";
 
 /**
  * LEGACY delete-eligibility shape. Still emitted by the API, still read as a

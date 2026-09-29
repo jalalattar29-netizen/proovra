@@ -33,7 +33,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 
 /**
  * Legacy reason vocabulary.

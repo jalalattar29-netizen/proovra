@@ -138,7 +138,7 @@ export async function changeCaseStatus(
   // an unresolvable historical hold.
   if (CLOSURE_STATUSES.has(input.toStatus)) {
     const { isUnderEffectiveLegalHold } = await import(
-      "../governance/effective-legal-hold.js"
+      "@proovra/shared-runtime"
     );
     const held = await isUnderEffectiveLegalHold(
       client as unknown as Parameters<typeof isUnderEffectiveLegalHold>[0],

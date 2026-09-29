@@ -351,7 +351,7 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
 
   // PHASE 12B CLUSTER 8 — the hand-rolled union in isUnderActiveLegalHold is
   // gone: the gate now DELEGATES to the ONE effective-hold evaluator
-  // (services/governance/effective-legal-hold.ts), which reads all THREE
+  // (packages/shared-runtime/src/governance/effective-legal-hold.ts), which reads all THREE
   // stores and only degrades on a genuinely-absent relation. The lock moves
   // with it — assert the delegation plus the evaluator's own scope coverage.
   it("the direct delete gate delegates to the ONE effective-hold evaluator", () => {
@@ -362,7 +362,7 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
   });
 
   it("the ONE evaluator covers every scope, in the ONE canonical store", () => {
-    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    const evaluator = fs.readFileSync(path.join(SRC, "../../../packages/shared-runtime/src/governance/effective-legal-hold.ts"), "utf8");
     // PHASE 12 POINT 3 — the legacy `kind`-shaped clauses retired with their
     // stores. Scope coverage is now proven by the canonical vocabulary plus
     // the historical clause that makes an unresolvable hold fail closed.
@@ -377,7 +377,7 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
   });
 
   it("the evaluator FAILS CLOSED — only an absent relation may degrade", () => {
-    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    const evaluator = fs.readFileSync(path.join(SRC, "../../../packages/shared-runtime/src/governance/effective-legal-hold.ts"), "utf8");
     expect(evaluator).toContain("isAbsentRelationError");
     expect(evaluator).toMatch(/P2021/);
     expect(evaluator).toMatch(/P2022/);
@@ -385,7 +385,7 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
   });
 
   it("the evidence-direct clause is never degradable", () => {
-    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    const evaluator = fs.readFileSync(path.join(SRC, "../../../packages/shared-runtime/src/governance/effective-legal-hold.ts"), "utf8");
     const idx = evaluator.indexOf("---- Clause A");
     const clauseA = evaluator.slice(idx, evaluator.indexOf("---- Clause B"));
     expect(idx).toBeGreaterThan(0);

@@ -30,7 +30,7 @@ import {
 
 import { prisma as defaultPrisma } from "../db.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
-import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import {
   LegalHoldError,
   placeCanonicalLegalHold,

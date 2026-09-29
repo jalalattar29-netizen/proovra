@@ -58,7 +58,7 @@ import { resolveDestructionApproval } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
-import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.

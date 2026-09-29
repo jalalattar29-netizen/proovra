@@ -19,7 +19,7 @@ import {
   type ExtractedPreview,
 } from "./preview/extract.js";
 // PHASE 6 §9.7 (2026-07-22) — purge-time legal-hold re-check (4B holds).
-import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor
 // and the ONE approval rule. The purge job is a trigger for them now.
 import {

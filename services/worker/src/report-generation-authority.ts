@@ -49,7 +49,7 @@ import {
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 import { prisma } from "./db.js";
-import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
 import {

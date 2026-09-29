@@ -45,7 +45,7 @@ import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { deleteObject, getObjectRange, putObjectBuffer } from "./storage.js";
-import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {

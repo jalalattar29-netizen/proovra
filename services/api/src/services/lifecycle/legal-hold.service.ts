@@ -49,7 +49,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
 
 // ---------------------------------------------------------------------------

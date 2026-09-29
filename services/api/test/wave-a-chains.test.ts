@@ -163,7 +163,7 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
     expect(processor).toMatch(/evaluateEffectiveLegalHold\(prisma/);
     const evaluator = readFileSync(
       fileURLToPath(
-        new URL("../../worker/src/governance/effective-legal-hold.ts", import.meta.url),
+        new URL("../../../packages/shared-runtime/src/governance/effective-legal-hold.ts", import.meta.url),
       ),
       "utf8",
     );
@@ -224,8 +224,9 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
     // Enforced by the shared authority, which applies application retention AND
     // Object Lock retain-until — the worker's old helper only knew about one.
     expect(executor).toMatch(/computeEvidenceDestructionEligibility\(/);
-    expect(executor).toMatch(/objectLockRetainUntil: evidence\.storageObjectLockRetainUntilUtc/);
-    expect(executor).toMatch(/appRetentionUntil: evidence\.retentionUntilUtc/);
+    // The decision transaction reads the SAME persisted columns (as `row`).
+    expect(executor).toMatch(/objectLockRetainUntil: (evidence|row)\.storageObjectLockRetainUntilUtc/);
+    expect(executor).toMatch(/appRetentionUntil: (evidence|row)\.retentionUntilUtc/);
   });
 
   it("custody EVIDENCE_PURGED is written in the SAME transaction as the tombstone", () => {

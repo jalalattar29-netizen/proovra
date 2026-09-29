@@ -191,6 +191,7 @@ export const COUNTER_NAMES = [
   "multipart_part_marked_uploaded_total",
   "multipart_part_verified_total",
   "multipart_completed_total",
+  "multipart_bridge_refused_total",
   "multipart_aborted_total",
   "multipart_abort_failed_total",
   "multipart_complete_failed_total",

@@ -47,7 +47,7 @@ import {
   isUnderEffectiveLegalHold,
   resolveLinkedCaseIds,
   type EffectiveLegalHoldResult,
-} from "./effective-legal-hold.js";
+} from "@proovra/shared-runtime";
 
 // The ONE evaluator is re-exported from the ONE service so consumers never
 // have to know which module holds the union rule.
@@ -67,7 +67,11 @@ export type LegalHoldErrorCode =
   | "hold_not_found"
   | "release_note_required"
   | "release_approval_required"
-  | "stale_version";
+  | "stale_version"
+  // ET-SEC-01 — the destruction executor already decided (under the evidence
+  // lock, with no hold in force) or the record is destroyed. The hold is NOT
+  // recorded: claiming protection that cannot be given would be false.
+  | "destruction_committed";
 
 const STATUS_CODES: Record<LegalHoldErrorCode, number> = {
   scope_target_required: 422,
@@ -76,6 +80,7 @@ const STATUS_CODES: Record<LegalHoldErrorCode, number> = {
   release_note_required: 422,
   release_approval_required: 403,
   stale_version: 409,
+  destruction_committed: 409,
 };
 
 export class LegalHoldError extends Error {
@@ -292,7 +297,27 @@ export async function placeCanonicalLegalHold(
   });
   const policy = await resolvePolicyAttribution(client, input.teamId);
 
-  const hold = (await client.evidenceLegalHold.create({
+  // ET-SEC-01 (Invariant E) — an EVIDENCE-scope hold is serialised with the
+  // destruction executor's decision on the SAME evidence lock: committed before
+  // the decision, it stops destruction; arriving after it, it is refused
+  // honestly instead of recorded as protection it cannot give.
+  const writeHold = async (c: PrismaClient) => {
+    if (scope === "EVIDENCE" && evidenceId) {
+      await c.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+      const target = await c.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { lifecycleState: true, destructionClaimedAtUtc: true, destroyedAtUtc: true },
+      });
+      if (
+        target &&
+        (target.lifecycleState === "DESTROYED" ||
+          target.destroyedAtUtc != null ||
+          (target.lifecycleState === "PENDING_DESTRUCTION" && target.destructionClaimedAtUtc != null))
+      ) {
+        throw new LegalHoldError("destruction_committed");
+      }
+    }
+    return c.evidenceLegalHold.create({
     data: {
       teamId: input.teamId,
       scope,
@@ -315,7 +340,11 @@ export async function placeCanonicalLegalHold(
       historical: false,
     },
     select: CANONICAL_SELECT,
-  })) as CanonicalLegalHoldRow;
+  });
+  };
+  const hold = ("$transaction" in client && typeof client.$transaction === "function"
+    ? await client.$transaction((tx) => writeHold(tx as unknown as PrismaClient))
+    : await writeHold(client)) as CanonicalLegalHoldRow;
 
   /**
    * ARCH-005 (2026-08-07) — LEGAL_HOLD_CREATED, on the SAME client the hold

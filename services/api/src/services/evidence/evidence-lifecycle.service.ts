@@ -57,7 +57,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEventTx } from "../custody-events.service.js";
-import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { resolveEvidenceDestructiveAccess } from "./evidence-destructive-access.service.js";
 
 /**
@@ -163,6 +163,8 @@ const BLOCK_MESSAGE: Record<EvidenceLifecycleBlockReason, string> = {
     "This record is under an active legal hold. Its lifecycle cannot be changed while the hold stands.",
   DESTRUCTION_APPROVAL_REQUIRED:
     "An approved destruction request is required for this record.",
+  DESTRUCTION_IN_PROGRESS:
+    "This record is being destroyed under an approved destruction decision. Its lifecycle cannot be changed.",
 };
 
 function addDays(from: Date, days: number): Date {
@@ -356,11 +358,86 @@ export async function applyEvidenceLifecycleAction(
   //    that did not happen, because the custody chain is what a reviewer reads.
   const patch = buildLifecyclePatch(input.action, input.actorUserId, now);
 
-  await client.$transaction(async (tx) => {
-    await tx.evidence.update({
+  //    ET-SEC-06 / ET-SEC-12 — the checks above ran on a read; the write must
+  //    not trust it. Under the evidence lock (the lock the destruction
+  //    executor's decision and evidence-scope hold placement take), re-read the
+  //    state, refuse an interleaved destruction claim, re-read the hold union
+  //    and recompute the capability, then write CONDITIONALLY on the state that
+  //    was read. Two conflicting actions produce one winner and one 409.
+  const conflict = await client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidence.id}))`;
+    const fresh = await tx.evidence.findUnique({
       where: { id: evidence.id },
-      data: patch.data,
+      select: { ...LIFECYCLE_SELECT, destructionClaimedAtUtc: true },
     });
+    if (!fresh) return { statusCode: 404 as const, code: "not_found" as const, message: "Evidence not found" };
+    if (
+      fresh.lifecycleState === "DESTROYED" ||
+      fresh.destroyedAtUtc != null ||
+      (fresh.lifecycleState === "PENDING_DESTRUCTION" && fresh.destructionClaimedAtUtc != null)
+    ) {
+      const reason: EvidenceLifecycleBlockReason =
+        fresh.lifecycleState === "DESTROYED" || fresh.destroyedAtUtc != null ? "TERMINAL_DESTROYED" : "DESTRUCTION_IN_PROGRESS";
+      return { statusCode: 409 as const, code: reason, message: BLOCK_MESSAGE[reason], blockReason: reason };
+    }
+    let heldNow: boolean;
+    try {
+      heldNow = (
+        await evaluateEffectiveLegalHold(tx as unknown as typeof client, {
+          teamId: fresh.teamId ?? null,
+          evidenceId: fresh.id,
+          caseIds: (fresh.caseLinks ?? []).map((l) => l.caseId),
+        })
+      ).held;
+    } catch {
+      return {
+        statusCode: 503 as const,
+        code: "GOVERNANCE_CHECK_FAILED" as const,
+        message: "Legal-hold status could not be confirmed, so the lifecycle change was refused.",
+      };
+    }
+    const freshCaps = computeEvidenceLifecycleCapabilities(
+      {
+        lifecycleState: fresh.lifecycleState,
+        archivedAt: fresh.archivedAt,
+        trashedAt: fresh.deletedAt,
+        destroyedAt: fresh.destroyedAtUtc,
+        lockedAt: fresh.lockedAt,
+        trashGraceUntil: fresh.deleteScheduledForUtc,
+        appRetentionUntil: fresh.retentionUntilUtc,
+        objectLockRetainUntil: fresh.storageObjectLockRetainUntilUtc,
+        objectLockMode: fresh.storageObjectLockMode,
+        legalHold: heldNow,
+      },
+      now,
+    );
+    // Idempotence, re-applied to the FRESH state: a concurrent twin that got
+    // there first is a success with nothing to do, not a conflict.
+    const alreadyThere =
+      (input.action === "ARCHIVE" && freshCaps.productState === "ARCHIVED") ||
+      (input.action === "UNARCHIVE" && freshCaps.productState === "ACTIVE") ||
+      (input.action === "TRASH" && freshCaps.productState === "TRASHED") ||
+      (input.action === "RESTORE_FROM_TRASH" && freshCaps.productState === "ACTIVE");
+    if (alreadyThere) return { idempotent: true as const, productState: freshCaps.productState };
+    const stillPermitted =
+      input.action === "ARCHIVE"
+        ? freshCaps.canArchive
+        : input.action === "UNARCHIVE"
+          ? freshCaps.canUnarchive
+          : input.action === "TRASH"
+            ? freshCaps.canTrash
+            : freshCaps.canRestoreFromTrash;
+    if (!stillPermitted) {
+      const reason: EvidenceLifecycleBlockReason = heldNow ? "LEGAL_HOLD_ACTIVE" : "ALREADY_IN_STATE";
+      return { statusCode: 409 as const, code: reason, message: BLOCK_MESSAGE[reason], blockReason: reason };
+    }
+    const written = await tx.evidence.updateMany({
+      where: { id: evidence.id, lifecycleState: fresh.lifecycleState, destructionClaimedAtUtc: null },
+      data: patch.data as prismaPkg.Prisma.EvidenceUpdateManyMutationInput,
+    });
+    if (written.count !== 1) {
+      return { statusCode: 409 as const, code: "ALREADY_IN_STATE" as const, message: BLOCK_MESSAGE.ALREADY_IN_STATE, blockReason: "ALREADY_IN_STATE" as const };
+    }
     await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,
       eventType: patch.custodyEventType,
@@ -372,7 +449,14 @@ export async function applyEvidenceLifecycleAction(
       ip: input.req?.ip ?? null,
       userAgent: userAgentOf(input.req),
     });
+    return null;
   });
+  if (conflict && "idempotent" in conflict) {
+    return { ok: true, changed: false, productState: conflict.productState as EvidenceProductState, teamId: evidence.teamId ?? null };
+  }
+  if (conflict) {
+    return { ok: false, ...conflict };
+  }
 
   // 8. PUBLICATION — an EXPLICIT rule, not a side effect of a timestamp.
   //

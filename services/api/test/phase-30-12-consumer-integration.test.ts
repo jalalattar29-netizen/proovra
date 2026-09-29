@@ -191,10 +191,12 @@ describe("Phase 30.12 — completeStorageMultipart bridge", () => {
     );
   });
 
+  // ET-UPL-01 — the bridge insert now goes through the canonical byte-write
+  // authority (writeEvidencePart); the block below is that call.
+  const BRIDGE_WRITE = /writeEvidencePart\(\s*\{\s*evidenceId:\s*session\.evidence_id[\s\S]*?\n\s*client,\n\s*\)/;
+
   it("bridging EvidencePart row sets sha256 from server-computed hash (NEVER ETag)", () => {
-    const bridgeBlock = src.match(
-      /client\.evidencePart\.create\([\s\S]*?select:\s*\{\s*id:\s*true\s*\}/,
-    )?.[0];
+    const bridgeBlock = src.match(BRIDGE_WRITE)?.[0];
     expect(bridgeBlock).toBeTruthy();
     expect(bridgeBlock!).toMatch(/sha256:\s*serverSha256/);
     // Must NOT use ETag as the hash.
@@ -203,9 +205,7 @@ describe("Phase 30.12 — completeStorageMultipart bridge", () => {
   });
 
   it("bridging EvidencePart row leaves uploadedAtUtc UNSET (server-clock contract)", () => {
-    const bridgeBlock = src.match(
-      /client\.evidencePart\.create\([\s\S]*?select:\s*\{\s*id:\s*true\s*\}/,
-    )?.[0];
+    const bridgeBlock = src.match(BRIDGE_WRITE)?.[0];
     expect(bridgeBlock).toBeTruthy();
     // Strip comments — the data block intentionally documents the
     // uploadedAtUtc absence, so the bare regex would false-positive.

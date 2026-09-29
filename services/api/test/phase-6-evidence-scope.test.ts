@@ -64,9 +64,9 @@ describe("Phase 6 §9.7 — purge worker legal-hold re-check", () => {
     // PHASE 12B CLUSTER 8 — the three hand-rolled per-store lookups are
     // replaced by ONE union evaluator that reads all three stores and FAILS
     // CLOSED. The families are still all covered; the coverage now lives in
-    // services/worker/src/governance/effective-legal-hold.ts.
+    // packages/shared-runtime/src/governance/effective-legal-hold.ts (the ONE copy).
     expect(body).toMatch(/evaluateEffectiveLegalHold\(prisma/);
-    const evaluator = read("../worker/src/governance/effective-legal-hold.ts");
+    const evaluator = read("../../packages/shared-runtime/src/governance/effective-legal-hold.ts");
     // PHASE 12 POINT 3 — one store, every scope. Coverage is proven by the
     // canonical scope vocabulary plus the historical clause that makes an
     // unresolvable ACTIVE hold fail closed.

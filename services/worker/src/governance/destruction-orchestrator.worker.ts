@@ -59,7 +59,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
-import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor.
 // The orchestrator no longer deletes, tombstones or certifies; it triggers and
 // records.

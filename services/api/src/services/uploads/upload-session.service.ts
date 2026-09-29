@@ -32,6 +32,11 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  assertEvidenceAcceptsByteWrites,
+  EvidencePartWriteRefused,
+  writeEvidencePart,
+} from "../evidence/evidence-part-writer.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
@@ -85,6 +90,9 @@ export const UPLOAD_SESSION_DENIAL_CODES = [
   // team. Anti-enumeration: maps to 404 (never distinguishes "belongs to
   // another team" from "does not exist").
   "evidence_not_found",
+  // ET-UPL-01 — the actor owns the record but it no longer accepts original
+  // bytes (signing has begun, SIGNED/REPORTED, locked, trashed or archived).
+  "evidence_not_writable",
 ] as const;
 
 /**
@@ -363,6 +371,23 @@ export async function createUploadSession(
   });
   if (!owningEvidence) {
     return { ok: false, reason: "evidence_not_found" };
+  }
+  // ET-UPL-01 — team membership is not write authority. Only the record's
+  // owner may open a session that will add original bytes, and only while the
+  // record still accepts them (the canonical byte-write authority).
+  try {
+    await assertEvidenceAcceptsByteWrites(client, input.evidenceId, {
+      kind: "OWNER",
+      userId: input.actorUserId,
+    });
+  } catch (err) {
+    if (err instanceof EvidencePartWriteRefused) {
+      return {
+        ok: false,
+        reason: err.code === "EVIDENCE_NOT_FOUND" ? "evidence_not_found" : "evidence_not_writable",
+      };
+    }
+    throw err;
   }
 
   // Idempotency check — collapse to existing session if the key
@@ -1336,6 +1361,7 @@ type SessionWithMultipart = {
   id: string;
   team_id: string;
   evidence_id: string;
+  actor_user_id: string;
   state: string;
   expected_part_count: number;
   expected_sha256: string | null;
@@ -1359,7 +1385,7 @@ async function loadSessionWithMultipart(
   sessionId: string,
 ): Promise<SessionWithMultipart | null> {
   const rows = (await client.$queryRawUnsafe(
-    `SELECT "id", "team_id", "evidence_id", "state",
+    `SELECT "id", "team_id", "evidence_id", "actor_user_id", "state",
             "expected_part_count", "expected_sha256",
             "multipart_upload_id", "storage_bucket", "storage_key",
             "completed_at_storage_utc", "aborted_at_storage_utc",
@@ -1882,10 +1908,16 @@ export async function completeStorageMultipart(
     !session.bridged_evidence_part_id
   ) {
     try {
-      const partRow = await client.evidencePart.create({
-        data: {
+      // ET-UPL-01 — the bridge goes through the ONE byte-write authority, as
+      // the session's own actor, re-checked under the finalize lock. A record
+      // that was sealed (or never belonged to the actor) refuses the part.
+      const { part: partRow } = await writeEvidencePart(
+        {
           evidenceId: session.evidence_id,
+          principal: { kind: "OWNER", userId: session.actor_user_id },
           partIndex: session.target_part_index,
+          onExistingIndex: "REFUSE",
+          data: {
           storageBucket: session.storage_bucket,
           storageKey: session.storage_key,
           originalFileName: session.original_file_name,
@@ -1896,9 +1928,11 @@ export async function completeStorageMultipart(
           // transaction sets this atomically alongside the legacy
           // parts. Custody invariant: no part is marked uploaded
           // until finalize.
+          uploadedByUserId: session.actor_user_id,
+          },
         },
-        select: { id: true },
-      });
+        client,
+      );
       await client.$executeRawUnsafe(
         `UPDATE "evidence_upload_sessions"
            SET "bridged_evidence_part_id" = $3,
@@ -1909,12 +1943,18 @@ export async function completeStorageMultipart(
         input.teamId,
         partRow.id,
       );
-    } catch {
-      /* Bridge creation is best-effort. Failure here doesn't break
-       * the multipart-complete return — the storage side IS
-       * complete. The capture page sees success; on next finalize
-       * attempt the bridge can be re-attempted by re-calling
-       * completeStorageMultipart. */
+    } catch (err) {
+      // ET-UPL-01 — a refusal by the byte-write authority is an answer, not a
+      // best-effort miss: the record is sealed or not the actor's.
+      if (err instanceof EvidencePartWriteRefused) {
+        bump("multipart_bridge_refused_total");
+        return {
+          ok: false,
+          reason: err.code === "EVIDENCE_NOT_FOUND" ? "evidence_not_found" : "evidence_not_writable",
+        };
+      }
+      /* Other bridge failures remain best-effort here; their durability is
+       * handled with the post-commit fan-out (ET-ACQ-03). */
     }
   }
 

@@ -70,7 +70,11 @@ export type EvidenceLifecycleBlockReason =
   | "APP_RETENTION_ACTIVE"
   | "OBJECT_LOCK_RETENTION_ACTIVE"
   | "LEGAL_HOLD_ACTIVE"
-  | "DESTRUCTION_APPROVAL_REQUIRED";
+  | "DESTRUCTION_APPROVAL_REQUIRED"
+  // ET-SEC-06 — the canonical destruction executor holds a decided claim on the
+  // record (PENDING_DESTRUCTION with a claim stamp). No other lifecycle change
+  // may interleave: restore and destruction must never both succeed.
+  | "DESTRUCTION_IN_PROGRESS";
 
 /**
  * The subset of persisted Evidence columns + resolved verdicts the authority

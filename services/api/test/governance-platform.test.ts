@@ -52,7 +52,7 @@ describe("case legal hold service", () => {
     const evaluator = await rf(
       fileURLToPath(
         new URL(
-          "../src/services/governance/effective-legal-hold.ts",
+          "../../../packages/shared-runtime/src/governance/effective-legal-hold.ts",
           import.meta.url,
         ),
       ),

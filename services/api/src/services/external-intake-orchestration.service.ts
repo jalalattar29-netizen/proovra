@@ -51,6 +51,10 @@ import type {
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../db.js";
+import {
+  EvidencePartWriteRefused,
+  writeEvidencePart,
+} from "./evidence/evidence-part-writer.service.js";
 import { presignPutObject } from "../storage.js";
 import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
@@ -508,10 +512,20 @@ export async function addExternalEvidencePart(
       webkitRelativePath: input.webkitRelativePath ?? null,
     });
 
-    part = await client.evidencePart.create({
-      data: {
+    // ET-INT-05 / ET-INT-14 — the ONE byte-write authority: it takes the
+    // evidence lock finalize holds, so a part can never land on a record that
+    // is being signed or already signed, nor on a soft-deleted record.
+    ({ part } = await writeEvidencePart(
+      {
         evidenceId: evidence.id,
+        principal: {
+          kind: "INTAKE_SESSION",
+          linkCreatorUserId: input.link.createdByUserId,
+          sessionId: input.session.id,
+        },
         partIndex,
+        onExistingIndex: "REFUSE",
+        data: {
         storageBucket: bucket,
         storageKey: key,
         originalFileName: fileName,
@@ -528,9 +542,20 @@ export async function addExternalEvidencePart(
         // workspace admin who is the owner-of-record for traceability.
         uploadedByUserId: input.link.createdByUserId,
         uploadedAtUtc: null,
+        },
       },
-    });
+      client,
+    ));
   } catch (err) {
+    if (err instanceof EvidencePartWriteRefused) {
+      if (err.code === "PART_INDEX_TAKEN") {
+        throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
+      }
+      if (err.code === "EVIDENCE_NOT_FOUND") {
+        throw new ExternalIntakeOrchestrationError("evidence_not_found");
+      }
+      throw new ExternalIntakeOrchestrationError("session_not_open_for_upload");
+    }
     if (
       err instanceof Prisma.PrismaClientKnownRequestError &&
       err.code === "P2002"

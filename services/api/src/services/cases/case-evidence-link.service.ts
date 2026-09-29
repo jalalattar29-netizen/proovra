@@ -31,6 +31,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { evaluateCrossTeamAttach } from "./case-permission.service.js";
 
 export type CaseEvidenceAuthorityErrorCode =
@@ -106,13 +107,13 @@ export async function attachEvidenceToCase(
 ): Promise<AttachEvidenceToCaseResult> {
   const caseRow = await client.case.findUnique({
     where: { id: input.caseId },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, ownerUserId: true },
   });
   if (!caseRow) throw new CaseEvidenceAuthorityError("case_not_found");
 
   const evidence = await client.evidence.findUnique({
     where: { id: input.evidenceId },
-    select: { id: true, teamId: true, deletedAt: true },
+    select: { id: true, teamId: true, ownerUserId: true, deletedAt: true },
   });
   if (!evidence) throw new CaseEvidenceAuthorityError("evidence_not_found");
   if (evidence.deletedAt) throw new CaseEvidenceAuthorityError("evidence_deleted");
@@ -126,6 +127,25 @@ export async function attachEvidenceToCase(
   if (!crossTeam.allowed) {
     throw new CaseEvidenceAuthorityError("cross_workspace_denied");
   }
+
+  // ET-SEC-09 / ET-SEC-16 — the tenancy proof lives HERE, in the one link
+  // authority, so no caller can skip it. A record with no workspace (legacy
+  // personal scope) may only join a case with no workspace that belongs to the
+  // SAME owner; null === null alone is not a shared tenant.
+  if (caseRow.teamId === null && evidence.ownerUserId !== caseRow.ownerUserId) {
+    throw new CaseEvidenceAuthorityError("evidence_not_found");
+  }
+  // The acting user must be allowed to change this record — decided by the
+  // canonical record-access engine (personal-owner rule for personal scope;
+  // current membership, role, expiry and organization lifecycle otherwise).
+  if (input.actorUserId) {
+    const access = await resolveEvidenceRecordAccess(
+      { userId: input.actorUserId, evidenceId: evidence.id, permission: "evidence.update_metadata" },
+      client,
+    );
+    if (!access.allowed) throw new CaseEvidenceAuthorityError("evidence_not_found");
+  }
+
 
   // Any-role lookup: ONE active link per (case, evidence) pair.
   const existing = await client.caseEvidenceLink.findFirst({
@@ -183,15 +203,6 @@ export type DetachEvidenceFromCaseInput = CaseEvidenceActorContext & {
   caseId: string;
   evidenceId: string;
   reason?: string | null;
-  /**
-   * Legacy UI semantics: the historical detach paths
-   * (DELETE /v1/cases/:id/evidence/:evidenceId and the bulk
-   * REMOVE_FROM_CASE action) also reset `Evidence.teamId` to null when
-   * the evidence leaves its (only) case. Only honoured when no link to
-   * any OTHER case remains, so a multi-linked record can never be pulled
-   * out of the workspace another case still requires.
-   */
-  clearEvidenceTeamIdWhenUnlinked?: boolean;
   /** Audit action override (default "cases.evidence_unlinked"). */
   auditAction?: string;
   auditMetadata?: Record<string, unknown>;
@@ -236,21 +247,10 @@ export async function detachEvidenceFromCase(
     });
     const removedLinkCount = res.count;
 
-    // Legacy UI semantics: when the evidence leaves its LAST case and the
-    // caller opted in, reset teamId so the record returns to the personal
-    // pool. Never honoured while any link to another case remains.
-    if (input.clearEvidenceTeamIdWhenUnlinked === true) {
-      const remaining = await tx.caseEvidenceLink.findFirst({
-        where: { evidenceId: evidence.id, NOT: { caseId: caseRow.id } },
-        select: { caseId: true },
-      });
-      if (!remaining) {
-        await tx.evidence.update({
-          where: { id: evidence.id },
-          data: { teamId: null },
-        });
-      }
-    }
+    // ET-SEC-02 — Invariant C: tenant ownership is independent of case
+    // linkage. Detaching (even the last) link never changes Evidence.teamId;
+    // the former "return to the personal pool" reset moved workspace evidence
+    // out of the workspace, escaping workspace/case holds and admin access.
 
     await emitTenantAudit(
       {

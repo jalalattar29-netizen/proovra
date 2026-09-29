@@ -405,11 +405,12 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
 
       const ok = await call({ method: "DELETE", url, token: a.memberToken });
       expect(ok.statusCode, ok.body).toBe(200);
-      expect(ok.json().evidence).toMatchObject({ id: ev.id, caseId: null, teamId: null });
+      expect(ok.json().evidence).toMatchObject({ id: ev.id, caseId: null, teamId: a.teamId });
       expect(await prisma.caseEvidenceLink.count({ where: { caseId: c.id, evidenceId: ev.id } })).toBe(0);
-      // Historical route semantics (clearEvidenceTeamIdWhenUnlinked): leaving
-      // its only case returns the record to the uploader's personal pool.
-      expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } })).teamId).toBeNull();
+      // ET-SEC-02 (Invariant C): leaving its only case never moves the record
+      // out of its workspace. The former "return to the personal pool" reset
+      // escaped workspace holds and admin access.
+      expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } })).teamId).toBe(a.teamId);
       const unlinked = await prisma.adminAuditLog.findFirstOrThrow({
         where: { action: "cases.evidence_unlinked", workspaceId: a.teamId, userId: a.memberUserId },
         orderBy: { createdAt: "desc" },

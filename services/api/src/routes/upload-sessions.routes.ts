@@ -205,6 +205,7 @@ function statusForDenial(
     case "session_not_active":
     case "session_already_completed":
     case "session_already_terminal":
+    case "evidence_not_writable":
     case "invalid_state_transition":
       return 409;
     default:

@@ -33,11 +33,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 const H = vi.hoisted(() => ({
-  cases: new Map<string, { id: string; teamId: string | null }>(),
+  cases: new Map<string, { id: string; teamId: string | null; ownerUserId: string }>(),
   evidence: new Map<
     string,
-    { id: string; teamId: string | null; deletedAt: Date | null }
+    { id: string; teamId: string | null; ownerUserId: string; deletedAt: Date | null }
   >(),
+  // Actors the (stubbed) canonical record-access engine refuses.
+  deniedActors: new Set<string>(),
   links: [] as Array<{
     id: string;
     teamId: string | null;
@@ -67,6 +69,17 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
       metadata: env.metadata ?? {},
     });
   },
+}));
+
+// The canonical record-access decision is exercised for real on live
+// PostgreSQL (evidence-lifecycle-p0.integration.test.ts, ET-SEC-09); here it is
+// stubbed so this suite can assert the link mechanics — while still proving the
+// authority CONSULTS it and refuses on its denial (H.deniedActors).
+vi.mock("../src/services/evidence/evidence-record-access.service.js", () => ({
+  resolveEvidenceRecordAccess: async (input: { userId: string }) =>
+    H.deniedActors.has(input.userId)
+      ? { allowed: false, internalReason: "not_a_member" }
+      : { allowed: true },
 }));
 
 vi.mock("../src/db.js", () => {
@@ -194,6 +207,7 @@ const ACTOR = "99999999-9999-4999-8999-999999999999";
 function seed(input?: {
   evidenceTeamId?: string | null;
   evidenceDeleted?: boolean;
+  personalEvidenceOwner?: string;
   links?: Array<{ caseId: string; evidenceId: string; role?: string }>;
 }) {
   H.cases.clear();
@@ -203,17 +217,20 @@ function seed(input?: {
   H.mutations = 0;
   H.evidenceWrites = 0;
   H.linkSeq = 0;
-  H.cases.set(CASE_TEAM, { id: CASE_TEAM, teamId: TEAM_A });
-  H.cases.set(CASE_TEAM_2, { id: CASE_TEAM_2, teamId: TEAM_A });
-  H.cases.set(CASE_PERSONAL, { id: CASE_PERSONAL, teamId: null });
+  H.deniedActors.clear();
+  H.cases.set(CASE_TEAM, { id: CASE_TEAM, teamId: TEAM_A, ownerUserId: ACTOR });
+  H.cases.set(CASE_TEAM_2, { id: CASE_TEAM_2, teamId: TEAM_A, ownerUserId: ACTOR });
+  H.cases.set(CASE_PERSONAL, { id: CASE_PERSONAL, teamId: null, ownerUserId: ACTOR });
   H.evidence.set(EV_TEAM, {
     id: EV_TEAM,
     teamId: input?.evidenceTeamId !== undefined ? input.evidenceTeamId : TEAM_A,
+    ownerUserId: ACTOR,
     deletedAt: input?.evidenceDeleted ? new Date() : null,
   });
   H.evidence.set(EV_PERSONAL, {
     id: EV_PERSONAL,
     teamId: null,
+    ownerUserId: input?.personalEvidenceOwner ?? ACTOR,
     deletedAt: null,
   });
   for (const l of input?.links ?? []) {
@@ -356,19 +373,41 @@ describe("Track 1B — attach matrix", () => {
   });
 });
 
+describe("ET-SEC-09 / ET-SEC-16 — the link authority proves tenancy itself", () => {
+  const OTHER_USER = "88888888-8888-4888-8888-888888888888";
+
+  it("a personal case cannot take another user's personal record: concealed as not found, ZERO mutation", async () => {
+    seed({ personalEvidenceOwner: OTHER_USER });
+    await expect(
+      attachEvidenceToCase({ caseId: CASE_PERSONAL, evidenceId: EV_PERSONAL, actorUserId: ACTOR }),
+    ).rejects.toMatchObject({ code: "evidence_not_found" });
+    expect(H.mutations).toBe(0);
+    expect(H.links).toHaveLength(0);
+  });
+
+  it("an actor the canonical record-access engine refuses cannot link, even inside one workspace", async () => {
+    seed();
+    H.deniedActors.add(ACTOR);
+    await expect(
+      attachEvidenceToCase({ caseId: CASE_TEAM, evidenceId: EV_TEAM, actorUserId: ACTOR }),
+    ).rejects.toMatchObject({ code: "evidence_not_found" });
+    expect(H.mutations).toBe(0);
+  });
+});
+
 describe("Track 1B — detach matrix", () => {
-  it("detach success: link removed + audit emitted (teamId reset honoured on last link)", async () => {
+  it("detach success on the LAST link: link removed + audit emitted, teamId NEVER reset (ET-SEC-02, Invariant C)", async () => {
     seed({ links: [{ caseId: CASE_TEAM, evidenceId: EV_TEAM }] });
     const result = await detachEvidenceFromCase({
       caseId: CASE_TEAM,
       evidenceId: EV_TEAM,
       actorUserId: ACTOR,
-      clearEvidenceTeamIdWhenUnlinked: true,
     });
     expect(result.detached).toBe(true);
     expect(result.removedLinkCount).toBe(1);
     expect(H.links).toHaveLength(0);
-    expect(H.evidence.get(EV_TEAM)?.teamId).toBeNull();
+    expect(H.evidence.get(EV_TEAM)?.teamId).toBe(TEAM_A);
+    expect(H.evidenceWrites).toBe(0);
     expect(H.audits).toHaveLength(1);
     expect(H.audits[0].action).toBe("cases.evidence_unlinked");
   });
@@ -397,7 +436,7 @@ describe("Track 1B — detach matrix", () => {
     expect(H.audits).toHaveLength(0);
   });
 
-  it("multi-linked evidence: teamId is NOT reset while another case still links the record", async () => {
+  it("multi-linked evidence: detaching one link leaves the other and teamId intact", async () => {
     seed({
       links: [
         { caseId: CASE_TEAM, evidenceId: EV_TEAM },
@@ -408,7 +447,6 @@ describe("Track 1B — detach matrix", () => {
       caseId: CASE_TEAM,
       evidenceId: EV_TEAM,
       actorUserId: ACTOR,
-      clearEvidenceTeamIdWhenUnlinked: true,
     });
     expect(result.detached).toBe(true);
     expect(H.evidence.get(EV_TEAM)?.teamId).toBe(TEAM_A);

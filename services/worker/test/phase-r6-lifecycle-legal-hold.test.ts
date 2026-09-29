@@ -11,7 +11,7 @@
  * closes that, mirroring the 4B portion of the canonical API-side
  * `isUnderLegalHold`.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -39,7 +39,7 @@ import { describe, expect, it } from "vitest";
 // one place, with the same fail-closed rule this suite pins above.
 describe("Phase R6 — both worker destruction stages consult the 4B hold (source contract)", () => {
   const evaluator = readFileSync(
-    fileURLToPath(new URL("../src/governance/effective-legal-hold.ts", import.meta.url)),
+    fileURLToPath(new URL("../../../packages/shared-runtime/src/governance/effective-legal-hold.ts", import.meta.url)),
     "utf8",
   );
 
@@ -77,16 +77,8 @@ describe("Phase R6 — both worker destruction stages consult the 4B hold (sourc
     expect(src).toMatch(/hasActiveCaseHold:\s*hasCaseScopedHold/);
   });
 
-  it("the worker copy is byte-identical to the api copy (no drift)", () => {
-    const api = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../../api/src/services/governance/effective-legal-hold.ts",
-          import.meta.url,
-        ),
-      ),
-      "utf8",
-    );
-    expect(evaluator).toBe(api);
+  it("there is no worker or api copy of the evaluator — one shared-runtime authority (ET-SEC-01)", () => {
+    expect(existsSync(fileURLToPath(new URL("../src/governance/effective-legal-hold.ts", import.meta.url)))).toBe(false);
+    expect(existsSync(fileURLToPath(new URL("../../api/src/services/governance/effective-legal-hold.ts", import.meta.url)))).toBe(false);
   });
 });

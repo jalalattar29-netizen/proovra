@@ -1634,7 +1634,6 @@ export async function casesRoutes(app: FastifyInstance) {
         actorUserId: userId,
         // Historical route semantics: leaving the (only) case also
         // resets the evidence's workspace binding.
-        clearEvidenceTeamIdWhenUnlinked: true,
         ipAddress: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
       });

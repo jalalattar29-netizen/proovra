@@ -141,13 +141,14 @@ describe("source-contract: resumable-upload mutating routes call the personal gu
 // =============================================================================
 
 describe("source-contract: POST /v1/evidence/:id/parts guards before the EvidencePart write", () => {
-  it("references the canonical guard and runs before tx.evidencePart.create", () => {
+  it("references the canonical guard and runs before the canonical EvidencePart write", () => {
     const src = read("routes/evidence.routes.ts");
     const routeAt = src.indexOf('"/v1/evidence/:id/parts"');
     expect(routeAt).toBeGreaterThan(-1);
     const guardAt = src.indexOf("NO-PERSONAL enforcement on ADDING a", routeAt);
     const assertAt = src.indexOf("assertPersonalSpaceAllowed", routeAt);
-    const createAt = src.indexOf("tx.evidencePart.create(", routeAt);
+    // ET-UPL-01 — the insert now goes through the ONE byte-write authority.
+    const createAt = src.indexOf("writeEvidencePart(", routeAt);
     expect(guardAt).toBeGreaterThan(routeAt);
     expect(assertAt).toBeGreaterThan(routeAt);
     expect(createAt).toBeGreaterThan(routeAt);

@@ -77,6 +77,7 @@ import {
   type EvidenceLifecycleBlockReason,
 } from "@proovra/shared";
 import { buildCustodyEventHash, canonicalJsonValue } from "@proovra/shared/custody-hash";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { createHash } from "node:crypto";
 
 /**
@@ -310,109 +311,125 @@ export async function executeEvidenceDestruction(
     return { ok: true, outcome: "ALREADY_DESTROYED" };
   }
 
-  // 1. THE CLAIM. One statement, decided by the database.
+  const priorState = preflight.lifecycleState;
+
+  // 1–4. THE DECISION — one transaction under the evidence lock.
   //
-  //    A fresh claim requires TRASHED. A takeover requires an EXPIRED
-  //    PENDING_DESTRUCTION claim. Both are expressed in the WHERE, so two
-  //    executors racing produce exactly one winner and the loser gets count 0.
-  const claim = await prisma.evidence.updateMany({
-    where: {
-      id: input.evidenceId,
-      OR: [
-        { lifecycleState: "TRASHED" },
-        // COMPATIBILITY, and it is load-bearing during a rolling deploy: a
-        // record trashed by a build that predates the state pointer carries
-        // `deleted_at` and a `lifecycle_state` that never caught up. Requiring
-        // the pointer alone would leave those records permanently unclaimable —
-        // eligible by every boundary, invisible to the one thing that could act
-        // on them. The canonical authority already resolves such a row as
-        // TRASHED (its fail-safe fallthrough); the claim now agrees with it.
-        {
-          deletedAt: { not: null },
-          lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION"] },
+  //    ET-SEC-01 (Invariant E, legal hold wins). The claim, the reload, the
+  //    legal-hold re-read and the eligibility recompute happen in ONE
+  //    transaction holding pg_advisory_xact_lock(hashtext(evidenceId)) — the
+  //    same lock evidence-scope hold placement takes. The caller's
+  //    `input.legalHold` is a pre-check only: the holds are re-read HERE, through
+  //    the one union evaluator, and a failure to read them is a hold (fail
+  //    closed). A refusal rolls the claim back atomically, so PENDING_DESTRUCTION
+  //    with a claim stamp now means exactly "decided with no hold in force".
+  class DecisionRefused extends Error {
+    constructor(readonly result: ExecuteEvidenceDestructionResult) {
+      super("destruction decision refused");
+    }
+  }
+  let evidence: Awaited<ReturnType<typeof loadForDecision>>;
+  async function loadForDecision(tx: PrismaClient) {
+    return tx.evidence.findUnique({
+      where: { id: input.evidenceId },
+      select: { ...EXECUTOR_SELECT, caseLinks: { select: { caseId: true } } },
+    });
+  }
+  try {
+    evidence = await prisma.$transaction(async (txClient) => {
+      const tx = txClient as unknown as PrismaClient;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
+
+      // THE CLAIM. A fresh claim requires TRASHED. A takeover requires an
+      // EXPIRED PENDING_DESTRUCTION claim. Both are expressed in the WHERE, so
+      // two executors racing produce exactly one winner.
+      const claim = await tx.evidence.updateMany({
+        where: {
+          id: input.evidenceId,
+          OR: [
+            { lifecycleState: "TRASHED" },
+            // COMPATIBILITY, and it is load-bearing during a rolling deploy: a
+            // record trashed by a build that predates the state pointer carries
+            // `deleted_at` and a `lifecycle_state` that never caught up. The
+            // canonical authority already resolves such a row as TRASHED.
+            {
+              deletedAt: { not: null },
+              lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION"] },
+            },
+            // A governance record approved for destruction, whose previous claim
+            // expired or was never stamped.
+            { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: { lt: leaseCutoff } },
+            { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: null },
+          ],
         },
-        // A governance record approved for destruction, whose previous claim
-        // expired or was never stamped.
+        data: { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: now },
+      });
+      if (claim.count !== 1) throw new DecisionRefused({ ok: false, outcome: "CLAIM_HELD" });
+
+      const row = await loadForDecision(tx);
+      if (!row) throw new DecisionRefused({ ok: false, outcome: "NOT_FOUND" });
+
+      let heldNow = true;
+      try {
+        const held = await evaluateEffectiveLegalHold(tx, {
+          teamId: row.teamId,
+          evidenceId: row.id,
+          caseIds: row.caseLinks.map((l) => l.caseId),
+        });
+        heldNow = held.held;
+      } catch {
+        // Hold truth cannot be established — that is a hold.
+        heldNow = true;
+      }
+
+      // RECOMPUTE against the canonical authority. `lifecycleState` is
+      // PENDING_DESTRUCTION here — a governance-internal posture — so the
+      // authority resolves the product state from the lifecycle timestamps and
+      // sees TRASHED. Every boundary (trash grace, application retention, Object
+      // Lock, legal hold, approval, permanent lock) is the authority's answer.
+      const eligibility = computeEvidenceDestructionEligibility(
         {
-          lifecycleState: "PENDING_DESTRUCTION",
-          destructionClaimedAtUtc: { lt: leaseCutoff },
+          lifecycleState: row.lifecycleState,
+          archivedAt: row.archivedAt,
+          trashedAt: row.deletedAt,
+          destroyedAt: row.destroyedAtUtc,
+          lockedAt: row.lockedAt,
+          trashGraceUntil: row.deleteScheduledForUtc,
+          appRetentionUntil: row.retentionUntilUtc,
+          objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
+          objectLockMode: row.storageObjectLockMode,
+          legalHold: input.legalHold || heldNow,
+          destructionApprovalRequired: input.destructionApprovalRequired ?? false,
+          destructionApproved: input.destructionApproved ?? false,
         },
-        {
-          lifecycleState: "PENDING_DESTRUCTION",
-          destructionClaimedAtUtc: null,
-        },
-      ],
-    },
-    data: {
-      lifecycleState: "PENDING_DESTRUCTION",
-      destructionClaimedAtUtc: now,
-    },
-  });
-  if (claim.count !== 1) return { ok: false, outcome: "CLAIM_HELD" };
+        now,
+      );
+      if (!eligibility.eligible) {
+        throw new DecisionRefused({
+          ok: false,
+          outcome: "BLOCKED",
+          reason: eligibility.blockReason ?? "NOT_TRASHED",
+        });
+      }
+      return row;
+    });
+  } catch (err) {
+    if (err instanceof DecisionRefused) return err.result;
+    throw err;
+  }
+  if (!evidence) return { ok: false, outcome: "NOT_FOUND" };
 
   /**
    * Put the record back where it was — WHERE IT WAS, not where the ordinary
-   * path would have found it.
-   *
-   * This used to restore TRASHED unconditionally, which is right for the trash
-   * path and wrong for the governance one: a record approved for destruction
-   * that had never been in anybody's trash would have been released INTO the
-   * trash by a failed attempt, where an ordinary user could then restore it.
-   * A refusal must leave the record exactly as it found it.
+   * path would have found it. A refusal after the decision (storage-side) must
+   * leave the record exactly as it found it.
    */
-  const priorState = preflight.lifecycleState;
   const releaseClaim = async () => {
     await prisma.evidence.updateMany({
       where: { id: input.evidenceId, lifecycleState: "PENDING_DESTRUCTION" },
       data: { lifecycleState: priorState, destructionClaimedAtUtc: null },
     });
   };
-
-  // 2. RELOAD inside the claim.
-  const evidence = await prisma.evidence.findUnique({
-    where: { id: input.evidenceId },
-    select: EXECUTOR_SELECT,
-  });
-  if (!evidence) {
-    return { ok: false, outcome: "NOT_FOUND" };
-  }
-
-  // 3. RECOMPUTE against the canonical authority.
-  //
-  //    `lifecycleState` is PENDING_DESTRUCTION at this point — a
-  //    governance-internal posture, not a product state — so the authority
-  //    resolves the product state from the lifecycle event timestamps and sees
-  //    TRASHED, which is exactly what it must see to consider destruction at
-  //    all. Nothing here re-implements a boundary; every one of them (trash
-  //    grace, application retention, Object Lock, legal hold, approval,
-  //    permanent lock) is the authority's answer.
-  const eligibility = computeEvidenceDestructionEligibility(
-    {
-      lifecycleState: evidence.lifecycleState,
-      archivedAt: evidence.archivedAt,
-      trashedAt: evidence.deletedAt,
-      destroyedAt: evidence.destroyedAtUtc,
-      lockedAt: evidence.lockedAt,
-      trashGraceUntil: evidence.deleteScheduledForUtc,
-      appRetentionUntil: evidence.retentionUntilUtc,
-      objectLockRetainUntil: evidence.storageObjectLockRetainUntilUtc,
-      objectLockMode: evidence.storageObjectLockMode,
-      legalHold: input.legalHold,
-      destructionApprovalRequired: input.destructionApprovalRequired ?? false,
-      destructionApproved: input.destructionApproved ?? false,
-    },
-    now,
-  );
-
-  // 4. FAIL CLOSED.
-  if (!eligibility.eligible) {
-    await releaseClaim();
-    return {
-      ok: false,
-      outcome: "BLOCKED",
-      reason: eligibility.blockReason ?? "NOT_TRASHED",
-    };
-  }
 
   // 5. ENUMERATE. Everything the Evidence record owns bytes for.
   const targets = await enumerateStorageTargets(prisma, evidence.id, evidence, storage);
@@ -605,8 +622,12 @@ export async function executeEvidenceDestruction(
     });
 
     // The tombstone. The row stays; the content pointers do not.
-    await tx.evidence.update({
-      where: { id: evidence.id },
+    // ET-SEC-12 — the tombstone is written only over THIS executor's own
+    // decided claim. Any other state (a claim lost to a takeover, a record moved
+    // underneath us) rolls the whole transaction back rather than writing
+    // DESTROYED over it.
+    const tombstoned = await tx.evidence.updateMany({
+      where: { id: evidence.id, lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: now },
       data: {
         lifecycleState: "DESTROYED",
         destroyedAtUtc: now,
@@ -617,6 +638,9 @@ export async function executeEvidenceDestruction(
         activeDestructionReviewId: null,
       },
     });
+    if (tombstoned.count !== 1) {
+      throw new Error("destruction tombstone refused: the decided claim is no longer held by this executor");
+    }
 
     // The governance ledger row IS the per-evidence destruction certificate for
     // a WORKSPACE record. One row, one hash, minted here and nowhere else.

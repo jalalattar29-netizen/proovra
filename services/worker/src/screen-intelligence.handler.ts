@@ -30,7 +30,7 @@ import type { OcrExtractResult } from "@proovra/shared";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { getObjectRange, putObjectBuffer, deleteObject } from "./storage.js";
-import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { produceVideoKeyframes } from "./ffmpeg-derived-assets.js";
 import { createTesseractOcrProvider } from "./tesseract-ocr-provider.js";
 import { detectTesseractCapability } from "./tesseract-capability.js";
