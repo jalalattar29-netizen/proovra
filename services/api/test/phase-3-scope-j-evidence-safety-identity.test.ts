@@ -101,7 +101,7 @@ type CustodyRow = { id: string; evidenceId: string; actorUserId: string };
 // A verification report/package projection stores the custodian id it
 // was generated with — it must NOT be re-resolved live.
 type ReportRow = { id: string; evidenceId: string; custodianUserId: string };
-type AuditRow = { action: string; resourceId: string | null; hash: string };
+type AuditRow = { action: string; resourceId: string | null; hash: string; createdAt: Date };
 
 let uid = 0;
 function nid(): string {
@@ -346,12 +346,14 @@ function makeFake() {
       async create({
         data,
       }: {
-        data: { action: string; resourceId: string | null };
+        data: { action: string; resourceId: string | null; createdAt: Date };
       }) {
         audit.push({
           action: data.action,
           resourceId: data.resourceId,
           hash: `hash-${audit.length + 1}`,
+          // ET-CUS-05: the chain reads the head createdAt; keep what it wrote.
+          createdAt: data.createdAt,
         });
         return audit[audit.length - 1];
       },

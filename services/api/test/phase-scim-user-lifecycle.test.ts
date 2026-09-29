@@ -84,7 +84,7 @@ type MemberRow = {
 
 type EvidenceRow = { id: string; ownerUserId: string; deletedAt: Date | null };
 type CustodyRow = { id: string; evidenceId: string; actorUserId: string };
-type AuditRow = { action: string; resourceId: string | null; hash: string };
+type AuditRow = { action: string; resourceId: string | null; hash: string; createdAt: Date };
 
 let uid = 0;
 function nid(): string {
@@ -333,11 +333,13 @@ function makeFake() {
       async findFirst() {
         return audit.length ? audit[audit.length - 1] : null;
       },
-      async create({ data }: { data: { action: string; resourceId: string | null } }) {
+      async create({ data }: { data: { action: string; resourceId: string | null; createdAt: Date } }) {
         audit.push({
           action: data.action,
           resourceId: data.resourceId,
           hash: `hash-${audit.length + 1}`,
+          // ET-CUS-05: the chain reads the head createdAt; keep what it wrote.
+          createdAt: data.createdAt,
         });
         return audit[audit.length - 1];
       },

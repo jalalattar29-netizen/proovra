@@ -36,6 +36,9 @@ vi.mock("../src/db.js", () => {
               return { role: "ORG_OWNER", status: "ACTIVE", validUntilUtc: null };
             if (model === "organizationSecurityPolicy" && method === "findUnique")
               return { organizationId: "org-1", policyVersion: 1 }; // existing v1 → patch bumps to v2
+            // The audit chain head: an empty chain (a real select returns null or
+            // { hash, createdAt }, never an empty object) — ET-CUS-05 reads createdAt.
+            if (model === "adminAuditLog" && method === "findFirst") return null;
             if (method === "updateMany") return { count: 1 };
             return {};
           };

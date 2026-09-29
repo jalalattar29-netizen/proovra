@@ -145,8 +145,10 @@ describe("Phase 12 Point 3 — dropped schema objects cannot be resurrected", ()
 
   it("exactly ONE module writes the canonical legal-hold store", () => {
     const WRITE_RE =
-      /(prisma|client|db|tx)\s*\.\s*evidenceLegalHold\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
-    const roots = ["services/api/src", "services/worker/src"];
+      // ANY receiver (ET-CUS-03 moved the writes onto a local `c`, which the
+      // fixed receiver list prisma|client|db|tx stopped seeing), in every tree.
+      /\b[A-Za-z_$][\w$]*\s*\.\s*evidenceLegalHold\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
+    const roots = ["services/api/src", "services/worker/src", "packages/shared-runtime/src"];
     const writers: string[] = [];
     const walk = (dir: string) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -363,7 +365,9 @@ describe("Phase 12 Point 4 — no test is skipped in either project", () => {
 // repeated — this block adds the RUNTIME halves that had no guard.
 // =============================================================================
 
-const RUNTIME_ROOTS = ["services/api/src", "services/worker/src"];
+// shared-runtime is runtime code both hosts import (ET-CUS-05 moved the one
+// audit writer there), so every guard below scans it too.
+const RUNTIME_ROOTS = ["services/api/src", "services/worker/src", "packages/shared-runtime/src"];
 
 function runtimeTsFiles(): string[] {
   const out: string[] = [];
