@@ -8311,7 +8311,10 @@ return {
         relationshipType: body.relationshipType,
         note: body.note ?? null,
         createdByUserId: userId,
-        teamId: evidence.teamId ?? target.teamId ?? null,
+        // ET-SEC-07: both records must share one workspace (enforced inside).
+        source: evidence,
+        target,
+        teamId: evidence.teamId ?? null,
       });
 
       await appendReviewerAuditEvent({

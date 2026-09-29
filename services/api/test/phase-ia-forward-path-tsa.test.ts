@@ -168,9 +168,6 @@ describe("Phase IA-forward-path-TSA — service uses the bounded parser", () => 
     // failed() writes an empty token unless the reply bytes are passed in.
     expect(SERVICE).toMatch(/tokenBase64: "",\s*messageImprint: null,/);
   });
-    expect(block).toMatch(/tokenBase64:\s*""/);
-    expect(block).toMatch(/failureCode:\s*classified\.code/);
-  });
 });
 
 // ============================================================================

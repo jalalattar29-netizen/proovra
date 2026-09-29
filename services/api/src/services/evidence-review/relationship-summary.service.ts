@@ -113,12 +113,41 @@ function mapRelationship(
   };
 }
 
+/**
+ * THE RELATIONSHIP WORKSPACE BOUNDARY (ET-SEC-07, 2026-09-29).
+ *
+ * A relationship joins two records of ONE workspace: the same Team, or — for a
+ * personal record with no Team — the same owner. A link across workspaces
+ * exposed the other record's title, status and case to every reader of this
+ * one, so it is refused on write and never listed on read (rows written before
+ * the boundary existed stay stored but are invisible).
+ */
+type RelationshipScopeRecord = { teamId: string | null; ownerUserId: string };
+
+export function sameRelationshipWorkspace(a: RelationshipScopeRecord, b: RelationshipScopeRecord): boolean {
+  if (a.teamId || b.teamId) return a.teamId === b.teamId;
+  return a.ownerUserId === b.ownerUserId;
+}
+
+function relationshipScopeWhere(anchor: RelationshipScopeRecord): Prisma.EvidenceWhereInput {
+  return anchor.teamId ? { teamId: anchor.teamId } : { teamId: null, ownerUserId: anchor.ownerUserId };
+}
+
 export async function listEvidenceRelationships(
   evidenceId: string
 ): Promise<EvidenceRelationshipSummary[]> {
+  const anchor = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { teamId: true, ownerUserId: true },
+  });
+  if (!anchor) return [];
+  const scope = relationshipScopeWhere(anchor);
   const items = await prisma.evidenceRelationship.findMany({
     where: {
-      OR: [{ sourceEvidenceId: evidenceId }, { targetEvidenceId: evidenceId }],
+      OR: [
+        { sourceEvidenceId: evidenceId, targetEvidence: scope },
+        { targetEvidenceId: evidenceId, sourceEvidence: scope },
+      ],
     },
     orderBy: { createdAt: "desc" },
     select: evidenceRelationshipSelect,
@@ -130,6 +159,9 @@ export async function listEvidenceRelationships(
 export async function createEvidenceRelationship(params: {
   sourceEvidenceId: string;
   targetEvidenceId: string;
+  /** Both records' scope; the caller has already authorized each of them. */
+  source: RelationshipScopeRecord;
+  target: RelationshipScopeRecord;
   relationshipType: prismaPkg.EvidenceRelationshipType;
   note?: string | null;
   createdByUserId?: string | null;
@@ -145,6 +177,14 @@ export async function createEvidenceRelationship(params: {
       message: "A record can't be linked to itself. Enter a different evidence record ID.",
       developerMessage: "Evidence relationship source and target must differ",
     });
+  }
+
+  if (!sameRelationshipWorkspace(params.source, params.target)) {
+    // Answered exactly like an unreadable target: the other workspace's
+    // record is not confirmed to exist.
+    const err: Error & { statusCode?: number } = new Error("Evidence not found");
+    err.statusCode = 404;
+    throw err;
   }
 
   const relationship = await prisma.evidenceRelationship.create({
