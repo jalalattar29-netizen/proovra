@@ -1,4 +1,8 @@
-import { getReviewerEvidenceTypeLabel } from "@proovra/shared";
+import {
+  evidenceRecordStatusLabel,
+  evidenceRecordStatusTone,
+  getReviewerEvidenceTypeLabel,
+} from "@proovra/shared";
 import type { AppTone } from "../../../../components/app-primitives";
 import type {
   DetailWorkspaceState,
@@ -166,20 +170,9 @@ export function getDisplayTitle(item: DisplayTitleInput): string {
 }
 
 export function getRecordStatusLabel(status: string | null | undefined): string {
-  switch (String(status ?? "").trim().toUpperCase()) {
-    case "REPORTED":
-      return "Reported";
-    case "SIGNED":
-      return "Signed";
-    case "UPLOADED":
-      return "Uploaded";
-    case "UPLOADING":
-      return "Uploading";
-    case "CREATED":
-      return "Created";
-    default:
-      return "Status not recorded";
-  }
+  // ET-SM-08 — the shared authority; FAILED_HASH_MISMATCH is "Integrity check
+  // failed", not "Status not recorded".
+  return evidenceRecordStatusLabel(status);
 }
 
 export function getVerificationStatusLabel(status: string | null | undefined): string {
@@ -269,16 +262,7 @@ export function getStructureLabel(
 export function getRecordStatusSemanticTone(
   status: string | null | undefined,
 ): "neutral" | "success" | "warning" | "danger" | "processing" {
-  switch (String(status ?? "").trim().toUpperCase()) {
-    case "REPORTED":
-    case "SIGNED":
-      return "success";
-    case "UPLOADING":
-    case "CREATED":
-      return "processing";
-    default:
-      return "neutral";
-  }
+  return evidenceRecordStatusTone(status);
 }
 
 /** Canonical AppTone for a bare status string. ONE translation point. */

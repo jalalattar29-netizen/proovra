@@ -12,7 +12,12 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(HERE, "../src/product/evidence-library.ts"), "utf8");
+const SHARED_STATUS_URL =
+  "data:text/javascript," +
+  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/evidence-record-status.js"), "utf8"));
+const src = readFileSync(resolve(HERE, "../src/product/evidence-library.ts"), "utf8")
+  .replace(/^import type .*$/gm, "")
+  .replace('"@proovra/shared"', JSON.stringify(SHARED_STATUS_URL));
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;

@@ -2499,3 +2499,6 @@ export * from "./tsa-validation-state.js";
 
 // ET-CUS-13 — THE one custody event label (report, web and mobile timelines).
 export * from "./custody-labels.js";
+
+// ET-SM-08 — THE one evidence record-status label and tone (web + mobile).
+export * from "./evidence-record-status.js";

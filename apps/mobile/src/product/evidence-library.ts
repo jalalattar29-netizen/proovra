@@ -9,6 +9,7 @@
  */
 import type { ProovraStatusTone } from "@proovra/ui";
 import type { EvidenceBulkActionName } from "@proovra/shared";
+import { evidenceRecordStatusLabel } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -362,22 +363,13 @@ export function shortId(value: string | null | undefined): string {
   return `${text.slice(0, 8)}…${text.slice(-6)}`;
 }
 
-/** getRecordStatusLabel (evidence-library-status.ts:168). */
+/**
+ * ET-SM-08 — THE shared record-status label (@proovra/shared), the same one
+ * the web library reads. This copy had no FAILED_HASH_MISMATCH case and showed
+ * an integrity failure as "Status not recorded".
+ */
 export function recordStatusLabel(status: string | null | undefined): string {
-  switch (String(status ?? "").trim().toUpperCase()) {
-    case "REPORTED":
-      return "Reported";
-    case "SIGNED":
-      return "Signed";
-    case "UPLOADED":
-      return "Uploaded";
-    case "UPLOADING":
-      return "Uploading";
-    case "CREATED":
-      return "Created";
-    default:
-      return "Status not recorded";
-  }
+  return evidenceRecordStatusLabel(status);
 }
 
 /** getVerificationStatusLabel (evidence-library-status.ts:185). */

@@ -3117,7 +3117,10 @@ function recentEvidenceTrustChip(it: WorkspaceEvidenceItem): {
   if (status === "UPLOADING" || status === "CREATED") {
     return { label: "In progress", tone: "warn" };
   }
-  if (status === "UPLOADED") return { label: "Needs report", tone: "warn" };
+  // ET-SM-08 — an integrity failure is never "Recorded"; UPLOADED is a legacy
+  // value nothing writes, and is not presented as work to do ("Needs report").
+  if (status === "FAILED_HASH_MISMATCH") return { label: "Integrity check failed", tone: "danger" };
+  if (status === "UPLOADED") return { label: "Uploaded (legacy)", tone: "neutral" };
   return { label: "Recorded", tone: "neutral" };
 }
 
