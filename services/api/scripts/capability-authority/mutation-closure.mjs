@@ -190,6 +190,12 @@ const FAMILY_RULES = Object.freeze([
    * mutates the record, and it does not.
    */
   [/^batchAnalysisJob(Item)?$/, "AUTOMATION_QUEUE_WEBHOOK"],
+  /**
+   * ET-Q-05 (2026-09-29) — where a bounded worker sweep resumes (keyset
+   * cursor per sweep key). Sweep machinery, like the queue it feeds: it never
+   * writes a record, a hold or a destruction decision.
+   */
+  [/^workerSweepCursor$/, "AUTOMATION_QUEUE_WEBHOOK"],
   /** The provider's own inbound event log, written by the signed webhook. */
   [/^(stripeWebhookEvent|paypalWebhookEvent)$/, "BILLING_SUBSCRIPTION_SEAT"],
   /**

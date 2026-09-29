@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1304
+TerminalWriters                             1306
 ROUTE_ATTRIBUTED_REACHABLE                  1166
-JOB_ATTRIBUTED_REACHABLE                     119
+JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          16
@@ -579,3 +579,17 @@ node services/api/scripts/audit/index.mjs --closure-check
   line-independent `match` block.
 - The other B8 fixes change reads, projections, copy and worker return values;
   no other bucket moves.
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION B9: QUEUES (writers 1304 -> 1306)
+
+- ET-Q-05: `writeSweepCursor` (`workerSweepCursor.upsert`, new table
+  `worker_sweep_cursors`) — the trash-grace sweep's resume point (+1).
+- ET-Q-04: `releaseDerivativeClaim` (`redactionDerivative.updateMany`,
+  RENDERING -> QUEUED after a transient failure) (+1).
+- Both are reached from worker job/sweep paths: TerminalWriters 1304 -> 1306,
+  JOB_ATTRIBUTED_REACHABLE 119 -> 121.
+- Instrument: `workerSweepCursor` is mapped to AUTOMATION_QUEUE_WEBHOOK (sweep
+  machinery); the reviewed demo follow-up fetch is re-anchored :459 -> :468
+  and its note corrected (the url is built from `internalApiBase`).
+- ET-Q-07 is left open: wiring or retiring the five producer-less queues is an
+  owner decision.

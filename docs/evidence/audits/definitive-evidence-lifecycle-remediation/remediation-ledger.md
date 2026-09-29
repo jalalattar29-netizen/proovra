@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 73 |
+| FIXED_IN_THIS_TASK | 80 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 80 |
+| STILL_PRESENT | 73 |
 
-Open by severity: P0 0 · P1 0 · P2 50 · P3 30
+Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -83,16 +83,16 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 | ET-PKG-06 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-Q-03 | P2 | STILL_PRESENT |  |  |  |
-| ET-Q-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-Q-05 | P2 | STILL_PRESENT |  |  |  |
-| ET-Q-06 | P2 | STILL_PRESENT |  |  |  |
-| ET-REC-02 | P2 | FIXED_IN_THIS_TASK | shared parseOtsBudgetExhaustedFingerprint: the OTS probe resolves it when otsStatus leaves FAILED; entryForIncident routes it to the ots_failure entry | a35244ea60 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-02: offered Resume; stays open while failing; resolves when anchored] |
-| ET-REC-03 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime resolveEvidenceWorkspaceIds (batched; resolveEvidenceWorkspaceId delegates) used by loadEvidenceOutputFacts | 7726a1b540 | services/api/test/output-facts-null-team-workspace.integration.test.ts; services/api/test/artifact-action-contract.integration.test.ts |
-| ET-REC-04 | P2 | FIXED_IN_THIS_TASK | mobile ops-console buildRemediateBody + remediationReasonReady; the inspector collects the reason | 2223b6502a | apps/mobile/test/ops-remediation-reason.test.mjs |
-| ET-RPT-01 | P2 | FIXED_IN_THIS_TASK | reports-aggregator classifyWorkspaceOutputs reportUpdateFailed (READY + latest report request failed) → reportsUpdateFailed card, report_update_failed filter, row report.updateFailed | 717dad0252 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-01]; services/api/test/reports-summary-filter-parity.integration.test.ts (tile = filter total); apps/web/__tests__/reports-lifecycle-deep-link.test.ts; apps/mobile/test/reports.test.mjs |
-| ET-RPT-02 | P2 | FIXED_IN_THIS_TASK | toReportLifecycle/toPackageLifecycle: canonical BLOCKED → 'blocked' (server, web fallback, mobile fallback); reportsBlocked card + report_blocked filter | 717dad0252 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-02: every row the Packages blocked card opens says blocked]; apps/mobile/test/reports.test.mjs |
-| ET-RPT-03 | P2 | FIXED_IN_THIS_TASK | worker finalized report path: evaluateEffectiveLegalHold → ReportRecordLegalHold (ACTIVE/NONE/UNAVAILABLE) → reportLegalHoldLabel; storage header its own 'Storage Object Lock legal hold' row | 0ec7406c30 | services/worker/test/report-legal-hold-truth.test.ts |
+| ET-Q-03 | P2 | FIXED_IN_THIS_TASK | shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun | f89f4909a3 | services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03: COMPLETED; FAILED kind_not_implemented / evidence_scope_mismatch] |
+| ET-Q-04 | P2 | FIXED_IN_THIS_TASK | redaction-derivative-writer: claimDerivativeForRender (QUEUED or lease-expired RENDERING, REDACTION_RENDER_LEASE_MS from the registry), releaseDerivativeClaim; reconciler lists lease-expired RENDERING | e950ba769b, 3b566105b8 | services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04: stale taken over, live not stolen, transient releases] |
+| ET-Q-05 | P2 | FIXED_IN_THIS_TASK | worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId | ff7965066d | services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05: next tick passes the blocked rows; dry run does not move the cursor] |
+| ET-Q-06 | P2 | FIXED_IN_THIS_TASK | services/worker/src/index.ts startConsumers() — every Worker autorun:false; called once after bootstrapObjectLockVerification | c5650faa4b | services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06: all autorun off, one .run() site, one call after storage bootstrap] |
+| ET-REC-02 | P2 | FIXED_IN_THIS_TASK | shared parseOtsBudgetExhaustedFingerprint: the OTS probe resolves it when otsStatus leaves FAILED; entryForIncident routes it to the ots_failure entry | a35244ea60, 4421a752c9 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-02: offered Resume; stays open while failing; resolves when anchored] |
+| ET-REC-03 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime resolveEvidenceWorkspaceIds (batched; resolveEvidenceWorkspaceId delegates) used by loadEvidenceOutputFacts | 7726a1b540, 4421a752c9 | services/api/test/output-facts-null-team-workspace.integration.test.ts; services/api/test/artifact-action-contract.integration.test.ts |
+| ET-REC-04 | P2 | FIXED_IN_THIS_TASK | mobile ops-console buildRemediateBody + remediationReasonReady; the inspector collects the reason | 2223b6502a, 4421a752c9 | apps/mobile/test/ops-remediation-reason.test.mjs |
+| ET-RPT-01 | P2 | FIXED_IN_THIS_TASK | reports-aggregator classifyWorkspaceOutputs reportUpdateFailed (READY + latest report request failed) → reportsUpdateFailed card, report_update_failed filter, row report.updateFailed | 717dad0252, 4421a752c9 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-01]; services/api/test/reports-summary-filter-parity.integration.test.ts (tile = filter total); apps/web/__tests__/reports-lifecycle-deep-link.test.ts; apps/mobile/test/reports.test.mjs |
+| ET-RPT-02 | P2 | FIXED_IN_THIS_TASK | toReportLifecycle/toPackageLifecycle: canonical BLOCKED → 'blocked' (server, web fallback, mobile fallback); reportsBlocked card + report_blocked filter | 717dad0252, 4421a752c9 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-02: every row the Packages blocked card opens says blocked]; apps/mobile/test/reports.test.mjs |
+| ET-RPT-03 | P2 | FIXED_IN_THIS_TASK | worker finalized report path: evaluateEffectiveLegalHold → ReportRecordLegalHold (ACTIVE/NONE/UNAVAILABLE) → reportLegalHoldLabel; storage header its own 'Storage Object Lock legal hold' row | 0ec7406c30, 4421a752c9 | services/worker/test/report-legal-hold-truth.test.ts |
 | ET-SEC-11 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-12 | P2 | FIXED_IN_THIS_TASK | lifecycle service: locked re-read + fresh capability + conditional updateMany; governance transitionLifecycle: locked conditional updateMany (no destruction claim); executor tombstone: conditional on its own claim | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-12 concurrent restores produce one custody event] and [ET-SEC-12 (STATEMACHINE-04) an operator transition cannot resurrect a record the executor is destroying] |
 | ET-SEC-13 | P2 | STILL_PRESENT |  |  |  |
@@ -141,21 +141,21 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 | ET-PKG-15 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-17 | P3 | STILL_PRESENT |  |  |  |
 | ET-Q-07 | P3 | STILL_PRESENT |  |  |  |
-| ET-Q-08 | P3 | STILL_PRESENT |  |  |  |
-| ET-Q-09 | P3 | STILL_PRESENT |  |  |  |
-| ET-Q-10 | P3 | STILL_PRESENT |  |  |  |
-| ET-REC-01 | P3 | FIXED_IN_THIS_TASK | ots-anchoring-authority: collapsed → { requested: false, reason: 'collapsed' } → executor ALREADY_IN_PROGRESS | 304d5c2c2a, a35244ea60 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-01] |
-| ET-REC-05 | P3 | FIXED_IN_THIS_TASK | ops.routes remediate: non-2xx also sends error { code: remediation_<result>, message, remediation }; operations/page.tsx shows it | 51797a4ddc | apps/web/__tests__/operations-remediation-outcome-envelope.test.ts (real apiFetch) |
-| ET-REC-06 | P3 | FIXED_IN_THIS_TASK | @proovra/shared OTS_PERMANENT_PROOF_FAILURES (worker re-exports); registry drops Resume from the record's facts; executor NOT_ELIGIBLE | a35244ea60 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-06] |
-| ET-REC-07 | P3 | FIXED_IN_THIS_TASK | remediation-registry remediationAuditOutcome (both paths) | 98f95a99dc | services/api/test/remediation-audit-outcome.test.ts; services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-07] |
-| ET-REC-08 | P3 | FIXED_IN_THIS_TASK | queue-replay-action settledReportRequestFor (SETTLED_REPORT_REQUEST_STATES) → 409 report_request_settled | 580c5eb20f | services/api/test/runtime-proof-operations.integration.test.ts [ET-REC-08] |
-| ET-REC-09 | P3 | FIXED_IN_THIS_TASK | communications.routes transitionCommunicationForOperator (conditional updateMany + tenant audit in one transaction) | 9cc1e1b56a | services/api/test/communications-retry-audit.integration.test.ts |
-| ET-REC-10 | P3 | FIXED_IN_THIS_TASK | one budget: report-generation-authority opens the exhausted incident at FAILED_TERMINAL (REPORT_RECONCILE_MAX_ATTEMPTS) | 9e8a0514b0 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-REC-10 + D3] |
-| ET-REC-11 | P3 | FIXED_IN_THIS_TASK | automation-triggers detectTimeBasedAutomationTriggers: EVIDENCE_REPORTED detected from issued Report rows (report.issued:<reportId>), workspace by resolveEvidenceWorkspaceIds | b73bfbd586 | services/api/test/automation-evidence-reported-issued.integration.test.ts; services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts |
-| ET-RPT-04 | P3 | FIXED_IN_THIS_TASK | shared OUTPUT_ACTION_UNAVAILABLE_REASONS ACTIONS_UNAVAILABLE (+ copy); aggregator: degraded section, 15 s poll | 717dad0252 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-04] |
-| ET-RPT-05 | P3 | FIXED_IN_THIS_TASK | ReportsIndex summaryAnswered (loading phase) + fallback-view notice | 717dad0252 | apps/web/__tests__/reports-lifecycle-deep-link.test.ts |
-| ET-RPT-06 | P3 | FIXED_IN_THIS_TASK | readGenerationOutcome tone → app-status-text data-tone (GENERATION_OUTCOME_STATUS_TONE) | 717dad0252 | apps/web/__tests__/reports-lifecycle-deep-link.test.ts |
-| ET-RPT-07 | P3 | FIXED_IN_THIS_TASK | worker runReportGeneration → ReportRunResult (generated / package_built / pair_complete / already_issued) → resultReportId = that (evidence, version) row | df2a28cef1 | services/api/test/point5/report-package-recovery.integration.test.ts |
+| ET-Q-08 | P3 | FIXED_IN_THIS_TASK | report DLQ written only by the terminal (non-retriable) branch with a bounded code; media-intelligence DLQ written on a job's final attempt (job-event-context isFinalAttempt / boundedErrorCode) | d821f1419d | services/worker/test/job-event-context.test.ts |
+| ET-Q-09 | P3 | FIXED_IN_THIS_TASK | services/worker/src/job-event-context.ts (jobCommandId, isExpectedOtsPendingError); UnprocessableJobPayload extends BullMQ UnrecoverableError | d2b0d7da95 | services/worker/test/job-event-context.test.ts |
+| ET-Q-10 | P3 | FIXED_IN_THIS_TASK | intelligence-run-reconciler selectChunksOwingEmbedding (embedding_vector IS NULL, AI policy allows embeddings) | a7ee273c80 | services/api/test/embed-owed-predicate.integration.test.ts |
+| ET-REC-01 | P3 | FIXED_IN_THIS_TASK | ots-anchoring-authority: collapsed → { requested: false, reason: 'collapsed' } → executor ALREADY_IN_PROGRESS | 304d5c2c2a, a35244ea60, 4421a752c9 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-01] |
+| ET-REC-05 | P3 | FIXED_IN_THIS_TASK | ops.routes remediate: non-2xx also sends error { code: remediation_<result>, message, remediation }; operations/page.tsx shows it | 51797a4ddc, 4421a752c9 | apps/web/__tests__/operations-remediation-outcome-envelope.test.ts (real apiFetch) |
+| ET-REC-06 | P3 | FIXED_IN_THIS_TASK | @proovra/shared OTS_PERMANENT_PROOF_FAILURES (worker re-exports); registry drops Resume from the record's facts; executor NOT_ELIGIBLE | a35244ea60, 4421a752c9 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-06] |
+| ET-REC-07 | P3 | FIXED_IN_THIS_TASK | remediation-registry remediationAuditOutcome (both paths) | 98f95a99dc, 4421a752c9 | services/api/test/remediation-audit-outcome.test.ts; services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-07] |
+| ET-REC-08 | P3 | FIXED_IN_THIS_TASK | queue-replay-action settledReportRequestFor (SETTLED_REPORT_REQUEST_STATES) → 409 report_request_settled | 580c5eb20f, 4421a752c9 | services/api/test/runtime-proof-operations.integration.test.ts [ET-REC-08] |
+| ET-REC-09 | P3 | FIXED_IN_THIS_TASK | communications.routes transitionCommunicationForOperator (conditional updateMany + tenant audit in one transaction) | 9cc1e1b56a, 4421a752c9 | services/api/test/communications-retry-audit.integration.test.ts |
+| ET-REC-10 | P3 | FIXED_IN_THIS_TASK | one budget: report-generation-authority opens the exhausted incident at FAILED_TERMINAL (REPORT_RECONCILE_MAX_ATTEMPTS) | 9e8a0514b0, 4421a752c9 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-REC-10 + D3] |
+| ET-REC-11 | P3 | FIXED_IN_THIS_TASK | automation-triggers detectTimeBasedAutomationTriggers: EVIDENCE_REPORTED detected from issued Report rows (report.issued:<reportId>), workspace by resolveEvidenceWorkspaceIds | b73bfbd586, 4421a752c9 | services/api/test/automation-evidence-reported-issued.integration.test.ts; services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts |
+| ET-RPT-04 | P3 | FIXED_IN_THIS_TASK | shared OUTPUT_ACTION_UNAVAILABLE_REASONS ACTIONS_UNAVAILABLE (+ copy); aggregator: degraded section, 15 s poll | 717dad0252, 4421a752c9 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-04] |
+| ET-RPT-05 | P3 | FIXED_IN_THIS_TASK | ReportsIndex summaryAnswered (loading phase) + fallback-view notice | 717dad0252, 4421a752c9 | apps/web/__tests__/reports-lifecycle-deep-link.test.ts |
+| ET-RPT-06 | P3 | FIXED_IN_THIS_TASK | readGenerationOutcome tone → app-status-text data-tone (GENERATION_OUTCOME_STATUS_TONE) | 717dad0252, 4421a752c9 | apps/web/__tests__/reports-lifecycle-deep-link.test.ts |
+| ET-RPT-07 | P3 | FIXED_IN_THIS_TASK | worker runReportGeneration → ReportRunResult (generated / package_built / pair_complete / already_issued) → resultReportId = that (evidence, version) row | df2a28cef1, 4421a752c9, 04e49d1345 | services/api/test/point5/report-package-recovery.integration.test.ts |
 | ET-RPT-09 | P3 | FIXED_IN_THIS_TASK | truth-model buildExecutiveConclusion reads the bitcoin_anchoring signal's ANCHORED_NOT_CHECKED claim (OTS_ANCHOR_CLAIM_LABELS); scoring unchanged | 4d105329a6 | services/worker/test/report-anchoring-conclusion.test.ts |
 | ET-SEC-28 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-29 | P3 | STILL_PRESENT |  |  |  |
@@ -790,6 +790,63 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
 - **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
 
+## ET-Q-03 — MediaIntelligenceRun rows for perceptual hashes, technical metadata, text-similarity and deferred kinds never leave PENDING, so the intelligence-run reconciler re-runs them every 10 minutes forever and starves genuinely stranded runs
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Several media-intelligence run kinds (perceptual hashes, technical metadata, text similarity, reserved, scope mismatch) never touched their run row, which stayed PENDING with attempt_count 0 and was re-enqueued forever.
+- **canonicalAuthority:** shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun
+- **redTest:** services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03] (evidence/ET-Q-03-red-baseline.txt)
+- **greenTest:** services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03: COMPLETED; FAILED kind_not_implemented / evidence_scope_mismatch]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/media-intelligence.processor.ts`
+- **commits:** f89f4909a3 fix(worker): every media-intelligence run kind with a durable row reaches a terminal state (ET-Q-03)
+
+## ET-Q-04 — A redaction derivative that hits a transient storage error or a worker crash after its claim is stuck in RENDERING forever; retries, the reconciler and a user re-request all skip it
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A RENDERING derivative after a transient error or crash was never reclaimable: the retry's claim required QUEUED, the reconciler scanned QUEUED, and the registry's 20-minute lease was implemented nowhere.
+- **canonicalAuthority:** redaction-derivative-writer: claimDerivativeForRender (QUEUED or lease-expired RENDERING, REDACTION_RENDER_LEASE_MS from the registry), releaseDerivativeClaim; reconciler lists lease-expired RENDERING
+- **redTest:** services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04] (evidence/ET-Q-04-red-baseline.txt)
+- **greenTest:** services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04: stale taken over, live not stolen, transient releases]
+- **concurrencyTest:** services/api/test/point5/family-redaction.integration.test.ts [a live RENDERING claim is not stolen]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/queue-integrity/registry.ts`, `services/worker/src/redaction/redaction-derivative-writer.ts`, `services/worker/src/redaction/redaction-derivative.processor.ts`
+- **commits:** e950ba769b fix(redaction): a derivative claim is released on a transient failure and taken over past its lease (ET-Q-04); 3b566105b8 test(redaction): the writer fake evaluates the ET-Q-04 claim predicate (OR QUEUED / lease-expired RENDERING)
+
+## ET-Q-05 — Trash-grace reconciler re-reads the same oldest 200 TRASHED rows every hour; once 200 of them are blocked (hold, retention, object lock, approval pending) eligible records are never purged, and the purge job's own BLOCKED reschedule is a no-op
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The trash-grace candidate query re-read the same oldest 200 rows every tick, so blocked rows starved eligible ones; the purge job's BLOCKED reschedule collapsed onto itself.
+- **canonicalAuthority:** worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId
+- **redTest:** services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05] (evidence/ET-Q-05-red-baseline.txt)
+- **greenTest:** services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05: next tick passes the blocked rows; dry run does not move the cursor]
+- **migrationImpact:** 20280809000000_worker_sweep_cursors: one new table (EXPAND); read/write fail-open
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280809000000_worker_sweep_cursors/migration.sql`, `services/api/prisma/schema.prisma`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/queue.ts`
+- **commits:** ff7965066d fix(worker): trash-grace makes progress past blocked rows; a blocked purge reschedules for real (ET-Q-05)
+
+## ET-Q-06 — 14 of 15 BullMQ workers and 4 sweeps start claiming work at module import, before secrets hydration, package-signer validation and object-lock bootstrap
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** 14 of 15 BullMQ workers autorun at import and 4 claiming sweeps started at top level, before secrets, signer and Object Lock bootstrap.
+- **canonicalAuthority:** services/worker/src/index.ts startConsumers() — every Worker autorun:false; called once after bootstrapObjectLockVerification
+- **redTest:** services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06] (evidence/ET-Q-06-red-baseline.txt)
+- **greenTest:** services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06: all autorun off, one .run() site, one call after storage bootstrap]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/index.ts`
+- **commits:** c5650faa4b fix(worker): no consumer claims work before secrets, the package signer and the Object Lock bootstrap succeed (ET-Q-06)
+
 ## ET-REC-02 — OTS budget-exhausted incident (WORKER, OTS:<id>:GLOBAL_BUDGET_EXHAUSTED) can never auto-resolve and tells operators the record will recover on its own
 
 - **severity:** P2
@@ -801,8 +858,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-state.ts`
-- **commits:** a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)
+- **productFiles:** `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-state.ts`
+- **commits:** a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-03 — Recovery decision refuses team_id-NULL Personal records (WORKSPACE_UNRESOLVED) that the durable writer and worker now accept
 
@@ -816,8 +873,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared-runtime/src/workspace-scope.ts`, `services/api/src/services/reports/output-recovery.service.ts`
-- **commits:** 7726a1b540 fix(outputs): one workspace-resolution rule for the output projection and the writer (ET-REC-03)
+- **productFiles:** `packages/shared-runtime/src/workspace-scope.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/services/reports/output-recovery.service.ts`
+- **commits:** 7726a1b540 fix(outputs): one workspace-resolution rule for the output projection and the writer (ET-REC-03); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-04 — Mobile Operations shows 'Retry after exhausted failure' but never sends the required reason, so it always fails with 400
 
@@ -830,8 +887,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/app/(stack)/operations/index.tsx`, `apps/mobile/src/product/ops-console.ts`
-- **commits:** 2223b6502a fix(mobile): Operations collects the reason an action requires before sending it (ET-REC-04)
+- **productFiles:** `apps/mobile/app/(stack)/operations/index.tsx`, `apps/mobile/src/product/ops-console.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`
+- **commits:** 2223b6502a fix(mobile): Operations collects the reason an action requires before sending it (ET-REC-04); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-01 — A failed or retryable request on a record that already has a report is invisible to every Reports card and filter while the row shows Retry / 'Escalated to operators'
 
@@ -844,8 +901,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** additive summary field + filter; web/mobile feature-detect them (web deploys before the API)
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
-- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)
+- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
+- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-02 — Request-level BLOCKED (stale policy / policy block) is uncounted for reports and mislabelled 'not requested' in rows, while 'Packages blocked' counts rows that say 'Package not requested'
 
@@ -859,8 +916,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
-- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)
+- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
+- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-03 — Report PDF prints 'Legal Hold: OFF' from the inert S3 object-lock flag even when a canonical evidence legal hold is ACTIVE
 
@@ -873,8 +930,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared/src/custody-labels.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/build-view-model.ts`, `services/worker/src/report-v2/custody-model.ts`, `services/worker/src/report-v2/types.ts`
-- **commits:** 0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13)
+- **productFiles:** `packages/shared/src/custody-labels.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/build-view-model.ts`, `services/worker/src/report-v2/custody-model.ts`, `services/worker/src/report-v2/types.ts`
+- **commits:** 0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-SEC-12 — Archive/trash/restore/unarchive are check-then-write: read + hold evaluation outside the transaction, write by id only, no lock
 
@@ -1002,6 +1059,48 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
 - **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
 
+## ET-Q-08 — media-intelligence-dlq is a phantom sink (never written) shown as an operator DLQ, and report-dlq entries are written for requests that are still being retried
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The report DLQ recorded still-retrying requests with raw stacks, and media-intelligence-dlq was a phantom sink never written.
+- **canonicalAuthority:** report DLQ written only by the terminal (non-retriable) branch with a bounded code; media-intelligence DLQ written on a job's final attempt (job-event-context isFinalAttempt / boundedErrorCode)
+- **redTest:** services/worker/test/job-event-context.test.ts [ET-Q-08] (evidence/ET-Q-08-red-baseline.txt)
+- **greenTest:** services/worker/test/job-event-context.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/index.ts`, `services/worker/src/job-event-context.ts`, `services/worker/src/processor.ts`
+- **commits:** d821f1419d fix(worker): dead-letter queues hold terminal failures only, with bounded codes; the media-intelligence DLQ is written (ET-Q-08)
+
+## ET-Q-09 — Worker job events log an evidenceId the canonical payload never carries, OTS pending-retry classification keys on an error string no longer thrown, and malformed payloads are retried for the full budget
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Job event logs read a payload evidenceId the canonical payload never carries; OTS pending-retry classification keyed on an error no longer thrown; malformed payloads were retried for the full budget.
+- **canonicalAuthority:** services/worker/src/job-event-context.ts (jobCommandId, isExpectedOtsPendingError); UnprocessableJobPayload extends BullMQ UnrecoverableError
+- **redTest:** services/worker/test/job-event-context.test.ts [ET-Q-09] (evidence/ET-Q-09-red-baseline.txt)
+- **greenTest:** services/worker/test/job-event-context.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/canonical-job.ts`, `services/worker/src/index.ts`, `services/worker/src/job-event-context.ts`
+- **commits:** d2b0d7da95 fix(worker): job events log commandId, OTS transient attempts are pending retries, rejected payloads are not retried (ET-Q-09)
+
+## ET-Q-10 — The embed-owed reconciler selects chunks by the legacy `embedding` column, which nothing writes, so every chunk aged 30min-30d is 'owed' forever
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The embed-owed reconciler selected the legacy `embedding` column nothing writes, so every chunk in the window was owed forever regardless of AI policy.
+- **canonicalAuthority:** intelligence-run-reconciler selectChunksOwingEmbedding (embedding_vector IS NULL, AI policy allows embeddings)
+- **redTest:** services/api/test/embed-owed-predicate.integration.test.ts (evidence/ET-Q-10-red-baseline.txt)
+- **greenTest:** services/api/test/embed-owed-predicate.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/intelligence-run-reconciler.ts`
+- **commits:** a7ee273c80 fix(worker): the embed-owed reconciler selects chunks that genuinely owe an embedding (ET-Q-10)
+
 ## ET-REC-01 — Resume OTS anchoring reports QUEUED (and audits success) when the enqueue collapsed onto a live job; ALREADY_IN_PROGRESS branch is dead
 
 - **severity:** P3
@@ -1013,8 +1112,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-state.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
-- **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered; a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-state.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
+- **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered; a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-05 — Web Operations loses the remediation outcome on 409/503; QUEUE_UNAVAILABLE (work recorded) is shown as 'could not be started'
 
@@ -1027,8 +1126,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/app/(app)/operations/page.tsx`, `services/api/src/routes/ops.routes.ts`
-- **commits:** 51797a4ddc fix(operations): a refused, ineligible or queue-unavailable remediation shows the server's answer on web (ET-REC-05)
+- **productFiles:** `apps/web/app/(app)/operations/page.tsx`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/ops.routes.ts`
+- **commits:** 51797a4ddc fix(operations): a refused, ineligible or queue-unavailable remediation shows the server's answer on web (ET-REC-05); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-06 — 'Resume OTS anchoring' is offered and answered QUEUED for a permanently invalid proof, which the worker skips
 
@@ -1041,8 +1140,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-state.ts`
-- **commits:** a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)
+- **productFiles:** `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/ops.routes.ts`, `services/api/src/services/integrity/ots-anchoring-authority.service.ts`, `services/api/src/services/operations/operations-source-probes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/worker/src/ots-state.ts`
+- **commits:** a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-07 — Remediation audit outcomes misclassify refusals and no-ops
 
@@ -1055,8 +1154,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/routes/admin-security.routes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`
-- **commits:** 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/admin-security.routes.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`
+- **commits:** 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-08 — Platform queue Retry/Replay of a GenerateReportJob whose request is terminal reports success but the worker no-ops
 
@@ -1069,8 +1168,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/routes/operations-queues.routes.ts`, `services/api/src/services/operations/queue-replay-action.service.ts`
-- **commits:** 580c5eb20f fix(operations): a report job whose request is settled cannot be "replayed" into a no-op (ET-REC-08)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/operations-queues.routes.ts`, `services/api/src/services/operations/queue-replay-action.service.ts`
+- **commits:** 580c5eb20f fix(operations): a report job whose request is settled cannot be "replayed" into a no-op (ET-REC-08); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-09 — Communications message manual retry writes no audit row and updates without a state predicate
 
@@ -1084,8 +1183,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/routes/communications.routes.ts`
-- **commits:** 9cc1e1b56a fix(communications): manual re-send and cancel are audited and conditional on the state read (ET-REC-09)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/communications.routes.ts`
+- **commits:** 9cc1e1b56a fix(communications): manual re-send and cancel are audited and conditional on the state read (ET-REC-09); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-10 — 'Retry budget exhausted' incident fires at BullMQ attempt 5 while the durable budget (12 claims) keeps retrying
 
@@ -1099,8 +1198,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/worker/src/processor.ts`
-- **commits:** 9e8a0514b0 fix(worker): one retry budget — no "budget exhausted" incident while the durable request is still retryable (ET-REC-10)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/worker/src/processor.ts`
+- **commits:** 9e8a0514b0 fix(worker): one retry budget — no "budget exhausted" incident while the durable request is still retryable (ET-REC-10); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-REC-11 — Every API-side recovery request fires an EVIDENCE_REPORTED automation trigger, before any report exists
 
@@ -1114,8 +1213,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** owner question answered by the product contract ('Report generated'); rules now fire on issuance, up to one sweep interval later
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/services/automation/automation-triggers.ts`, `services/api/src/services/reports/report-generation-authority.service.ts`
-- **commits:** b73bfbd586 fix(automation): EVIDENCE_REPORTED fires once per issued report, never per generation request (ET-REC-11)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/services/automation/automation-triggers.ts`, `services/api/src/services/reports/report-generation-authority.service.ts`
+- **commits:** b73bfbd586 fix(automation): EVIDENCE_REPORTED fires once per issued report, never per generation request (ET-REC-11); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-04 — When loadEvidenceOutputFacts fails, every row is given action NONE with reason PERMISSION_DENIED ('Needs permission') while the list section still reports ok
 
@@ -1128,8 +1227,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
-- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)
+- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
+- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-05 — Summary shows 'temporarily unavailable' during initial load and permanently on the user-scoped fallback path
 
@@ -1142,8 +1241,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
-- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)
+- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
+- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-06 — Reports row renders every generation outcome in success green, including TERMINAL, RECOVERABLE_BLOCKED and QUEUE_UNAVAILABLE
 
@@ -1156,8 +1255,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
-- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)
+- **productFiles:** `apps/mobile/src/product/reports.ts`, `apps/web/components/reports-experience/ReportsIndex.tsx`, `apps/web/components/reports-experience/types.ts`, `packages/shared/src/evidence-output-lifecycle.ts`, `packages/shared/src/output-action-copy.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/services/reports/reports-aggregator.service.ts`
+- **commits:** 717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
 ## ET-RPT-07 — SUCCEEDED request records the newest report id, not the report the run produced or targeted
 
@@ -1170,8 +1269,8 @@ Open by severity: P0 0 · P1 0 · P2 50 · P3 30
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/worker/src/processor.ts`
-- **commits:** df2a28cef1 fix(worker): a succeeded report request records the report it produced or targeted, and how (ET-RPT-07)
+- **productFiles:** `apps/web/components/reports-experience/ReportsIndex.tsx`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/worker/src/processor.ts`
+- **commits:** df2a28cef1 fix(worker): a succeeded report request records the report it produced or targeted, and how (ET-RPT-07); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated; 04e49d1345 fix(reports): fallback-view notice reads a page flag, not envelope.workspace; pair-complete pin follows ET-RPT-07
 
 ## ET-RPT-09 — Executive conclusion says 'finalized supporting publication materials' when OTS is anchored but not chain-checked
 
