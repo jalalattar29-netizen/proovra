@@ -245,6 +245,93 @@ describe("anchored without a defensible txid (legacy, never checked)", () => {
   });
 });
 
+/*
+ * AN INCONCLUSIVE CHECK IS AN ATTEMPT FAILURE, NOT A PENDING PROOF (2026-09-29).
+ *
+ * `ots upgrade` succeeded, but `ots info` did not yield a proof read and
+ * pinned to this record with no attestation. That is the only thing a PENDING
+ * observation may assert; anything weaker leaves the row exactly as it was.
+ */
+describe("inconclusive check (info timeout, unreadable output, attestation without txid, no hash)", () => {
+  const FORTY_DAYS_AGO = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+  const infoTimeout = { status: "ERROR", info: null, binaryMissing: false, error: "timeout" };
+  const infoNoHashLine = {
+    status: "PARSED",
+    info: { raw: "", fileHash: null, txid: null, bitcoinBlockHeights: [], pendingCalendars: [] },
+    binaryMissing: false,
+    error: null,
+  };
+  const infoAttestationNoTxid = {
+    status: "PARSED",
+    info: { raw: "", fileHash: OTS_HASH, txid: null, bitcoinBlockHeights: [860000], pendingCalendars: [] },
+    binaryMissing: false,
+    error: null,
+  };
+
+  async function expectUnchangedAttempt(reason: RegExp) {
+    const before = { ...h.row! };
+    await expect(processOtsUpgrade(job() as never)).rejects.toThrow("OTS_UPGRADE_ATTEMPT_FAILED");
+    expect(h.row).toEqual(before);
+    expect(h.custody.map((c) => c.eventType)).toEqual(["OTS_ATTEMPT_ERROR"]);
+    expect(String(h.custody[0]!.payload.reason)).toMatch(reason);
+    expect(h.incidents).toEqual([]);
+    expect(h.enqueued).toEqual([]);
+    expect(h.reportRequests).toBe(0);
+  }
+
+  it("an ANCHORED legacy row is NOT demoted when ots info times out", async () => {
+    h.row = baseRow({ otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date("2026-09-01T00:00:00Z") });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoTimeout;
+    await expectUnchangedAttempt(/ots info did not complete \(ERROR\)/);
+  });
+
+  it("an ANCHORED legacy row is NOT demoted when ots info output has no hash line", async () => {
+    h.row = baseRow({ otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date("2026-09-01T00:00:00Z") });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoNoHashLine;
+    await expectUnchangedAttempt(/no file hash/);
+  });
+
+  it("a block attestation without a readable txid neither promotes nor demotes (txid rule kept)", async () => {
+    h.row = baseRow({ otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date("2026-09-01T00:00:00Z") });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAttestationNoTxid;
+    await expectUnchangedAttempt(/block attestation but no transaction id/);
+    expect(h.row!.otsAnchorCheck).toBeNull(); // not promoted to PROOF_STRUCTURE
+  });
+
+  it("a PENDING proof past the 30-day budget is NOT marked FAILED when the check cannot complete", async () => {
+    h.row = baseRow({ createdAt: FORTY_DAYS_AGO });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoTimeout;
+    await expectUnchangedAttempt(/OTS_CHECK_INCONCLUSIVE/);
+    expect(h.row!.otsStatus).toBe("PENDING");
+  });
+
+  it("a PENDING proof past the budget with an attestation but no txid is NOT marked FAILED", async () => {
+    h.row = baseRow({ createdAt: FORTY_DAYS_AGO });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAttestationNoTxid;
+    await expectUnchangedAttempt(/block attestation but no transaction id/);
+  });
+
+  it("a record with no OpenTimestamps hash to compare is inconclusive, not pending", async () => {
+    h.row = baseRow({ otsHash: null, createdAt: FORTY_DAYS_AGO });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await expectUnchangedAttempt(/no OpenTimestamps hash to compare/);
+  });
+
+  it("UNCHANGED: a proof READ and pinned with no attestation is still pending, and the budget still applies to it", async () => {
+    h.row = baseRow({ createdAt: FORTY_DAYS_AGO });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "FAILED", otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED" });
+  });
+});
+
 describe("transient provider/network failure", () => {
   it("writes NO OTS column, records an attempt error, and throws for the retry budget", async () => {
     h.row = baseRow({ otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date("2026-09-01T00:00:00Z") });

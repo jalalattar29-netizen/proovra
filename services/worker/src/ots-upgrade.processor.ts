@@ -38,6 +38,7 @@ import {
   classifyOtsResult,
   parseOtsUpgradeOutput,
   type OtsClassification,
+  type OtsInfoOutput,
 } from "./ots-upgrade-output.js";
 
 const execFileAsync = promisify(execFile);
@@ -155,6 +156,42 @@ export {
  * unknown field or an unknown version is a counted refusal before the first
  * database read.
  */
+/**
+ * True only when the proof was READ (`ots info` parsed), is pinned to THIS
+ * record (its file hash equals `evidence.otsHash`), and carries NO Bitcoin
+ * block attestation. That — and nothing weaker — is what a PENDING
+ * observation may assert. Exported for the behaviour test.
+ */
+export function isConclusivelyUnanchored(input: {
+  info: OtsInfoOutput | null;
+  expectedHash: string | null;
+}): boolean {
+  const { info, expectedHash } = input;
+  return (
+    info !== null &&
+    expectedHash !== null &&
+    info.fileHash !== null &&
+    info.fileHash === expectedHash &&
+    info.bitcoinBlockHeights.length === 0
+  );
+}
+
+/** Why the check could not conclude, for the custody event. Bounded vocabulary. */
+export function inconclusiveCheckReason(input: {
+  infoStatus: string;
+  info: OtsInfoOutput | null;
+  expectedHash: string | null;
+}): string {
+  const { infoStatus, info, expectedHash } = input;
+  if (expectedHash === null) return "OTS_CHECK_INCONCLUSIVE: the record has no OpenTimestamps hash to compare.";
+  if (info === null) return `OTS_CHECK_INCONCLUSIVE: ots info did not complete (${infoStatus}).`;
+  if (info.fileHash === null) return "OTS_CHECK_INCONCLUSIVE: ots info output carried no file hash.";
+  if (info.bitcoinBlockHeights.length > 0) {
+    return "OTS_CHECK_INCONCLUSIVE: the proof carries a Bitcoin block attestation but no transaction id could be read; the anchor is neither recorded nor withdrawn.";
+  }
+  return "OTS_CHECK_INCONCLUSIVE: the proof could not be pinned to this record.";
+}
+
 export async function processOtsUpgrade(job: Job<unknown>) {
   const requestId = randomUUID();
   const decoded = decodeCanonicalJob(JOB_NAMES.UPGRADE_OTS, job, { requestId });
@@ -418,6 +455,28 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         // A hard command error that is not an established proof defect: the
         // attempt failed, the proof did not.
         observation = { kind: "TRANSIENT_ERROR", reason: classification.reason };
+      } else if (!isConclusivelyUnanchored({ info, expectedHash })) {
+        /*
+         * THE CHECK DID NOT COMPLETE — THAT IS NOT "PENDING" (2026-09-29).
+         *
+         * A PENDING observation asserts that the proof was read and carries no
+         * Bitcoin attestation for this record. It used to be made whenever no
+         * anchor was proven, including when `ots info` failed or timed out,
+         * its output had no hash line, the record had no hash to compare, or
+         * the proof carried a block attestation this rule cannot accept
+         * without a txid. On an ANCHORED row that demoted the stored anchor;
+         * on a pending one it let the 30-day budget mark the proof FAILED.
+         *
+         * None of those outcomes says anything about the proof. They are an
+         * attempt that could not reach a conclusion, so they take the existing
+         * TRANSIENT_ERROR path: nothing on the row changes (no promotion, no
+         * demotion, no budget), the attempt is recorded in custody, and the
+         * job's retry policy brings it back.
+         */
+        observation = {
+          kind: "TRANSIENT_ERROR",
+          reason: inconclusiveCheckReason({ infoStatus: infoResult.status, info, expectedHash }),
+        };
       } else {
         observation = { kind: "PENDING", proofBase64, txid: classification.txid };
       }
