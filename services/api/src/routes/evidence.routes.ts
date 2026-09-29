@@ -3704,8 +3704,16 @@ async function buildPublicEvidenceContent(params: {
           const canPreviewThisItem =
             canExposeContent && isPreviewableEvidenceKind(kind);
 
+          /*
+           * A PREVIEW GRANT IS NOT A DOWNLOAD GRANT (2026-09-29, audit H3).
+           * The direct URL is a presigned GET of the ORIGINAL object — the
+           * full evidence bytes. It was issued for any previewable item under
+           * preview_only, the public Verify default, so "preview" handed out
+           * the original. It is issued only where download is allowed; a
+           * preview uses the stored preview rendition (data URL / excerpt).
+           */
           const canExposeDirectUrl =
-            (canPreviewThisItem || canDownload) &&
+            canDownload &&
             Boolean(part.storageBucket) &&
             Boolean(part.storageKey);
 
@@ -3799,7 +3807,8 @@ async function buildPublicEvidenceContent(params: {
             });
             const previewable =
               canExposeContent && isPreviewableEvidenceKind(kind);
-            const canExposeDirectUrl = previewable || canDownload;
+            // Download grant only (2026-09-29, audit H3) — see the multipart branch.
+            const canExposeDirectUrl = canDownload;
 
             const label = getEvidencePartDisplayLabel({
               partIndex: itemIndex,
@@ -6150,15 +6159,43 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
         orderBy: { partIndex: "asc" },
       });
 
+      /*
+       * A PART URL IS AN ORIGINAL DOWNLOAD (2026-09-29, audit M1).
+       * Each url below is a presigned GET of an ORIGINAL object. /original
+       * applies the download_original governance decision; this listing
+       * presigned every part to anyone with read access. The same decision now
+       * governs here: refused, the parts keep their metadata and carry no URL.
+       */
+      let originalDownloadAllowed = true;
+      if (evidence.teamId) {
+        const { enforceSensitiveAction } = await import("../services/governance.service.js");
+        const membership = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
+          select: { role: true, status: true },
+        });
+        const decision = await enforceSensitiveAction("download_original", {
+          teamId: evidence.teamId,
+          role: membership?.status === "ACTIVE" ? membership.role : undefined,
+          evidence: {
+            id: evidence.id,
+            teamId: evidence.teamId,
+            retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+          },
+        });
+        originalDownloadAllowed = decision.allowed;
+      }
+
       const enrichedParts = await Promise.all(
         parts.map(async (part) => {
           const sizeBytes = bigintToString(part.sizeBytes);
           const kind = detectEvidenceAssetKind(part.mimeType);
-          const url = await presignGetObject({
-            bucket: part.storageBucket,
-            key: part.storageKey,
-            expiresInSeconds: 600,
-          });
+          const url = originalDownloadAllowed
+            ? await presignGetObject({
+                bucket: part.storageBucket,
+                key: part.storageKey,
+                expiresInSeconds: 600,
+              })
+            : null;
 
           const storage = await getStorageProtectionSummary(
             part.storageBucket,
@@ -6222,6 +6259,8 @@ return {
       return reply.code(200).send({
         evidenceId: id,
         multipart: enrichedParts.length > 1,
+        // Why the part URLs are absent, when they are (2026-09-29, M1).
+        originalDownloadBlockedByPolicy: !originalDownloadAllowed,
         primary:
           evidence.storageBucket && evidence.storageKey
             ? {
@@ -9223,9 +9262,23 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               evidence.fingerprintHash.toLowerCase()
             : null;
 
+        // The whole chain for the verdict (2026-09-29, audit M6): the list above
+        // is capped at 500 for display.
+        const chainRecords = await prisma.custodyEvent.findMany({
+          where: { evidenceId: id },
+          orderBy: { sequence: "asc" },
+          select: {
+            sequence: true,
+            atUtc: true,
+            eventType: true,
+            payload: true,
+            prevEventHash: true,
+            eventHash: true,
+          },
+        });
         const custodyChain = evaluateCustodyChain({
           evidenceId: id,
-          records: allCustodyEvents.map((ev) => ({
+          records: chainRecords.map((ev) => ({
             sequence: ev.sequence,
             eventType: ev.eventType,
             atUtc: ev.atUtc,
@@ -12443,6 +12496,9 @@ action: "evidence.certification_requested",
   );
 
   app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    // (2026-09-29) Every answer describes the record NOW — a 404, 409 or 503
+    // too — so no shared cache may hold any of them, not only the 200.
+    reply.header("Cache-Control", "no-store");
     // Phase O1.5A — bounded evidence.verify.public span. NEVER the
     // requesting IP or the user agent (PII-adjacent). Bounded
     // attribute set only.
@@ -12560,7 +12616,9 @@ action: "evidence.certification_requested",
       // whose `deleted_at` is non-null only because it passed through the trash
       // on the way, and which would otherwise have kept serving a public verify
       // page for evidence that no longer exists.
-      where: { id, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } },
+      // (2026-09-29, audit M4) …and a soft-deleted record (a legacy deletedAt
+      // outside the trash lifecycle) is not served either: 404, no body.
+      where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } },
       select: {
         id: true,
         // Phase 31.12 — needed for the public Verify media-intelligence
@@ -13210,9 +13268,28 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
           evidence.fingerprintHash.toLowerCase()
         : null;
 
+    /*
+     * THE WHOLE CHAIN, NOT ITS FIRST 500 LINKS (2026-09-29, audit M6).
+     * `allCustodyEvents` is capped at 500 for the timeline this page shows;
+     * the integrity verdict walked that same slice, so a chain longer than
+     * 500 events was reported valid without its later links being checked.
+     * The verdict now walks every event.
+     */
+    const chainRecords = await prisma.custodyEvent.findMany({
+      where: { evidenceId: id },
+      orderBy: { sequence: "asc" },
+      select: {
+        sequence: true,
+        atUtc: true,
+        eventType: true,
+        payload: true,
+        prevEventHash: true,
+        eventHash: true,
+      },
+    });
     const custodyChain = evaluateCustodyChain({
       evidenceId: id,
-      records: allCustodyEvents.map((ev) => ({
+      records: chainRecords.map((ev) => ({
         sequence: ev.sequence,
         eventType: ev.eventType,
         atUtc: ev.atUtc,
@@ -13896,13 +13973,25 @@ const basicVerification = buildBasicVerification({
     : null,
   pairedPackage: pairedPackageForBasic,
 });
-const richVerifyEntitled = await resolveEvidenceOutputEligibility({
-  evidenceId: evidence.id,
-  ownerUserId: evidence.ownerUserId,
-  teamId: evidence.teamId ?? null,
-})
-  .then((e) => e.issuance.decision === "ENTITLED")
-  .catch(() => false);
+/*
+ * A RESTRICTED CASE KEEPS ITS DETAILS PRIVATE (2026-09-29, audit M4).
+ * A record linked to a case with an access list answers the BASIC tier only:
+ * the minimal original-integrity result every valid link keeps, never the
+ * rich projection (content previews, case and acquisition context).
+ */
+const inRestrictedCase =
+  (await prisma.caseEvidenceLink.count({
+    where: { evidenceId: evidence.id, case: { access: { some: {} } } },
+  })) > 0;
+const richVerifyEntitled =
+  !inRestrictedCase &&
+  (await resolveEvidenceOutputEligibility({
+    evidenceId: evidence.id,
+    ownerUserId: evidence.ownerUserId,
+    teamId: evidence.teamId ?? null,
+  })
+    .then((e) => e.issuance.decision === "ENTITLED")
+    .catch(() => false));
 // The answer describes the record NOW; no shared cache may hold it.
 reply.header("Cache-Control", "no-store");
 if (!richVerifyEntitled) {
