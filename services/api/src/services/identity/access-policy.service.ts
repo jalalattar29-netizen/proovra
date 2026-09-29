@@ -228,18 +228,8 @@ function evaluateMember(
   //     ARCHIVED all DENY.
   //   * PERSONAL / OWNED workspace → backed by an internal SYSTEM container;
   //     CUSTOMER-org lifecycle is explicitly NOT applicable → continue.
-  if (actor.workspaceKind === "UNKNOWN") {
-    return { allowed: false, reason: "workspace_kind_unresolved" };
-  }
-  if (organizationLifecycleApplies(actor.workspaceKind)) {
-    if (actor.organizationStatus !== "ACTIVE") {
-      return {
-        allowed: false,
-        reason: "organization_not_active",
-        detail: actor.organizationStatus ?? "missing",
-      };
-    }
-  }
+  const lifecycleDenial = workspaceLifecycleDenial(actor);
+  if (lifecycleDenial) return lifecycleDenial;
   // 1) Canonical role floor.
   const canonical = mapTeamRoleToCanonical(actor.role);
   if (roleHasPermission(canonical, permission)) {
@@ -478,6 +468,55 @@ export async function loadContributorSessionSnapshot(
     teamId: row.intakeLink.teamId,
     revokedAtUtc: row.revokedAtUtc,
     expiresAtUtc: row.expiresAtUtc,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// ET-SEC-25 — THE workspace-kind + organization-lifecycle rule, shared by the
+// member decision above and the API-key (service principal) path, which was
+// built on key validity alone: a SUSPENDED or ARCHIVED organization kept
+// ingesting through its API keys.
+// -----------------------------------------------------------------------------
+
+export function workspaceLifecycleDenial(state: {
+  workspaceKind: ReturnType<typeof resolveWorkspaceKind>;
+  organizationStatus: string | null;
+}): { allowed: false; reason: "workspace_kind_unresolved" | "organization_not_active"; detail?: string } | null {
+  if (state.workspaceKind === "UNKNOWN") {
+    return { allowed: false, reason: "workspace_kind_unresolved" };
+  }
+  if (organizationLifecycleApplies(state.workspaceKind) && state.organizationStatus !== "ACTIVE") {
+    return {
+      allowed: false,
+      reason: "organization_not_active",
+      detail: state.organizationStatus ?? "missing",
+    };
+  }
+  return null;
+}
+
+/** The lifecycle facts of one workspace, loaded exactly as the member snapshot loads them. */
+export async function loadWorkspaceLifecycleState(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<{ workspaceKind: ReturnType<typeof resolveWorkspaceKind>; organizationStatus: string | null }> {
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: {
+      isPersonal: true,
+      workspaceKind: true,
+      billingPlan: true,
+      organization: { select: { status: true } },
+    },
+  });
+  return {
+    workspaceKind: resolveWorkspaceKind({
+      workspaceKind: team?.workspaceKind ?? null,
+      isPersonal: team?.isPersonal ?? null,
+      billingPlan: team?.billingPlan ?? null,
+      teamLoaded: team != null,
+    }),
+    organizationStatus: team?.organization?.status ?? null,
   };
 }
 

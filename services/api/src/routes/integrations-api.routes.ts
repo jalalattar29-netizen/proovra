@@ -36,6 +36,54 @@ import {
 } from "../middleware/integrations-auth.js";
 import { createEvidenceRequest } from "../services/evidence-request.service.js";
 import { createWorkflowIntakeLink } from "../services/workflow-intake-link.service.js";
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
+import { assertWorkspaceAllowsIntake } from "../services/billing-enforcement.service.js";
+
+/**
+ * ET-INT-10 — the API credential is not a User. Rows these routes write carry
+ * a User FK (createdByUserId / actor), and the credential id failed it (P2003,
+ * surfaced as a 400 with the raw Prisma message). The acting user is the
+ * credential's creator; the credential itself is recorded by runWithApiAudit.
+ * The same secure-intake plan gate the user routes run applies here too.
+ */
+async function integrationActorAndIntakeGate(
+  reply: FastifyReply,
+  cred: { credentialId: string; teamId: string },
+): Promise<{ actorUserId: string } | null> {
+  const row = await prisma.apiCredential.findUnique({
+    where: { id: cred.credentialId },
+    select: { createdByUserId: true },
+  });
+  if (!row) {
+    reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "Invalid API key." } });
+    return null;
+  }
+  const { scope } = await resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId: cred.teamId,
+    requesterUserId: row.createdByUserId,
+  });
+  try {
+    await assertWorkspaceAllowsIntake(scope);
+  } catch (err) {
+    const e = err as { statusCode?: number; code?: string; message?: string };
+    if (e?.code === "INTAKE_NOT_INCLUDED" || e?.code?.startsWith("COMMERCIAL_")) {
+      reply.code(e.statusCode ?? 409).send({ error: { code: e.code, message: e.message } });
+      return null;
+    }
+    throw err;
+  }
+  return { actorUserId: row.createdByUserId };
+}
+
+/** Domain errors carry a bounded code + status; anything else is a server fault (never a raw message). */
+function sendIntegrationDomainError(reply: FastifyReply, err: unknown, fallbackCode: string) {
+  const e = err as { code?: unknown; statusCode?: unknown; message?: unknown };
+  if (typeof e?.statusCode === "number" && e.statusCode >= 400 && e.statusCode < 500 && typeof e.code === "string" && /^[a-z_]+$/i.test(e.code)) {
+    return reply.code(e.statusCode).send({ error: { code: e.code, message: typeof e.message === "string" ? e.message : fallbackCode } });
+  }
+  throw err;
+}
 import {
   canCreateIntakeLink,
   loadWorkspaceGovernancePolicy,
@@ -211,13 +259,9 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
         let policy;
         try {
           policy = await loadWorkspaceGovernancePolicy(cred.teamId);
-        } catch (err) {
+        } catch {
           return reply.code(503).send({
-            error: {
-              code: "GOVERNANCE_CHECK_FAILED",
-              message:
-                err instanceof Error ? err.message : "policy_lookup_failed",
-            },
+            error: { code: "GOVERNANCE_CHECK_FAILED", message: "policy_lookup_failed" },
           });
         }
         const decision = canCreateIntakeLink({
@@ -234,6 +278,8 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           });
         }
 
+        const actor = await integrationActorAndIntakeGate(reply, cred);
+        if (!actor) return reply;
         try {
           const { link, rawToken } = await createWorkflowIntakeLink(
             {
@@ -246,7 +292,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
               maxUses: body.maxUses ?? 1,
               expiresAtUtc: new Date(body.expiresAtUtc),
             },
-            { actorUserId: cred.credentialId },
+            { actorUserId: actor.actorUserId },
           );
           return reply.code(201).send({
             intakeLink: {
@@ -272,10 +318,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
             rawToken,
           });
         } catch (err) {
-          const e = err as { code?: string; message?: string };
-          return reply.code(400).send({
-            error: { code: e.code ?? "intake_link_failed", message: e.message },
-          });
+          return sendIntegrationDomainError(reply, err, "intake_link_failed");
         }
       });
     },
@@ -302,10 +345,12 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           const body = EvidenceRequestInputSchema.omit({ teamId: true }).parse(
             req.body ?? {},
           );
+          const actor = await integrationActorAndIntakeGate(reply, cred);
+          if (!actor) return reply;
           try {
             const { request } = await createEvidenceRequest(
               { ...body, teamId: cred.teamId },
-              { actorUserId: cred.credentialId },
+              { actorUserId: actor.actorUserId },
             );
             return reply.code(201).send({
               evidenceRequest: {
@@ -328,17 +373,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
               },
             });
           } catch (err) {
-            const e = err as {
-              code?: string;
-              message?: string;
-              statusCode?: number;
-            };
-            return reply.code(e.statusCode ?? 400).send({
-              error: {
-                code: e.code ?? "evidence_request_failed",
-                message: e.message,
-              },
-            });
+            return sendIntegrationDomainError(reply, err, "evidence_request_failed");
           }
         },
       );

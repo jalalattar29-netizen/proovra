@@ -36,6 +36,7 @@ import {
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { markBoundedOutcome } from "../http/bounded-outcome.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { loadWorkspaceLifecycleState, workspaceLifecycleDenial } from "../services/identity/access-policy.service.js";
 import { isIpAddressAllowed, type Permission } from "@proovra/shared";
 
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -180,6 +181,44 @@ export async function requireApiKey(
       });
       return false;
     }
+  }
+
+  // ET-SEC-25 — the credential's workspace must pass THE organization-
+  // lifecycle rule the member path enforces: a suspended or archived
+  // organization (or an unprovable workspace) cannot act through its keys.
+  // Fails closed when the facts cannot be read.
+  let lifecycleDenial: ReturnType<typeof workspaceLifecycleDenial>;
+  try {
+    lifecycleDenial = workspaceLifecycleDenial(await loadWorkspaceLifecycleState(credential.teamId));
+  } catch {
+    reply.code(503).send({
+      error: { code: "AUTHORIZATION_UNAVAILABLE", message: "Authorization could not be evaluated. Please retry." },
+    });
+    return false;
+  }
+  if (lifecycleDenial) {
+    safeEmitSecurityEvent({
+      teamId: credential.teamId,
+      eventType: "permission_denied",
+      severity: "WARNING",
+      apiCredentialId: credential.credentialId,
+      details: { source: "integrations_auth", reason: lifecycleDenial.reason, detail: lifecycleDenial.detail ?? null },
+    });
+    safeRecordApiCredentialUsage({
+      apiCredentialId: credential.credentialId,
+      teamId: credential.teamId,
+      routePath: req.routeOptions?.url ?? req.url,
+      method: req.method,
+      action: "organization_denied",
+      statusCode: 403,
+      success: false,
+      failureReason: "governance_blocked",
+      requestId: req.id ?? null,
+    });
+    reply.code(403).send({
+      error: { code: "ORGANIZATION_NOT_ACTIVE", message: "The workspace's organization is not active." },
+    });
+    return false;
   }
 
   // Per-credential rate limit. Key is namespaced so it cannot collide
