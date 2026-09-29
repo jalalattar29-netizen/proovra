@@ -364,6 +364,7 @@ export {
   classifyCustodyEventType,
   isAccessCustodyEventType,
   isForensicCustodyEventType,
+  RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES,
 } from "./custody.js";
 
 export {

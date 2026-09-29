@@ -85,8 +85,10 @@ describe("POST /v1/evidence/:id/unlock — contract", () => {
 
   it("on success: writes lockedAt:null AND lockedByUserId:null (clears both columns)", () => {
     const block = unlockRouteBody();
+    // ET-CUS-08 (2026-09-29): a conditional claim (only a locked record is
+    // unlocked) inside the transaction that records EVIDENCE_UNLOCKED.
     expect(block).toMatch(
-      /prisma\.evidence\.update\(\{\s*\n?\s*where:\s*\{\s*id\s*\},\s*\n?\s*data:\s*\{\s*lockedAt:\s*null,\s*lockedByUserId:\s*null\s*\}/,
+      /tx\.evidence\.updateMany\(\{\s*\n?\s*where:\s*\{\s*id,\s*lockedAt:\s*\{\s*not:\s*null\s*\}\s*\},\s*\n?\s*data:\s*\{\s*lockedAt:\s*null,\s*lockedByUserId:\s*null\s*\}/,
     );
   });
 
@@ -97,9 +99,11 @@ describe("POST /v1/evidence/:id/unlock — contract", () => {
     expect(block).toMatch(/reason:\s*body\.reason \?\? null/);
   });
 
-  it("does NOT write a custody event (no EVIDENCE_UNLOCKED enum member; no schema change)", () => {
+  it("records EVIDENCE_UNLOCKED on the custody chain in the same transaction (ET-CUS-08)", () => {
+    // SUPERSEDED: this pinned the defect — "does NOT write a custody event" —
+    // which left the timeline saying "locked" after an unlock.
     const block = unlockRouteBody();
-    expect(block).not.toMatch(/appendCustodyEvent/);
+    expect(block).toMatch(/prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,600}appendCustodyEventTx\(tx,[\s\S]{0,120}CustodyEventType\.EVIDENCE_UNLOCKED/);
   });
 
   it("does NOT touch any storage / retention / signature / hash field", () => {
@@ -108,7 +112,7 @@ describe("POST /v1/evidence/:id/unlock — contract", () => {
     // lockedAt and lockedByUserId. Anything else would be a quiet
     // integrity-state mutation — which the spec forbids.
     const updateMatch = block.match(
-      /prisma\.evidence\.update\(\{[\s\S]*?data:\s*\{([^}]*)\}/,
+      /tx\.evidence\.updateMany\(\{[\s\S]*?data:\s*\{([^}]*)\}/,
     );
     expect(updateMatch).not.toBeNull();
     const dataFields = updateMatch![1];

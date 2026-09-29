@@ -3214,6 +3214,10 @@ enum CustodyEventType {
   INVESTIGATION_DUPLICATES_EXPORTED
   // ET-CUS-02: a cross-organisation chain-of-custody transfer changed state.
   CHAIN_TRANSFER_CUSTODY_EXTENDED
+  // ET-CUS-08: the operational lock was removed.
+  EVIDENCE_UNLOCKED
+  // ET-CUS-10: retention was auto-extended by policy.
+  RETENTION_AUTO_EXTENDED
 }
 
 enum AuthProvider {

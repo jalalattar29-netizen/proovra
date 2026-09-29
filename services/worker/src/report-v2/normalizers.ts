@@ -340,6 +340,10 @@ export function mapCustodyEventLabel(eventType: string | null | undefined): stri
       return "OpenTimestamps update recorded";
     case "CHAIN_TRANSFER_CUSTODY_EXTENDED":
       return "Chain-of-custody transfer recorded";
+    case "EVIDENCE_UNLOCKED":
+      return "Evidence record unlocked";
+    case "RETENTION_AUTO_EXTENDED":
+      return "Retention period extended by policy";
     case "OTS_FAILED":
       return "OpenTimestamps provider returned failure";
     case "OTS_ATTEMPT_ERROR":

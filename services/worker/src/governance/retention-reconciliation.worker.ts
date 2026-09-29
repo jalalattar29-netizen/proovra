@@ -30,6 +30,8 @@
  *       4. one or more governance notifications (operator UI feed)
  */
 
+import { RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES } from "@proovra/shared";
+import { appendCustodyEventTx } from "../custody-events.js";
 import * as prismaPkg from "@prisma/client";
 import { newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
@@ -122,6 +124,7 @@ export async function runRetentionReconciliation(
           teamId: true,
           lifecycleState: true,
           retentionPolicyVersionId: true,
+          retentionUntilUtc: true,
         },
       });
       ctx.reportProgress({ scanned: expiredEvidence.length });
@@ -204,7 +207,11 @@ export async function runRetentionReconciliation(
               now.getTime() - 7 * 24 * 60 * 60 * 1000,
             );
             const recentCustody = await prisma.custodyEvent.findFirst({
-              where: { evidenceId: ev.id, atUtc: { gte: windowStart } },
+              where: {
+                evidenceId: ev.id,
+                atUtc: { gte: windowStart },
+                eventType: { in: [...RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES] as prismaPkg.CustodyEventType[] },
+              },
               select: { id: true },
             });
             if (recentCustody) {
@@ -212,11 +219,25 @@ export async function runRetentionReconciliation(
                 now.getTime() +
                   policySnapshot.autoExtensionDays * 24 * 60 * 60 * 1000,
               );
-              await prisma.evidence.update({
+              // ET-CUS-10: the extension, its lifecycle event and its custody
+              // event commit together.
+              await prisma.$transaction(async (tx) => {
+              await tx.evidence.update({
                 where: { id: ev.id },
                 data: { retentionUntilUtc: nextRetention },
               });
-              await prisma.evidenceLifecycleEvent.create({
+              await appendCustodyEventTx(tx, {
+                evidenceId: ev.id,
+                eventType: prismaPkg.CustodyEventType.RETENTION_AUTO_EXTENDED,
+                atUtc: now,
+                payload: {
+                  previousRetentionUntilUtc: ev.retentionUntilUtc?.toISOString() ?? null,
+                  retentionUntilUtc: nextRetention.toISOString(),
+                  autoExtensionDays: policySnapshot.autoExtensionDays,
+                  retentionPolicyId: policySnapshot.retentionPolicyId,
+                },
+              });
+              await tx.evidenceLifecycleEvent.create({
                 data: {
                   teamId,
                   evidenceId: ev.id,
@@ -233,6 +254,7 @@ export async function runRetentionReconciliation(
                   actorUserId: options.triggeredByUserId ?? undefined,
                   requestId: correlationId.slice(0, 64),
                 },
+              });
               });
               await emitRetentionExtensionNotification(
                 teamId,

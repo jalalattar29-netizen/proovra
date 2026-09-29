@@ -1,0 +1,6 @@
+[31m   [31m×[31m lock/unlock and retention extension on the custody chain (live PostgreSQL 16)[2m > [22mET-CUS-08: lock, a repeated lock, and unlock each record exactly what changed[39m[32m 154[2mms[22m[39m
+[31m     → expected [ Array(2) ] to deeply equal [ 'EVIDENCE_LOCKED', …(1) ][39m
+[31m   [31m×[31m lock/unlock and retention extension on the custody chain (live PostgreSQL 16)[2m > [22mET-CUS-10: only workspace activity extends retention, and the extension is on the chain[39m[32m 137[2mms[22m[39m
+[31m     → expected 1793300284990 to be 1790621884919 // Object.is equality[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m

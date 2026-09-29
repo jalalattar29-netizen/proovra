@@ -207,6 +207,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
+import { appendCustodyEventTx } from "@proovra/shared-runtime";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
@@ -2084,7 +2085,14 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
       return "Protected evidence file accessed.";
 
     case prismaPkg.CustodyEventType.EVIDENCE_LOCKED:
-      return "Evidence record locked.";
+      // ET-CUS-08: finalization's retention lock is not the operational lock.
+      return obj.retentionApplied === true ? "Retention protection applied." : "Evidence record locked.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_UNLOCKED:
+      return "Evidence record unlocked.";
+
+    case prismaPkg.CustodyEventType.RETENTION_AUTO_EXTENDED:
+      return "Retention period extended by policy.";
 
     case prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED:
       return "Evidence record archived.";
@@ -6346,19 +6354,26 @@ return {
       }
 
       if (body.locked) {
-        const updated = await prisma.evidence.update({
+        // ET-CUS-08: the lock and its custody event commit together, and only
+        // an actual transition records one (a repeated lock changes nothing).
+        await prisma.$transaction(async (tx) => {
+          const claim = await tx.evidence.updateMany({
+            where: { id, lockedAt: null },
+            data: { lockedAt: new Date(), lockedByUserId: ownerUserId },
+          });
+          if (claim.count !== 1) return;
+          await appendCustodyEventTx(tx, {
+            evidenceId: id,
+            eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
+            payload: { lockedByUserId: ownerUserId },
+            ip: req.ip ?? null,
+            userAgent: req.headers["user-agent"] ?? null,
+          });
+        });
+        const updated = await prisma.evidence.findUniqueOrThrow({
           where: { id },
-          data: { lockedAt: new Date(), lockedByUserId: ownerUserId },
           select: SAFE_EVIDENCE_SELECT,
         });
-
-        await appendCustodyEvent({
-          evidenceId: id,
-          eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
-          payload: { lockedByUserId: ownerUserId },
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -6413,10 +6428,8 @@ return {
   //   - 409 if not locked (nothing to unlock)
   //   - clears `lockedAt` + `lockedByUserId` and writes an audit log
   //     entry with the optional caller-supplied reason
-  //   - NO custody event written — the CustodyEventType enum has no
-  //     `EVIDENCE_UNLOCKED` member and the spec forbids schema changes
-  //     without approval. The reviewer-audit log is the authoritative
-  //     surface for the unlock action.
+  //   - writes EVIDENCE_UNLOCKED to the custody chain in the same
+  //     transaction (ET-CUS-08, 2026-09-29).
   app.post(
     "/v1/evidence/:id/unlock",
     { preHandler: requireAuth },
@@ -6458,9 +6471,29 @@ return {
         });
       }
 
-      const updated = await prisma.evidence.update({
+      // ET-CUS-08: unlocking is a custody fact. It used to write none, so the
+      // timeline kept reading "Evidence record locked" after the unlock.
+      await prisma.$transaction(async (tx) => {
+        const claim = await tx.evidence.updateMany({
+          where: { id, lockedAt: { not: null } },
+          data: { lockedAt: null, lockedByUserId: null },
+        });
+        if (claim.count !== 1) return;
+        await appendCustodyEventTx(tx, {
+          evidenceId: id,
+          eventType: prismaPkg.CustodyEventType.EVIDENCE_UNLOCKED,
+          payload: {
+            unlockedByUserId: ownerUserId,
+            previousLockedByUserId: evidence.lockedByUserId ?? null,
+            // Internal only; never surfaced publicly.
+            reasonInternal: body.reason ?? null,
+          },
+          ip: req.ip ?? null,
+          userAgent: req.headers["user-agent"] ?? null,
+        });
+      });
+      const updated = await prisma.evidence.findUniqueOrThrow({
         where: { id },
-        data: { lockedAt: null, lockedByUserId: null },
         select: SAFE_EVIDENCE_SELECT,
       });
 

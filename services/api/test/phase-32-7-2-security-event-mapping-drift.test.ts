@@ -1363,6 +1363,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280804000000_custody_chain_transfer_event",
       // Custody append-only (2026-09-29, ET-CUS-04): refusal triggers. EXPAND.
       "20280805000000_custody_append_only",
+      // Custody unlock + retention extension (2026-09-29, ET-CUS-08/10): enum values. EXPAND.
+      "20280806000000_custody_unlock_and_retention_extension",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
