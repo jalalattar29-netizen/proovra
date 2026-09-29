@@ -53,6 +53,7 @@ import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 // The workspace-actor helper below composes it instead of re-implementing the
 // evaluate → 403 shape (see that helper's contract note).
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   buildProviderHealthSnapshot,
@@ -110,6 +111,49 @@ function requestUa(req: FastifyRequest): string | null {
  * `antiEnumeration`) because it is the documented anti-enumeration contract
  * of this surface and is asserted by `test/communications.test.ts`.
  */
+/**
+ * ET-REC-09 — an operator's manual re-send / cancel of a message: applied only
+ * if the row is still in the state the route read (a read-then-write keyed on
+ * id alone let a concurrent send or cancel be overwritten), and audited on the
+ * canonical tenant authority in the same transaction. Returns the updated row,
+ * or null when the state moved.
+ */
+async function transitionCommunicationForOperator(input: {
+  req: FastifyRequest;
+  teamId: string;
+  messageId: string;
+  from: prismaPkg.CommunicationStatus;
+  actorUserId: string;
+  action: "communications.message.retry_requested" | "communications.message.retry_cancelled";
+  data: { status: prismaPkg.CommunicationStatus; nextAttemptAtUtc: Date | null };
+}) {
+  return prisma.$transaction(async (tx) => {
+    const claim = await tx.communicationMessage.updateMany({
+      where: { id: input.messageId, teamId: input.teamId, status: input.from },
+      data: input.data,
+    });
+    if (claim.count !== 1) return null;
+    await emitTenantAudit(
+      {
+        action: input.action,
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "communication_message",
+        resourceId: input.messageId,
+        previousState: String(input.from),
+        resultingState: String(input.data.status),
+        correlationId: input.req.id ?? null,
+        ipAddress: input.req.ip,
+        userAgent: typeof input.req.headers["user-agent"] === "string" ? input.req.headers["user-agent"] : null,
+      },
+      tx as never,
+    );
+    return tx.communicationMessage.findUniqueOrThrow({ where: { id: input.messageId } });
+  });
+}
+
 async function requireCommunicationsActor(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -283,13 +327,20 @@ export async function communicationsRoutes(app: FastifyInstance) {
         reply.code(409).send({ error: { code: "not_retry_scheduled" } });
         return;
       }
-      const updated = await prisma.communicationMessage.update({
-        where: { id: row.id },
-        data: {
-          status: prismaPkg.CommunicationStatus.CANCELLED,
-          nextAttemptAtUtc: null,
-        },
+      // ET-REC-09 — conditional on the state that was read, and audited.
+      const updated = await transitionCommunicationForOperator({
+        req,
+        teamId: body.teamId,
+        messageId: row.id,
+        from: row.status,
+        actorUserId: actor.userId,
+        action: "communications.message.retry_cancelled",
+        data: { status: prismaPkg.CommunicationStatus.CANCELLED, nextAttemptAtUtc: null },
       });
+      if (!updated) {
+        reply.code(409).send({ error: { code: "state_changed" } });
+        return;
+      }
       return reply
         .code(200)
         .send({ message: projectCommunicationMessage(updated) });
@@ -325,15 +376,22 @@ export async function communicationsRoutes(app: FastifyInstance) {
         reply.code(409).send({ error: { code: "purpose_not_retryable" } });
         return;
       }
-      // Stamp the row back to QUEUED with nextAttemptAtUtc = now so the
-      // cron processor picks it up immediately.
-      const updated = await prisma.communicationMessage.update({
-        where: { id: row.id },
-        data: {
-          status: prismaPkg.CommunicationStatus.RETRY_SCHEDULED,
-          nextAttemptAtUtc: new Date(),
-        },
+      // Stamp the row back to RETRY_SCHEDULED with nextAttemptAtUtc = now so
+      // the cron processor picks it up immediately. ET-REC-09: only from the
+      // state that was read (a concurrent send or cancel wins), and audited.
+      const updated = await transitionCommunicationForOperator({
+        req,
+        teamId: body.teamId,
+        messageId: row.id,
+        from: row.status,
+        actorUserId: actor.userId,
+        action: "communications.message.retry_requested",
+        data: { status: prismaPkg.CommunicationStatus.RETRY_SCHEDULED, nextAttemptAtUtc: new Date() },
       });
+      if (!updated) {
+        reply.code(409).send({ error: { code: "state_changed" } });
+        return;
+      }
       return reply
         .code(200)
         .send({ message: projectCommunicationMessage(updated) });
