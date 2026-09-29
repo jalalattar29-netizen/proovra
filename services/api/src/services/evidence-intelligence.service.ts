@@ -5,8 +5,10 @@ import { evaluateCustodyChain } from "./custody-events.service.js";
 import {
   deriveCanonicalArtifactAvailability,
   isAccessCustodyEventType,
-  isPublicAnchoringVerified,
   normalizeOtsStatusValue,
+  OTS_ANCHOR_CLAIM_LABELS,
+  resolveOtsAnchorClaim,
+  type OtsAnchorClaim,
 } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
@@ -334,7 +336,7 @@ function buildEvidenceReviewDecision(params: {
   chainValid: boolean;
   chainMode: string;
   outputs: EvidenceIntelligenceOutputs;
-  anchorVerified: boolean;
+  anchorClaim: OtsAnchorClaim;
 }): EvidenceIntelligence["reviewerDecision"] {
   const issues: string[] = [];
   const nextActions: string[] = [];
@@ -387,11 +389,17 @@ function buildEvidenceReviewDecision(params: {
    * not exist.
    */
   const packageAbsenceIsGap = outputAbsenceIsReviewGap(packageState);
-  if (!params.anchorVerified && packageAbsenceIsGap) {
-    issues.push("Bitcoin anchoring and the verification package are not yet available.");
-  } else if (!params.anchorVerified && !reportReady) {
-    issues.push("Bitcoin anchoring has not been confirmed for this record.");
+  const anchorGap = isAnchorGapClaim(params.anchorClaim);
+  if (anchorGap && packageAbsenceIsGap) {
+    issues.push("OpenTimestamps anchoring and the verification package are not available.");
+  } else if (anchorGap) {
+    issues.push(
+      params.anchorClaim === "FAILED"
+        ? "OpenTimestamps anchoring failed for this record."
+        : "No OpenTimestamps proof is recorded for this record.",
+    );
   }
+  const anchorReason = anchorReadinessReason(params.anchorClaim);
 
   if (params.evidence.deletedAt) {
     return {
@@ -436,9 +444,7 @@ function buildEvidenceReviewDecision(params: {
       reasons: [
         `Custody chain is ${params.chainMode}.`,
         "Evidence report is generated.",
-        params.anchorVerified
-          ? "OpenTimestamps Bitcoin anchoring verified."
-          : "Verification package is available.",
+        anchorReason ?? "Verification package is available.",
       ],
       nextActions: [
         "Share the verification link with external reviewers.",
@@ -477,9 +483,7 @@ function buildEvidenceReviewDecision(params: {
       reasons: [
         `Custody chain is ${params.chainMode}.`,
         "Fingerprint, signature and custody materials are recorded.",
-        params.anchorVerified
-          ? "OpenTimestamps Bitcoin anchoring verified."
-          : "Public verification is available for this record.",
+        anchorReason ?? "Public verification is available for this record.",
       ],
       nextActions: ["Share the verification link with external reviewers."],
       tone: "success",
@@ -730,12 +734,23 @@ function buildReviewerAlerts(params: {
     });
   }
 
-  const anchorVerified = anchorVerifiedFor(params);
-  if (!anchorVerified && !params.anchor?.configured) {
+  // (2026-09-29) Keyed to the record's own OpenTimestamps state. It used to
+  // read "Public verification not configured" whenever the external-anchor
+  // provider variable was empty — which says nothing about public Verify (it
+  // serves every finalized, published record) and fired on every record.
+  const anchorClaim = anchorClaimFor(params);
+  if (anchorClaim === "FAILED") {
     alerts.push({
       severity: "warning",
-      label: "Public verification not configured",
-      detail: "Public verification is not enabled for this evidence record.",
+      label: "OpenTimestamps anchoring failed",
+      detail:
+        "The OpenTimestamps proof for this record could not be anchored. The record's fingerprint, signature and custody chain are unaffected.",
+    });
+  } else if (anchorClaim === "NOT_CONFIGURED") {
+    alerts.push({
+      severity: "warning",
+      label: "No OpenTimestamps proof recorded",
+      detail: "No OpenTimestamps proof is recorded for this evidence record.",
     });
   }
 
@@ -817,12 +832,15 @@ function buildLibrarySummary(params: {
   evidence: EvidenceIntelligenceInput["evidence"];
   chainValid: boolean;
   outputs: EvidenceIntelligenceOutputs;
-  anchorVerified: boolean;
+  anchorClaim: OtsAnchorClaim;
 }): EvidenceIntelligence["librarySummary"] {
-  const signals: number[] = [
-    params.chainValid ? 1 : 0,
-    params.anchorVerified ? 1 : 0,
-  ];
+  // An anchor RECORDED counts as prepared; chain verification is not a
+  // preparation step this deployment can take. A disabled deployment
+  // (UNAVAILABLE) leaves the denominator rather than scoring zero.
+  const signals: number[] = [params.chainValid ? 1 : 0];
+  if (params.anchorClaim !== "UNAVAILABLE") {
+    signals.push(isAnchorRecordedClaim(params.anchorClaim) ? 1 : 0);
+  }
   if (outputParticipatesInReadinessScore(params.outputs.report.state)) {
     signals.push(params.outputs.report.state === "READY" ? 1 : 0);
   }
@@ -856,19 +874,51 @@ function formatNullableDate(value: Date | string | null | undefined): string | n
 }
 
 /**
- * "OpenTimestamps Bitcoin anchoring verified" is the ONE OTS claim
- * (2026-09-29): an anchor verified against the Bitcoin chain. A transaction id
- * or an anchored-at time on the anchor summary is anchor material, not that.
+ * The record's ONE OTS claim (shared `resolveOtsAnchorClaim`). A transaction id
+ * or an anchored-at time on the anchor summary is anchor material, not a check.
  */
-function anchorVerifiedFor(params: {
+function anchorClaimFor(params: {
   evidence: { otsStatus: string | null; otsAnchoredAtUtc?: Date | string | null; otsAnchorCheck?: string | null };
   anchor?: { anchoredAtUtc?: Date | string | null } | null;
-}): boolean {
-  return isPublicAnchoringVerified({
+}): OtsAnchorClaim {
+  return resolveOtsAnchorClaim({
     status: params.evidence.otsStatus,
     anchoredAtUtc: params.evidence.otsAnchoredAtUtc ?? params.anchor?.anchoredAtUtc ?? null,
     anchorCheck: params.evidence.otsAnchorCheck ?? null,
   });
+}
+
+/**
+ * READINESS IS NOT CHAIN VERIFICATION (2026-09-29).
+ *
+ * The review decision, the alerts and the score used to read "anchoring
+ * verified against the Bitcoin chain" — a check this deployment cannot run
+ * (no Bitcoin node) — as "the record is anchored". Every healthy record
+ * therefore read "Bitcoin anchoring has not been confirmed" / "Needs review",
+ * and the alert block said "Public verification not configured" because an
+ * unrelated external-anchor provider variable was empty.
+ *
+ * What readiness needs is whether an OpenTimestamps anchor is RECORDED for
+ * the record. The claim text a surface shows still distinguishes VERIFIED from
+ * ANCHORED_NOT_CHECKED (`OTS_ANCHOR_CLAIM_LABELS`); nothing here upgrades one
+ * to the other.
+ */
+function isAnchorRecordedClaim(claim: OtsAnchorClaim): boolean {
+  return claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED";
+}
+
+/**
+ * An anchoring GAP worth a reviewer's attention: the proof failed, or a
+ * finalized record has no OpenTimestamps state at all. A PENDING proof is the
+ * ordinary first hours of every record, and UNAVAILABLE means OTS is disabled
+ * on this deployment — neither is a defect of the record.
+ */
+function isAnchorGapClaim(claim: OtsAnchorClaim): boolean {
+  return claim === "FAILED" || claim === "NOT_CONFIGURED";
+}
+
+function anchorReadinessReason(claim: OtsAnchorClaim): string | null {
+  return isAnchorRecordedClaim(claim) ? `${OTS_ANCHOR_CLAIM_LABELS[claim]}.` : null;
 }
 
 export async function buildEvidenceIntelligence(
@@ -984,7 +1034,7 @@ export async function buildEvidenceIntelligence(
       chainValid: chain.valid,
       chainMode: chain.mode,
       outputs: params.outputs,
-      anchorVerified: anchorVerifiedFor(params),
+      anchorClaim: anchorClaimFor(params),
     }),
     verificationProof: buildVerificationProof(params.evidence),
     artifacts: buildArtifactSummaries({ evidence: params.evidence }),
@@ -1001,7 +1051,7 @@ export async function buildEvidenceIntelligence(
       evidence: params.evidence,
       chainValid: chain.valid,
       outputs: params.outputs,
-      anchorVerified: anchorVerifiedFor(params),
+      anchorClaim: anchorClaimFor(params),
     }),
   };
 }
