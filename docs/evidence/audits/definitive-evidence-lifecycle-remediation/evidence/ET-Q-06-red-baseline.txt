@@ -1,0 +1,5 @@
+ET-Q-06 red baseline — services/worker/test/worker-bootstrap-hotfix.test.ts (ET-Q-06 case) against HEAD services/worker/src/index.ts
+   × worker bootstrap — startup readiness protection > ET-Q-06: NO consumer claims work until secrets, the package signer and the Object Lock bootstrap succeed 4ms
+     → expected 1 to be 15 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 12 passed (13)

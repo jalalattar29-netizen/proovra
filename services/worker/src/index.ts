@@ -995,7 +995,7 @@ function startRedactionReconcilerScheduler() {
   }, redactionReconcilerIntervalMs);
   redactionReconcilerTimer.unref?.();
 }
-startRedactionReconcilerScheduler();
+// ET-Q-06: started by startConsumers() after the bootstrap chain.
 void redactionReconcilerTimer;
 
 // ---------------------------------------------------------------------------
@@ -1054,7 +1054,7 @@ function startTrashGraceReconcilerScheduler() {
     "trash_grace.reconciler.scheduler.started",
   );
 }
-startTrashGraceReconcilerScheduler();
+// ET-Q-06: started by startConsumers() after the bootstrap chain.
 void trashGraceReconcilerTimer;
 
 // ===========================================================================
@@ -1227,8 +1227,7 @@ function stopIntelligenceRunReconcilerScheduler() {
   intelligenceRunReconcilerTimer = null;
 }
 
-startSearchIndexReconcilerScheduler();
-startIntelligenceRunReconcilerScheduler();
+// ET-Q-06: both started by startConsumers() after the bootstrap chain.
 
 const retentionReconciliationEnabled = envBoolean(
   "RETENTION_RECONCILIATION_ENABLED",
@@ -2101,6 +2100,8 @@ const otsUpgradeWorker = safeRegisterWorker("ots-upgrade", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2116,6 +2117,8 @@ const evidencePurgeWorker = safeRegisterWorker("evidence-purge", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2132,6 +2135,8 @@ const searchIndexingWorker = safeRegisterWorker("search-indexing", () =>
     {
       connection: redisConnection,
       concurrency: 2,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2152,6 +2157,8 @@ const mediaIntelligenceWorker = safeRegisterWorker("media-intelligence", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2172,6 +2179,8 @@ const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2192,6 +2201,8 @@ const redactionDerivativeWorker = safeRegisterWorker("redaction-derivative", () 
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2221,6 +2232,8 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
     {
       connection: redisConnection,
       concurrency: 2,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2251,6 +2264,8 @@ const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
     {
       connection: redisConnection,
       concurrency: 2,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2266,6 +2281,8 @@ const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2285,6 +2302,8 @@ const miEmbedWorker = safeRegisterWorker("mi-embed", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2304,6 +2323,8 @@ const graphDomainSyncWorker = safeRegisterWorker("graph-domain-sync", () =>
     {
       connection: redisConnection,
       concurrency: 1,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2319,6 +2340,8 @@ const graphTimelineSyncWorker = safeRegisterWorker("graph-timeline-sync", () =>
     {
       connection: redisConnection,
       concurrency: 2,
+      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      autorun: false,
     },
   ),
 );
@@ -2336,6 +2359,8 @@ const graphSearchProjectionWorker = safeRegisterWorker(
       {
         connection: redisConnection,
         concurrency: 2,
+        // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+        autorun: false,
       },
     ),
 );
@@ -2357,9 +2382,57 @@ const orgHealthRefreshWorker = safeRegisterWorker(
       {
         connection: redisConnection,
         concurrency: 4,
+        // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+        autorun: false,
       },
     ),
 );
+
+/**
+ * ET-Q-06 — THE ONE PLACE CONSUMERS START.
+ *
+ * Every BullMQ Worker is constructed with autorun:false and every DB sweep
+ * that claims work is started here, and this runs only after the secrets
+ * authority is hydrated, the package signer validated and the Object Lock
+ * bootstrap passed. Before, 14 of 15 workers and 4 sweeps began claiming
+ * jobs as the module evaluated — including destructive purge jobs — while the
+ * SEC-004 comment said required-mode secrets failed closed "before any job is
+ * claimed", and an Object Lock failure called shutdown(1) after jobs may
+ * already have run.
+ */
+const REGISTERED_WORKERS: ReadonlyArray<readonly [WorkerKind, Worker | null]> = [
+  ["report", reportWorker],
+  ["ots-upgrade", otsUpgradeWorker],
+  ["evidence-purge", evidencePurgeWorker],
+  ["search-indexing", searchIndexingWorker],
+  ["media-intelligence", mediaIntelligenceWorker],
+  ["derived-assets", derivedAssetsWorker],
+  ["redaction-derivative", redactionDerivativeWorker],
+  ["mi-exif", exifWorker],
+  ["mi-search-index", miSearchIndexWorker],
+  ["graph-reconcile", graphReconcileWorker],
+  ["mi-embed", miEmbedWorker],
+  ["graph-domain-sync", graphDomainSyncWorker],
+  ["graph-timeline-sync", graphTimelineSyncWorker],
+  ["graph-search-projection", graphSearchProjectionWorker],
+  ["org-health-refresh", orgHealthRefreshWorker],
+];
+
+function startConsumers(): void {
+  for (const [kind, w] of REGISTERED_WORKERS) {
+    if (!w) continue;
+    void w.run().catch((err) => {
+      emitOperationalAlert({ requestId: randomUUID(), reason: `${kind}_worker_start_failed`, err });
+      captureException(err, { phase: "worker.consumer_start", processor: kind });
+      if (kind === "report") void shutdown(1);
+    });
+  }
+  startRedactionReconcilerScheduler();
+  startTrashGraceReconcilerScheduler();
+  startSearchIndexReconcilerScheduler();
+  startIntelligenceRunReconcilerScheduler();
+  logger.info({ workers: REGISTERED_WORKERS.filter(([, w]) => w).length }, "worker.consumers_started");
+}
 
 let healthServer: HealthServer | null = null;
 let telemetrySampler: TelemetrySampler | null = null;
@@ -2654,15 +2727,8 @@ initSecretsAuthority(logger)
     if (!reportWorker) {
       throw new Error("Report worker was not registered");
     }
-    void reportWorker.run().catch((err) => {
-      emitOperationalAlert({
-        requestId: randomUUID(),
-        reason: "report_worker_start_failed",
-        err,
-      });
-      captureException(err, { phase: "worker.report_worker_start" });
-      void shutdown(1);
-    });
+    // ET-Q-06: the report worker starts with every other consumer, after the
+    // Object Lock bootstrap below — see startConsumers().
   })
   .then(() => startHealthServer())
   .then(async (server) => {
@@ -2682,6 +2748,9 @@ initSecretsAuthority(logger)
       void shutdown(1);
       return;
     }
+    // ET-Q-06 — secrets hydrated, signer validated, storage bootstrap passed:
+    // only now may anything claim work.
+    startConsumers();
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();

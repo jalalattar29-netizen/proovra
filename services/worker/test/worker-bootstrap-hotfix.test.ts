@@ -172,17 +172,39 @@ describe("worker bootstrap — startup readiness protection", () => {
     expect(noComments).not.toMatch(/new\s+PrismaClient\s*\(/);
   });
 
-  it("does not consume report jobs until secrets and the package signer validate", () => {
-    expect(indexSrc).toMatch(
-      /new Worker\([\s\S]*?reportQueueName[\s\S]*?autorun:\s*false/,
-    );
-    const bootstrap = indexSrc.slice(indexSrc.indexOf("initSecretsAuthority(logger)"));
+  it("ET-Q-06: NO consumer claims work until secrets, the package signer and the Object Lock bootstrap succeed", () => {
+    const code = indexSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    // Every BullMQ Worker is constructed with autorun:false…
+    const workers = code.match(/new Worker\(/g) ?? [];
+    const autorunOff = code.match(/autorun:\s*false/g) ?? [];
+    expect(workers.length).toBeGreaterThanOrEqual(15);
+    expect(autorunOff.length).toBe(workers.length);
+    // …the only .run() is inside startConsumers()…
+    const consumers = code.slice(code.indexOf("function startConsumers()"));
+    const consumersBody = consumers.slice(0, consumers.indexOf("\n}\n"));
+    expect((code.match(/\.run\(\)/g) ?? []).length).toBe(1);
+    expect(consumersBody).toContain("w.run()");
+    // …the four claiming sweeps start there and nowhere at top level…
+    for (const s of [
+      "startRedactionReconcilerScheduler()",
+      "startTrashGraceReconcilerScheduler()",
+      "startSearchIndexReconcilerScheduler()",
+      "startIntelligenceRunReconcilerScheduler()",
+    ]) {
+      expect(consumersBody).toContain(s);
+      // One CALL site (the declaration `function ${name}` is not a call).
+      const calls = code.split(s).length - 1 - (code.split(`function ${s}`).length - 1);
+      expect(calls, s).toBe(1);
+    }
+    // …and startConsumers() runs once, after the signer and the storage bootstrap.
+    const bootstrap = code.slice(code.indexOf("initSecretsAuthority(logger)"));
     const validateAt = bootstrap.indexOf("await validatePackageSignerAtStartup()");
-    const runAt = bootstrap.indexOf("reportWorker.run()");
-    const healthAt = bootstrap.indexOf("startHealthServer()");
+    const objectLockAt = bootstrap.indexOf("await bootstrapObjectLockVerification()");
+    const startAt = bootstrap.indexOf("startConsumers();");
     expect(validateAt).toBeGreaterThanOrEqual(0);
-    expect(runAt).toBeGreaterThan(validateAt);
-    expect(healthAt).toBeGreaterThan(runAt);
+    expect(objectLockAt).toBeGreaterThan(validateAt);
+    expect(startAt).toBeGreaterThan(objectLockAt);
+    expect(code.split("startConsumers();").length - 1).toBe(1);
   });
 });
 
