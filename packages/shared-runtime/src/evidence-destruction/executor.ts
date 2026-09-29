@@ -76,7 +76,8 @@ import {
   computeEvidenceDestructionEligibility,
   type EvidenceLifecycleBlockReason,
 } from "@proovra/shared";
-import { buildCustodyEventHash, canonicalJsonValue } from "@proovra/shared/custody-hash";
+import { canonicalJsonValue } from "@proovra/shared/custody-hash";
+import { appendCustodyEventTx } from "../custody/custody-chain.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { createHash } from "node:crypto";
 
@@ -559,7 +560,7 @@ export async function executeEvidenceDestruction(
     // The custody event goes FIRST, while the child rows it may reference
     // still exist, and it is never deleted — the chain is the tombstone's
     // whole point.
-    await appendCustodyEventInTx(tx, {
+    await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,
       eventType: prismaPkg.CustodyEventType.EVIDENCE_PURGED,
       atUtc: now,
@@ -776,53 +777,3 @@ async function enumerateStorageTargets(
   return targets;
 }
 
-/**
- * Custody append, inside the caller's transaction.
- *
- * Duplicated shape rather than duplicated decision: the hash is computed by the
- * ONE `buildCustodyEventHash` in `@proovra/shared`, so this cannot produce a
- * chain that disagrees with the API's or the worker's appender. It lives here
- * because both hosts' appenders are in their own service trees and this package
- * cannot import either.
- */
-async function appendCustodyEventInTx(
-  tx: prismaPkg.Prisma.TransactionClient,
-  params: {
-    evidenceId: string;
-    eventType: prismaPkg.CustodyEventType;
-    atUtc: Date;
-    payload: Record<string, unknown>;
-  },
-): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))`;
-
-  const last = await tx.custodyEvent.findFirst({
-    where: { evidenceId: params.evidenceId },
-    orderBy: { sequence: "desc" },
-    select: { sequence: true, eventHash: true },
-  });
-  const sequence = (last?.sequence ?? 0) + 1;
-  const prevEventHash = last?.eventHash ?? null;
-  const payload = params.payload as prismaPkg.Prisma.InputJsonValue;
-
-  const eventHash = buildCustodyEventHash({
-    evidenceId: params.evidenceId,
-    sequence,
-    eventType: params.eventType,
-    atUtc: params.atUtc,
-    payload: payload as never,
-    prevEventHash,
-  });
-
-  await tx.custodyEvent.create({
-    data: {
-      evidenceId: params.evidenceId,
-      eventType: params.eventType,
-      atUtc: params.atUtc,
-      sequence,
-      payload,
-      prevEventHash,
-      eventHash,
-    },
-  });
-}

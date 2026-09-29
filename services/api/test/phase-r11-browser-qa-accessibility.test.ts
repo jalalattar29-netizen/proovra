@@ -207,8 +207,15 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
       apiSrcPath("services/custody-events.service.ts"),
       "utf8",
     );
-    expect(src).toMatch(/tx\.custodyEvent\.create\(/);
+    // 2026-09-29: the ONE writer moved to @proovra/shared-runtime
+    // (custody/custody-chain); this service exports and delegates to it. The
+    // repo-wide single-writer guard is custody-serialization-authority.test.ts.
     expect(src).toMatch(/export async function appendCustodyEvent/);
+    expect(src).toMatch(/from "@proovra\/shared-runtime"/);
+    expect(readFileSync(
+      new URL("../../../packages/shared-runtime/src/custody/custody-chain.ts", import.meta.url),
+      "utf8",
+    )).toMatch(/tx\.custodyEvent\.create\(/);
   });
   it("timestamp.service.ts still owns the TSA stamping surface", () => {
     const src = readFileSync(

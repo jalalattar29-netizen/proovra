@@ -83,7 +83,7 @@ import { captureException, initSentry } from "./sentry.js";
 // parent OTEL context injected by the API at enqueue time.
 import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-context.js";
 import { PROOVRA_SPAN_NAMES } from "./otel.js";
-import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
+import { reapExpiredCaptureDrafts, releaseExpiredReservations } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
@@ -610,6 +610,12 @@ async function runCaptureDraftReaper(trigger: string) {
   captureReaperRunning = true;
   try {
     await reapExpiredCaptureDrafts({ trigger });
+    // ET-DC-05 / ET-ACQ-02 — expired direct-capture sessions and abandoned
+    // reservations, released through the shared reservation authority.
+    {
+      const { deleteObject } = await import("./storage.js");
+      await releaseExpiredReservations({ trigger, deleteObject });
+    }
     // Also reclaim any orphaned private verification-package staging objects left by
     // an interrupted publication attempt. Bounded, idempotent, best-effort: a failure
     // here must never disturb the capture-draft reaper's own outcome.

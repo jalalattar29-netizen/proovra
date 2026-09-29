@@ -1,5 +1,5 @@
 import * as prismaPkg from "@prisma/client";
-import { countedEvidenceRecordWhere } from "./evidence/evidence-record-counting.js";
+import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
 import {

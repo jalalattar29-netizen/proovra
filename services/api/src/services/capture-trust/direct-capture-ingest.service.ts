@@ -49,7 +49,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { createEvidence } from "../evidence.service.js";
 import { completeEvidence } from "../evidence-complete.service.js";
 import { emitCaptureTrustEvent } from "./trust-event.service.js";
-import { appendCustodyEventTx } from "../custody-events.service.js";
+import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
 
@@ -154,6 +154,40 @@ export class DirectCaptureError extends Error {
 
 const DEFAULT_TTL_SECONDS = 60 * 60;
 const MAX_TTL_SECONDS = 4 * 60 * 60;
+/**
+ * ET-DC-06: the absolute lifetime of a direct-capture session. The expiry
+ * SLIDES — every accepted reservation or declaration moves it to
+ * now + DEFAULT_TTL_SECONDS — but never past startedAt + this. A continuous
+ * capture that keeps uploading segments stays open; one that goes silent
+ * expires an hour after its last activity.
+ */
+export const MAX_SESSION_LIFETIME_SECONDS = 24 * 60 * 60;
+
+/**
+ * Slide the session's expiry forward on authenticated activity. The fixed
+ * one-hour expiry stranded continuous captures finalized more than an hour
+ * after the session opened — after the app had already deleted its local
+ * segments, so the recording was unrecoverable.
+ */
+export async function extendDirectCaptureSessionOnActivity(
+  db: PrismaClient,
+  session: Pick<SessionRow, "id" | "startedAtUtc">,
+  now: Date,
+): Promise<Date | null> {
+  const started = session.startedAtUtc ?? now;
+  const next = new Date(
+    Math.min(now.getTime() + DEFAULT_TTL_SECONDS * 1000, started.getTime() + MAX_SESSION_LIFETIME_SECONDS * 1000),
+  );
+  const moved = await db.captureSession.updateMany({
+    where: {
+      id: session.id,
+      status: prismaPkg.CaptureSessionStatus.ACTIVE,
+      expiresAtUtc: { gt: now, lt: next },
+    },
+    data: { expiresAtUtc: next },
+  });
+  return moved.count === 1 ? next : null;
+}
 const MAX_PARTS = 200;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
@@ -404,6 +438,7 @@ export async function reserveDirectCaptureEvidence(
         where: { id: session.id },
         data: { finalizedEvidenceId: created.id },
       });
+      await extendDirectCaptureSessionOnActivity(tx as unknown as PrismaClient, session, now);
 
       return {
         evidenceId: created.id,
@@ -534,6 +569,8 @@ export async function declareDirectCapturePart(
         : {}),
     },
   });
+
+  await extendDirectCaptureSessionOnActivity(db, session, now);
 
   return {
     declaration: { partIndex: input.partIndex, sha256, signatureVerdict },
@@ -996,39 +1033,16 @@ export async function discardDirectCaptureSession(
 
     if (!fresh.finalizedEvidenceId) return null;
 
-    // Release the reservation ONLY while it is still unsealed. A record that
-    // reached SIGNED/REPORTED is committed evidence and is never touched here.
-    const evidence = await tx.evidence.findUnique({
-      where: { id: fresh.finalizedEvidenceId },
-      select: { id: true, status: true, deletedAt: true },
+    // Release the reservation through THE reservation authority (shared with
+    // the Worker's reservation sweep): only while it is still unsealed, under
+    // the evidence lock, recorded as EVIDENCE_DELETED on the custody chain.
+    const released = await releaseEvidenceReservationTx(tx, {
+      evidenceId: fresh.finalizedEvidenceId,
+      reason: "CAPTURE_SESSION_DISCARDED",
+      now,
+      captureSessionId: session.id,
     });
-    if (
-      !evidence ||
-      evidence.deletedAt ||
-      (evidence.status !== prismaPkg.EvidenceStatus.CREATED &&
-        evidence.status !== prismaPkg.EvidenceStatus.UPLOADING)
-    ) {
-      return null;
-    }
-
-    await tx.evidence.update({
-      where: { id: evidence.id },
-      data: { deletedAt: now },
-    });
-
-    await appendCustodyEventTx(tx, {
-      evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETED,
-      atUtc: now,
-      payload: {
-        reason: "CAPTURE_SESSION_DISCARDED",
-        captureSessionId: session.id,
-        statusAtRelease: evidence.status,
-        note: "Reservation released before any content was committed.",
-      },
-    });
-
-    return evidence.id;
+    return released ? fresh.finalizedEvidenceId : null;
   });
 
   // Outside the transaction: the trust chain has its own sequencing and must

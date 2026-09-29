@@ -163,6 +163,10 @@ const SESSION_READINESS = readWeb("app/(app)/capture/_lib/session-readiness.ts")
 const CAPTURE_ROUTES = readApi("routes/capture.routes.ts");
 const EVIDENCE_COMPLETE_SVC = readApi("services/evidence-complete.service.ts");
 const CUSTODY_EVENTS_SVC = readApi("services/custody-events.service.ts");
+const CUSTODY_CHAIN_SRC = readFileSync(
+  new URL("../../../packages/shared-runtime/src/custody/custody-chain.ts", import.meta.url),
+  "utf8",
+);
 const TIMESTAMP_SVC = readApi("services/timestamp.service.ts");
 
 const CAPTURE_FILES = captureSurfaceFiles();
@@ -606,9 +610,12 @@ describe("CR5 Group 7 — custody is backend-owned", () => {
   it("custody-events.service.ts is the single custody writer", () => {
     // Byte-exact size replaced by the rule it stood in for: a size cannot
     // tell a custody-logic change apart from a deleted dead import.
-    expect(/tx\.custodyEvent\.create\(/.test(CUSTODY_EVENTS_SVC)).toBe(true);
+    // 2026-09-29: the ONE writer is @proovra/shared-runtime custody/custody-chain;
+    // this service exports appendCustodyEvent and delegates.
+    expect(/tx\.custodyEvent\.create\(/.test(CUSTODY_CHAIN_SRC)).toBe(true);
     expect(/export async function appendCustodyEvent/.test(CUSTODY_EVENTS_SVC))
       .toBe(true);
+    expect(/from "@proovra\/shared-runtime"/.test(CUSTODY_EVENTS_SVC)).toBe(true);
   });
 
   it("evidence-complete.service.ts byte-exact pin (finalize tx)", () => {
@@ -625,7 +632,7 @@ describe("CR5 Group 7 — custody is backend-owned", () => {
   });
 
   it("custody chain is hash-chained (sequential prevEventHash)", () => {
-    expect(/prevEventHash/.test(CUSTODY_EVENTS_SVC)).toBe(true);
+    expect(/prevEventHash/.test(CUSTODY_CHAIN_SRC)).toBe(true);
     expect(/appendCustodyEventTx|appendCustodyEvent/.test(CUSTODY_EVENTS_SVC))
       .toBe(true);
   });

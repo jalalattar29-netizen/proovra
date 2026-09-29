@@ -1,6 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { countedEvidenceRecordWhere } from "./evidence/evidence-record-counting.js";
+import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
 import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {

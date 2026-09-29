@@ -21,6 +21,10 @@ import { randomUUID } from "node:crypto";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 import { shouldExpireCaptureDraft } from "./capture-draft-governance.js";
+import {
+  expiredEvidenceReservationWhere,
+  releaseEvidenceReservationTx,
+} from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -185,4 +189,143 @@ export async function reapExpiredCaptureDrafts(
     failed,
     skipped,
   };
+}
+
+// =============================================================================
+// ET-DC-05 / ET-ACQ-02 — expired direct-capture sessions and reservations.
+// =============================================================================
+
+export interface ReleaseExpiredReservationsResult {
+  sessionsExpired: number;
+  reservationsReleased: number;
+  objectDeletesRequested: number;
+  objectDeletesFailed: number;
+  failed: number;
+}
+
+/**
+ * Removes the storage keys of released reservations. Best-effort and after
+ * commit: the release is the record's truth. On a versioned (Object Lock)
+ * bucket a key delete only adds a delete marker; a retained version persists
+ * until its own retention ends — that is the bucket's guarantee, not a leak.
+ */
+export type ReservationObjectDeleter = (p: { bucket: string; key: string }) => Promise<unknown>;
+
+/**
+ * THE reservation sweep. Two passes, both through THE reservation authority
+ * (@proovra/shared-runtime evidence-reservation):
+ *
+ *  1. Direct-capture sessions still ACTIVE/INTERRUPTED past their expiry can
+ *     never complete (completion refuses an expired session), so each is
+ *     claimed EXPIRED under the same session lock a discard takes, and its
+ *     reservation is released (reason CAPTURE_SESSION_EXPIRED). The extension
+ *     never discards and an interrupted app may never come back; before this
+ *     nothing ended such a session.
+ *  2. Unsealed records untouched for the whole reservation window and held
+ *     open by no live session (web captures abandoned mid-upload, intake
+ *     reservations whose link closed) are released (RESERVATION_EXPIRED).
+ *
+ * Bounded per run; every claim is a conditional write, so concurrent sweeps
+ * release each record once.
+ */
+export async function releaseExpiredReservations(
+  options: { batchSize?: number; trigger?: string; deleteObject?: ReservationObjectDeleter; now?: Date } = {},
+): Promise<ReleaseExpiredReservationsResult> {
+  const trigger = options.trigger ?? "manual";
+  const now = options.now ?? new Date();
+  const batchSize = Math.max(1, Math.min(options.batchSize ?? DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE));
+  const result: ReleaseExpiredReservationsResult = {
+    sessionsExpired: 0,
+    reservationsReleased: 0,
+    objectDeletesRequested: 0,
+    objectDeletesFailed: 0,
+    failed: 0,
+  };
+  const released: string[] = [];
+  const LIVE = [prismaPkg.CaptureSessionStatus.ACTIVE, prismaPkg.CaptureSessionStatus.INTERRUPTED];
+
+  const sessions = await prisma.captureSession.findMany({
+    where: { status: { in: LIVE }, expiresAtUtc: { not: null, lt: now } },
+    orderBy: { expiresAtUtc: "asc" },
+    take: batchSize,
+    select: { id: true },
+  });
+  for (const s of sessions) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${s.id}`}))`;
+        const claim = await tx.captureSession.updateMany({
+          where: { id: s.id, status: { in: LIVE }, expiresAtUtc: { lt: now } },
+          data: { status: prismaPkg.CaptureSessionStatus.EXPIRED, endedAtUtc: now, endReason: "EXPIRED" },
+        });
+        if (claim.count !== 1) return;
+        result.sessionsExpired++;
+        const row = await tx.captureSession.findUnique({ where: { id: s.id }, select: { finalizedEvidenceId: true } });
+        if (
+          row?.finalizedEvidenceId &&
+          (await releaseEvidenceReservationTx(tx, {
+            evidenceId: row.finalizedEvidenceId,
+            reason: "CAPTURE_SESSION_EXPIRED",
+            now,
+            captureSessionId: s.id,
+          }))
+        ) {
+          result.reservationsReleased++;
+          released.push(row.finalizedEvidenceId);
+        }
+      });
+    } catch (err) {
+      result.failed++;
+      logger.warn({ captureSessionId: s.id, err, trigger }, "capture.reaper.session_expire_failed");
+    }
+  }
+
+  const reservations = await prisma.evidence.findMany({
+    where: expiredEvidenceReservationWhere(now),
+    orderBy: { createdAt: "asc" },
+    take: batchSize,
+    select: { id: true },
+  });
+  for (const e of reservations) {
+    try {
+      const ok = await prisma.$transaction((tx) =>
+        releaseEvidenceReservationTx(tx, { evidenceId: e.id, reason: "RESERVATION_EXPIRED", now }),
+      );
+      if (ok) {
+        result.reservationsReleased++;
+        released.push(e.id);
+      }
+    } catch (err) {
+      result.failed++;
+      logger.warn({ evidenceId: e.id, err, trigger }, "capture.reaper.reservation_release_failed");
+    }
+  }
+
+  if (options.deleteObject && released.length > 0) {
+    const [parts, records] = await Promise.all([
+      prisma.evidencePart.findMany({
+        where: { evidenceId: { in: released } },
+        select: { storageBucket: true, storageKey: true },
+      }),
+      prisma.evidence.findMany({
+        where: { id: { in: released }, storageKey: { not: null } },
+        select: { storageBucket: true, storageKey: true },
+      }),
+    ]);
+    const keys = new Map<string, { bucket: string; key: string }>();
+    for (const o of [...parts, ...records]) {
+      if (o.storageBucket && o.storageKey) keys.set(`${o.storageBucket}/${o.storageKey}`, { bucket: o.storageBucket, key: o.storageKey });
+    }
+    for (const o of keys.values()) {
+      result.objectDeletesRequested++;
+      try {
+        await options.deleteObject(o);
+      } catch {
+        result.objectDeletesFailed++;
+      }
+    }
+  }
+
+  logger.info({ ...result, trigger }, "capture.reaper.reservations_completed");
+  return result;
 }

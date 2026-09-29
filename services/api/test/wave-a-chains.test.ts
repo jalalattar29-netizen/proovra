@@ -231,7 +231,7 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
 
   it("custody EVIDENCE_PURGED is written in the SAME transaction as the tombstone", () => {
     const tx = executor.slice(executor.indexOf("await prisma.$transaction("));
-    const custodyIdx = tx.indexOf("appendCustodyEventInTx(tx, {");
+    const custodyIdx = tx.indexOf("appendCustodyEventTx(tx, {");
     const tombstoneIdx = tx.indexOf('lifecycleState: "DESTROYED"');
     expect(custodyIdx).toBeGreaterThan(-1);
     expect(tombstoneIdx).toBeGreaterThan(custodyIdx);

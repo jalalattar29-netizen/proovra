@@ -69,7 +69,7 @@ import {
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
-import { countedEvidenceRecordWhere } from "../evidence/evidence-record-counting.js";
+import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";

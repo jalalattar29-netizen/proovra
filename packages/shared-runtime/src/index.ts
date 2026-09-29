@@ -77,6 +77,12 @@ export * from "./evidence-analysis-revision.js";
 // destruction executor. It lives here, not in either service, because BOTH had
 // their own: four independent destroyers, two of which certified destructions
 // they never performed. Every trigger in both processes now calls this.
+// THE ONE custody serialization authority (append + chain evaluation). The API,
+// the Worker and the destruction executor each carried their own appender.
+export * from "./custody/custody-chain.js";
+// THE evidence reservation authority: live window, counted records, expired
+// reservations, and the one release (API discard + Worker sweep).
+export * from "./evidence-reservation/reservation.js";
 export * from "./governance/effective-legal-hold.js";
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/version-port.js";
