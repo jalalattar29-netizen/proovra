@@ -1,0 +1,5 @@
+{
+  "baselineSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "reconciliation": "origin/main == audited SHA a40ca76f at remediation start (2026-09-29T13:30Z); `git diff --quiet a40ca76f HEAD -- services apps packages` succeeded, so every cited line is unchanged and every finding starts STILL_PRESENT. No finding is ALREADY_FIXED_ON_MAIN.",
+  "findings": {}
+}

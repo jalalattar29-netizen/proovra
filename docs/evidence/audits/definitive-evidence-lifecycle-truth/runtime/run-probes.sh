@@ -31,5 +31,5 @@ if [[ "$what" == all || "$what" == ots ]]; then
   (cd "$repo/services/worker" && node_modules/.bin/tsx "$here/probes/ots-queue.probe.mts" "$results/rt-ots-queue.json")
 fi
 if [[ "$what" == all || "$what" == integration ]]; then
-  (cd "$repo/services/api" && node_modules/.bin/vitest run --config vitest.integration.config.ts --dir "$here/probes" ${2:+-t "$2"})
+  (cd "$repo/services/api" && pnpm run test:integration:run --dir "$here/probes" ${2:+-t "$2"})
 fi
