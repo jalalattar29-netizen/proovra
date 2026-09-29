@@ -136,6 +136,9 @@ function isNotStale(
   recordedAtUtc: Date | null,
 ): boolean {
   if (!observedAtUtc || !recordedAtUtc) return true;
+  // ET-COM-01 — a recorded stamp in the future is a pre-fix period-end stamp and
+  // carries no ordering information: treat it as absent.
+  if (recordedAtUtc.getTime() > Date.now()) return true;
   return observedAtUtc.getTime() >= recordedAtUtc.getTime();
 }
 

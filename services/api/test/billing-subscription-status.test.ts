@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decideSubscriptionStatusWrite,
   decideSubscriptionTransition,
   observedStateFromSubscriptionStatus,
 } from "../src/services/billing/subscription-status.js";
@@ -95,5 +96,33 @@ describe("subscription provider-state ordering", () => {
         observedAtUtc: T1,
       }),
     ).toEqual({ apply: true, status: "ACTIVE" });
+  });
+});
+
+describe("ET-COM-01 — a reconciliation stamp can never swallow a later cancellation", () => {
+  // The production sequence: the reconciler agrees with Stripe at R and (pre-fix)
+  // stamps providerStateAtUtc with the FUTURE current_period_end. A cancellation
+  // created at C (R < C < period end) is applied at D.
+  const R = new Date("2026-09-01T10:00:00Z");
+  const C = new Date("2026-09-05T10:00:00Z");
+  const D = new Date("2026-09-05T10:00:05Z");
+  const PERIOD_END = new Date("2026-09-30T10:00:00Z");
+
+  it("a pre-fix future stamp is not ordering information: the cancellation applies", () => {
+    expect(
+      decideSubscriptionStatusWrite({ current: "ACTIVE", currentObservedAtUtc: PERIOD_END, next: "CANCELED", observedAtUtc: C, now: D }),
+    ).toEqual({ apply: true, status: "CANCELED" });
+    expect(
+      decideSubscriptionStatusWrite({ current: "ACTIVE", currentObservedAtUtc: PERIOD_END, next: "PAST_DUE", observedAtUtc: C, now: D }),
+    ).toMatchObject({ apply: true });
+  });
+
+  it("a post-fix read-time stamp orders correctly: a later event applies, an earlier one is refused", () => {
+    expect(
+      decideSubscriptionStatusWrite({ current: "ACTIVE", currentObservedAtUtc: R, next: "CANCELED", observedAtUtc: C, now: D }),
+    ).toEqual({ apply: true, status: "CANCELED" });
+    expect(
+      decideSubscriptionStatusWrite({ current: "ACTIVE", currentObservedAtUtc: C, next: "CANCELED", observedAtUtc: R, now: D }),
+    ).toEqual({ apply: false, reason: "OBSERVATION_IS_OLDER" });
   });
 });

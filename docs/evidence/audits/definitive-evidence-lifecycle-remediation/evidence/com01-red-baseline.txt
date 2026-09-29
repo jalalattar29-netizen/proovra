@@ -1,0 +1,4 @@
+   × ET-COM-01 — a reconciliation stamp can never swallow a later cancellation > a pre-fix future stamp is not ordering information: the cancellation applies 5ms
+     → expected { apply: false, …(1) } to deeply equal { apply: true, status: 'CANCELED' }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 9 passed (10)

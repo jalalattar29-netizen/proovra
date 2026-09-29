@@ -339,6 +339,9 @@ export class StripeBillingReconciliationProvider
     providerRef: string,
   ): Promise<SubscriptionObservation> {
     let body: unknown;
+    // ET-COM-01 — the ordering time of a poll is WHEN WE READ the provider,
+    // taken before the request: the state returned is at least this fresh.
+    const readAtUtc = new Date();
     try {
       body = await stripeGet(`/subscriptions/${encodeURIComponent(providerRef)}`);
     } catch (err) {
@@ -379,11 +382,13 @@ export class StripeBillingReconciliationProvider
       state: subscriptionState(sub),
       currentPeriodEndUtc: utcFromUnix(sub["current_period_end"]),
       cancelAtPeriodEnd: sub["cancel_at_period_end"] === true,
-      // `status_transitions.updated_at` would be ideal but Stripe does not
-      // publish it on subscriptions; `created` is the only monotonic provider
-      // stamp available here, so a subscription observation carries the
-      // period end as its ordering signal instead (see the service).
-      observedAtUtc: utcFromUnix(sub["current_period_end"]) ?? utcFromUnix(sub["created"]),
+      // ET-COM-01 — NEVER the period end. `current_period_end` is a FUTURE
+      // date; stamped as the ordering clock it made every later webhook
+      // (cancellation, past-due) look older and be refused, so a cancelled
+      // customer kept the paid plan. The read time orders correctly against
+      // webhook event times: an event created before the read is already
+      // reflected in what was read; one created after it is newer.
+      observedAtUtc: readAtUtc,
       recentPayments: await this.recentInvoices(providerRef),
     };
   }

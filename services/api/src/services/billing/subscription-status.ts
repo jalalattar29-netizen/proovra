@@ -81,10 +81,20 @@ export function decideSubscriptionStatusWrite(input: {
   currentObservedAtUtc: Date | null;
   next: prismaPkg.SubscriptionStatus;
   observedAtUtc: Date | null;
+  /** Injected by tests; defaults to the wall clock. */
+  now?: Date;
 }): SubscriptionTransition {
   const { current, next } = input;
   const incoming = input.observedAtUtc?.getTime() ?? null;
-  const recorded = input.currentObservedAtUtc?.getTime() ?? null;
+  // ET-COM-01 — an ordering stamp can never legitimately be in the future. A
+  // future stamp is a pre-fix reconciler writing the period end; it carries no
+  // information about when the provider was read, so it is treated as ABSENT
+  // (not clamped: a clamp to "now" would still refuse every event created
+  // before now). The next applied fact stamps the row correctly — no data
+  // migration is needed.
+  const nowMs = (input.now ?? new Date()).getTime();
+  const recordedRaw = input.currentObservedAtUtc?.getTime() ?? null;
+  const recorded = recordedRaw === null || recordedRaw > nowMs ? null : recordedRaw;
 
   if (incoming !== null && recorded !== null && incoming < recorded) {
     return { apply: false, reason: "OBSERVATION_IS_OLDER" };
