@@ -21,6 +21,7 @@ import { HeadObjectCommand, ListObjectVersionsCommand } from "@aws-sdk/client-s3
 
 import { prisma } from "../db.js";
 import { s3 } from "../storage.js";
+import { evidenceOwnedStoragePrefixes } from "@proovra/shared-runtime";
 
 type Finding = {
   evidence: string;
@@ -101,12 +102,9 @@ async function main() {
       let markers = 0;
       let legal = 0;
       let latest: number | null = null;
-      for (const prefix of [
-        `evidence/${ev.id}/`,
-        `reports/${ev.id}/`,
-        `verification/${ev.id}/`,
-        `internal/package-staging/${ev.id}/`,
-      ]) {
+      // The one prefix list the executor destroys (2026-09-29, audit M5 —
+      // this read derived-assets/ nowhere).
+      for (const prefix of evidenceOwnedStoragePrefixes(ev.id)) {
         const r = await inventoryPrefix(bucket, prefix);
         surviving += r.surviving;
         markers += r.markers;

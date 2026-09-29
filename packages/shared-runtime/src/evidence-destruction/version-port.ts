@@ -89,6 +89,34 @@ export function createVersionAwareDestructionPort(deps: {
       // throw as "could not verify" and refuses to certify.
       throw new Error("OBJECT_VERSION_LISTING_UNBOUNDED");
     },
+    async listKeysUnderPrefix({ bucket, prefix }) {
+      const keys = new Set<string>();
+      let keyMarker: string | undefined;
+      let versionIdMarker: string | undefined;
+      for (let page = 0; page < 100; page++) {
+        const res = (await send(
+          new deps.ListObjectVersionsCommand({
+            Bucket: bucket,
+            Prefix: prefix,
+            ...(keyMarker ? { KeyMarker: keyMarker } : {}),
+            ...(versionIdMarker ? { VersionIdMarker: versionIdMarker } : {}),
+          }),
+        )) as {
+          Versions?: Array<{ Key?: string }>;
+          DeleteMarkers?: Array<{ Key?: string }>;
+          IsTruncated?: boolean;
+          NextKeyMarker?: string;
+          NextVersionIdMarker?: string;
+        };
+        for (const v of [...(res.Versions ?? []), ...(res.DeleteMarkers ?? [])]) {
+          if (v.Key && v.Key.startsWith(prefix)) keys.add(v.Key);
+        }
+        if (!res.IsTruncated) return [...keys];
+        keyMarker = res.NextKeyMarker;
+        versionIdMarker = res.NextVersionIdMarker;
+      }
+      throw new Error("OBJECT_PREFIX_LISTING_UNBOUNDED");
+    },
     async deleteObjectVersion({ bucket, key, versionId }) {
       try {
         await send(

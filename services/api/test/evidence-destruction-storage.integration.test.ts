@@ -71,6 +71,7 @@ class DisposableStore {
       survive: (id) => this.survive.has(id),
       retainUntil: (id) => this.retained.get(id) ?? null,
       onDelete: (id) => this.deleteCalls.push(id),
+      ids: () => [...this.objects.keys()],
     });
   }
 }
@@ -483,6 +484,63 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     expect(again.ok).toBe(true);
     if (again.ok) expect(again.outcome).toBe("ALREADY_DESTROYED");
     expect(await certificateCount(rec.id)).toBe(1);
+  });
+
+  it("H2 (2026-09-29): objects no row points at, under the record's prefixes, and its cases' SIU bundles are destroyed too", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(
+      store,
+      trashedAndExpired({
+        retentionUntilUtc: new Date(Date.now() - 10 * DAY),
+        storageObjectLockMode: "COMPLIANCE",
+        storageObjectLockRetainUntilUtc: new Date(Date.now() - 10 * DAY),
+      }),
+    );
+    // Residue no row references: a staged package, a lost-race orphan, a
+    // superseded derived rendition.
+    const residue = [
+      `internal/package-staging/${rec.id}/v1.zip`,
+      `verification/${rec.id}/v1/req-orphan.zip`,
+      `derived-assets/${rec.id}/part/thumb-old.webp`,
+    ];
+    for (const k of residue) store.put(rec.bucket, k);
+    // Another record's objects are untouched.
+    const neighbour = `verification/00000000-0000-4000-8000-000000000000/v1/x.zip`;
+    store.put(rec.bucket, neighbour);
+    // A case SIU bundle carrying this record.
+    const c = await prisma.case.create({
+      data: { name: "h2 case", teamId: harness.fixtures.teamA.teamId, ownerUserId: harness.fixtures.teamA.ownerUserId } as never,
+      select: { id: true },
+    });
+    await prisma.caseEvidenceLink.create({ data: { caseId: c.id, evidenceId: rec.id } as never });
+    const profile = await prisma.caseSiuProfile.create({
+      data: { caseId: c.id, teamId: harness.fixtures.teamA.teamId, claimType: "auto", investigationStatus: "open" } as never,
+      select: { id: true },
+    });
+    const siuKey = `siu-exports/${harness.fixtures.teamA.teamId}/${c.id}/abc.zip`;
+    const siu = await prisma.caseSiuExport.create({
+      data: { siuProfileId: profile.id, caseId: c.id, readinessState: "ready", artifactStorageBucket: rec.bucket, artifactStorageKey: siuKey } as never,
+      select: { id: true },
+    });
+    store.put(rec.bucket, siuKey);
+
+    const result = await executeEvidenceDestruction(
+      prisma,
+      {
+        evidenceId: rec.id,
+        trigger: "destruction_review",
+        actorUserId: harness.fixtures.teamA.ownerUserId,
+        legalHold: false,
+        destructionApprovalRequired: true,
+        destructionApproved: true,
+      },
+      store.port,
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    for (const k of [...residue, siuKey]) expect(store.has(rec.bucket, k), k).toBe(false);
+    expect(store.has(rec.bucket, neighbour), "another record is untouched").toBe(true);
+    const siuAfter = await prisma.caseSiuExport.findUniqueOrThrow({ where: { id: siu.id }, select: { artifactStorageKey: true, exportStatus: true } });
+    expect(siuAfter).toEqual({ artifactStorageKey: null, exportStatus: "destroyed" });
   });
 
   it("two concurrent executors produce exactly one destruction", async () => {

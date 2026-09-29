@@ -16,6 +16,8 @@ export function versionedDestructionPort(store: {
   survive?: (id: string) => boolean;
   retainUntil?: (id: string) => Date | null;
   onDelete?: (id: string) => void;
+  /** Every stored id (bucket/key), for prefix listing (2026-09-29, H2). */
+  ids?: () => string[];
 }): EvidenceDestructionStoragePort {
   return {
     async listObjectVersions({ bucket, key }) {
@@ -31,6 +33,15 @@ export function versionedDestructionPort(store: {
       };
       return [v];
     },
+    ...(store.ids
+      ? {
+          async listKeysUnderPrefix({ bucket, prefix }: { bucket: string; prefix: string }) {
+            return store.ids!()
+              .filter((id) => id.startsWith(`${bucket}/${prefix}`))
+              .map((id) => id.slice(bucket.length + 1));
+          },
+        }
+      : {}),
     async deleteObjectVersion({ bucket, key }) {
       const id = `${bucket}/${key}`;
       store.onDelete?.(id);

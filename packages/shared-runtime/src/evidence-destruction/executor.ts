@@ -121,6 +121,30 @@ export interface EvidenceDestructionStoragePort {
     key: string;
     versionId: string;
   }): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * (2026-09-29, audit H2) Every distinct KEY under a prefix that still has any
+   * version or delete marker, answered by the store. Optional so an older port
+   * keeps working; without it the inventory is row-based only. MUST throw
+   * rather than return a partial list.
+   */
+  listKeysUnderPrefix?(input: { bucket: string; prefix: string }): Promise<string[]>;
+}
+
+/**
+ * THE OBJECT PREFIXES A RECORD OWNS (2026-09-29, audit H2/M5) — one list, for
+ * the executor and the certificate audit alike. Every object under these is
+ * this record's content or derived from it, whether or not a row still points
+ * at it: package staging residue, the immutable orphan a lost publication race
+ * leaves behind, superseded derived renditions.
+ */
+export function evidenceOwnedStoragePrefixes(evidenceId: string): string[] {
+  return [
+    `evidence/${evidenceId}/`,
+    `reports/${evidenceId}/`,
+    `verification/${evidenceId}/`,
+    `internal/package-staging/${evidenceId}/`,
+    `derived-assets/${evidenceId}/`,
+  ];
 }
 
 export type ObjectVersionInfo = {
@@ -391,7 +415,7 @@ export async function executeEvidenceDestruction(
   }
 
   // 5. ENUMERATE. Everything the Evidence record owns bytes for.
-  const targets = await enumerateStorageTargets(prisma, evidence.id, evidence);
+  const targets = await enumerateStorageTargets(prisma, evidence.id, evidence, storage);
 
   // 5b. INVENTORY every VERSION before touching anything.
   //
@@ -544,6 +568,19 @@ export async function executeEvidenceDestruction(
     await tx.report.deleteMany({ where: { evidenceId: evidence.id } });
     await tx.evidencePart.deleteMany({ where: { evidenceId: evidence.id } });
 
+    // (2026-09-29, audit H2) SIU export bundles of this record's cases carried
+    // its report and package; their objects are gone and verified gone, so
+    // the rows point at nothing and say so.
+    await tx.caseSiuExport.updateMany({
+      where: {
+        caseId: { in: (
+          await tx.caseEvidenceLink.findMany({ where: { evidenceId: evidence.id }, select: { caseId: true } })
+        ).map((l) => l.caseId) },
+        artifactStorageKey: { not: null },
+      },
+      data: { artifactStorageKey: null, exportStatus: "destroyed" },
+    });
+
     // UC-0 (P0-7) — everything PROOVRA DERIVED from the content. These tables
     // have no foreign key to the tombstone (or cascade only on a row delete the
     // tombstone never performs), so without this they outlived destruction:
@@ -638,8 +675,12 @@ async function enumerateStorageTargets(
   prisma: PrismaClient,
   evidenceId: string,
   evidence: { storageBucket: string | null; storageKey: string | null },
+  storage?: EvidenceDestructionStoragePort,
 ): Promise<StorageTarget[]> {
-  const [parts, reports, packages, derivatives, derivedAssets] = await Promise.all([
+  const caseIds = (
+    await prisma.caseEvidenceLink.findMany({ where: { evidenceId }, select: { caseId: true } })
+  ).map((l) => l.caseId);
+  const [parts, reports, packages, derivatives, derivedAssets, siuExports] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { evidenceId },
       select: { storageBucket: true, storageKey: true },
@@ -660,6 +701,14 @@ async function enumerateStorageTargets(
       where: { evidenceId, storageKey: { not: null } },
       select: { storageBucket: true, storageKey: true },
     }),
+    // (2026-09-29, audit H2) An SIU export bundle of any case this record is
+    // linked to carries its report and verification package.
+    caseIds.length
+      ? prisma.caseSiuExport.findMany({
+          where: { caseId: { in: caseIds }, artifactStorageKey: { not: null } },
+          select: { artifactStorageBucket: true, artifactStorageKey: true },
+        })
+      : Promise.resolve([] as Array<{ artifactStorageBucket: string | null; artifactStorageKey: string | null }>),
   ]);
 
   const all: Array<{ bucket: string | null; key: string | null }> = [
@@ -668,7 +717,25 @@ async function enumerateStorageTargets(
       bucket: row.storageBucket,
       key: row.storageKey,
     })),
+    ...siuExports.map((row) => ({ bucket: row.artifactStorageBucket, key: row.artifactStorageKey })),
   ];
+
+  /*
+   * (2026-09-29, audit H2) EVERY OBJECT UNDER THE RECORD'S OWN PREFIXES, not
+   * only those a row still points at: package staging residue, the immutable
+   * orphan of a lost publication race, superseded derived renditions. Listed
+   * in every bucket the record's rows use.
+   */
+  if (storage?.listKeysUnderPrefix) {
+    const buckets = new Set(all.map((r) => r.bucket).filter((b): b is string => !!b));
+    for (const bucket of buckets) {
+      for (const prefix of evidenceOwnedStoragePrefixes(evidenceId)) {
+        for (const key of await storage.listKeysUnderPrefix({ bucket, prefix })) {
+          all.push({ bucket, key });
+        }
+      }
+    }
+  }
 
   const seen = new Set<string>();
   const targets: StorageTarget[] = [];
