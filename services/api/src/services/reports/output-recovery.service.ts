@@ -35,6 +35,8 @@ import {
   type PersistedReportRequestState,
 } from "@proovra/shared";
 
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+
 import { prisma } from "../../db.js";
 import {
   resolveEvidenceOutputEligibility,
@@ -522,12 +524,26 @@ export async function requestOutputRecovery(input: {
      * resolver's own predicates.
      */
     const facts = loaded.facts;
+    /*
+     * The record's workspace as the WRITER resolves it: its team, or — for a
+     * Personal record stored with team_id NULL — its owner's personal
+     * workspace. The projection's "has a team" fact would refuse exactly the
+     * LEGACY_UNSCOPED records this operator path exists to repair, while the
+     * writer scopes them. Closed / suspended / lifecycle restrictions still
+     * apply unchanged; a record with no resolvable workspace is still refused.
+     */
+    const workspaceResolved =
+      facts.restrictions.workspaceResolved ||
+      (await resolveEvidenceWorkspaceId(
+        { teamId: loaded.teamId, ownerUserId: loaded.ownerUserId },
+        prisma,
+      )) != null;
     const refusal: OutputActionUnavailableReason | null =
       facts.record === "INTEGRITY_FAILED"
         ? "INTEGRITY_FAILED"
         : facts.record === "NOT_FINALIZED"
           ? "NOT_FINALIZED"
-          : (outputBlockingRestriction(facts.restrictions) ??
+          : (outputBlockingRestriction({ ...facts.restrictions, workspaceResolved }) ??
             (!facts.callerMayGenerate
               ? "PERMISSION_DENIED"
               : facts.packageBlockedByGovernance
