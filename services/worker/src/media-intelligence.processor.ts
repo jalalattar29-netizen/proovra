@@ -244,6 +244,50 @@ export async function processExifQueueJob(
  * the part as its authority, and the text-similarity path derives its kind from
  * the run's own `kind` column.
  */
+/**
+ * ET-Q-03 — EVERY RUN ROW REACHES A TERMINAL STATE.
+ *
+ * compute_perceptual_hashes, extract_technical_metadata and the text-
+ * similarity kinds (and the refusals below) never touched their run row: it
+ * stayed PENDING with attempt_count 0, so the intelligence-run reconciler
+ * re-enqueued it every 10 minutes forever (its >= 5 abandonment check never
+ * fired) and genuinely stranded runs queued behind it. These wrap such a
+ * handler in the canonical tracker's claim and fenced terminal write.
+ */
+type MiResult = { ok: true; signalsEmitted: number; deferred?: boolean };
+
+async function settleRunAround(
+  runId: string,
+  teamId: string,
+  handler: () => Promise<MiResult>,
+): Promise<MiResult> {
+  const tracker = await import("@proovra/shared-runtime/media-intelligence");
+  const proc = await tracker.markRunProcessing(runId, teamId, prisma);
+  if (!proc.ok) {
+    if (proc.reason === "max_retries_exceeded") return { ok: true, signalsEmitted: 0 };
+    throw new Error(`run_tracker_unavailable: ${proc.reason}`);
+  }
+  try {
+    const result = await handler();
+    await tracker.markRunCompleted(runId, teamId, prisma, proc.fence);
+    return result;
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err && typeof (err as { code?: unknown }).code === "string"
+        ? String((err as { code: string }).code).slice(0, 64)
+        : "handler_failed";
+    await tracker.markRunFailed(runId, teamId, code, prisma, proc.fence);
+    throw err;
+  }
+}
+
+/** A run that will never be executed as it stands: claimed and failed with a reason. */
+async function refuseRun(runId: string, teamId: string, reason: string): Promise<void> {
+  const tracker = await import("@proovra/shared-runtime/media-intelligence");
+  const proc = await tracker.markRunProcessing(runId, teamId, prisma);
+  if (proc.ok) await tracker.markRunFailed(runId, teamId, reason, prisma, proc.fence);
+}
+
 export async function processMediaIntelligenceJob(
   job: Job<unknown>,
 ): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
@@ -294,6 +338,8 @@ export async function processMediaIntelligenceJob(
       { requestId, jobId: job.id, runId: run.id },
       "media_intelligence.evidence_scope_mismatch",
     );
+    // ET-Q-03 — terminal, with the reason, instead of PENDING forever.
+    await refuseRun(run.id, run.teamId, "evidence_scope_mismatch");
     return { ok: true, signalsEmitted: 0 };
   }
 
@@ -329,12 +375,14 @@ export async function processMediaIntelligenceJob(
   // evidence_parts. Non-image parts are skipped silently. Failures
   // never block the evidence lifecycle.
   if (kind === "compute_perceptual_hashes") {
-    return processComputePerceptualHashesJob({
-      jobId: job.id,
-      teamId,
-      evidenceId,
-      evidencePartId,
-    });
+    return settleRunAround(runId, teamId, () =>
+      processComputePerceptualHashesJob({
+        jobId: job.id,
+        teamId,
+        evidenceId,
+        evidencePartId,
+      }),
+    );
   }
 
   // Enterprise Technical Metadata layer — deterministic Layer-1 file
@@ -343,12 +391,14 @@ export async function processMediaIntelligenceJob(
   // image/video/pdf parser, writes evidence_parts.technical_metadata.
   // Never blocks the lifecycle; graceful-degrades per part.
   if (kind === "extract_technical_metadata") {
-    return processExtractTechnicalMetadataJob({
-      jobId: job.id,
-      teamId,
-      evidenceId,
-      evidencePartId,
-    });
+    return settleRunAround(runId, teamId, () =>
+      processExtractTechnicalMetadataJob({
+        jobId: job.id,
+        teamId,
+        evidenceId,
+        evidencePartId,
+      }),
+    );
   }
 
   // Wave 4 — automatic OCR producer branch. Fetches PDF / image bytes
@@ -395,12 +445,14 @@ export async function processMediaIntelligenceJob(
     kind === "reconcile_ocr_similarity" ||
     kind === "reconcile_transcript_similarity"
   ) {
-    return processTextSimilarityPromotion({
-      jobId: job.id,
-      teamId,
-      evidenceId,
-      textKind: kind === "reconcile_ocr_similarity" ? "OCR" : "TRANSCRIPT",
-    });
+    return settleRunAround(runId, teamId, () =>
+      processTextSimilarityPromotion({
+        jobId: job.id,
+        teamId,
+        evidenceId,
+        textKind: kind === "reconcile_ocr_similarity" ? "OCR" : "TRANSCRIPT",
+      }),
+    );
   }
 
   // UC-4 — DERIVED screen intelligence. Bounded ffmpeg keyframes from ORIGINAL
@@ -438,6 +490,9 @@ export async function processMediaIntelligenceJob(
       { jobId: job.id, kind, evidenceId, teamId },
       "media_intelligence.kind_reserved_for_future_phase",
     );
+    // ET-Q-03 — a kind with no processor is FAILED with that reason, not
+    // left PENDING for the reconciler to re-enqueue forever.
+    await refuseRun(runId, teamId, "kind_not_implemented");
     return { ok: true, signalsEmitted: 0, deferred: true };
   }
 

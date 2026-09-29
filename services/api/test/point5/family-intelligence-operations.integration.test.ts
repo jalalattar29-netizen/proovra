@@ -553,6 +553,46 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
     provenCase("mirun.provider.failure_cannot_complete");
   });
 
+  // ===========================================================================
+  // ET-Q-03 — every run kind with a durable row reaches a terminal state
+  // ===========================================================================
+
+  async function runOf(kind: string, teamId: string, evidenceId: string) {
+    return (
+      await prisma.mediaIntelligenceRun.create({
+        data: { teamId, evidenceId, kind, status: "PENDING" } as never,
+        select: { id: true },
+      })
+    ).id;
+  }
+  const statusOf = (id: string) =>
+    prisma.mediaIntelligenceRun.findUniqueOrThrow({
+      where: { id },
+      select: { status: true, lastError: true, attemptCount: true },
+    });
+
+  it("ET-Q-03: perceptual-hash and technical-metadata runs end COMPLETED, not PENDING forever", async () => {
+    for (const kind of ["compute_perceptual_hashes", "extract_technical_metadata"]) {
+      const evidenceId = await newEvidence(own);
+      const runId = await runOf(kind, own.teamId, evidenceId);
+      await miProcessor.processMediaIntelligenceJob(job(RUN_ENTRY, runId) as never);
+      const row = await statusOf(runId);
+      expect({ kind, status: row.status }).toEqual({ kind, status: "COMPLETED" });
+      expect(row.attemptCount).toBe(1);
+    }
+  });
+
+  it("ET-Q-03: a reserved kind and an evidence-scope mismatch end FAILED with their reason", async () => {
+    const reserved = await runOf("extract_assets", own.teamId, await newEvidence(own));
+    await miProcessor.processMediaIntelligenceJob(job(RUN_ENTRY, reserved) as never);
+    expect(await statusOf(reserved)).toMatchObject({ status: "FAILED", lastError: "kind_not_implemented" });
+
+    // A run whose evidence lives in ANOTHER workspace than the run claims.
+    const mismatched = await runOf("analyze_metadata", own.teamId, await newEvidence(foreign));
+    await miProcessor.processMediaIntelligenceJob(job(RUN_ENTRY, mismatched) as never);
+    expect(await statusOf(mismatched)).toMatchObject({ status: "FAILED", lastError: "evidence_scope_mismatch" });
+  });
+
   it("a stale worker cannot overwrite the terminal state its replacement wrote", async () => {
     analyzer.reset();
     const driver = runDriver();

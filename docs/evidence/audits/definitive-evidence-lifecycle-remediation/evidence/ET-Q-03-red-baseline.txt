@@ -1,0 +1,7 @@
+ET-Q-03 red baseline — point5/family-intelligence-operations.integration.test.ts (ET-Q-03 cases) against HEAD media-intelligence.processor.ts
+   × POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgvector) > ET-Q-03: perceptual-hash and technical-metadata runs end COMPLETED, not PENDING forever 19ms
+     → expected { …(2) } to deeply equal { …(2) }
+   × POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgvector) > ET-Q-03: a reserved kind and an evidence-scope mismatch end FAILED with their reason 14ms
+     → expected { status: 'PENDING', …(2) } to match object { status: 'FAILED', …(1) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 9 passed (11)
