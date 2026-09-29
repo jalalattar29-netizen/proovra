@@ -122,6 +122,12 @@ describe("OTS remediation truth (live PostgreSQL 16)", () => {
     const res = await remediate(incidentId);
     expect(res.statusCode, res.body).toBe(409);
     expect((res.json() as { remediation: { result: string } }).remediation.result).toBe("NOT_ELIGIBLE");
+    // ET-REC-05 — the non-2xx answer also carries the standard error envelope,
+    // with the remediation inside it, so the web client can show the outcome.
+    expect((res.json() as { error: { code: string; remediation: { result: string } } }).error).toMatchObject({
+      code: "remediation_not_eligible",
+      remediation: { result: "NOT_ELIGIBLE" },
+    });
     const events = await prisma.operationalIncidentEvent.findMany({ where: { incidentId }, select: { eventType: true } });
     expect(events.map((e) => String(e.eventType))).not.toContain("remediation_queued");
   });

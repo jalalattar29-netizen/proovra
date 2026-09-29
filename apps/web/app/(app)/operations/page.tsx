@@ -1243,11 +1243,23 @@ function OperationsWorkbench() {
         // its timeline now has an entry the browser cannot author.
         refresh();
       } catch (err) {
-        setMutationError(
-          toSafeUserError(err, {
-            message: "That action could not be started.",
-          }),
-        );
+        // ET-REC-05 — a refusal, a not-eligible answer or a queue outage is
+        // still the server's ANSWER, with its own sentence (e.g. "use Retry
+        // after exhausted failure", or "recorded, will be picked up" for
+        // QUEUE_UNAVAILABLE). It is shown as the outcome, not replaced by a
+        // generic failure.
+        const answered = (err as { body?: { error?: { remediation?: RemediationOutcome } } })?.body
+          ?.error?.remediation;
+        if (answered && typeof answered.result === "string" && typeof answered.message === "string") {
+          setRemediationOutcome(answered);
+          refresh();
+        } else {
+          setMutationError(
+            toSafeUserError(err, {
+              message: "That action could not be started.",
+            }),
+          );
+        }
       } finally {
         setRemediationBusy(null);
       }

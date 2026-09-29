@@ -1637,6 +1637,22 @@ export async function opsRoutes(app: FastifyInstance) {
                 ? 503
                 : 200;
 
+      // ET-REC-05 — a non-2xx answer ALSO carries the standard error envelope
+      // with the remediation inside it. The web client lifts only
+      // `error.*` from a failed response, so a bare { remediation } body was
+      // replaced by "could not be started" — including QUEUE_UNAVAILABLE,
+      // where the work IS recorded. `remediation` stays at the top level for
+      // the mobile client and older readers.
+      if (status >= 400) {
+        return reply.code(status).send({
+          remediation: result,
+          error: {
+            code: `remediation_${result.result.toLowerCase()}`,
+            message: result.message,
+            remediation: result,
+          },
+        });
+      }
       return reply.code(status).send({ remediation: result });
     },
   );
