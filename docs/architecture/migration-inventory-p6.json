@@ -22520,7 +22520,7 @@
       "checksumSha256": "c67a5c991c7199e87b09d97518e3c7f8dd74ef43f31445d7e1ebdb7c38e55f19",
       "checksumSha256Raw": "c67a5c991c7199e87b09d97518e3c7f8dd74ef43f31445d7e1ebdb7c38e55f19",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",

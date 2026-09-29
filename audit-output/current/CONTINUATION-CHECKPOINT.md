@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1306
+TerminalWriters                             1305
 ROUTE_ATTRIBUTED_REACHABLE                  1167
-JOB_ATTRIBUTED_REACHABLE                     120
+JOB_ATTRIBUTED_REACHABLE                     119
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          16
@@ -552,3 +552,17 @@ node services/api/scripts/audit/index.mjs --closure-check
 - TerminalWriters 1305 -> 1306. JOB_ATTRIBUTED_REACHABLE 121 -> 120 (the
   executor's own appender no longer exists; job paths reach the shared one).
   STARTUP_OR_SCHEDULED 14 -> 16 (the capture sweep's two new writers).
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION B7: CUSTODY (writers 1306 -> 1305)
+
+- ET-CUS-05: the API `appendPlatformAuditLog` and the Worker
+  `appendWorkerAuditLog` each created `adminAuditLog` rows; both now reach
+  shared-runtime `audit/admin-audit-chain.ts` `appendAdminAuditChainRowTx`
+  (-2, +1). TerminalWriters 1306 -> 1305; JOB_ATTRIBUTED_REACHABLE 120 -> 119
+  (the Worker's own writer no longer exists).
+- The tenant-binding instrument's INFRASTRUCTURE_ACCESSES entry for the chain
+  append follows the file it moved to (same code, same fact); without it 25
+  account-self routes read as tenant-unbound because the chain's head read
+  had changed path, not behaviour.
+- ET-CUS-02..14 add custody writes inside existing transactions (same writer
+  sites); no other bucket moves.

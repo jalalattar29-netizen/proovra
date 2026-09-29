@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 41,
+    "FIXED_IN_THIS_TASK": 54,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 112,
+    "STILL_PRESENT": 99,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 66,
-      "P3": 46
+      "P2": 56,
+      "P3": 43
     }
   },
   "openIds": {
@@ -32,16 +32,6 @@
       "ET-COM-02",
       "ET-COM-03",
       "ET-COM-04",
-      "ET-CUS-02",
-      "ET-CUS-03",
-      "ET-CUS-04",
-      "ET-CUS-05",
-      "ET-CUS-06",
-      "ET-CUS-07",
-      "ET-CUS-08",
-      "ET-CUS-09",
-      "ET-CUS-10",
-      "ET-CUS-11",
       "ET-DC-04",
       "ET-DC-07",
       "ET-DC-08",
@@ -98,9 +88,6 @@
       "ET-ACQ-06",
       "ET-ACQ-07",
       "ET-COM-06",
-      "ET-CUS-12",
-      "ET-CUS-13",
-      "ET-CUS-14",
       "ET-DC-10",
       "ET-DC-11",
       "ET-INT-15",
@@ -1532,20 +1519,29 @@
         "services/api/prisma/schema.prisma:3057",
         "services/api/src/routes/product-and-lifecycle.routes.ts:813"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Enum value never added; `as any` hides the type error; silent catch hides the runtime error.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Chain-of-custody transfer transitions had no custody event type and wrote nothing to the record's chain; the transfer did not bind its evidence to the initiating workspace.",
+      "canonicalAuthority": "@proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create); chain-transfer.service appendTransferCustodyTx inside each transition's conditional-claim transaction",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
-      "negativeAuthTests": null,
+      "productFiles": [
+        "services/api/prisma/migrations/20280804000000_custody_chain_transfer_event/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/routes/product-and-lifecycle.routes.ts",
+        "services/api/src/services/exchange/chain-transfer.service.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/chain-transfer-custody.integration.test.ts (evidence/cus02-red-baseline.txt: no CHAIN_TRANSFER event; another workspace's evidence accepted)",
+      "greenTest": "services/api/test/chain-transfer-custody.integration.test.ts (INITIATED/ACCEPTED/COMPLETED on every record, in order; cross-workspace and cross-organisation refused, nothing appended)",
+      "negativeAuthTests": "services/api/test/chain-transfer-custody.integration.test.ts [INVALID_EVIDENCE / INVALID_ORGANIZATION]",
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "20280804000000_custody_chain_transfer_event: enum value CHAIN_TRANSFER_CUSTODY_EXTENDED (EXPAND)",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "b916261bf1 fix(custody): chain-of-custody transfers reach the custody chain, bound to the workspace (ET-CUS-02)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-03",
@@ -1557,20 +1553,28 @@
         "services/api/src/services/governance/legal-hold.service.ts:581",
         "services/api/src/services/governance/legal-hold.service.ts:598"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Custody treated as a notification fan-out rather than part of the hold mutation.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Legal hold place/release appended custody best-effort after commit (silent failure), and CASE/WORKSPACE-scope holds never reached the covered records' chains.",
+      "canonicalAuthority": "@proovra/shared-runtime governance/legal-hold-custody: appendLegalHoldCustodyTx (in the hold transaction) + reconcileLegalHoldCustody (coverage for EVIDENCE/CASE/WORKSPACE scopes; run on place/release and by the Worker retention reconcile)",
+      "obsoleteRemoved": "the post-commit best-effort append in legal-hold.service; the stale 'mirrored' docblock in effective-legal-hold.ts",
+      "productFiles": [
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts",
+        "packages/shared-runtime/src/governance/legal-hold-custody.ts",
+        "packages/shared-runtime/src/index.ts",
+        "services/api/src/services/governance/legal-hold.service.ts",
+        "services/worker/src/index.ts"
+      ],
+      "redTest": "services/api/test/legal-hold-custody-coverage.integration.test.ts (evidence/cus03-red-baseline.txt)",
+      "greenTest": "services/api/test/legal-hold-custody-coverage.integration.test.ts (every covered record shows place and release; reconcile is idempotent)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "33ad2d5f17 fix(custody): every record a legal hold covers shows it on its custody chain (ET-CUS-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-04",
@@ -1584,20 +1588,26 @@
         "services/api/src/services/custody-events.service.ts:179",
         "packages/shared/src/custody-hash.ts:59"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Integrity relies on application discipline only.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "custody_events and admin_audit_logs were append-only by convention only; a fully hash-stripped custody chain verified as valid 'legacy'.",
+      "canonicalAuthority": "database triggers custody_events_append_only / admin_audit_logs_append_only (proovra_refuse_history_rewrite); evaluateCustodyChain CUSTODY_HASH_REQUIRED_SINCE_UTC (unhashed modern chain = hash_missing)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/custody/custody-chain.ts",
+        "services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql",
+        "services/api/scripts/seed-home-personas.ts"
+      ],
+      "redTest": "services/api/test/custody-append-only.integration.test.ts (evidence/cus04-red-baseline.txt: UPDATE/DELETE accepted; stripped chain 'legacy')",
+      "greenTest": "services/api/test/custody-append-only.integration.test.ts (UPDATE/DELETE refused on both tables; stripped modern chain invalid; genuine pre-hash chain still legacy)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "migrationImpact": "20280805000000_custody_append_only: function + two triggers (EXPAND; no row rewritten)",
+      "compatibilityImpact": "tests that simulate tampering disable the trigger explicitly",
+      "commits": [
+        "27fca6ef77 fix(custody): custody and the platform audit chain are append-only in the database; a stripped chain does not verify (ET-CUS-04)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-05",
@@ -1611,20 +1621,28 @@
         "services/api/prisma/schema.prisma:2667",
         "services/api/src/services/platform-audit-log.service.ts:550"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Ordering key is app-clock time plus a random UUID rather than commit order.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "API and Worker each had their own admin-audit append with createdAt taken from the local clock, so skew or same-millisecond writes forked the hash chain order.",
+      "canonicalAuthority": "@proovra/shared-runtime audit/admin-audit-chain appendAdminAuditChainRowTx (createdAt strictly after the head)",
+      "obsoleteRemoved": "services/worker admin-audit chain copy; services/api/src/lib/admin-audit-chain.ts (git mv to shared-runtime)",
+      "productFiles": [
+        "packages/shared-runtime/src/audit/admin-audit-chain.ts",
+        "packages/shared-runtime/src/index.ts",
+        "services/api/src/services/platform-audit-log.service.ts",
+        "services/worker/src/lib/admin-audit-chain.ts",
+        "services/worker/src/platform-audit-append.ts"
+      ],
+      "redTest": "services/api/test/admin-audit-chain-clock-skew.integration.test.ts (evidence/cus05-red-baseline.txt)",
+      "greenTest": "services/api/test/admin-audit-chain-clock-skew.integration.test.ts; services/api/test/custody-serialization-authority.test.ts (single-writer structural guard)",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/admin-audit-chain-clock-skew.integration.test.ts [skewed concurrent writers produce one verifiable chain]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "3360fc9288 fix(audit): one platform-audit append; createdAt strictly increasing so the chain cannot fork (ET-CUS-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-06",
@@ -1638,20 +1656,26 @@
         "services/worker/src/processor.ts:2591",
         "services/worker/src/verification-package.ts:2062"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Time-based cut-off on an app-clock field instead of the recorded sequence cut-off.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A retried package build selected custody by atUtc rather than by sequence, so events near the cut-off were dropped or duplicated.",
+      "canonicalAuthority": "services/worker custody-issuance-cutoff custodyThroughIssuance (sequence prefix through the issuance event)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/custody-issuance-cutoff.ts",
+        "services/worker/src/exchange-package-builder.ts",
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/package-custody-completeness.integration.test.ts [the CUS-06 case asserts the prior time-based selection's gap] (evidence/cus09-red-baseline.txt)",
+      "greenTest": "services/api/test/package-custody-completeness.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-07",
@@ -1663,20 +1687,32 @@
         "services/api/src/routes/evidence.routes.ts:12963",
         "services/api/src/routes/evidence.routes.ts:11549"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Custody recording is tied to one route rather than to the presign authority.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Presigned ORIGINAL URLs from the parts listing, record views and public verify were issued with no custody fact.",
+      "canonicalAuthority": "artifact-download-gate recordOriginalRelease (channel -> EVIDENCE_DOWNLOADED / VERIFY_VIEWED / EVIDENCE_VIEWED original_url_issued); buildPublicEvidenceContent reports originalUrlsIssued",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/redaction.ts",
+        "services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-review/reviewer-audit.service.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts",
+        "services/api/src/services/redaction/redaction-activity.service.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/original-release-custody.integration.test.ts (evidence/cus07-red-baseline.txt)",
+      "greenTest": "services/api/test/original-release-custody.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)",
+        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-08",
@@ -1689,20 +1725,30 @@
         "services/api/src/services/evidence-complete.service.ts:1364",
         "services/api/src/routes/evidence.routes.ts:2069"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Unlock never added to the custody model.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Unlock wrote no custody event, and EVIDENCE_LOCKED meant both the operational lock and the storage retention lock.",
+      "canonicalAuthority": "evidence.routes lock/unlock conditional claims + custody in one transaction; EVIDENCE_UNLOCKED; custodyEventLabel distinguishes the two EVIDENCE_LOCKED meanings by payload",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/custody.ts",
+        "packages/shared/src/index.ts",
+        "services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/worker/src/governance/retention-reconciliation.worker.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/custody-lock-and-retention-extension.integration.test.ts (evidence/cus08-cus10-red-baseline.txt)",
+      "greenTest": "services/api/test/custody-lock-and-retention-extension.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "20280806000000_custody_unlock_and_retention_extension: enum values (EXPAND)",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-09",
@@ -1713,20 +1759,26 @@
         "services/worker/src/exchange-package-builder.ts:366",
         "services/worker/src/exchange-package-builder.ts:375"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Best-effort export design.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The exchange package custody-chain.json omitted payloads (hashes not recomputable), truncated at 500 and swallowed per-evidence read failures.",
+      "canonicalAuthority": "services/worker exchange-package-builder: full chain with payloads + hash formula; per-evidence failure throws EXCHANGE_EVIDENCE_READ_FAILED",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/custody-issuance-cutoff.ts",
+        "services/worker/src/exchange-package-builder.ts",
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/package-custody-completeness.integration.test.ts (evidence/cus09-red-baseline.txt: 500 of 520 events shipped)",
+      "greenTest": "services/api/test/package-custody-completeness.integration.test.ts (complete, contiguous, every hash recomputes)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-10",
@@ -1737,20 +1789,32 @@
         "services/worker/src/governance/retention-reconciliation.worker.ts:206",
         "services/worker/src/governance/retention-reconciliation.worker.ts:215"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "An unfiltered 'any custody event' predicate.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Retention auto-extension fired on ANY recent custody event, including anonymous public VERIFY_VIEWED, and left no custody fact.",
+      "canonicalAuthority": "@proovra/shared RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES (workspace activity only); the retention worker writes RETENTION_AUTO_EXTENDED in the extension transaction",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/custody.ts",
+        "packages/shared/src/index.ts",
+        "services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts",
+        "services/worker/src/governance/retention-reconciliation.worker.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/custody-lock-and-retention-extension.integration.test.ts (evidence/cus08-cus10-red-baseline.txt)",
+      "greenTest": "services/api/test/custody-lock-and-retention-extension.integration.test.ts (public views do not extend; an extension is a custody fact)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "20280806000000_custody_unlock_and_retention_extension (EXPAND)",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)",
+        "2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-11",
@@ -1765,20 +1829,30 @@
         "services/api/src/routes/evidence.routes.ts:12107",
         "services/api/src/services/custody-events-observability.ts:8"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Incomplete migration to the observable pattern.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Material governance mutations committed first and appended custody in a separate, silently-caught step.",
+      "canonicalAuthority": "@proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create) in the mutation's transaction (publication, certification, finalization governance, retention sweeper); swallowCustodyAppendError for non-mutating facts",
+      "obsoleteRemoved": "the route-level post-commit appends in the certification routes; the .catch(() => null) custody appends",
+      "productFiles": [
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-certification.service.ts",
+        "services/api/src/services/governance/destructive-action-gate.service.ts",
+        "services/api/src/services/governance/finalization-governance.service.ts",
+        "services/api/src/services/governance/publication.service.ts",
+        "services/api/src/services/governance/retention-sweeper.service.ts"
+      ],
+      "redTest": "services/api/test/governance-custody-atomicity.integration.test.ts (evidence/cus11-red-baseline.txt)",
+      "greenTest": "services/api/test/governance-custody-atomicity.integration.test.ts; services/api/test/custody-append-no-silent-catch.test.ts (structural guard: .catch(() => null|undefined|{}) and try { append } catch {})",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-04",
@@ -3633,20 +3707,29 @@
         "services/api/src/services/redaction/redaction-activity.service.ts:46",
         "services/api/src/services/evidence-review/reviewer-audit.service.ts:11"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Separate activity logs for these domains.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Released redactions and review decisions lived only in unhashed mutable side tables; the emitter claimed a mirror that did not exist.",
+      "canonicalAuthority": "@proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction",
+      "obsoleteRemoved": "the false 'mirrored into the audit chain' docblock in redaction-activity.service",
+      "productFiles": [
+        "packages/shared/src/redaction.ts",
+        "services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/services/evidence-review/reviewer-audit.service.ts",
+        "services/api/src/services/redaction/redaction-activity.service.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/redaction-review-custody.integration.test.ts (evidence/cus12-red-baseline.txt)",
+      "greenTest": "services/api/test/redaction-review-custody.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "20280807000000_custody_redaction_and_review: enum values (EXPAND)",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-13",
@@ -3660,20 +3743,42 @@
         "services/api/src/services/governance/finalization-governance.service.ts:91",
         "services/api/src/routes/evidence.routes.ts:12756"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Event-type reuse and presentation shortcuts.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Each surface labelled custody events its own way (web printed raw codes); retention-policy application was a second EVIDENCE_CREATED; the timeline read the OLDEST 500 events and counted that slice.",
+      "canonicalAuthority": "@proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify)",
+      "obsoleteRemoved": "the worker's own custody label map (now delegates); the web tab's row.type.replace(/_/g); the second full-chain query in both handlers",
+      "productFiles": [
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+        "apps/web/app/(app)/evidence/[id]/review-workspace-types.ts",
+        "apps/web/app/verify/[token]/_verify-types.ts",
+        "apps/web/app/verify/[token]/page.tsx",
+        "packages/shared/src/custody-labels.ts",
+        "packages/shared/src/index.ts",
+        "services/api/prisma/migrations/20280808000000_custody_retention_policy_applied/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-certification.service.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/governance.service.ts",
+        "services/api/src/services/governance/destructive-action-gate.service.ts",
+        "services/api/src/services/governance/finalization-governance.service.ts",
+        "services/api/src/services/governance/publication.service.ts",
+        "services/api/src/services/governance/retention-sweeper.service.ts",
+        "services/worker/src/report-v2/normalizers.ts"
+      ],
+      "redTest": "services/api/test/custody-timeline-latest.integration.test.ts (evidence/ET-CUS-13-red-baseline.txt: expected 499 to be 510); services/api/test/custody-append-no-silent-catch.test.ts widened (found the intake-lineage silent catch)",
+      "greenTest": "services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "migrationImpact": "20280808000000_custody_retention_policy_applied: enum value (EXPAND); historic duplicate EVIDENCE_CREATED rows remain (append-only)",
+      "compatibilityImpact": "custodyLifecycle gains truncated/displayLimit; the lists are the latest 500 per class",
+      "commits": [
+        "426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)",
+        "67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-14",
@@ -3685,20 +3790,26 @@
         "services/api/src/services/audit/tenant-audit.service.ts:369",
         "services/api/src/services/platform-audit-log.service.ts:369"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The facade envelope lacks ip/UA/requestId fields.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The tenant-audit envelope had no ip/UA/requestId fields, so callers sealed raw address and user-agent into hashed metadata and requestId stayed null.",
+      "canonicalAuthority": "platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/audit/tenant-audit.service.ts",
+        "services/api/src/services/platform-audit-log.service.ts"
+      ],
+      "redTest": "services/api/test/audit-request-context-columns.integration.test.ts (evidence/ET-CUS-14-red-baseline.txt)",
+      "greenTest": "services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "none (historic rows stay sealed; mask on read)",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-10",

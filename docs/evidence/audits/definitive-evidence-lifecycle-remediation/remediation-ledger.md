@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 41 |
+| FIXED_IN_THIS_TASK | 54 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 112 |
+| STILL_PRESENT | 99 |
 
-Open by severity: P0 0 · P1 0 · P2 66 · P3 46
+Open by severity: P0 0 · P1 0 · P2 56 · P3 43
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -50,16 +50,16 @@ Open by severity: P0 0 · P1 0 · P2 66 · P3 46
 | ET-COM-02 | P2 | STILL_PRESENT |  |  |  |
 | ET-COM-03 | P2 | STILL_PRESENT |  |  |  |
 | ET-COM-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-02 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-03 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-05 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-06 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-09 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-10 | P2 | STILL_PRESENT |  |  |  |
-| ET-CUS-11 | P2 | STILL_PRESENT |  |  |  |
+| ET-CUS-02 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create); chain-transfer.service appendTransferCustodyTx inside each transition's conditional-claim transaction | b916261bf1 | services/api/test/chain-transfer-custody.integration.test.ts (INITIATED/ACCEPTED/COMPLETED on every record, in order; cross-workspace and cross-organisation refused, nothing appended) |
+| ET-CUS-03 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime governance/legal-hold-custody: appendLegalHoldCustodyTx (in the hold transaction) + reconcileLegalHoldCustody (coverage for EVIDENCE/CASE/WORKSPACE scopes; run on place/release and by the Worker retention reconcile) | 33ad2d5f17 | services/api/test/legal-hold-custody-coverage.integration.test.ts (every covered record shows place and release; reconcile is idempotent) |
+| ET-CUS-04 | P2 | FIXED_IN_THIS_TASK | database triggers custody_events_append_only / admin_audit_logs_append_only (proovra_refuse_history_rewrite); evaluateCustodyChain CUSTODY_HASH_REQUIRED_SINCE_UTC (unhashed modern chain = hash_missing) | 27fca6ef77 | services/api/test/custody-append-only.integration.test.ts (UPDATE/DELETE refused on both tables; stripped modern chain invalid; genuine pre-hash chain still legacy) |
+| ET-CUS-05 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime audit/admin-audit-chain appendAdminAuditChainRowTx (createdAt strictly after the head) | 3360fc9288 | services/api/test/admin-audit-chain-clock-skew.integration.test.ts; services/api/test/custody-serialization-authority.test.ts (single-writer structural guard) |
+| ET-CUS-06 | P2 | FIXED_IN_THIS_TASK | services/worker custody-issuance-cutoff custodyThroughIssuance (sequence prefix through the issuance event) | 24a30ca91c | services/api/test/package-custody-completeness.integration.test.ts |
+| ET-CUS-07 | P2 | FIXED_IN_THIS_TASK | artifact-download-gate recordOriginalRelease (channel -> EVIDENCE_DOWNLOADED / VERIFY_VIEWED / EVIDENCE_VIEWED original_url_issued); buildPublicEvidenceContent reports originalUrlsIssued | 2ac81f7b1f, 60cc9d95b0 | services/api/test/original-release-custody.integration.test.ts |
+| ET-CUS-08 | P2 | FIXED_IN_THIS_TASK | evidence.routes lock/unlock conditional claims + custody in one transaction; EVIDENCE_UNLOCKED; custodyEventLabel distinguishes the two EVIDENCE_LOCKED meanings by payload | d917c7387a | services/api/test/custody-lock-and-retention-extension.integration.test.ts |
+| ET-CUS-09 | P2 | FIXED_IN_THIS_TASK | services/worker exchange-package-builder: full chain with payloads + hash formula; per-evidence failure throws EXCHANGE_EVIDENCE_READ_FAILED | 24a30ca91c | services/api/test/package-custody-completeness.integration.test.ts (complete, contiguous, every hash recomputes) |
+| ET-CUS-10 | P2 | FIXED_IN_THIS_TASK | @proovra/shared RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES (workspace activity only); the retention worker writes RETENTION_AUTO_EXTENDED in the extension transaction | d917c7387a, 2ac81f7b1f | services/api/test/custody-lock-and-retention-extension.integration.test.ts (public views do not extend; an extension is a custody fact) |
+| ET-CUS-11 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create) in the mutation's transaction (publication, certification, finalization governance, retention sweeper); swallowCustodyAppendError for non-mutating facts | 426b9bcbd3 | services/api/test/governance-custody-atomicity.integration.test.ts; services/api/test/custody-append-no-silent-catch.test.ts (structural guard: .catch(() => null\|undefined\|{}) and try { append } catch {}) |
 | ET-DC-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-05 | P2 | FIXED_IN_THIS_TASK | capture-reaper releaseExpiredReservations (session claim under the capture-session lock) + releaseEvidenceReservationTx(CAPTURE_SESSION_EXPIRED) | cb0b0bde37 | services/api/test/reservation-sweep.integration.test.ts [ET-DC-05: session EXPIRED, reservation released with CAPTURE_SESSION_EXPIRED] |
 | ET-DC-06 | P2 | FIXED_IN_THIS_TASK | direct-capture-ingest extendDirectCaptureSessionOnActivity: expiry slides to now + 1h on each accepted reservation/declaration, capped at startedAt + MAX_SESSION_LIFETIME_SECONDS (24h) | cb0b0bde37 | services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (slides; capped at the lifetime; a silent session still expires) |
@@ -124,9 +124,9 @@ Open by severity: P0 0 · P1 0 · P2 66 · P3 46
 | ET-ACQ-06 | P3 | STILL_PRESENT |  |  |  |
 | ET-ACQ-07 | P3 | STILL_PRESENT |  |  |  |
 | ET-COM-06 | P3 | STILL_PRESENT |  |  |  |
-| ET-CUS-12 | P3 | STILL_PRESENT |  |  |  |
-| ET-CUS-13 | P3 | STILL_PRESENT |  |  |  |
-| ET-CUS-14 | P3 | STILL_PRESENT |  |  |  |
+| ET-CUS-12 | P3 | FIXED_IN_THIS_TASK | @proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction | 60cc9d95b0 | services/api/test/redaction-review-custody.integration.test.ts |
+| ET-CUS-13 | P3 | FIXED_IN_THIS_TASK | @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify) | 426b9bcbd3, 67664498f5 | services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code) |
+| ET-CUS-14 | P3 | FIXED_IN_THIS_TASK | platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId | d03bdd5b64 | services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts |
 | ET-DC-10 | P3 | STILL_PRESENT |  |  |  |
 | ET-DC-11 | P3 | STILL_PRESENT |  |  |  |
 | ET-INT-15 | P3 | STILL_PRESENT |  |  |  |
@@ -576,6 +576,151 @@ Open by severity: P0 0 · P1 0 · P2 66 · P3 46
 - **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared-runtime/src/custody/custody-chain.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `packages/shared-runtime/src/index.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/custody-events.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/capture-reaper.ts`, `services/worker/src/custody-events.ts`, `services/worker/src/index.ts`
 - **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire; cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)
 
+## ET-CUS-02 — Chain-of-custody transfers never write a custody event: the event type does not exist in the enum and the failure is swallowed
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Chain-of-custody transfer transitions had no custody event type and wrote nothing to the record's chain; the transfer did not bind its evidence to the initiating workspace.
+- **canonicalAuthority:** @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create); chain-transfer.service appendTransferCustodyTx inside each transition's conditional-claim transaction
+- **redTest:** services/api/test/chain-transfer-custody.integration.test.ts (evidence/cus02-red-baseline.txt: no CHAIN_TRANSFER event; another workspace's evidence accepted)
+- **greenTest:** services/api/test/chain-transfer-custody.integration.test.ts (INITIATED/ACCEPTED/COMPLETED on every record, in order; cross-workspace and cross-organisation refused, nothing appended)
+- **negativeAuthTests:** services/api/test/chain-transfer-custody.integration.test.ts [INVALID_EVIDENCE / INVALID_ORGANIZATION]
+- **migrationImpact:** 20280804000000_custody_chain_transfer_event: enum value CHAIN_TRANSFER_CUSTODY_EXTENDED (EXPAND)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280804000000_custody_chain_transfer_event/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/product-and-lifecycle.routes.ts`, `services/api/src/services/exchange/chain-transfer.service.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** b916261bf1 fix(custody): chain-of-custody transfers reach the custody chain, bound to the workspace (ET-CUS-02)
+
+## ET-CUS-03 — Legal hold place/release reach the custody chain only best-effort: silent failure, CASE scope capped at 1000 in one Promise.all burst, WORKSPACE scope and later-linked evidence never recorded
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Legal hold place/release appended custody best-effort after commit (silent failure), and CASE/WORKSPACE-scope holds never reached the covered records' chains.
+- **canonicalAuthority:** @proovra/shared-runtime governance/legal-hold-custody: appendLegalHoldCustodyTx (in the hold transaction) + reconcileLegalHoldCustody (coverage for EVIDENCE/CASE/WORKSPACE scopes; run on place/release and by the Worker retention reconcile)
+- **obsoleteRemoved:** the post-commit best-effort append in legal-hold.service; the stale 'mirrored' docblock in effective-legal-hold.ts
+- **redTest:** services/api/test/legal-hold-custody-coverage.integration.test.ts (evidence/cus03-red-baseline.txt)
+- **greenTest:** services/api/test/legal-hold-custody-coverage.integration.test.ts (every covered record shows place and release; reconcile is idempotent)
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/governance/legal-hold-custody.ts`, `packages/shared-runtime/src/index.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/worker/src/index.ts`
+- **commits:** 33ad2d5f17 fix(custody): every record a legal hold covers shows it on its custody chain (ET-CUS-03)
+
+## ET-CUS-04 — custody_events and admin_audit_logs are append-only only by convention: no trigger or REVOKE, unkeyed hash, and a fully hash-stripped chain verifies as 'legacy' valid
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** custody_events and admin_audit_logs were append-only by convention only; a fully hash-stripped custody chain verified as valid 'legacy'.
+- **canonicalAuthority:** database triggers custody_events_append_only / admin_audit_logs_append_only (proovra_refuse_history_rewrite); evaluateCustodyChain CUSTODY_HASH_REQUIRED_SINCE_UTC (unhashed modern chain = hash_missing)
+- **redTest:** services/api/test/custody-append-only.integration.test.ts (evidence/cus04-red-baseline.txt: UPDATE/DELETE accepted; stripped chain 'legacy')
+- **greenTest:** services/api/test/custody-append-only.integration.test.ts (UPDATE/DELETE refused on both tables; stripped modern chain invalid; genuine pre-hash chain still legacy)
+- **migrationImpact:** 20280805000000_custody_append_only: function + two triggers (EXPAND; no row rewritten)
+- **compatibilityImpact:** tests that simulate tampering disable the trigger explicitly
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/custody/custody-chain.ts`, `services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql`, `services/api/scripts/seed-home-personas.ts`
+- **commits:** 27fca6ef77 fix(custody): custody and the platform audit chain are append-only in the database; a stripped chain does not verify (ET-CUS-04)
+
+## ET-CUS-05 — Admin audit hash chain can fork under API/worker clock skew or same-millisecond writes, so the verifier reports a break with no tampering
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** API and Worker each had their own admin-audit append with createdAt taken from the local clock, so skew or same-millisecond writes forked the hash chain order.
+- **canonicalAuthority:** @proovra/shared-runtime audit/admin-audit-chain appendAdminAuditChainRowTx (createdAt strictly after the head)
+- **obsoleteRemoved:** services/worker admin-audit chain copy; services/api/src/lib/admin-audit-chain.ts (git mv to shared-runtime)
+- **redTest:** services/api/test/admin-audit-chain-clock-skew.integration.test.ts (evidence/cus05-red-baseline.txt)
+- **greenTest:** services/api/test/admin-audit-chain-clock-skew.integration.test.ts; services/api/test/custody-serialization-authority.test.ts (single-writer structural guard)
+- **concurrencyTest:** services/api/test/admin-audit-chain-clock-skew.integration.test.ts [skewed concurrent writers produce one verifiable chain]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/audit/admin-audit-chain.ts`, `packages/shared-runtime/src/index.ts`, `services/api/src/services/platform-audit-log.service.ts`, `services/worker/src/lib/admin-audit-chain.ts`, `services/worker/src/platform-audit-append.ts`
+- **commits:** 3360fc9288 fix(audit): one platform-audit append; createdAt strictly increasing so the chain cannot fork (ET-CUS-05)
+
+## ET-CUS-06 — A retried package build (PACKAGE_FOR_VERSION) selects custody by atUtc instead of sequence, so custody.json can contain a sequence gap and broken prevHash links while claiming to be complete
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A retried package build selected custody by atUtc rather than by sequence, so events near the cut-off were dropped or duplicated.
+- **canonicalAuthority:** services/worker custody-issuance-cutoff custodyThroughIssuance (sequence prefix through the issuance event)
+- **redTest:** services/api/test/package-custody-completeness.integration.test.ts [the CUS-06 case asserts the prior time-based selection's gap] (evidence/cus09-red-baseline.txt)
+- **greenTest:** services/api/test/package-custody-completeness.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/custody-issuance-cutoff.ts`, `services/worker/src/exchange-package-builder.ts`, `services/worker/src/processor.ts`
+- **commits:** 24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)
+
+## ET-CUS-07 — Presigned ORIGINAL URLs issued by the parts listing, record views and public verify leave no custody event; only /original is recorded, and EVIDENCE_DOWNLOADED is never emitted
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Presigned ORIGINAL URLs from the parts listing, record views and public verify were issued with no custody fact.
+- **canonicalAuthority:** artifact-download-gate recordOriginalRelease (channel -> EVIDENCE_DOWNLOADED / VERIFY_VIEWED / EVIDENCE_VIEWED original_url_issued); buildPublicEvidenceContent reports originalUrlsIssued
+- **redTest:** services/api/test/original-release-custody.integration.test.ts (evidence/cus07-red-baseline.txt)
+- **greenTest:** services/api/test/original-release-custody.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/redaction.ts`, `services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-review/reviewer-audit.service.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`, `services/api/src/services/redaction/redaction-activity.service.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** 2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07); 60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)
+
+## ET-CUS-08 — Unlock writes no custody event and EVIDENCE_LOCKED serves two meanings, so the timeline says 'Evidence record locked' after the record is unlocked
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Unlock wrote no custody event, and EVIDENCE_LOCKED meant both the operational lock and the storage retention lock.
+- **canonicalAuthority:** evidence.routes lock/unlock conditional claims + custody in one transaction; EVIDENCE_UNLOCKED; custodyEventLabel distinguishes the two EVIDENCE_LOCKED meanings by payload
+- **redTest:** services/api/test/custody-lock-and-retention-extension.integration.test.ts (evidence/cus08-cus10-red-baseline.txt)
+- **greenTest:** services/api/test/custody-lock-and-retention-extension.integration.test.ts
+- **migrationImpact:** 20280806000000_custody_unlock_and_retention_extension: enum values (EXPAND)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/custody.ts`, `packages/shared/src/index.ts`, `services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)
+
+## ET-CUS-09 — Exchange package custody-chain.json omits payloads (hashes cannot be recomputed), truncates at 500 events, and turns a DB error into an empty chain
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The exchange package custody-chain.json omitted payloads (hashes not recomputable), truncated at 500 and swallowed per-evidence read failures.
+- **canonicalAuthority:** services/worker exchange-package-builder: full chain with payloads + hash formula; per-evidence failure throws EXCHANGE_EVIDENCE_READ_FAILED
+- **redTest:** services/api/test/package-custody-completeness.integration.test.ts (evidence/cus09-red-baseline.txt: 500 of 520 events shipped)
+- **greenTest:** services/api/test/package-custody-completeness.integration.test.ts (complete, contiguous, every hash recomputes)
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/custody-issuance-cutoff.ts`, `services/worker/src/exchange-package-builder.ts`, `services/worker/src/processor.ts`
+- **commits:** 24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)
+
+## ET-CUS-10 — Retention auto-extension fires on ANY recent custody event, including anonymous public VERIFY_VIEWED, and the extension itself is not recorded in custody
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Retention auto-extension fired on ANY recent custody event, including anonymous public VERIFY_VIEWED, and left no custody fact.
+- **canonicalAuthority:** @proovra/shared RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES (workspace activity only); the retention worker writes RETENTION_AUTO_EXTENDED in the extension transaction
+- **redTest:** services/api/test/custody-lock-and-retention-extension.integration.test.ts (evidence/cus08-cus10-red-baseline.txt)
+- **greenTest:** services/api/test/custody-lock-and-retention-extension.integration.test.ts (public views do not extend; an extension is a custody fact)
+- **migrationImpact:** 20280806000000_custody_unlock_and_retention_extension (EXPAND)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/custody.ts`, `packages/shared/src/index.ts`, `services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10); 2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)
+
+## ET-CUS-11 — Many material governance mutations commit first and append custody in a separate transaction with a SILENT catch, so a failure leaves the mutation done and the chain missing it with no signal
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Material governance mutations committed first and appended custody in a separate, silently-caught step.
+- **canonicalAuthority:** @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create) in the mutation's transaction (publication, certification, finalization governance, retention sweeper); swallowCustodyAppendError for non-mutating facts
+- **obsoleteRemoved:** the route-level post-commit appends in the certification routes; the .catch(() => null) custody appends
+- **redTest:** services/api/test/governance-custody-atomicity.integration.test.ts (evidence/cus11-red-baseline.txt)
+- **greenTest:** services/api/test/governance-custody-atomicity.integration.test.ts; services/api/test/custody-append-no-silent-catch.test.ts (structural guard: .catch(() => null\|undefined\|{}) and try { append } catch {})
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-certification.service.ts`, `services/api/src/services/governance/destructive-action-gate.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`, `services/api/src/services/governance/publication.service.ts`, `services/api/src/services/governance/retention-sweeper.service.ts`
+- **commits:** 426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)
+
 ## ET-DC-05 — No reaper for ACTIVE/INTERRUPTED direct-capture sessions; the extension never discards, so failed captures leave permanent empty Evidence rows and orphan objects
 
 - **severity:** P2
@@ -713,6 +858,50 @@ Open by severity: P0 0 · P1 0 · P2 66 · P3 46
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
 - **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-CUS-12 — Redaction publication and derivatives, and reviewer workflow decisions, never reach the evidence custody chain; they live in unhashed, mutable side tables
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Released redactions and review decisions lived only in unhashed mutable side tables; the emitter claimed a mirror that did not exist.
+- **canonicalAuthority:** @proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction
+- **obsoleteRemoved:** the false 'mirrored into the audit chain' docblock in redaction-activity.service
+- **redTest:** services/api/test/redaction-review-custody.integration.test.ts (evidence/cus12-red-baseline.txt)
+- **greenTest:** services/api/test/redaction-review-custody.integration.test.ts
+- **migrationImpact:** 20280807000000_custody_redaction_and_review: enum values (EXPAND)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/redaction.ts`, `services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/services/evidence-review/reviewer-audit.service.ts`, `services/api/src/services/redaction/redaction-activity.service.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** 60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)
+
+## ET-CUS-13 — Customer timelines render raw event codes and misleading or duplicate events
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Each surface labelled custody events its own way (web printed raw codes); retention-policy application was a second EVIDENCE_CREATED; the timeline read the OLDEST 500 events and counted that slice.
+- **canonicalAuthority:** @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify)
+- **obsoleteRemoved:** the worker's own custody label map (now delegates); the web tab's row.type.replace(/_/g); the second full-chain query in both handlers
+- **redTest:** services/api/test/custody-timeline-latest.integration.test.ts (evidence/ET-CUS-13-red-baseline.txt: expected 499 to be 510); services/api/test/custody-append-no-silent-catch.test.ts widened (found the intake-lineage silent catch)
+- **greenTest:** services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code)
+- **migrationImpact:** 20280808000000_custody_retention_policy_applied: enum value (EXPAND); historic duplicate EVIDENCE_CREATED rows remain (append-only)
+- **compatibilityImpact:** custodyLifecycle gains truncated/displayLimit; the lists are the latest 500 per class
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx`, `apps/web/app/(app)/evidence/[id]/review-workspace-types.ts`, `apps/web/app/verify/[token]/_verify-types.ts`, `apps/web/app/verify/[token]/page.tsx`, `packages/shared/src/custody-labels.ts`, `packages/shared/src/index.ts`, `services/api/prisma/migrations/20280808000000_custody_retention_policy_applied/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-certification.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/destructive-action-gate.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`, `services/api/src/services/governance/publication.service.ts`, `services/api/src/services/governance/retention-sweeper.service.ts`, `services/worker/src/report-v2/normalizers.ts`
+- **commits:** 426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11); 67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13)
+
+## ET-CUS-14 — Tenant audit seals raw client IP and User-Agent into hashed metadata (bypassing the masking the column path applies), and never fills the requestId column
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The tenant-audit envelope had no ip/UA/requestId fields, so callers sealed raw address and user-agent into hashed metadata and requestId stayed null.
+- **canonicalAuthority:** platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId
+- **redTest:** services/api/test/audit-request-context-columns.integration.test.ts (evidence/ET-CUS-14-red-baseline.txt)
+- **greenTest:** services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts
+- **migrationImpact:** none (historic rows stay sealed; mask on read)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/audit/tenant-audit.service.ts`, `services/api/src/services/platform-audit-log.service.ts`
+- **commits:** d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14)
 
 ## ET-PKG-12 — BASIC verify says a report copy "can be checked" via its recorded digest, but no digest is returned
 

@@ -159,6 +159,16 @@ const INFRASTRUCTURE_ACCESSES = Object.freeze([
     why: "the canonical platform audit trail writing and chaining its own rows — the record OF an action, not the action's tenant data",
   },
   {
+    // ET-CUS-05 (2026-09-29): the chain append (head read under the advisory
+    // lock + insert) moved here by `git mv` from services/api/src/lib so the
+    // API and the Worker share ONE writer. Same code, same fact; the entry
+    // follows the file.
+    file: "packages/shared-runtime/src/audit/admin-audit-chain.ts",
+    model: "adminAuditLog",
+    ops: new Set(["findFirst", "create"]),
+    why: "the one platform-audit chain append reading its own head row to link the next hash, and inserting it — the trail writing itself, not tenant data",
+  },
+  {
     file: "services/api/src/services/security/security-event.service.ts",
     model: "securityEvent",
     ops: "*",

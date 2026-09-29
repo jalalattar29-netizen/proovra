@@ -1,0 +1,7 @@
+ET-CUS-02 red baseline — chain-transfer-custody.integration.test.ts with chain-transfer.service.ts + product-and-lifecycle.routes.ts from b916261b^ (reproduced 2026-09-29)
+   × chain transfer custody (live PostgreSQL 16) > each transition appends CHAIN_TRANSFER_CUSTODY_EXTENDED to every record, in order 54ms
+     → expected [ 'INITIATED', 'ACCEPTED' ] to deeply equal [ Array(3) ]
+   × chain transfer custody (live PostgreSQL 16) > refuses another workspace's evidence and another organisation, appending nothing 15ms
+     → expected { ok: true, …(1) } to deeply equal { ok: false, …(1) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed (2)
