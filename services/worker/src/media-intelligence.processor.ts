@@ -338,8 +338,11 @@ export async function processMediaIntelligenceJob(
       { requestId, jobId: job.id, runId: run.id },
       "media_intelligence.evidence_scope_mismatch",
     );
-    // ET-Q-03 — terminal, with the reason, instead of PENDING forever.
-    await refuseRun(run.id, run.teamId, "evidence_scope_mismatch");
+    // ET-Q-03 — terminal instead of PENDING forever. The reason is the SAME
+    // for "no such evidence" and "evidence in another workspace": the run row
+    // is readable by the run's workspace, and a distinct reason would confirm
+    // that the named evidence exists elsewhere (anti-enumeration).
+    await refuseRun(run.id, run.teamId, "evidence_unavailable");
     return { ok: true, signalsEmitted: 0 };
   }
 

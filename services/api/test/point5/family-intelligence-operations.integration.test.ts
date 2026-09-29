@@ -590,7 +590,8 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
     // A run whose evidence lives in ANOTHER workspace than the run claims.
     const mismatched = await runOf("analyze_metadata", own.teamId, await newEvidence(foreign));
     await miProcessor.processMediaIntelligenceJob(job(RUN_ENTRY, mismatched) as never);
-    expect(await statusOf(mismatched)).toMatchObject({ status: "FAILED", lastError: "evidence_scope_mismatch" });
+    // The same neutral reason as a missing record, never "exists elsewhere".
+    expect(await statusOf(mismatched)).toMatchObject({ status: "FAILED", lastError: "evidence_unavailable" });
   });
 
   it("a stale worker cannot overwrite the terminal state its replacement wrote", async () => {

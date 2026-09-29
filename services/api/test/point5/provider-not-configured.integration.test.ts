@@ -374,8 +374,11 @@ describe("POINT 5 — an unconfigured provider is a bounded durable refusal", ()
 
       expect(transport.calls.length).toBe(callsBefore);
       const row = await readRun(runId);
-      expect(row.status).toBe("PENDING");
-      expect(row.lastError).toBeNull();
+      // ET-Q-03: the run is ENDED (it can never execute as it stands) rather
+      // than left PENDING for the reconciler forever — with the same neutral
+      // reason a missing record gets, so nothing confirms the evidence exists.
+      expect(row.status).toBe("FAILED");
+      expect(row.lastError).toBe("evidence_unavailable");
       expect(row.teamId).toBe(foreignTeam);
       provenCase(`nocfg.${cap.slug}.wrong_tenant_concealed`);
     });
