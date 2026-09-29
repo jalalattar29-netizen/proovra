@@ -54,6 +54,9 @@ import {
   buildOpsLifecyclePath,
   buildOpsOperatorsPath,
   buildOpsRemediatePath,
+  buildRemediateBody,
+  REMEDIATION_REASON_MAX,
+  remediationReasonReady,
   buildOpsSavedViewPath,
   buildOpsSavedViewsPath,
   buildOpsSummaryPath,
@@ -1156,12 +1159,25 @@ function IncidentInspector({
     };
   }, [teamId, id, reloadToken]);
 
+  // ET-REC-04 — the reason an action that requires one carries (as on web).
+  const [reasonFor, setReasonFor] = useState<string | null>(null);
+  const [reasonText, setReasonText] = useState("");
   const remediate = async (a: RemediationAction) => {
     setConfirming(null);
+    if (!remediationReasonReady(a, reasonFor === a.actionId ? reasonText : "")) {
+      // Ask for the reason first; nothing is sent without it.
+      setReasonFor(a.actionId);
+      return;
+    }
     setRemBusy(a.actionId);
     setRemOutcome(null);
     try {
-      const res = await apiFetch(buildOpsRemediatePath(id), { method: "POST", body: JSON.stringify({ teamId, actionId: a.actionId }) });
+      const res = await apiFetch(buildOpsRemediatePath(id), {
+        method: "POST",
+        body: buildRemediateBody({ teamId, actionId: a.actionId, reason: a.requiresReason ? reasonText : null }),
+      });
+      setReasonFor(null);
+      setReasonText("");
       setRemOutcome(remediationMessage(res) ?? STATE_COPY.remediationQueued);
     } catch (err) {
       // Spec §9: a refused remediation carries the server's own explanation.
@@ -1238,6 +1254,23 @@ function IncidentInspector({
                     <ProovraText variant="label" color={theme.color.ink.muted}>
                       {`${a.description}${a.async ? STATE_COPY.remediationAsyncHint : ""}`}
                     </ProovraText>
+                    {a.requiresReason && reasonFor === a.actionId ? (
+                      <View style={{ gap: 4 }} testID="ops-remediation-reason">
+                        <ProovraInput
+                          value={reasonText}
+                          onChangeText={(t) => setReasonText(t.slice(0, REMEDIATION_REASON_MAX))}
+                          placeholder="Why is this needed? (recorded with the action)"
+                          accessibilityLabel={`Reason for ${a.label}`}
+                          autoCapitalize="sentences"
+                          multiline
+                        />
+                        <ProovraButton
+                          label={`Submit — ${a.label}`}
+                          disabled={remBusy !== null || busy || !remediationReasonReady(a, reasonText)}
+                          onPress={() => (a.confirm ? setConfirming(a) : void remediate(a))}
+                        />
+                      </View>
+                    ) : null}
                   </View>
                 ))}
                 {remOutcome ? (

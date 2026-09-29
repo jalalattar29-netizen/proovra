@@ -723,6 +723,29 @@ export interface RemediationAction {
   readonly description: string;
   readonly confirm: boolean;
   readonly async: boolean;
+  /**
+   * ET-REC-04 — the server refuses this action without a stated reason
+   * (400 remediation_reason_required). The parser dropped it, so "Retry after
+   * exhausted failure" always failed on mobile.
+   */
+  readonly requiresReason: boolean;
+}
+
+/** The longest reason the server keeps (ops.routes ResolveBody: max 500). */
+export const REMEDIATION_REASON_MAX = 500;
+
+/**
+ * The remediate POST body. A reason is sent exactly when one was given; an
+ * action that requires one is never sent without it (the caller disables the
+ * button until `remediationReasonReady`).
+ */
+export function buildRemediateBody(input: { teamId: string; actionId: string; reason?: string | null }): string {
+  const reason = (input.reason ?? "").trim().slice(0, REMEDIATION_REASON_MAX);
+  return JSON.stringify(reason ? { teamId: input.teamId, actionId: input.actionId, reason } : { teamId: input.teamId, actionId: input.actionId });
+}
+
+export function remediationReasonReady(action: RemediationAction, reason: string): boolean {
+  return !action.requiresReason || reason.trim().length > 0;
 }
 export interface ProjectedRemediation {
   readonly actions: RemediationAction[];
@@ -760,7 +783,14 @@ export function parseIncidentDetail(v: unknown): IncidentDetail | null {
               const actionId = str(o["actionId"]);
               const label = str(o["label"]);
               return actionId && label
-                ? { actionId, label, description: str(o["description"]) ?? "", confirm: o["confirm"] === true, async: o["async"] === true }
+                ? {
+                    actionId,
+                    label,
+                    description: str(o["description"]) ?? "",
+                    confirm: o["confirm"] === true,
+                    async: o["async"] === true,
+                    requiresReason: o["requiresReason"] === true,
+                  }
                 : null;
             })
             .filter((x): x is RemediationAction => x !== null),
