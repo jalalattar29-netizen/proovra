@@ -37,6 +37,7 @@ import {
 } from "@proovra/shared";
 import {
   readGenerationOutcome,
+  type GenerationOutcomeTone,
   type GenerationResponse,
 } from "../../lib/evidence/generation-outcome";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -83,6 +84,8 @@ import type {
 } from "./types";
 import {
   lifecycleFilterFromSearch,
+  REPORT_BLOCKED_BUCKET_FILTERS,
+  supportsReportBlockedBuckets,
   supportsTruthfulOutputBuckets,
   TRUTHFUL_BUCKET_FILTERS,
 } from "./types";
@@ -112,6 +115,9 @@ const SUMMARY_METRICS = [
   // PENDING takes the shared attention orange, not the caution amber.
   { key: "reports_pending", field: "reportsPending", filter: "report_pending", label: "Reports pending", tone: "orange" },
   { key: "reports_failed", field: "reportsFailed", filter: "report_failed", label: "Reports failed", tone: "red" },
+  // ET-RPT-01/02 — rendered only when the API sends the field (older APIs do not).
+  { key: "reports_update_failed", field: "reportsUpdateFailed", filter: "report_update_failed", label: "Updated report failed", tone: "red" },
+  { key: "reports_blocked", field: "reportsBlocked", filter: "report_blocked", label: "Reports blocked", tone: "red" },
   { key: "packages_ready", field: "packagesReady", filter: "package_ready", label: "Packages ready", tone: "green" },
   { key: "packages_pending", field: "packagesPending", filter: "package_pending", label: "Packages pending", tone: "indigo" },
   { key: "packages_failed", field: "packagesFailed", filter: "package_failed", label: "Packages failed", tone: "red" },
@@ -229,8 +235,10 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
       // P1-3 — mirrors the server-side mapper exactly. See the note there.
       return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
-    case "BLOCKED":
       return "not_requested";
+    case "BLOCKED":
+      // ET-RPT-02 — mirrors the server: a blocked request is blocked.
+      return "blocked";
   }
 }
 
@@ -385,12 +393,18 @@ export function ReportsIndex() {
   // Learned once from the API (see supportsTruthfulOutputBuckets) and kept:
   // a filtered request may skip the summary, the capability does not change.
   const [truthfulBuckets, setTruthfulBuckets] = useState(false);
+  const [blockedBuckets, setBlockedBuckets] = useState(false);
   useEffect(() => {
     if (supportsTruthfulOutputBuckets(summarySection.data)) setTruthfulBuckets(true);
+    if (supportsReportBlockedBuckets(summarySection.data)) setBlockedBuckets(true);
   }, [summarySection.data]);
+  // ET-RPT-05 — the summary has a LOADING phase; "temporarily unavailable"
+  // is said only after it was asked for and did not come back.
+  const [summaryAnswered, setSummaryAnswered] = useState(false);
 
   const loadSummary = useCallback(async () => {
     if (!workspaceId) return;
+    setSummaryAnswered(false);
     try {
       const envelope = (await apiFetch(
         `/v1/reports/artifacts?teamId=${encodeURIComponent(workspaceId)}&limit=1`,
@@ -400,6 +414,8 @@ export function ReportsIndex() {
     } catch {
       // Its own failure, reported in its own section. The list is unaffected.
       setSummarySection({ status: "unavailable", data: null });
+    } finally {
+      setSummaryAnswered(true);
     }
   }, [workspaceId]);
 
@@ -621,9 +637,11 @@ export function ReportsIndex() {
     }
     // A truthful-bucket filter waits until the API has shown it supports it.
     if (TRUTHFUL_BUCKET_FILTERS.has(linked) && !truthfulBuckets) return;
+    // ET-RPT-01/02 — so does a blocked / updated-report filter.
+    if (REPORT_BLOCKED_BUCKET_FILTERS.has(linked) && !blockedBuckets) return;
     deepLinkApplied.current = true;
     changeFilter(linked);
-  }, [changeFilter, truthfulBuckets]);
+  }, [changeFilter, truthfulBuckets, blockedBuckets]);
   const changeSearch = useCallback((next: string) => {
     setSearch(next);
     setCursors([]);
@@ -700,6 +718,8 @@ export function ReportsIndex() {
     ["report_ready", "Report ready"],
     ["report_pending", "Report pending"],
     ["report_failed", "Report failed"],
+    ["report_update_failed", "Updated report failed"],
+    ["report_blocked", "Report blocked"],
     ["package_ready", "Package ready"],
     ["package_pending", "Package pending"],
     ["package_failed", "Package failed"],
@@ -710,9 +730,11 @@ export function ReportsIndex() {
     ["entitlement_unavailable", "Subscription check pending"],
   ];
   // Offered only when the API has shown it supports them (see above).
-  const lifecycleFilters = truthfulBuckets
-    ? allLifecycleFilters
-    : allLifecycleFilters.filter(([key]) => !TRUTHFUL_BUCKET_FILTERS.has(key));
+  const lifecycleFilters = allLifecycleFilters.filter(
+    ([key]) =>
+      (truthfulBuckets || !TRUTHFUL_BUCKET_FILTERS.has(key)) &&
+      (blockedBuckets || !REPORT_BLOCKED_BUCKET_FILTERS.has(key)),
+  );
 
   return (
     <PageShell
@@ -822,8 +844,11 @@ export function ReportsIndex() {
               data-cc-section-status={summarySection.status}
               style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
             >
-              Summary is temporarily unavailable. The artifact list below remains
-              usable.
+              {!summaryAnswered
+                ? "Loading the summary…"
+                : state.status === "ready" && state.envelope.workspace.id === "user-scoped"
+                  ? "Workspace totals are not available for this view: these records were found through your own account, not through workspace membership. The list below is complete for you."
+                  : "Summary is temporarily unavailable. The artifact list below remains usable."}
             </span>
           </Card>
         </PageSection>
@@ -1133,7 +1158,9 @@ function ArtifactRowActions({
   const [busy, setBusy] = useState<null | "report" | "package" | "regen">(null);
   const [error, setError] = useState<string | null>(null);
   // The server's own sentence for the last request, shown in the row.
-  const [regenNotice, setRegenNotice] = useState<string | null>(null);
+  // ET-RPT-06 — the outcome keeps its own tone: a TERMINAL, blocked or
+  // queue-unavailable answer is not a success and is not shown in green.
+  const [regenNotice, setRegenNotice] = useState<{ message: string; tone: GenerationOutcomeTone } | null>(null);
 
   const triggerReport = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1241,7 +1268,8 @@ function ArtifactRowActions({
         `/v1/evidence/${row.evidenceId}/reports/regenerate`,
         { method: "POST", body: JSON.stringify({ intent, output }) },
       )) as GenerationResponse;
-      setRegenNotice(readGenerationOutcome(resp).message);
+      const outcome = readGenerationOutcome(resp);
+      setRegenNotice({ message: outcome.message, tone: outcome.tone });
     } catch (err) {
       setError(requestErrorMessage(err));
     } finally {
@@ -1346,9 +1374,11 @@ function ArtifactRowActions({
               ? outputVerbs.length === 0
                 ? "Report generation failed — needs operator review"
                 : "Report generation failed"
-              : row.report.state === "not_requested"
-                ? "Report not generated yet"
-                : "Report not included for this record"}
+              : row.report.state === "blocked"
+                ? "Report blocked — a workspace policy changed or prevents it"
+                : row.report.state === "not_requested"
+                  ? "Report not generated yet"
+                  : "Report not included for this record"}
         </span>
       )}
       {packageReady ? (
@@ -1456,16 +1486,18 @@ function ArtifactRowActions({
       ) : null}
       {regenNotice ? (
         <span
-          role="status"
+          role={regenNotice.tone === "error" ? "alert" : "status"}
+          className="app-status-text"
+          data-tone={GENERATION_OUTCOME_STATUS_TONE[regenNotice.tone]}
           data-reports-row-regen-notice={row.evidenceId}
+          data-reports-row-regen-tone={regenNotice.tone}
           style={{
-            color: "#167A5B",
             fontSize: 12,
             width: "100%",
             marginTop: 4,
           }}
         >
-          {regenNotice}
+          {regenNotice.message}
         </span>
       ) : null}
     </div>
@@ -1477,12 +1509,21 @@ function ArtifactRowActions({
 // This replaces the previous hack of borrowing CASE-STATUS names ("OPEN",
 // "ON_HOLD", "CLOSED") purely for their colour, plus the inline red style
 // that existed only because the borrowed system had no failed tint.
+/** ET-RPT-06 — an outcome tone on the shared status-text scale. */
+const GENERATION_OUTCOME_STATUS_TONE: Record<GenerationOutcomeTone, string> = {
+  success: "green",
+  info: "blue",
+  error: "red",
+};
+
 function reportStatusAttr(state: ReportLifecycle): string {
   switch (state) {
     case "ready":
       return "green";
     case "pending":
       return "amber";
+    case "blocked":
+      return "indigo";
     case "failed":
       return "red";
     default:
@@ -1511,6 +1552,8 @@ function reportLabel(state: ReportLifecycle): string {
       return "ready";
     case "pending":
       return "pending";
+    case "blocked":
+      return "blocked";
     case "failed":
       return "failed";
     case "unavailable":

@@ -68,6 +68,8 @@ test("the canonical counters are projected in the web's order", () => {
       "Reports ready",
       "Reports pending",
       "Reports failed",
+      "Updated report failed",
+      "Reports blocked",
       "Packages ready",
       "Packages pending",
       "Packages failed",
@@ -184,7 +186,7 @@ test("the cursor is sent only when paging", () => {
 test("the filter list matches the canonical lifecycle vocabulary", () => {
   assert.deepEqual(
     R.REPORTS_FILTERS.map((f) => f.value),
-    ["all", "report_ready", "report_pending", "report_failed", "package_ready", "package_pending", "package_failed", "package_blocked"],
+    ["all", "report_ready", "report_pending", "report_failed", "report_update_failed", "report_blocked", "package_ready", "package_pending", "package_failed", "package_blocked"],
   );
 });
 
@@ -261,4 +263,26 @@ test("an ordinary escalation keeps its reason on the row", () => {
     verificationPackage: { state: "TERMINAL_FAILURE", action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR", terminalReasonCode: "retry_budget_exhausted" },
   });
   assert.equal(out.actionWithheldReason, "ESCALATED_TO_OPERATOR");
+});
+
+/* ------------------------------------------------ ET-RPT-01/02 (2026-09-29) */
+
+test("a blocked request reads blocked in the fallback mapping and the row copy, never 'not requested'", () => {
+  const page = R.parseUserScopedReports({
+    items: [{ evidenceId: "e1", reportLifecycle: "BLOCKED", packageLifecycle: "BLOCKED", report: {}, package: {} }],
+    nextCursor: null,
+  });
+  assert.equal(page.items[0].reportState, "blocked");
+  assert.equal(page.items[0].packageState, "blocked");
+  assert.equal(R.reportActionStatus(page.items[0]), "Report blocked — a workspace policy changed or prevents it");
+  assert.equal(R.reportStatusText(page.items[0]), "Report blocked");
+});
+
+test("the updated-report and blocked counters parse, and are null from an older API", () => {
+  const withBoth = R.parseReportsSummary({ sections: { summary: { status: "ok", data: { reportsReady: 2, reportsUpdateFailed: 1, reportsBlocked: 3 } } } });
+  assert.equal(withBoth.reportsUpdateFailed, 1);
+  assert.equal(withBoth.reportsBlocked, 3);
+  const older = R.parseReportsSummary({ sections: { summary: { status: "ok", data: { reportsReady: 2 } } } });
+  assert.equal(older.reportsUpdateFailed, null);
+  assert.equal(older.reportsBlocked, null);
 });

@@ -41,6 +41,10 @@ export interface ReportsSummary {
   reportsReady: number | null;
   reportsPending: number | null;
   reportsFailed: number | null;
+  /** ET-RPT-01 — a report exists; its latest report request failed (null from older APIs). */
+  reportsUpdateFailed: number | null;
+  /** ET-RPT-02 — no report; the latest request is blocked (null from older APIs). */
+  reportsBlocked: number | null;
   packagesReady: number | null;
   packagesPending: number | null;
   packagesBlocked: number | null;
@@ -67,6 +71,8 @@ export const REPORTS_METRICS: ReadonlyArray<{
   // PENDING takes the shared attention tone, not the caution amber.
   { key: "reportsPending", label: "Reports pending", tone: "pending" },
   { key: "reportsFailed", label: "Reports failed", tone: "risk" },
+  { key: "reportsUpdateFailed", label: "Updated report failed", tone: "risk" },
+  { key: "reportsBlocked", label: "Reports blocked", tone: "risk" },
   { key: "packagesReady", label: "Packages ready", tone: "verified" },
   { key: "packagesPending", label: "Packages pending", tone: "pending" },
   { key: "packagesFailed", label: "Packages failed", tone: "risk" },
@@ -90,6 +96,8 @@ export function parseReportsSummary(payload: unknown): ReportsSummary | null {
     reportsReady: int(d.reportsReady),
     reportsPending: int(d.reportsPending),
     reportsFailed: int(d.reportsFailed),
+    reportsUpdateFailed: int(d.reportsUpdateFailed),
+    reportsBlocked: int(d.reportsBlocked),
     packagesReady: int(d.packagesReady),
     packagesPending: int(d.packagesPending),
     packagesFailed: int(d.packagesFailed),
@@ -273,6 +281,8 @@ export type LifecycleFilter =
   | "report_ready"
   | "report_pending"
   | "report_failed"
+  | "report_update_failed"
+  | "report_blocked"
   | "package_ready"
   | "package_pending"
   | "package_failed"
@@ -286,6 +296,8 @@ export const REPORTS_FILTERS: ReadonlyArray<{ value: LifecycleFilter; label: str
   { value: "report_ready", label: "Report ready" },
   { value: "report_pending", label: "Report pending" },
   { value: "report_failed", label: "Report failed" },
+  { value: "report_update_failed", label: "Updated report failed" },
+  { value: "report_blocked", label: "Report blocked" },
   { value: "package_ready", label: "Package ready" },
   { value: "package_pending", label: "Package pending" },
   { value: "package_failed", label: "Package failed" },
@@ -450,6 +462,8 @@ export function reportActionStatus(row: ArtifactRow): string | null {
       return "Report generating — refresh shortly";
     case "failed":
       return "Report generation failed";
+    case "blocked":
+      return "Report blocked — a workspace policy changed or prevents it";
     case "not_requested":
       return "Report not generated yet";
     default:
@@ -561,6 +575,9 @@ function toLifecycle(state: unknown): string {
       return "failed";
     case "NOT_INCLUDED":
       return "unavailable";
+    case "BLOCKED":
+      // ET-RPT-02 — a blocked request is blocked, as on the server and the web.
+      return "blocked";
     default:
       return "not_requested";
   }

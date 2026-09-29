@@ -646,6 +646,12 @@ export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
   "STORAGE_LIMIT",
   /** The last attempt failed and can be retried; retry it first. */
   "RETRY_AVAILABLE",
+  /**
+   * ET-RPT-04 — the facts that decide the action could not be read right now.
+   * Not a permission statement: the list shows the record, and the verb comes
+   * back when the facts can be read.
+   */
+  "ACTIONS_UNAVAILABLE",
 ] as const;
 export type OutputActionUnavailableReason =
   (typeof OUTPUT_ACTION_UNAVAILABLE_REASONS)[number];

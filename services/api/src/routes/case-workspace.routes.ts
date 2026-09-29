@@ -25,7 +25,11 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
 import { buildCasesSummary } from "../services/cases/case-workspace.service.js";
-import { listWorkspaceArtifacts } from "../services/reports/reports-aggregator.service.js";
+import {
+  listWorkspaceArtifacts,
+  REPORT_LIFECYCLE_FILTERS,
+  type ReportLifecycleFilter,
+} from "../services/reports/reports-aggregator.service.js";
 import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
 import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
 import {
@@ -165,22 +169,10 @@ const ArtifactsQuery = z.object({
   teamId: z.string().uuid(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.string().min(1).max(512).optional(),
+  // THE one filter list (reports-aggregator REPORT_LIFECYCLE_FILTERS); a
+  // hand-kept copy here refused every filter added after it was written.
   lifecycle: z
-    .enum([
-      "all",
-      "report_ready",
-      "report_pending",
-      "report_failed",
-      "package_ready",
-      "package_pending",
-      "package_failed",
-      "package_blocked",
-      // 2026-09-29 — the states "not requested" used to hide.
-      "report_not_issued",
-      "report_awaiting_issuance",
-      "package_missing",
-      "entitlement_unavailable",
-    ])
+    .enum(REPORT_LIFECYCLE_FILTERS as unknown as [ReportLifecycleFilter, ...ReportLifecycleFilter[]])
     .optional(),
   search: z.string().min(1).max(80).optional(),
   caseId: z.string().uuid().optional(),

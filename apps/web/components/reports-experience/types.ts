@@ -23,6 +23,8 @@ export type ReportLifecycle =
   | "not_requested"
   | "pending"
   | "ready"
+  /** ET-RPT-02 — the latest request is blocked (stale policy / policy block). */
+  | "blocked"
   | "failed"
   | "unavailable";
 
@@ -63,6 +65,8 @@ export type ArtifactRow = {
   createdAt: string;
   report: {
     state: ReportLifecycle;
+    /** ET-RPT-01 — a report exists and its latest report request failed (absent from older APIs). */
+    updateFailed?: boolean;
     version: number | null;
     generatedAtUtc: string | null;
   };
@@ -128,6 +132,10 @@ export type ReportsSummary = {
   reportsPending: number;
   /** Absent from servers older than the tile ⇔ filter parity change. */
   reportsFailed?: number;
+  /** ET-RPT-01 — a report exists; its latest report request failed. Absent from older APIs. */
+  reportsUpdateFailed?: number;
+  /** ET-RPT-02 — no report; the latest request is blocked. Absent from older APIs. */
+  reportsBlocked?: number;
   packagesReady: number;
   packagesPending: number;
   packagesBlocked: number;
@@ -169,6 +177,8 @@ export type LifecycleFilter =
   | "report_ready"
   | "report_pending"
   | "report_failed"
+  | "report_update_failed"
+  | "report_blocked"
   | "package_ready"
   | "package_pending"
   | "package_failed"
@@ -185,6 +195,8 @@ export const LIFECYCLE_FILTERS: ReadonlyArray<LifecycleFilter> = [
   "report_ready",
   "report_pending",
   "report_failed",
+  "report_update_failed",
+  "report_blocked",
   "package_ready",
   "package_pending",
   "package_failed",
@@ -217,6 +229,20 @@ export function lifecycleFilterFromSearch(search: string): LifecycleFilter | nul
 export function supportsTruthfulOutputBuckets(summary: ReportsSummary | null | undefined): boolean {
   return typeof summary?.reportsNotIssued === "number";
 }
+
+/**
+ * ET-RPT-01/02 — the same rollout rule for the blocked and updated-report
+ * buckets: offered only once the summary proves the API has them.
+ */
+export function supportsReportBlockedBuckets(summary: ReportsSummary | null | undefined): boolean {
+  return typeof summary?.reportsBlocked === "number" && typeof summary?.reportsUpdateFailed === "number";
+}
+
+/** Filters only an API with the blocked / updated-report buckets accepts. */
+export const REPORT_BLOCKED_BUCKET_FILTERS: ReadonlySet<LifecycleFilter> = new Set<LifecycleFilter>([
+  "report_update_failed",
+  "report_blocked",
+]);
 
 /** Filters only an API with the truthful buckets accepts. */
 export const TRUTHFUL_BUCKET_FILTERS: ReadonlySet<LifecycleFilter> = new Set<LifecycleFilter>([

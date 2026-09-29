@@ -114,6 +114,8 @@ export function outputUnavailableReasonCopy(
       return "A new version would exceed this workspace's storage allowance.";
     case "RETRY_AVAILABLE":
       return "The last attempt failed and can be retried first.";
+    case "ACTIONS_UNAVAILABLE":
+      return "The actions for this record could not be loaded right now. They will return when the page refreshes.";
   }
   return null;
 }
@@ -158,6 +160,8 @@ export function outputUnavailableReasonShort(
       return "Storage limit reached";
     case "RETRY_AVAILABLE":
       return "Retry available";
+    case "ACTIONS_UNAVAILABLE":
+      return "Actions unavailable";
   }
   return null;
 }

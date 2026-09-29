@@ -62,6 +62,8 @@ export type ReportLifecycle =
   | "not_requested"
   | "pending"
   | "ready"
+  /** ET-RPT-02 — the latest request is blocked (stale policy / policy block). */
+  | "blocked"
   | "failed"
   | "unavailable";
 
@@ -126,6 +128,8 @@ export type ArtifactRow = {
   /** Report lifecycle (bounded enum, never raw enum values). */
   report: {
     state: ReportLifecycle;
+    /** ET-RPT-01 — a report exists and its latest report request failed. */
+    updateFailed: boolean;
     version: number | null;
     generatedAtUtc: string | null;
   };
@@ -217,11 +221,20 @@ export type ReportsArtifactsEnvelope = {
         reportsPending: number;
         /** Records with no report whose latest generation request failed (retryable or terminal). */
         reportsFailed: number;
+        /**
+         * ET-RPT-01 — records WITH a report whose latest report request (an
+         * updated report or a forced regeneration) failed. The existing report
+         * stays downloadable, so the record is also counted ready; this card
+         * is where the row's Retry / escalation can be found.
+         */
+        reportsUpdateFailed: number;
+        /** ET-RPT-02 — records with no report whose latest request is blocked. */
+        reportsBlocked: number;
         /** Records with at least one verification package (not package versions). */
         packagesReady: number;
         /** Records with no package whose latest generation request is queued or running. */
         packagesPending: number;
-        /** Records with no package whose package generation is gate-blocked. */
+        /** Records with no package whose package generation is blocked (gate or request). */
         packagesBlocked: number;
         /** Records whose latest-report package generation failed. */
         packagesFailed: number;
@@ -277,6 +290,10 @@ export type ReportLifecycleFilter =
   | "report_ready"
   | "report_pending"
   | "report_failed"
+  /** ET-RPT-01 — a report exists; its latest report request failed. */
+  | "report_update_failed"
+  /** ET-RPT-02 — no report; the latest request is blocked. */
+  | "report_blocked"
   | "package_ready"
   | "package_pending"
   | "package_failed"
@@ -299,6 +316,8 @@ export const REPORT_LIFECYCLE_FILTERS: readonly ReportLifecycleFilter[] = [
   "report_ready",
   "report_pending",
   "report_failed",
+  "report_update_failed",
+  "report_blocked",
   "package_ready",
   "package_pending",
   "package_failed",
@@ -358,15 +377,14 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
        */
       return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
-    case "BLOCKED":
       return "not_requested";
+    case "BLOCKED":
+      // ET-RPT-02: a blocked request is blocked, not "not requested".
+      return "blocked";
   }
 }
 
-function toPackageLifecycle(
-  state: EvidenceOutputState,
-  blocked: boolean,
-): PackageLifecycle {
+function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
   /*
    * A gate-blocked package reads "blocked" only when the CANONICAL state says
    * BLOCKED. It used to override every non-READY state, so a record whose
@@ -376,7 +394,11 @@ function toPackageLifecycle(
    * counted it as not included. NOT_INCLUDED, BLOCKED and FAILED are three
    * different statements; the row now makes the same one as the tile.
    */
-  if (blocked && state === "BLOCKED") return "blocked";
+  // ET-RPT-02: canonical BLOCKED — a gate block OR a blocked request (stale
+  // policy, policy block) — is "blocked"; it used to need the gate metadata
+  // too, so a request-blocked row read "Package not requested" while the
+  // "Packages blocked" tile counted it.
+  if (state === "BLOCKED") return "blocked";
   switch (state) {
     case "READY":
       return "ready";
@@ -400,7 +422,6 @@ function toPackageLifecycle(
        */
       return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
-    case "BLOCKED":
       return "not_requested";
   }
 }
@@ -556,6 +577,8 @@ export async function listWorkspaceArtifacts(input: {
         reportsReady,
         reportsPending: classified.reportPending.length,
         reportsFailed: classified.reportFailed.length,
+        reportsUpdateFailed: classified.reportUpdateFailed.length,
+        reportsBlocked: classified.reportBlocked.length,
         packagesReady,
         packagesPending: classified.packagePending.length,
         packagesBlocked,
@@ -744,10 +767,20 @@ export async function listWorkspaceArtifacts(input: {
        * batch. Row actions and the paired package come from here, so the list
        * and the record can never offer different verbs for one record.
        */
+      /*
+       * ET-RPT-04 — a failed facts read is NOT a permission answer. It gave
+       * every row NONE / PERMISSION_DENIED ("Needs permission") while the
+       * section reported ok and polling stopped. It is now ACTIONS_UNAVAILABLE,
+       * the section is degraded, and the page polls so the verbs come back.
+       */
+      let factsUnavailable = false;
       const loadedFacts = await loadEvidenceOutputFacts({
         evidenceIds,
         callerUserId: input.callerUserId ?? null,
-      }).catch(() => new Map<string, LoadedOutputFacts>());
+      }).catch(() => {
+        factsUnavailable = true;
+        return new Map<string, LoadedOutputFacts>();
+      });
       const [reportRows, packageRows, requestRows, eligibilityByEvidence] =
         await Promise.all([
         prisma.report.findMany({
@@ -907,13 +940,15 @@ export async function listWorkspaceArtifacts(input: {
           packageCanonicalState === "TERMINAL_FAILURE"
             ? (loaded?.packageRequest?.terminalReasonCode ?? null)
             : null;
+        // No facts for this row (the read failed, or it returned none for
+        // this id): the verb is unknown, not denied.
         const noAction = {
           action: "NONE" as OutputAction,
-          actionUnavailableReason: "PERMISSION_DENIED" as OutputActionUnavailableReason,
+          actionUnavailableReason: "ACTIONS_UNAVAILABLE" as OutputActionUnavailableReason,
           operation: null,
         };
         const reportState = toReportLifecycle(reportCanonicalState);
-        const packageState = toPackageLifecycle(packageCanonicalState, blocked);
+        const packageState = toPackageLifecycle(packageCanonicalState);
         return {
           evidenceId: r.id,
           teamId: r.teamId ?? null,
@@ -934,6 +969,11 @@ export async function listWorkspaceArtifacts(input: {
           createdAt: r.createdAt.toISOString(),
           report: {
             state: reportState,
+            // ET-RPT-01 — a report exists and its latest report request failed
+            // (the "report_update_failed" card and filter select exactly these).
+            updateFailed:
+              reportCanonicalState === "READY" &&
+              (generation === "RETRYABLE_FAILURE" || generation === "TERMINAL_FAILURE"),
             version: report?.version ?? null,
             generatedAtUtc: report?.generatedAtUtc?.toISOString() ?? null,
           },
@@ -990,11 +1030,11 @@ export async function listWorkspaceArtifacts(input: {
              * shown. The row's projection says so, so no client can render it.
              */
             newVersion: { action: "NONE", reason: "NOT_REQUIRED" },
-            pollIntervalMs:
-              loaded &&
-              [loaded.reportRequest?.state, loaded.packageRequest?.state].some(
-                (st) => st === "QUEUED" || st === "PROCESSING",
-              )
+            pollIntervalMs: !loaded
+              ? 15_000
+              : [loaded.reportRequest?.state, loaded.packageRequest?.state].some(
+                    (st) => st === "QUEUED" || st === "PROCESSING",
+                  )
                 ? 3_000
                 : null,
           },
@@ -1009,7 +1049,7 @@ export async function listWorkspaceArtifacts(input: {
       });
 
       artifacts = {
-        status: "ok",
+        status: factsUnavailable ? "degraded" : "ok",
         items,
         nextCursor,
         total,
@@ -1064,6 +1104,10 @@ export type ClassifiedWorkspaceOutputs = {
   reportReady: string[];
   reportPending: string[];
   reportFailed: string[];
+  /** ET-RPT-01 — report READY; the latest report request failed. */
+  reportUpdateFailed: string[];
+  /** ET-RPT-02 — report BLOCKED (no report; blocked request). */
+  reportBlocked: string[];
   reportNotRequested: string[];
   /** Report NOT_INCLUDED: finalized, the plan does not issue one. */
   reportNotIssued: string[];
@@ -1097,6 +1141,8 @@ export async function classifyWorkspaceOutputs(input: {
     reportReady: [],
     reportPending: [],
     reportFailed: [],
+    reportUpdateFailed: [],
+    reportBlocked: [],
     reportNotRequested: [],
     reportNotIssued: [],
     packageReady: [],
@@ -1200,9 +1246,14 @@ export async function classifyWorkspaceOutputs(input: {
         record,
       });
 
-      if (reportState === "READY") out.reportReady.push(row.id);
-      else if (reportState === "QUEUED" || reportState === "GENERATING") out.reportPending.push(row.id);
+      if (reportState === "READY") {
+        out.reportReady.push(row.id);
+        if (reportGeneration === "RETRYABLE_FAILURE" || reportGeneration === "TERMINAL_FAILURE") {
+          out.reportUpdateFailed.push(row.id);
+        }
+      } else if (reportState === "QUEUED" || reportState === "GENERATING") out.reportPending.push(row.id);
       else if (reportState === "RETRYABLE_FAILURE" || reportState === "TERMINAL_FAILURE") out.reportFailed.push(row.id);
+      else if (reportState === "BLOCKED") out.reportBlocked.push(row.id);
       else if (reportState === "ELIGIBLE_NOT_GENERATED") out.reportNotRequested.push(row.id);
       else if (reportState === "NOT_INCLUDED") out.reportNotIssued.push(row.id);
 
@@ -1258,6 +1309,10 @@ async function lifecycleWhere(
       return { id: { in: (await classified()).reportPending } };
     case "report_failed":
       return { id: { in: (await classified()).reportFailed } };
+    case "report_update_failed":
+      return { id: { in: (await classified()).reportUpdateFailed } };
+    case "report_blocked":
+      return { id: { in: (await classified()).reportBlocked } };
     case "package_ready":
       return { id: { in: (await classified()).packageReady } };
     case "package_pending":
