@@ -4878,6 +4878,10 @@ trustDecisionSnapshot:
               s3VersionId: verificationHead.versionId,
               packageFormatVersion:
                 finalizedVerificationSeal?.packageFormatVersion ?? null,
+              // ET-PKG-02: what Public Verify serves so a recipient can check
+              // the seal key of the package they hold against PROOVRA.
+              sealSha256: finalizedVerificationSeal?.sealSha256 ?? null,
+              sealSigningKeySha256: finalizedVerificationSeal?.signingKeyFingerprint ?? null,
               reportIssuedAtUtc: finalized.reportIssuedAtUtc,
               custodyThroughSequence: finalized.custodyThroughSequence,
             },

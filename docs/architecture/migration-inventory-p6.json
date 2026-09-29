@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 287,
-    "classifiedMigrations": 287,
+    "filesystemMigrations": 288,
+    "classifiedMigrations": 288,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 287,
+    "productionSnapshotUnknown": 288,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 287,
-    "classifiedMigrations": 287,
+    "filesystemMigrations": 288,
+    "classifiedMigrations": 288,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 287,
+    "productionSnapshotUnknown": 288,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 65,
+      "EXPAND": 66,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 76,
+      "SAFE_TO_APPLY_NOW": 77,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 287
+    "ProductionMigrationStateUnknown": 288
   },
   "gateFailures": [],
   "migrations": [
@@ -22152,7 +22152,7 @@
       "checksumSha256": "586b6a9d81c403143aafacba020b2a4420090213add3946e0b3ac68b5c85ff92",
       "checksumSha256Raw": "586b6a9d81c403143aafacba020b2a4420090213add3946e0b3ac68b5c85ff92",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -22211,8 +22211,72 @@
       "evidence": "EVIDENCE TSA VALIDATION (2026-09-29, ET-TSA-01/06). Adds nullable evidence.tsa_validated_at_utc TIMESTAMPTZ, tsa_signer_cert_sha256 VARCHAR(64), tsa_policy_oid VARCHAR(80), tsa_failure_code VARCHAR(64): a timestamp is STAMPED only after its RFC 3161 token is validated against the environment's trust anchor, and a failure keeps its bounded code. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at finalization and reads them on every evidence read, so apply before deploying the API and worker. Historic STAMPED rows keep NULL and read as recorded-not-validated."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280803000000_verification_package_seal_identity",
       "order": 286,
+      "sqlPresent": true,
+      "byteLength": 821,
+      "checksumSha256": "20d0dcc8f33c70d003fce98bb322769993b9e5efac893fdee3836d460fb34e1f",
+      "checksumSha256Raw": "20d0dcc8f33c70d003fce98bb322769993b9e5efac893fdee3836d460fb34e1f",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:2 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "verification_packages"
+        ],
+        "addedColumns": [
+          "seal_sha256",
+          "seal_signing_key_sha256"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='verification_packages' AND column_name IN ('seal_sha256','seal_signing_key_sha256')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "VERIFICATION PACKAGE SEAL IDENTITY (2026-09-29, ET-PKG-02). Adds nullable verification_packages.seal_sha256 and seal_signing_key_sha256 VARCHAR(64): the seal digest and the signing key fingerprint of each package, served by Public Verify so a recipient can check a package's seal key against PROOVRA instead of trusting a key that travels inside the ZIP. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at package generation and reads them on public verify, so apply before deploying the API and worker. Historic rows keep NULL (not recorded)."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 287,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

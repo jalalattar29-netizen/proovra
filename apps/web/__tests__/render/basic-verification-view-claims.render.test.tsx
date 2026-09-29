@@ -104,4 +104,16 @@ describe("Basic Verify — honest 'not checked'", () => {
     expect(text).not.toMatch(/imprint matches the recorded digest/);
     expect(text).not.toMatch(/validated the authority's signature/);
   });
+
+  it("ET-PKG-02: a sealed package names the key fingerprint PROOVRA recorded — or says none was recorded", () => {
+    const withKey = { ...data({}), package: { issued: true, certifiesReportVersion: 1, assembledAtUtc: AT, sealed: true, latestReportLacksPackage: false, packageSha256: "e".repeat(64), sealKeyFingerprint: "d".repeat(64) } } as BasicVerification;
+    const a = render(<BasicVerificationView data={withKey} />);
+    expect(a.container.textContent).toMatch(/fingerprint is d{64}/);
+    expect(a.container.textContent).toMatch(/has SHA-256 e{64}/);
+    cleanup();
+    const noKey = { ...withKey, package: { ...withKey.package, packageSha256: null, sealKeyFingerprint: null } } as BasicVerification;
+    const b = render(<BasicVerificationView data={noKey} />);
+    expect(b.container.textContent).toMatch(/PROOVRA did not record that key for this package/);
+    expect(b.container.textContent).not.toMatch(/bound by one signature/);
+  });
 });

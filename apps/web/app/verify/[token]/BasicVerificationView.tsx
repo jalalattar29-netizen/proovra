@@ -70,6 +70,25 @@ function Row(props: { label: string; state: ComponentVerificationState; detail: 
   );
 }
 
+/**
+ * ET-PKG-02: a seal key found only inside a package vouches for nothing, so the
+ * sentence names what PROOVRA recorded for the package it issued — or says that
+ * nothing was recorded. Older API payloads lack the fields (undefined).
+ */
+function packageCheck(p: {
+  sealed: boolean;
+  packageSha256?: string | null;
+  sealKeyFingerprint?: string | null;
+}): string {
+  const digest = p.packageSha256
+    ? ` The package file PROOVRA issued has SHA-256 ${p.packageSha256}.`
+    : "";
+  if (!p.sealed) return digest;
+  return p.sealKeyFingerprint
+    ? `${digest} It is sealed: every file, including the report, is bound by one signature, made by the key whose fingerprint is ${p.sealKeyFingerprint} — compare it with signingKeyFingerprint in the package's package-seal.sig.`
+    : `${digest} It is sealed by a key carried inside the package; PROOVRA did not record that key for this package, so the seal alone does not show the package came from PROOVRA.`;
+}
+
 export default function BasicVerificationView({ data }: { data: BasicVerification }) {
   const o = data.original;
   const originalDetail =
@@ -143,7 +162,7 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
           badge={data.report.issued ? "Issued" : undefined}
           detail={
             data.report.issued
-              ? `Version ${data.report.latestVersion} issued ${fmt(data.report.issuedAtUtc)}${data.report.digestRecorded ? "; its digest is recorded, so a copy can be checked." : "."}`
+              ? `Version ${data.report.latestVersion} issued ${fmt(data.report.issuedAtUtc)}${data.report.sha256 ? `; its SHA-256 is ${data.report.sha256}, so a copy can be checked.` : "."}`
               : "No report has been issued for this record."
           }
         />
@@ -153,7 +172,7 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
           badge={data.package.issued ? "Issued" : undefined}
           detail={
             data.package.issued
-              ? `Certifies report version ${data.package.certifiesReportVersion}; assembled ${fmt(data.package.assembledAtUtc)}${data.package.sealed ? "; sealed (every file, including the report, is bound by one signature)." : "."}`
+              ? `Certifies report version ${data.package.certifiesReportVersion}; assembled ${fmt(data.package.assembledAtUtc)}.${packageCheck(data.package)}`
               : data.package.latestReportLacksPackage
                 ? "The latest report has no verification package yet."
                 : "No verification package has been issued for this record."

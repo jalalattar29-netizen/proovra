@@ -884,7 +884,7 @@ export function decideOtsPackageArtifact(
     anchorClaim,
     publicAnchoringVerified: anchorClaim === "VERIFIED",
     verificationHint: proofBytes
-      ? "Verify with: ots verify opentimestamps-proof.ots"
+      ? "Verify with: ots verify -d <hash in this file> opentimestamps-proof.ots (the proof commits to that digest, not to a file in this package)"
       : "OTS proof bytes are not present on this record; status above is the canonical OTS state at package generation time.",
   };
 
@@ -2074,17 +2074,36 @@ Sequence numbers reflect the original immutable event log. Gaps in forensic view
 HOW TO VERIFY
 
 1) Extract the package.
-2) Verify the packaged files against package-checksums.json (SHA-256) and
+${params.chronology ? `2) Verify the seal (this package is sealed, format 5):
+   a. SHA-256 of package-seal.json must equal sealSha256 in package-seal.sig.
+   b. signatureBase64 in package-seal.sig must verify with
+      package-manifest-public-key.pem, as its signatureAlgorithm and
+      signatureInput describe.
+   c. The SHA-256 fingerprint of that key (DER SubjectPublicKeyInfo) must equal
+      signingKeyFingerprint in package-seal.sig AND the seal key fingerprint
+      PROOVRA shows for this package on the record's Public Verify page. A key
+      found only inside a package proves nothing by itself: anyone can re-seal
+      an altered package with their own key. Public Verify also shows the
+      SHA-256 of the exact package file PROOVRA issued.
+   d. SHA-256 of package-checksums.json must equal checksumsSha256 in
+      package-seal.json; every file must match its line in
+      package-checksums.json, and no file may exist outside it other than
+      package-checksums.json, package-seal.json and package-seal.sig.
+   e. The report named by reportFile must hash to reportSha256.
+   package-manifest.sig covers package-manifest.json only; it does not cover
+   the report or the checksum index.` : `2) Verify the packaged files against package-checksums.json (SHA-256) and
    validate package-manifest.sig over package-manifest.json with standard
-   tooling. For live integrity and current-trust status, open the PROOVRA
-   Public Verify page referenced in the report.
+   tooling. This package is not sealed: package-manifest.sig does not cover the
+   report or package-checksums.json, so it cannot show those were not replaced.`}
+   For live integrity and current-trust status, open the PROOVRA Public Verify
+   page referenced in the report.
 3) Review fingerprint.json.
 4) Calculate SHA-256 hash of the included evidence file(s).
 5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
 ${params.evidenceFiles.length > 1 ? `   ${PROOVRA_MULTIPART_REVIEWER_EXPLANATION}
    ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}
    ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}` : ""}
-6) Verify the Ed25519 signature using public-key.pem and the platform signing rules.
+6) Verify signature.txt as an Ed25519 signature over the 32 raw bytes of fingerprintHash (hex-decoded) with public-key.pem, and check that public-key.pem is the evidence signing key PROOVRA publishes for this record on Public Verify (a key found only inside the package vouches for nothing by itself).
 7) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
 8) Review custody.json and, where present, anchor.json.
 9) Review capture-context.json and map-preview.png, if present, as contextual device/browser-reported metadata only.
@@ -2320,7 +2339,7 @@ I, ________________________, certify that:
 3. The process used to generate these materials operates in a consistent and documented manner designed to preserve and verify the recorded integrity state of the evidence.
 4. The attached report is a presentation artifact and does not replace the preserved originals or the underlying technical materials.
 5. The cryptographic methods used, including hashing and digital signatures, are standard publicly verifiable mechanisms designed to support integrity verification.
-6. Independent verification of the integrity materials can be performed using the contents of the verification package without reliance on the PROOVRA platform.
+6. The integrity materials in the verification package can be checked with standard tools; confirming that the signing keys are PROOVRA's requires comparing their fingerprints with those PROOVRA publishes for this record on Public Verify.
 
 Executed on: ________________________
 Name: ________________________

@@ -13624,7 +13624,15 @@ const technicalMetadata = await (async () => {
 const pairedPackageForBasic = latestReport
   ? await prisma.verificationPackage.findFirst({
       where: { evidenceId: evidence.id, version: latestReport.version },
-      select: { version: true, reportVersion: true, generatedAtUtc: true, packageFormatVersion: true },
+      select: {
+        version: true,
+        reportVersion: true,
+        generatedAtUtc: true,
+        packageFormatVersion: true,
+        // ET-PKG-02: the published check for a package a recipient holds.
+        packageSha256: true,
+        sealSigningKeySha256: true,
+      },
     })
   : null;
 const basicVerification = buildBasicVerification({

@@ -32,8 +32,9 @@
  *
  * What the seal does NOT establish: that the signing key belongs to PROOVRA.
  * The key travels in the package; a reviewer must compare its fingerprint
- * with the signer registry published by PROOVRA (Public Verify shows it) —
- * a key found only inside the package vouches for nothing by itself.
+ * (package-seal.sig signingKeyFingerprint) with the one PROOVRA recorded for
+ * that package — Public Verify serves it, with the SHA-256 of the exact package
+ * file (ET-PKG-02). A key found only inside the package vouches for nothing.
  *
  * Pure and platform-free: crypto is injected by the caller.
  */

@@ -1356,6 +1356,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Evidence TSA validation (2026-09-29, ET-TSA-01/06): four nullable evidence
       // columns recording token validation and the bounded failure code. EXPAND.
       "20280802000000_evidence_tsa_validation",
+      // Verification package seal identity (2026-09-29, ET-PKG-02): two nullable
+      // verification_packages columns. EXPAND.
+      "20280803000000_verification_package_seal_identity",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

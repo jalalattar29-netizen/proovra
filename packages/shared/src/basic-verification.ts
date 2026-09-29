@@ -109,6 +109,8 @@ export type BasicVerification = {
     issuedAtUtc: string | null;
     /** A digest of the issued PDF is recorded, so a copy can be checked. */
     digestRecorded: boolean;
+    /** ET-PKG-12: that digest (SHA-256 hex), so the check is possible. */
+    sha256: string | null;
   };
   package: {
     issued: boolean;
@@ -117,6 +119,15 @@ export type BasicVerification = {
     assembledAtUtc: string | null;
     /** Format 5: the seal binds every entry, including the report. */
     sealed: boolean;
+    /**
+     * ET-PKG-02: SHA-256 of the exact package file PROOVRA issued, and the
+     * fingerprint (SHA-256 of the DER SubjectPublicKeyInfo) of the key that
+     * sealed it. A seal key found only inside a package vouches for nothing;
+     * these let a recipient check the package they hold against PROOVRA.
+     * Null when not recorded (packages issued before 2026-09-29).
+     */
+    packageSha256: string | null;
+    sealKeyFingerprint: string | null;
     /** True when the latest report has no package yet. */
     latestReportLacksPackage: boolean;
   };
@@ -142,7 +153,14 @@ export function buildBasicVerification(input: {
   /** evidence.ots_anchor_check — BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
   otsAnchorCheck?: string | null;
   latestReport: { version: number; generatedAtUtc: Date; pdfSha256: string | null } | null;
-  pairedPackage: { reportVersion: number | null; version: number; generatedAtUtc: Date; packageFormatVersion: number | null } | null;
+  pairedPackage: {
+    reportVersion: number | null;
+    version: number;
+    generatedAtUtc: Date;
+    packageFormatVersion: number | null;
+    packageSha256?: string | null;
+    sealSigningKeySha256?: string | null;
+  } | null;
 }): BasicVerification {
   const iso = (v: Date | string | null | undefined) =>
     v == null ? null : v instanceof Date ? v.toISOString() : String(v);
@@ -245,12 +263,15 @@ export function buildBasicVerification(input: {
       latestVersion: latest?.version ?? null,
       issuedAtUtc: latest ? latest.generatedAtUtc.toISOString() : null,
       digestRecorded: Boolean(latest?.pdfSha256),
+      sha256: latest?.pdfSha256 ?? null,
     },
     package: {
       issued: pkg !== null,
       certifiesReportVersion: pkg ? (pkg.reportVersion ?? pkg.version) : null,
       assembledAtUtc: pkg ? pkg.generatedAtUtc.toISOString() : null,
       sealed: (pkg?.packageFormatVersion ?? 0) >= 5,
+      packageSha256: pkg?.packageSha256 ?? null,
+      sealKeyFingerprint: pkg?.sealSigningKeySha256 ?? null,
       latestReportLacksPackage: latest !== null && pkg === null,
     },
   };

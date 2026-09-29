@@ -885,6 +885,11 @@ model VerificationPackage {
   /// which binds every entry including the embedded report). NULL = legacy
   /// manifest-signed format whose signature does not cover the report PDF.
   packageFormatVersion             Int?      @map("package_format_version")
+  /// ET-PKG-02: SHA-256 (hex) of the exact package-seal.json this package's seal
+  /// signature covers, and the SHA-256 fingerprint of the signing key's DER
+  /// SubjectPublicKeyInfo. Public Verify serves both. NULL = not recorded.
+  sealSha256                       String?   @map("seal_sha256") @db.VarChar(64)
+  sealSigningKeySha256             String?   @map("seal_signing_key_sha256") @db.VarChar(64)
   /// When the report this package certifies was issued (copied from the
   /// report row so chronology survives without a join).
   reportIssuedAtUtc                DateTime? @map("report_issued_at_utc") @db.Timestamptz(6)
