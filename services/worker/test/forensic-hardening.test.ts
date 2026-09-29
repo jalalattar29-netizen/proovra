@@ -9,6 +9,7 @@ import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
 } from "@proovra/shared-evidence-presentation";
 import * as prismaPkg from "@prisma/client";
+import { custodyLabelHints } from "@proovra/shared";
 import {
   mapOtsStatusPublicLabel,
   mapOtsStatusPublicLabelWithTxid,
@@ -113,7 +114,11 @@ describe("Custody event labels (Phase A/B/C wording sweep)", () => {
   });
 
   it("EVIDENCE_LOCKED label is gated on actual lock — wording hints retention applied", () => {
-    expect(mapCustodyEventLabel("EVIDENCE_LOCKED")).toContain("Object Lock");
+    // ET-CUS-08/13: EVIDENCE_LOCKED carries two meanings; the payload decides.
+    // Only the storage-retention event may claim Object Lock.
+    expect(mapCustodyEventLabel("EVIDENCE_LOCKED", custodyLabelHints({ retentionApplied: true, mode: "COMPLIANCE" }))).toContain("Object Lock");
+    expect(mapCustodyEventLabel("EVIDENCE_LOCKED", custodyLabelHints({ lockedByUserId: "u-1" }))).toBe("Evidence record locked");
+    expect(mapCustodyEventLabel("EVIDENCE_LOCKED")).not.toContain("Object Lock");
   });
 });
 

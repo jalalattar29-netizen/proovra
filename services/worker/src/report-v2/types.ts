@@ -1,3 +1,4 @@
+import type { CustodyLabelHints } from "@proovra/shared";
 import type {
   TrustDecision,
   TrustDecisionTone,
@@ -308,6 +309,8 @@ export type ReportCustodyEvent = {
   atUtc: string;
   eventType: string;
   payloadSummary: string;
+  /** ET-CUS-13 — the bounded payload facts the one custody label reads. */
+  labelHints?: CustodyLabelHints | null;
   prevEventHash?: string | null;
   eventHash?: string | null;
   category?: "forensic" | "access";
@@ -422,6 +425,13 @@ export type ReportV2Input = {
    * When null/omitted, NO new HTML is emitted.
    */
   lifecycleSummary?: LifecycleSummaryData | null;
+  /**
+   * ET-RPT-03 — THIS record's canonical preservation (legal) hold at report
+   * generation, from evaluateEffectiveLegalHold (evidence, case and
+   * workspace scope). UNAVAILABLE when it could not be read: the report
+   * never states "no hold" on a failed read. Omitted = not evaluated.
+   */
+  recordLegalHold?: ReportRecordLegalHold | null;
   /**
    * Evidence Acquisition context (how the evidence reached PROOVRA).
    * PUBLIC-safe only — NO recipient values. When null/omitted the
@@ -795,4 +805,11 @@ export type ReportViewModel = {
     otsHash: string;
     anchorHash: string;
   };
+};
+
+/** ET-RPT-03 — the record's canonical legal hold at report generation. */
+export type ReportRecordLegalHold = {
+  state: "ACTIVE" | "NONE" | "UNAVAILABLE";
+  /** Resolved scopes of the active holds (EVIDENCE / CASE / WORKSPACE); UNRESOLVED when only a historical hold matched. */
+  scopes: string[];
 };

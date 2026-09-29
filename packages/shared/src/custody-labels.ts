@@ -84,6 +84,28 @@ const LABELS: Readonly<Record<string, string>> = {
   RETENTION_POLICY_APPLIED: "Retention policy applied",
 };
 
+/**
+ * The ONLY payload facts the label reads, as a bounded object a surface can
+ * carry without the raw payload (the report keeps no payloads on its rows).
+ */
+export type CustodyLabelHints = {
+  retentionApplied?: true;
+  lockedByUserId?: true;
+  action?: string;
+  blockedByLegalHold?: true;
+};
+
+export function custodyLabelHints(payload: unknown): CustodyLabelHints | null {
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+  if (!p) return null;
+  const out: CustodyLabelHints = {};
+  if (p.retentionApplied === true) out.retentionApplied = true;
+  if (typeof p.lockedByUserId === "string" && p.lockedByUserId) out.lockedByUserId = true;
+  if (typeof p.action === "string" && p.action) out.action = p.action.slice(0, 64);
+  if (p.blockedByLegalHold === true) out.blockedByLegalHold = true;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 /** Every event type this function names (the structural test compares it with the enum). */
 export const CUSTODY_EVENT_LABELED_TYPES: ReadonlyArray<string> = Object.keys(LABELS);
 
@@ -96,7 +118,8 @@ export function custodyEventLabel(
   const type = String(eventType ?? "").trim().toUpperCase();
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
   if (type === "EVIDENCE_LOCKED" && p) {
-    return p.retentionApplied === true ? "Object Lock retention applied to storage" : "Evidence record locked";
+    if (p.retentionApplied === true) return "Object Lock retention applied to storage";
+    if (p.lockedByUserId) return "Evidence record locked";
   }
   if (type === "EXPORT_BLOCKED_BY_POLICY" && p) {
     const action = String(p.action ?? "").toLowerCase();

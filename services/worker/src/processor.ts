@@ -77,6 +77,7 @@ import {
   compareTimestampDigest,
   isCompleteOtsAnchor,
   presentedTsaStatus,
+  custodyLabelHints,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
@@ -2680,6 +2681,7 @@ captureMethod: deriveReportCaptureMethod({
         ev.payload,
         custodyDisplayContext
       ),
+      labelHints: custodyLabelHints(ev.payload),
       prevEventHash: ev.prevEventHash ?? null,
       eventHash: ev.eventHash ?? null,
       category: classifyCustodyEventType(ev.eventType),
@@ -3269,6 +3271,7 @@ async function loadCommittedReportForPackage(params: {
         atUtc: ev.atUtc.toISOString(),
         eventType: ev.eventType,
         payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload, displayContext),
+        labelHints: custodyLabelHints(ev.payload),
         prevEventHash: ev.prevEventHash ?? null,
         eventHash: ev.eventHash ?? null,
         category: classifyCustodyEventType(ev.eventType),
@@ -3807,6 +3810,7 @@ async function runReportGeneration(
             ev.payload,
             finalizedCustodyDisplayContext
           ),
+          labelHints: custodyLabelHints(ev.payload),
           prevEventHash: ev.prevEventHash ?? null,
           eventHash: ev.eventHash ?? null,
           category: classifyCustodyEventType(ev.eventType),
@@ -3834,6 +3838,29 @@ async function runReportGeneration(
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
         });
+        // ET-RPT-03 — the record's canonical legal hold (evidence, case and
+        // workspace scope). A failed read is UNAVAILABLE, never "none".
+        const finalizedRecordLegalHold = await evaluateEffectiveLegalHold(prisma, {
+          evidenceId: prepared.evidenceId,
+          teamId: evidence.teamId ?? null,
+          collectAll: true,
+        }).then(
+          (hold) => ({
+            state: hold.held ? ("ACTIVE" as const) : ("NONE" as const),
+            scopes: hold.held
+              ? hold.reasonCode === "UNRESOLVED_HOLD"
+                ? ["UNRESOLVED"]
+                : hold.matches.filter((m) => m.unresolved !== true).map((m) => m.scope)
+              : [],
+          }),
+          (err: unknown) => {
+            logger.warn(
+              { evidenceId: prepared.evidenceId, err: err instanceof Error ? err.message : String(err) },
+              "report.legal_hold_unavailable",
+            );
+            return { state: "UNAVAILABLE" as const, scopes: [] };
+          },
+        );
 
         // Phase O1.5C — bounded report.render.pdf span.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
@@ -3850,6 +3877,7 @@ async function runReportGeneration(
           technicalSummary: finalizedReportTechnicalSummary,
           acquisition: finalizedReportAcquisition,
           derivedReview: finalizedReportDerivedReview,
+          recordLegalHold: finalizedRecordLegalHold,
         });
 
         // The allowance is checked with the EXACT size, before any byte is

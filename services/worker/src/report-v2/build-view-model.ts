@@ -42,6 +42,7 @@ import type {
   ReportViewModel,
   ReportVariant,
   ReportAcquisitionInput,
+  ReportRecordLegalHold,
 } from "./types.js";
 import {
   buildPublicEvidenceReference,
@@ -790,10 +791,36 @@ function buildEvidenceContentSummaryRows(
   return rows;
 }
 
+const LEGAL_HOLD_SCOPE_LABEL: Record<string, string> = {
+  EVIDENCE: "this record",
+  CASE: "a linked case",
+  WORKSPACE: "the workspace",
+  UNRESOLVED: "an unresolved historical hold",
+};
+
+/**
+ * ET-RPT-03 — the preservation hold line states the CANONICAL hold for this
+ * record. It printed the S3 object-lock legal-hold header, which production
+ * never sets (S3_OBJECT_LOCK_LEGAL_HOLD is deliberately inert), so an
+ * evidence record under an active legal hold was reported "Legal Hold: OFF".
+ */
+export function reportLegalHoldLabel(hold: ReportRecordLegalHold | null | undefined): string {
+  if (!hold) return "Not evaluated for this report";
+  if (hold.state === "UNAVAILABLE") return "Could not be determined at report generation";
+  if (hold.state === "NONE") return "None active at report generation";
+  const scopes = [...new Set(hold.scopes)].map((s) => LEGAL_HOLD_SCOPE_LABEL[s] ?? s.toLowerCase());
+  return scopes.length > 0 ? `Active (held through ${scopes.join(", ")})` : "Active";
+}
+
+function storageObjectLockLegalHoldLabel(status: string | null | undefined): string {
+  return String(status ?? "").trim().toUpperCase() === "ON" ? "On" : "Not used";
+}
+
 function buildStorageRows(
   canonicalMaterials: CanonicalEvidenceMaterials,
   anchorSummary: ReportAnchorSummary | null,
-  evidence: ReportEvidence
+  evidence: ReportEvidence,
+  recordLegalHold: ReportRecordLegalHold | null | undefined,
 ): KeyValueRow[] {
   const rows: KeyValueRow[] = [
     { label: "Storage Region", value: safe(evidence.storageRegion) },
@@ -810,8 +837,12 @@ function buildStorageRows(
       ),
     },
     {
-      label: "Legal Hold",
-      value: safe(evidence.storageObjectLockLegalHoldStatus, "OFF"),
+      label: "Legal Hold (preservation)",
+      value: reportLegalHoldLabel(recordLegalHold),
+    },
+    {
+      label: "Storage Object Lock legal hold",
+      value: storageObjectLockLegalHoldLabel(evidence.storageObjectLockLegalHoldStatus),
     },
     {
       label: "Immutable Storage",
@@ -913,7 +944,7 @@ function buildCustodyHashRows(
         eventLabel:
           intakeCustodyEventLabel(event.eventType, isIntake) ??
           applyFlowAwareCustodyWording(
-            mapCustodyEventLabel(event.eventType),
+            mapCustodyEventLabel(event.eventType, event.labelHints),
             isIntake,
           ),
         prevEventHash: safe(event.prevEventHash),
@@ -1785,7 +1816,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         : null,
     ].filter(Boolean) as ReportViewModel["certificationBlocks"],
 
-    storageRows: buildStorageRows(canonicalMaterials, anchorSummary, input.evidence),
+    storageRows: buildStorageRows(canonicalMaterials, anchorSummary, input.evidence, input.recordLegalHold),
     storageCallouts: [
       buildStorageCallout(canonicalMaterials),
       buildTimestampCallout(canonicalMaterials, input.evidence.tsaFailureReason),

@@ -113,7 +113,7 @@ export function buildTimelineRows(
       // "intake authorization" (event types + hashes are unchanged).
       eventLabel:
         intakeLabel ??
-        applyFlowAwareCustodyWording(mapCustodyEventLabel(ev.eventType), isIntake),
+        applyFlowAwareCustodyWording(mapCustodyEventLabel(ev.eventType, ev.labelHints), isIntake),
       summary,
     };
   });
