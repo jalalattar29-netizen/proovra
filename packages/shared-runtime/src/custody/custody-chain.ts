@@ -92,8 +92,16 @@ export async function appendCustodyEventTx(
 export type CustodyChainEvaluation = {
   valid: boolean;
   mode: "empty" | "hashed" | "legacy";
-  reason: "sequence_gap" | "prev_hash_mismatch" | "event_hash_mismatch" | null;
+  reason: "sequence_gap" | "prev_hash_mismatch" | "event_hash_mismatch" | "hash_missing" | null;
 };
+
+/**
+ * ET-CUS-04: the hash columns exist on every environment since the Phase 0
+ * schema catch-up (20260925000000); every event recorded from then on carries
+ * a hash. An unhashed chain is accepted as "legacy" only when EVERY event
+ * predates it — a fully hash-stripped chain used to verify as valid legacy.
+ */
+export const CUSTODY_HASH_REQUIRED_SINCE_UTC = new Date("2026-09-25T00:00:00.000Z");
 
 export function evaluateCustodyChain(params: {
   evidenceId: string;
@@ -104,6 +112,12 @@ export function evaluateCustodyChain(params: {
 
   const hasAnyHashes = records.some((r) => r.eventHash || r.prevEventHash);
   const mode = hasAnyHashes ? "hashed" : "legacy";
+  if (
+    !hasAnyHashes &&
+    records.some((r) => r.atUtc.getTime() >= CUSTODY_HASH_REQUIRED_SINCE_UTC.getTime())
+  ) {
+    return { valid: false, mode: "legacy", reason: "hash_missing" };
+  }
   let previousSequence: number | null = null;
   let previousExpectedHash: string | null = null;
 

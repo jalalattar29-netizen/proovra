@@ -21,6 +21,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
+/** A forged rewrite of one audit row: needs the trigger disabled (ET-CUS-04). */
+async function rewriteAuditRow(id: string, data: Record<string, unknown>): Promise<void> {
+  const { prisma } = await import("../src/db.js");
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE admin_audit_logs DISABLE TRIGGER admin_audit_logs_append_only`);
+    await tx.adminAuditLog.update({ where: { id }, data: data as never });
+    await tx.$executeRawUnsafe(`ALTER TABLE admin_audit_logs ENABLE TRIGGER admin_audit_logs_append_only`);
+  });
+}
+
 describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];
@@ -508,11 +518,10 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
         const row = await rowFor(action);
 
         // Edit exactly one sealed field, leaving the stored hash untouched —
-        // the move an attacker with database access would make.
-        await prisma.adminAuditLog.update({
-          where: { id: row.id },
-          data: { [column]: column === "actorType" ? "WORKER" : "TAMPERED" },
-        });
+        // the move an attacker with database access would make. Since
+        // ET-CUS-04 that access has to include DDL: the append-only trigger is
+        // disabled around the forged write.
+        await rewriteAuditRow(row.id, { [column]: column === "actorType" ? "WORKER" : "TAMPERED" });
 
         const after = await verifyAdminAuditChain({ tailLimit: 500 });
         expect(
@@ -521,10 +530,7 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
         ).toBe(false);
 
         // Put it back so the following cases start from a verifying chain.
-        await prisma.adminAuditLog.update({
-          where: { id: row.id },
-          data: { [column]: row[column] },
-        });
+        await rewriteAuditRow(row.id, { [column]: row[column] });
         expect((await verifyAdminAuditChain({ tailLimit: 500 })).valid).toBe(true);
       });
     }

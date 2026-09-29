@@ -130,8 +130,13 @@ async function wipe(): Promise<void> {
   await prisma.evidenceSearchDocument
     .deleteMany({ where: { evidenceId: { in: seedEvidenceIds } } })
     .catch(() => null);
-  await prisma.custodyEvent.deleteMany({
-    where: { evidenceId: { in: seedEvidenceIds } },
+  // Custody is append-only (ET-CUS-04, trigger custody_events_append_only).
+  // A local dev re-seed removes its own rows under a superuser session that
+  // disables triggers for this transaction; on any role without that right
+  // the statement fails, as it should.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`);
+    await tx.custodyEvent.deleteMany({ where: { evidenceId: { in: seedEvidenceIds } } });
   });
   await prisma.report.deleteMany({
     where: { evidenceId: { in: seedEvidenceIds } },

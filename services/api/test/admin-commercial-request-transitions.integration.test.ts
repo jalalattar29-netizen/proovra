@@ -287,9 +287,7 @@ describe("PLATFORM ADMIN — commercial request status transitions (live Postgre
 
   afterAll(async () => {
     if (prisma) {
-      await prisma.adminAuditLog.deleteMany({
-        where: { resourceId: { in: [...seededContactIds, ...seededDemoIds] } },
-      });
+      // admin_audit_logs is append-only (ET-CUS-04): its rows stay.
       await prisma.contactSalesRequest.deleteMany({ where: { id: { in: seededContactIds } } });
       await prisma.demoRequest.deleteMany({ where: { id: { in: seededDemoIds } } });
     }

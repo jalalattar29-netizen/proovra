@@ -166,9 +166,10 @@ describe("OTS integrity lifecycle (live PostgreSQL 16)", () => {
   beforeEach(async () => {
     ots.reset();
     queued.reset();
+    // Custody is append-only (ET-CUS-04), so records are retired, not
+    // deleted: each test creates its own fresh ids.
     if (made.length) {
-      await prisma.custodyEvent.deleteMany({ where: { evidenceId: { in: made } } });
-      await prisma.evidence.deleteMany({ where: { id: { in: made } } });
+      await prisma.evidence.updateMany({ where: { id: { in: made } }, data: { deletedAt: new Date() } });
       made.length = 0;
     }
   });

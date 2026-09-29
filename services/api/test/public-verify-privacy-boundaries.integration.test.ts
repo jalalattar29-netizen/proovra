@@ -149,7 +149,14 @@ describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTT
     const clean = (await verify(id)).json();
     expect(clean.basicVerification.original.checks.custodyChainValid).toBe(true);
     const target = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId: id }, orderBy: { sequence: "desc" }, skip: 5, select: { id: true } });
-    await prisma.custodyEvent.update({ where: { id: target.id }, data: { payload: { tampered: true } as never } });
+    // ET-CUS-04: rewriting custody now needs DDL — the attacker this models
+    // has it, so the trigger is disabled around the forged write.
+    await prisma.$executeRawUnsafe(`ALTER TABLE custody_events DISABLE TRIGGER custody_events_append_only`);
+    try {
+      await prisma.custodyEvent.update({ where: { id: target.id }, data: { payload: { tampered: true } as never } });
+    } finally {
+      await prisma.$executeRawUnsafe(`ALTER TABLE custody_events ENABLE TRIGGER custody_events_append_only`);
+    }
     const tampered = (await verify(id)).json();
     expect(tampered.basicVerification.original.checks.custodyChainValid).toBe(false);
     expect(tampered.basicVerification.original.state).toBe("failed");

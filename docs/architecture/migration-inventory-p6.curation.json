@@ -3248,6 +3248,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='CustodyEventType' AND e.enumlabel='CHAIN_TRANSFER_CUSTODY_EXTENDED'\"",
       "evidence": "CUSTODY CHAIN TRANSFER EVENT (2026-09-29, ET-CUS-02). Adds the enum value CHAIN_TRANSFER_CUSTODY_EXTENDED to CustodyEventType (ADD VALUE IF NOT EXISTS). No row is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW. Rolling-deploy caveat: once a transfer appends this event, an instance built from an older Prisma client cannot deserialize that custody row, so older instances must be drained before the new image serves chain transfers."
+    },
+    "20280805000000_custody_append_only": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_trigger WHERE tgname IN ('custody_events_append_only','admin_audit_logs_append_only')\"",
+      "evidence": "CUSTODY APPEND-ONLY (2026-09-29, ET-CUS-04). Adds function proovra_refuse_history_rewrite() and BEFORE UPDATE OR DELETE triggers on custody_events and admin_audit_logs that refuse every UPDATE and DELETE. No row, column or constraint changed. EXPAND / SAFE_TO_APPLY_NOW: no application code updates or deletes either table (the custody appender and the platform audit appender only INSERT); a dev seed or an operator script that deletes custody will now fail by design. Rollback: DROP TRIGGER (a deliberate DDL change)."
     }
   }
 }
