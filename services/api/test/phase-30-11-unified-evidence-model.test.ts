@@ -189,36 +189,60 @@ describe("Phase 30.11 — ALL-sessions finalize gate", () => {
     }
   });
 
-  it("ONE COMPLETED + ONE ABORTED → block session_aborted (the ABORTED one, older)", async () => {
+  // ET-UPL-02 — an ABORTED / EXPIRED session committed nothing, so it no
+  // longer blocks the record forever (on a40ca76f one abandoned session made
+  // finalization impossible). The COMPLETED session still passes its own
+  // pending-part check (the second stubbed query, empty).
+  it("ONE COMPLETED + ONE ABORTED → the ABORTED one does not block (ET-UPL-02)", async () => {
     const client = makeStubClient([
       [row(SESSION_A, "ABORTED", 30), row(SESSION_B, "COMPLETED", 10)],
+      [],
     ]);
     const result = await evaluateUploadSessionFinalizeGate(
       { teamId: TEAM, evidenceId: EVIDENCE },
       client,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("session_aborted");
-      expect(result.sessionId).toBe(SESSION_A);
-    }
+    expect(result).toMatchObject({ ok: true, applies: true });
   });
 
-  it("ONE COMPLETED + ONE EXPIRED → block session_expired", async () => {
+  it("ONE COMPLETED + ONE EXPIRED → the EXPIRED one does not block (ET-UPL-02)", async () => {
     const client = makeStubClient([
       [row(SESSION_A, "EXPIRED", 30), row(SESSION_B, "COMPLETED", 10)],
+      [],
     ]);
     const result = await evaluateUploadSessionFinalizeGate(
       { teamId: TEAM, evidenceId: EVIDENCE },
       client,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("session_expired");
+    expect(result).toMatchObject({ ok: true, applies: true });
   });
 
-  it("ONE COMPLETED + ONE FAILED (generic) → block session_failed", async () => {
+  it("an older FAILED session superseded by a later COMPLETED retry does not block (ET-UPL-02)", async () => {
     const client = makeStubClient([
       [row(SESSION_A, "FAILED", 30), row(SESSION_B, "COMPLETED", 10)],
+      [],
+    ]);
+    const result = await evaluateUploadSessionFinalizeGate(
+      { teamId: TEAM, evidenceId: EVIDENCE },
+      client,
+    );
+    expect(result).toMatchObject({ ok: true, applies: true });
+  });
+
+  it("only abandoned sessions (ABORTED + EXPIRED) → applies: false, never applies: true without a session (ET-UPL-02)", async () => {
+    const client = makeStubClient([
+      [row(SESSION_A, "ABORTED", 30), row(SESSION_B, "EXPIRED", 10)],
+    ]);
+    const result = await evaluateUploadSessionFinalizeGate(
+      { teamId: TEAM, evidenceId: EVIDENCE },
+      client,
+    );
+    expect(result).toEqual({ ok: true, applies: false });
+  });
+
+  it("a FAILED session NEWER than the COMPLETED one still blocks session_failed", async () => {
+    const client = makeStubClient([
+      [row(SESSION_A, "FAILED", 10), row(SESSION_B, "COMPLETED", 30)],
       // hash-mismatch check for FAILED session → empty (no hash_mismatch part)
       [],
     ]);

@@ -68,9 +68,20 @@ export type UploadSessionState = (typeof UPLOAD_SESSION_STATES)[number];
 export const UPLOAD_PART_STATES = [
   "PENDING",
   "UPLOADED_UNVERIFIED",
+  // Hashed against a reference the client declared, and matched.
   "VERIFIED",
+  // ET-UPL-05 — the server hashed the whole completed object but the client
+  // declared NO reference hash, so nothing was verified against anything. It
+  // settles the part (the server digest is recorded) without claiming VERIFIED.
+  "HASHED",
   "FAILED",
 ] as const;
+
+/** A part the completion gates accept: verified against a reference, or server-hashed. */
+const SETTLED_PART_STATES_SQL = "('VERIFIED', 'HASHED')";
+function isSettledPartState(state: string): boolean {
+  return state === "VERIFIED" || state === "HASHED";
+}
 
 export type UploadPartState = (typeof UPLOAD_PART_STATES)[number];
 
@@ -564,7 +575,7 @@ export async function resumeUploadSession(
     )) as RawPart[];
     const projectedParts = parts.map(projectPart);
     const pendingPartIndices = projectedParts
-      .filter((p) => p.state !== "VERIFIED")
+      .filter((p) => !isSettledPartState(p.state))
       .map((p) => p.partIndex);
     bump("upload_session_resumed_total");
     return {
@@ -635,7 +646,7 @@ export async function markPartUploaded(
     const rows = (await client.$queryRawUnsafe(
       `UPDATE "evidence_upload_session_parts"
          SET "state" = CASE
-               WHEN "state" = 'VERIFIED' THEN 'VERIFIED'
+               WHEN "state" IN ${SETTLED_PART_STATES_SQL} THEN "state"
                ELSE 'UPLOADED_UNVERIFIED'
              END,
              "client_sha256" = COALESCE($4, "client_sha256"),
@@ -701,7 +712,7 @@ export async function markPartVerified(
       return { ok: false, reason: "invalid_part_index" };
     }
     const row = current[0]!;
-    if (row.state === "VERIFIED") {
+    if (isSettledPartState(row.state)) {
       // Idempotent re-verify — return the existing row unchanged.
       const fetch = (await client.$queryRawUnsafe(
         `SELECT "id", "session_id", "team_id", "part_index", "state",
@@ -837,7 +848,7 @@ export async function completeUploadSession(
     const pending = (await client.$queryRawUnsafe(
       `SELECT "part_index"
          FROM "evidence_upload_session_parts"
-         WHERE "session_id" = $1 AND "team_id" = $2 AND "state" <> 'VERIFIED'
+         WHERE "session_id" = $1 AND "team_id" = $2 AND "state" NOT IN ${SETTLED_PART_STATES_SQL}
          ORDER BY "part_index" ASC`,
       input.sessionId,
       input.teamId,
@@ -1213,12 +1224,11 @@ export type UploadSessionFinalizeGateResult =
  *     SIGNED row returns the existing custody chain WITHOUT
  *     re-running the gate, so duplicate gate denials cannot tip a
  *     successful finalize back into a failure.
- *   - Multiple-session disambiguation: if more than one session
- *     exists (e.g. an aborted attempt followed by a fresh COMPLETED
- *     one), the COMPLETED session wins. The gate sorts by
- *     `created_at_utc DESC` and returns the first COMPLETED row it
- *     finds; if no COMPLETED row exists, it returns the latest
- *     non-terminal row's denial reason.
+ *   - Multiple sessions (ET-UPL-02): ABORTED / EXPIRED sessions are
+ *     skipped (they committed nothing); a FAILED session blocks unless a
+ *     later session COMPLETED; any other non-COMPLETED session blocks.
+ *     If only abandoned sessions exist the answer is `applies: false`,
+ *     as if none had been opened.
  *   - Fail-closed: any DB error returns `gate_unavailable` (the
  *     finalize handler must surface 503).
  */
@@ -1341,7 +1351,7 @@ export async function evaluateUploadSessionFinalizeGate(
       pending = (await client.$queryRawUnsafe(
         `SELECT 1
            FROM "evidence_upload_session_parts"
-           WHERE "session_id" = $1 AND "team_id" = $2 AND "state" <> 'VERIFIED'
+           WHERE "session_id" = $1 AND "team_id" = $2 AND "state" NOT IN ${SETTLED_PART_STATES_SQL}
            LIMIT 1`,
         row.id,
         input.teamId,
@@ -1364,6 +1374,15 @@ export async function evaluateUploadSessionFinalizeGate(
     completedAtUtcs.push(
       row.completed_at_utc?.toISOString() ?? row.created_at_utc.toISOString(),
     );
+  }
+
+  // ET-UPL-02 — every session was abandoned (ABORTED / EXPIRED): none
+  // committed bytes, so the record is exactly a record with no resumable
+  // session and finalizes through the HEAD/SHA-256 path. Never `applies:
+  // true` without a completed session to name.
+  if (completedIds.length === 0) {
+    bump("upload_session_finalize_gate_no_session_total");
+    return { ok: true, applies: false };
   }
 
   // Every session passed.
@@ -1415,6 +1434,8 @@ export const STORAGE_MULTIPART_LIFECYCLE_DENIAL_CODES = [
   "multipart_already_initiated",
   "multipart_not_initiated",
   "missing_part_etag",
+  // ET-UPL-05 — the completed object is not the size the client declared.
+  "size_mismatch",
 ] as const;
 
 export type StorageMultipartLifecycleDenialCode =
@@ -1428,6 +1449,8 @@ type SessionWithMultipart = {
   state: string;
   expected_part_count: number;
   expected_sha256: string | null;
+  /** ET-UPL-05 — the size the client declared; enforced at completion. */
+  expected_total_bytes: bigint | number | null;
   multipart_upload_id: string | null;
   storage_bucket: string | null;
   storage_key: string | null;
@@ -1449,7 +1472,7 @@ async function loadSessionWithMultipart(
 ): Promise<SessionWithMultipart | null> {
   const rows = (await client.$queryRawUnsafe(
     `SELECT "id", "team_id", "evidence_id", "actor_user_id", "state",
-            "expected_part_count", "expected_sha256",
+            "expected_part_count", "expected_sha256", "expected_total_bytes",
             "multipart_upload_id", "storage_bucket", "storage_key",
             "completed_at_storage_utc", "aborted_at_storage_utc",
             "target_part_index", "original_file_name", "expected_mime_type",
@@ -1862,7 +1885,25 @@ export async function completeStorageMultipart(
   // Optional custody-grade hash check. We do this BEFORE persisting
   // completion so a hash mismatch surfaces immediately and the
   // session can be flipped FAILED.
+  // ET-UPL-05 — the size the client declared is enforced: a completed object
+  // of another size fails the session instead of being accepted silently.
+  if (
+    session.expected_total_bytes != null &&
+    Number(head.contentLength) !== Number(session.expected_total_bytes)
+  ) {
+    bump("multipart_size_mismatch_total");
+    await client
+      .$executeRawUnsafe(
+        `UPDATE "evidence_upload_sessions" SET "state" = 'FAILED', "updated_at_utc" = NOW()
+          WHERE "id" = $1 AND "team_id" = $2`,
+        input.sessionId,
+        input.teamId,
+      )
+      .catch(() => null);
+    return { ok: false, reason: "size_mismatch" };
+  }
   let serverSha256: string | null = null;
+  let matchedReference = false;
   if (input.verifyHash) {
     const verify = await verifyCompletedObject({
       bucket: session.storage_bucket,
@@ -1892,6 +1933,7 @@ export async function completeStorageMultipart(
       return { ok: false, reason: verify.reason };
     }
     serverSha256 = verify.serverSha256;
+    matchedReference = verify.matchedExpected === true;
   }
   // Persist storage metadata. We do NOT flip session.state here;
   // the caller marks each part VERIFIED + invokes
@@ -1919,17 +1961,21 @@ export async function completeStorageMultipart(
   if (input.verifyHash && serverSha256) {
     try {
       await client.$executeRawUnsafe(
+        // ET-UPL-05 — VERIFIED only when the whole-object digest matched a
+        // reference the client declared; otherwise HASHED (server digest
+        // recorded, nothing verified against it, no verified_at).
         `UPDATE "evidence_upload_session_parts"
-           SET "state" = 'VERIFIED',
+           SET "state" = $4,
                "server_sha256" = COALESCE("server_sha256", $3),
-               "verified_at_utc" = COALESCE("verified_at_utc", NOW()),
+               "verified_at_utc" = CASE WHEN $4 = 'VERIFIED' THEN COALESCE("verified_at_utc", NOW()) ELSE "verified_at_utc" END,
                "failure_reason" = NULL,
                "updated_at_utc" = NOW()
            WHERE "session_id" = $1 AND "team_id" = $2
-             AND "state" <> 'VERIFIED'`,
+             AND "state" NOT IN ${SETTLED_PART_STATES_SQL}`,
         input.sessionId,
         input.teamId,
         serverSha256,
+        matchedReference ? "VERIFIED" : "HASHED",
       );
     } catch {
       /* part-level updates are best-effort here; the session row

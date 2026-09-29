@@ -208,6 +208,7 @@ function statusForDenial(
     case "evidence_not_writable":
     case "invalid_state_transition":
     case "idempotency_key_conflict":
+    case "size_mismatch":
       return 409;
     default:
       return 400;

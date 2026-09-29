@@ -197,6 +197,8 @@ export const COUNTER_NAMES = [
   "multipart_complete_failed_total",
   "multipart_head_failed_total",
   "multipart_verify_failed_total",
+  // ET-UPL-05 — a completed multipart object of another size than declared.
+  "multipart_size_mismatch_total",
   "multipart_stale_cleanup_total",
   // Phase 30.9 — client-side upload operations telemetry. The
   // orchestrator (apps/web/lib/uploads/multipart-uploader.ts) drives

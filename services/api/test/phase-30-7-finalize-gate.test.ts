@@ -195,7 +195,10 @@ describe("Phase 30.7 — finalize gate: behavioral decisions", () => {
     if (!result.ok) expect(result.reason).toBe("session_not_completed");
   });
 
-  it("refuses finalize when session is ABORTED (session_aborted)", async () => {
+  // ET-UPL-02 — an abandoned session committed nothing; on a40ca76f it blocked
+  // the record forever. Alone it is now the same as no session: the record
+  // finalizes through the HEAD/SHA-256 part verification (applies: false).
+  it("a lone ABORTED session is treated as no session (applies: false, ET-UPL-02)", async () => {
     const client = makeStubClient([
       [
         {
@@ -212,11 +215,10 @@ describe("Phase 30.7 — finalize gate: behavioral decisions", () => {
       { teamId: TEAM, evidenceId: EVIDENCE },
       client,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("session_aborted");
+    expect(result).toEqual({ ok: true, applies: false });
   });
 
-  it("refuses finalize when session is EXPIRED (session_expired)", async () => {
+  it("a lone EXPIRED session is treated as no session (applies: false, ET-UPL-02)", async () => {
     const client = makeStubClient([
       [
         {
@@ -233,8 +235,7 @@ describe("Phase 30.7 — finalize gate: behavioral decisions", () => {
       { teamId: TEAM, evidenceId: EVIDENCE },
       client,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("session_expired");
+    expect(result).toEqual({ ok: true, applies: false });
   });
 
   it("refuses finalize when session is FAILED (session_failed)", async () => {
@@ -316,13 +317,12 @@ describe("Phase 30.7 — finalize gate: behavioral decisions", () => {
     }
   });
 
-  it("Phase 30.11 update: ANY ABORTED session blocks finalize, even when a later COMPLETED session exists", async () => {
-    // The Phase 30.7 semantic was "latest COMPLETED wins". The
-    // Phase 30.11 ALL-sessions semantic flipped this: ANY non-
-    // COMPLETED session (including ABORTED) blocks finalize. The
-    // first blocker (lowest created_at_utc) is what the gate
-    // surfaces. See test/phase-30-11-unified-evidence-model.test.ts
-    // for the full ALL-sessions matrix.
+  it("ET-UPL-02: an ABORTED attempt followed by a COMPLETED retry finalizes on the COMPLETED session", async () => {
+    // Phase 30.11 made ANY non-COMPLETED session block, which let one
+    // abandoned attempt block its record forever (ET-UPL-02). An ABORTED
+    // session committed nothing, so it is skipped; the COMPLETED retry is
+    // still checked for unsettled parts (second stubbed query, empty). See
+    // test/phase-30-11-unified-evidence-model.test.ts for the full matrix.
     const client = makeStubClient([
       [
         {
@@ -342,16 +342,13 @@ describe("Phase 30.7 — finalize gate: behavioral decisions", () => {
           created_at_utc: new Date("2026-05-19T13:00:00Z"),
         },
       ],
+      [],
     ]);
     const result = await evaluateUploadSessionFinalizeGate(
       { teamId: TEAM, evidenceId: EVIDENCE },
       client,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("session_aborted");
-      expect(result.sessionId).toBe("00000000-0000-0000-0000-000000000099");
-    }
+    expect(result).toMatchObject({ ok: true, applies: true, sessionId: SESSION, sessionIds: [SESSION] });
   });
 });
 

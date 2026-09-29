@@ -717,6 +717,17 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20280620000000_uc1_extension_oauth_codes": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // ET-Q-05 (2026-09-29) — `worker_sweep_cursors`: one brand-new table (key
+    // PK, cursor_at, cursor_id, updated_at), nothing else. Zero ALTER on any
+    // existing table, zero DROP / RENAME / TRUNCATE / DELETE, no backfill. The
+    // CREATE_TABLE_IF_NOT_EXISTS finding does not apply to a brand-new table:
+    // there is no prior version whose column evolution could be silently
+    // skipped. The worker reads it fail-open, so image and migration may land
+    // in either order. Registered in phase-32-7-2-security-event-mapping-drift
+    // and the Point-6 inventory as EXPAND / SAFE_TO_APPLY_NOW.
+    "20280809000000_worker_sweep_cursors": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

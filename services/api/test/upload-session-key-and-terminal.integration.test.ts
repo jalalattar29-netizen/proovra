@@ -9,6 +9,9 @@
  *   ET-UPL-02 — one ABORTED/EXPIRED session blocked its record's finalization
  *     forever; the retry got the dead session back through its key; and any
  *     team member could abort another member's session.
+ *   ET-UPL-05 — the parts-state CHECK admitted only VERIFIED as a settled
+ *     state, so there was no truthful state for a server-hashed part that
+ *     matched no declared reference.
  */
 import { randomUUID } from "node:crypto";
 
@@ -75,6 +78,30 @@ describe("upload-session keys and terminal sessions (live PostgreSQL 16)", () =>
     expect(await svc.completeUploadSession({ teamId: A.teamId, sessionId: retry.session.id })).toMatchObject({ ok: true });
     const gate = await svc.evaluateUploadSessionFinalizeGate({ teamId: A.teamId, evidenceId });
     expect(gate).toMatchObject({ ok: true, applies: true });
+  });
+
+  it("ET-UPL-05: a HASHED part is admitted by the live constraint, settles completion, and never stamps verified_at", async () => {
+    const A = h.fixtures.teamA;
+    const evidenceId = await uploading(A.ownerUserId);
+    const s = (await open(evidenceId, A.ownerUserId)) as { ok: true; session: { id: string } };
+    await prisma.$executeRawUnsafe(
+      `UPDATE "evidence_upload_session_parts" SET "state" = 'HASHED', "server_sha256" = $2 WHERE "session_id" = $1`,
+      s.session.id,
+      "b".repeat(64),
+    );
+    const parts = (await prisma.$queryRawUnsafe(
+      `SELECT "state", "verified_at_utc" FROM "evidence_upload_session_parts" WHERE "session_id" = $1`,
+      s.session.id,
+    )) as Array<{ state: string; verified_at_utc: Date | null }>;
+    expect(parts.length).toBe(1);
+    expect(parts[0]).toEqual({ state: "HASHED", verified_at_utc: null });
+    // Any other value is still refused by the bounded constraint.
+    await expect(
+      prisma.$executeRawUnsafe(`UPDATE "evidence_upload_session_parts" SET "state" = 'TRUSTED' WHERE "session_id" = $1`, s.session.id),
+    ).rejects.toThrow(/evidence_upload_session_parts_state_bounded/);
+
+    expect(await svc.completeUploadSession({ teamId: A.teamId, sessionId: s.session.id })).toMatchObject({ ok: true });
+    expect(await svc.evaluateUploadSessionFinalizeGate({ teamId: A.teamId, evidenceId })).toMatchObject({ ok: true, applies: true });
   });
 
   it("ET-UPL-02: only the session's actor or the record's owner may abort it", async () => {

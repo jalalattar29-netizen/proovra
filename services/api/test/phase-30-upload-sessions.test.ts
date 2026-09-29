@@ -157,11 +157,14 @@ describe("Phase 30 — bounded vocabularies", () => {
     ]);
   });
 
+  // ET-UPL-05 — HASHED (server-hashed, no declared reference) joins the
+  // catalog; migration 20280810000000 widens the CHECK to the same set.
   it("part states match the SQL catalog exactly", () => {
     expect([...UPLOAD_PART_STATES]).toEqual([
       "PENDING",
       "UPLOADED_UNVERIFIED",
       "VERIFIED",
+      "HASHED",
       "FAILED",
     ]);
   });
@@ -271,9 +274,10 @@ describe("Phase 30 — upload-session service source contract", () => {
     );
   });
 
-  it("completeUploadSession refuses when ANY part is not VERIFIED + returns the pending list", () => {
+  it("completeUploadSession refuses when ANY part is not settled (VERIFIED or HASHED) + returns the pending list", () => {
+    expect(src).toMatch(/const SETTLED_PART_STATES_SQL = "\('VERIFIED', 'HASHED'\)";/);
     expect(src).toMatch(
-      /WHERE "session_id" = \$1 AND "team_id" = \$2 AND "state" <> 'VERIFIED'/,
+      /WHERE "session_id" = \$1 AND "team_id" = \$2 AND "state" NOT IN \$\{SETTLED_PART_STATES_SQL\}/,
     );
     expect(src).toMatch(
       /completion_blocked_pending_parts[\s\S]*?pendingPartIndices/,

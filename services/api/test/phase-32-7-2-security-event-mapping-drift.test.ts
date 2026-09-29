@@ -1371,6 +1371,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280808000000_custody_retention_policy_applied",
       // Worker sweep cursors (2026-09-29, ET-Q-05): one new table. EXPAND.
       "20280809000000_worker_sweep_cursors",
+      // Upload part state HASHED (2026-09-30, ET-UPL-05): CHECK constraint swap to a wider set. EXPAND.
+      "20280810000000_upload_part_state_hashed",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

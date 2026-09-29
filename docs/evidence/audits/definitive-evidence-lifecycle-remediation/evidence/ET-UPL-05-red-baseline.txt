@@ -1,0 +1,19 @@
+ET-UPL-05 red baseline — test/upload-multipart-size-and-reference.test.ts run against HEAD (68235bda) upload-session.service.ts
+   × completeStorageMultipart — declared size and reference (ET-UPL-05) > a completed object of another size than declared fails the session size_mismatch 7ms
+   × completeStorageMultipart — declared size and reference (ET-UPL-05) > no reference hash declared → parts settle HASHED, never VERIFIED 2ms
+   × completeStorageMultipart — declared size and reference (ET-UPL-05) > a matched reference hash → parts settle VERIFIED 1ms
+   ✓ completeStorageMultipart — declared size and reference (ET-UPL-05) > an undeclared size is not enforced (legacy sessions stay completable) 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected { ok: true, etag: 'etag-final', …(2) } to deeply equal { ok: false, reason: 'size_mismatch' }
+- Expected
++ Received
+AssertionError: expected [ 'session-1', 'team-1', …(1) ] to deeply equal [ 'session-1', 'team-1', …(2) ]
+- Expected
++ Received
+AssertionError: expected [ 'session-1', 'team-1', …(1) ] to deeply equal [ 'session-1', 'team-1', …(2) ]
+- Expected
++ Received
+      Tests  3 failed | 1 passed (4)
+
+Live constraint red (disposable er-pg, rolled back): the pre-migration evidence_upload_session_parts_state_bounded refuses HASHED:
+ERROR:  new row for relation "evidence_upload_session_parts" violates check constraint "evidence_upload_session_parts_state_bounded"

@@ -165,21 +165,31 @@ describe("Phase 30.12 — completeStorageMultipart bridge", () => {
     "../../../services/api/src/services/uploads/upload-session.service.ts",
   );
 
-  it("marks ALL parts VERIFIED with whole-object server SHA-256 when verifyHash", () => {
+  // ET-UPL-05 — the whole-object hash settles every part, but only as
+  // VERIFIED when it matched a reference the client declared; otherwise HASHED.
+  it("settles ALL parts with whole-object server SHA-256 when verifyHash — VERIFIED only on a matched reference", () => {
     expect(src).toMatch(
-      /if\s*\(input\.verifyHash\s*&&\s*serverSha256\)[\s\S]*?UPDATE\s+"evidence_upload_session_parts"[\s\S]*?SET\s+"state"\s*=\s*'VERIFIED'/,
+      /if\s*\(input\.verifyHash\s*&&\s*serverSha256\)[\s\S]*?UPDATE\s+"evidence_upload_session_parts"[\s\S]*?SET\s+"state"\s*=\s*\$4/,
+    );
+    expect(src).toMatch(/matchedReference\s*=\s*verify\.matchedExpected\s*===\s*true/);
+    expect(src).toMatch(/matchedReference\s*\?\s*"VERIFIED"\s*:\s*"HASHED"/);
+  });
+
+  it("the settle update uses COALESCE so existing per-part sha256 is preserved", () => {
+    expect(src).toMatch(
+      /SET\s+"state"\s*=\s*\$4[\s\S]*?"server_sha256"\s*=\s*COALESCE\("server_sha256"/,
     );
   });
 
-  it("VERIFIED update uses COALESCE so existing per-part sha256 is preserved", () => {
+  it("the settle update clears failure_reason (idempotent recovery)", () => {
     expect(src).toMatch(
-      /SET\s+"state"\s*=\s*'VERIFIED'[\s\S]*?"server_sha256"\s*=\s*COALESCE\("server_sha256"/,
+      /SET\s+"state"\s*=\s*\$4[\s\S]*?"failure_reason"\s*=\s*NULL/,
     );
   });
 
-  it("VERIFIED update clears failure_reason (idempotent recovery)", () => {
+  it("HASHED never stamps verified_at (nothing was verified against a reference)", () => {
     expect(src).toMatch(
-      /SET\s+"state"\s*=\s*'VERIFIED'[\s\S]*?"failure_reason"\s*=\s*NULL/,
+      /"verified_at_utc"\s*=\s*CASE WHEN \$4 = 'VERIFIED' THEN COALESCE\("verified_at_utc", NOW\(\)\) ELSE "verified_at_utc" END/,
     );
   });
 
