@@ -24,9 +24,12 @@
 import type { Job } from "bullmq";
 
 import {
+  JOB_NAMES,
   QUEUE_JOB_RESOURCE_TYPE,
   queueJobCorrelationRef,
+  SETTLED_REPORT_REQUEST_STATES,
 } from "@proovra/shared";
+import { prisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
@@ -58,9 +61,32 @@ export type ReplayActionResult =
         | "job_not_failed"
         | "duplicate_replay"
         | "reason_required"
-        | "unknown_job_kind";
+        | "unknown_job_kind"
+        /** ET-REC-08 — the job's durable report request is settled. */
+        | "report_request_settled";
       message: string;
     };
+
+/**
+ * ET-REC-08 — a GenerateReportJob replays onto its DURABLE request. When that
+ * request is settled (SUCCEEDED, FAILED_TERMINAL, BLOCKED_*), the worker
+ * replays onto the terminal row and does nothing — while job.retry()
+ * succeeded and the audit and UI said the replay was queued. Refused here,
+ * naming the action that does work: Operations' "Retry after exhausted
+ * failure" (supersede), which creates a new request.
+ */
+async function settledReportRequestFor(job: Job): Promise<string | null> {
+  if (String(job.name) !== JOB_NAMES.GENERATE_REPORT) return null;
+  const data = (job.data ?? {}) as { commandId?: unknown };
+  const requestId = typeof data.commandId === "string" ? data.commandId : null;
+  if (!requestId) return null;
+  const row = await prisma.reportGenerationRequest.findUnique({
+    where: { id: requestId },
+    select: { state: true },
+  });
+  const state = row ? String(row.state) : null;
+  return state && (SETTLED_REPORT_REQUEST_STATES as readonly string[]).includes(state) ? state : null;
+}
 
 /**
  * The real job kind for a queued job, read from the queue itself.
@@ -300,6 +326,16 @@ async function doReplayLike(
       message:
         "Replay refused: this job kind is not in the replay safety matrix.",
     };
+  }
+  {
+    const settled = await settledReportRequestFor(job);
+    if (settled) {
+      return {
+        ok: false,
+        code: "report_request_settled",
+        message: `Replay refused: this job's report request is already ${settled}, so the worker would do nothing. To generate again, use "Retry after exhausted failure" on the record's condition in Operations, which starts a new request.`,
+      };
+    }
   }
   // Emit started.
   safeEmitSecurityEvent({

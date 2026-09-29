@@ -186,10 +186,10 @@ describe("K8 operations — platform and workspace operations mutations (live Po
     };
 
     /** A job that really FAILED — fetched by a manual worker and moved to failed. */
-    async function failedJob(queueName: string, jobName: string): Promise<string> {
+    async function failedJob(queueName: string, jobName: string, data: Record<string, unknown> = {}): Promise<string> {
       const q = queue(queueName);
       await q.obliterate({ force: true });
-      const added = await q.add(jobName, { teamId: A.teamId }, { attempts: 1, jobId: `k8-${randomUUID()}` });
+      const added = await q.add(jobName, { teamId: A.teamId, ...data }, { attempts: 1, jobId: `k8-${randomUUID()}` });
       const worker = new bullmq.Worker(queueName, null, {
         connection: redis.duplicate(),
         autorun: false,
@@ -295,6 +295,36 @@ describe("K8 operations — platform and workspace operations mutations (live Po
       });
       expect(audit).toMatchObject({ userId: operatorId, workspaceId: A.teamId, outcome: "queued" });
       expect(audit.metadata).toMatchObject({ action: "replay", category: "requires_step_up", jobName: "GenerateReportJob" });
+    });
+
+    it("ET-REC-08: replay of a report job whose request is SETTLED is refused 409 and the job stays failed", async () => {
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+      const ev = await prisma.evidence.create({
+        data: { title: "settled", type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: (await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { ownerUserId: true } })).ownerUserId } as never,
+        select: { id: true },
+      });
+      const req = await prisma.reportGenerationRequest.create({
+        data: {
+          teamId: A.teamId,
+          evidenceId: ev.id,
+          requestedByMachineId: "k8-settled",
+          idempotencyKey: `K8:${randomUUID()}`,
+          state: "FAILED_TERMINAL",
+          terminalReasonCode: "retry_budget_exhausted",
+        } as never,
+        select: { id: true },
+      });
+      const jobId = await failedJob("report", "GenerateReportJob", { commandId: req.id });
+      const url = `/v1/operations/queues/report/jobs/${jobId}/replay`;
+      const payload = { teamId: A.teamId, reason: "k8 replay of a settled request", expectedJobName: "GenerateReportJob" };
+      const challengeId = await stepUp("QUEUE_JOB_REPLAY", "queue_job", `report:${jobId}`);
+      const res = await call({ method: "POST", url, token: operatorToken, payload, headers: stepUpHeader(challengeId) });
+      expect(res.statusCode, res.body).toBe(409);
+      expect((json(res).error as Json).code).toBe("report_request_settled");
+      expect(await (await queue("report").getJob(jobId))!.getState()).toBe("failed");
+      expect(
+        await prisma.adminAuditLog.count({ where: { action: "operations.queue_job.replay_requested", resourceId: `report:${jobId}` } }),
+      ).toBe(0);
     });
 
     it("replay of a FORBIDDEN job kind is refused 403 replay_forbidden and the job stays failed", async () => {

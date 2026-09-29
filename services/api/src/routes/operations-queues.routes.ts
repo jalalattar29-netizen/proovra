@@ -244,7 +244,9 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
             ? 403
             : result.code === "job_not_found"
               ? 404
-              : 400;
+              : result.code === "report_request_settled"
+                ? 409 // ET-REC-08: the durable request is settled; nothing to replay
+                : 400;
         return reply
           .code(status)
           .send({ error: { code: result.code, message: result.message } });
@@ -321,7 +323,9 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
             ? 403
             : result.code === "job_not_found"
               ? 404
-              : 400;
+              : result.code === "report_request_settled"
+                ? 409 // ET-REC-08: the durable request is settled; nothing to replay
+                : 400;
         return reply
           .code(status)
           .send({ error: { code: result.code, message: result.message } });

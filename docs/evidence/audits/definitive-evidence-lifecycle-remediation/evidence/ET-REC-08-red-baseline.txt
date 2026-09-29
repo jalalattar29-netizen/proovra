@@ -1,0 +1,5 @@
+ET-REC-08 red baseline — runtime-proof-operations.integration.test.ts (new ET-REC-08 case) against HEAD queue-replay-action.service.ts + operations-queues.routes.ts
+   × K8 operations — platform and workspace operations mutations (live PostgreSQL 16) > queue job operations (platform operator) > ET-REC-08: replay of a report job whose request is SETTLED is refused 409 and the job stays failed 122ms
+     → {"result":{"ok":true,"action":"replay","queueName":"report","jobId":"k8-f446a579-6d1a-48b9-8659-e0f91053d7f4","newAttemptsMade":1,"executedAtUtc":"2026-09-29T20:38:49.798Z"}}: expected 200 to be 409 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 16 passed (17)
