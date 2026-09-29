@@ -249,3 +249,70 @@ export async function evaluateArtifactDownload(input: {
 
   return { allowed: true, teamId };
 }
+
+/**
+ * ORIGINAL BYTES RELEASED (ET-CUS-07, 2026-09-29).
+ *
+ * Every response that hands out a presigned URL to an ORIGINAL object is an
+ * access fact and belongs on the record's custody chain. Only /original wrote
+ * one — as EVIDENCE_VIEWED — so part listings, record views and Public Verify
+ * released original bytes with no trace, and EVIDENCE_DOWNLOADED was never
+ * emitted.
+ *
+ *   original, parts_listing          an explicit download request
+ *                                    -> EVIDENCE_DOWNLOADED
+ *   record_view, review_workspace,   a view that included original URLs
+ *   completion                       -> EVIDENCE_VIEWED (accessMode original_url_issued)
+ *   public_verify                    an anonymous public page that included them
+ *                                    -> VERIFY_VIEWED (never retention activity, ET-CUS-10)
+ *
+ * The response is not blocked by a failed append (the URLs are already
+ * minted), but the failure is observable.
+ */
+export type OriginalReleaseChannel =
+  | "original"
+  | "parts_listing"
+  | "record_view"
+  | "review_workspace"
+  | "completion"
+  | "public_verify";
+
+export async function recordOriginalRelease(input: {
+  evidenceId: string;
+  actorUserId: string | null;
+  channel: OriginalReleaseChannel;
+  originalUrlsIssued: number;
+  mimeType?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}): Promise<void> {
+  if (input.originalUrlsIssued <= 0) return;
+  const at = new Date();
+  const eventType =
+    input.channel === "original" || input.channel === "parts_listing"
+      ? prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED
+      : input.channel === "public_verify"
+        ? prismaPkg.CustodyEventType.VERIFY_VIEWED
+        : prismaPkg.CustodyEventType.EVIDENCE_VIEWED;
+  await appendCustodyEvent({
+    evidenceId: input.evidenceId,
+    eventType,
+    atUtc: at,
+    payload: {
+      artifact: "original",
+      channel: input.channel,
+      accessMode:
+        input.channel === "public_verify"
+          ? "public_original_url_issued"
+          : input.channel === "original" || input.channel === "parts_listing"
+            ? "authenticated_original_download"
+            : "original_url_issued",
+      originalUrlsIssued: input.originalUrlsIssued,
+      accessedByUserId: input.actorUserId,
+      mimeType: input.mimeType ?? null,
+      accessedAtUtc: at.toISOString(),
+    },
+    ip: input.ip ?? undefined,
+    userAgent: input.userAgent ?? undefined,
+  }).catch(noteCustodyFailure);
+}

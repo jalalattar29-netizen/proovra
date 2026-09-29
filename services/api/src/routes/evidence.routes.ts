@@ -234,7 +234,7 @@ import {
 // Replaces the legacy `.catch(() => null)` silent-swallow pattern.
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
-import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
+import { recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
@@ -3642,7 +3642,9 @@ async function buildPublicEvidenceContent(params: {
   items: PublicEvidenceAsset[];
   primaryItem: PublicEvidenceAsset | null;
   previewPolicy: PublicPreviewPolicy;
+  originalUrlsIssued: number;
 }> {
+  let originalUrlsIssued = 0;
   const multipart = params.parts.length > 1;
   const singlePart = params.parts.length === 1 ? params.parts[0]! : null;
 
@@ -3710,6 +3712,7 @@ async function buildPublicEvidenceContent(params: {
                 expiresInSeconds: 600,
               })
             : null;
+          if (viewUrl) originalUrlsIssued += 1;
 
           const label = getEvidencePartDisplayLabel({
             partIndex: part.partIndex,
@@ -3847,6 +3850,9 @@ async function buildPublicEvidenceContent(params: {
                     bucket,
                     key,
                     expiresInSeconds: 600,
+                  }).then((u) => {
+                    originalUrlsIssued += 1;
+                    return u;
                   })
                 : null,
               displaySizeLabel: formatBytesForDisplay(sizeBytes),
@@ -3971,6 +3977,8 @@ async function buildPublicEvidenceContent(params: {
     items,
     primaryItem,
     previewPolicy,
+    /** ET-CUS-07: presigned ORIGINAL URLs in this content; callers record them. */
+    originalUrlsIssued,
   };
 }
 
@@ -6204,6 +6212,16 @@ return {
 };
         })
       );
+
+      // ET-CUS-07: the listing handed out a presigned URL per original part.
+      await recordOriginalRelease({
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        channel: "parts_listing",
+        originalUrlsIssued: enrichedParts.filter((p) => Boolean((p as { url?: unknown }).url)).length,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -9154,6 +9172,15 @@ return {
           },
           parts,
         });
+        // ET-CUS-07: original URLs in this response are an access fact.
+        await recordOriginalRelease({
+          evidenceId: id,
+          actorUserId: ownerUserId,
+          channel: "review_workspace",
+          originalUrlsIssued: content.originalUrlsIssued,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
 
         // Phase CAPTURE-DETAIL-WIRING — the per-part capture metadata
         // (privateNote / privateRole / sourceLabel / clientSignals) is
@@ -9993,6 +10020,15 @@ const content = await buildPublicEvidenceContent({
   },
   parts,
 });
+// ET-CUS-07: original URLs in this response are an access fact.
+await recordOriginalRelease({
+  evidenceId: id,
+  actorUserId: ownerUserId,
+  channel: "record_view",
+  originalUrlsIssued: content.originalUrlsIssued,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+});
 
         const defaultPreviewItem =
           content.items.find((item) => item.previewable && item.viewUrl) ??
@@ -10345,6 +10381,15 @@ const content = await buildPublicEvidenceContent({
     recordedAt: refreshed.capturedAtUtc ?? refreshed.createdAt,
   },
   parts,
+});
+// ET-CUS-07: original URLs in this response are an access fact.
+await recordOriginalRelease({
+  evidenceId: id,
+  actorUserId: ownerUserId,
+  channel: "completion",
+  originalUrlsIssued: content.originalUrlsIssued,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
 });
 
 const defaultPreviewItem =
@@ -11498,18 +11543,16 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           );
         });
 
-      await appendCustodyEvent({
+      // ET-CUS-07: an original download is EVIDENCE_DOWNLOADED.
+      await recordOriginalRelease({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
-        payload: {
-          mimeType: evidence.mimeType ?? null,
-          accessMode: "authenticated_original_access",
-          accessedByUserId: ownerUserId,
-          accessedAtUtc: accessedAt.toISOString(),
-        },
+        actorUserId: ownerUserId,
+        channel: "original",
+        originalUrlsIssued: 1,
+        mimeType: evidence.mimeType ?? null,
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -12898,6 +12941,15 @@ displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
   },
   parts,
+});
+// ET-CUS-07: original URLs handed to an anonymous viewer are an access fact.
+await recordOriginalRelease({
+  evidenceId: evidence.id,
+  actorUserId: null,
+  channel: "public_verify",
+  originalUrlsIssued: content.originalUrlsIssued,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
 });
 
     const recomputedFingerprintHash = sha256Hex(

@@ -357,9 +357,9 @@ describe("Phase 5 — download generation + response body unchanged", () => {
     expect(PACKAGE_ROUTE).toContain(
       "prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED",
     );
-    expect(ORIGINAL_ROUTE).toContain(
-      "prismaPkg.CustodyEventType.EVIDENCE_VIEWED",
-    );
+    // ET-CUS-07 (2026-09-29): an original download is EVIDENCE_DOWNLOADED,
+    // recorded through the one original-release recorder.
+    expect(ORIGINAL_ROUTE).toMatch(/recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
   });
 
   it("hashing/signing/TSA/OTS internals are not touched by these handlers", () => {

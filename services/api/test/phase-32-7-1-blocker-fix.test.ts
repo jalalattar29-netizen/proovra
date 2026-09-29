@@ -155,13 +155,11 @@ describe("Phase 32.7.1 — original-presign analytics write is fire-and-forget",
     expect(updateRegion).not.toMatch(/captureException\(/);
   });
 
-  it("forensic custody event (EVIDENCE_VIEWED) still fires", () => {
-    expect(routeBody).toMatch(
-      /appendCustodyEvent\(\{[\s\S]{0,400}eventType:\s*prismaPkg\.CustodyEventType\.EVIDENCE_VIEWED/,
-    );
-    expect(routeBody).toMatch(
-      /accessMode:\s*"authenticated_original_access"/,
-    );
+  it("the forensic custody event still fires (EVIDENCE_DOWNLOADED since ET-CUS-07)", () => {
+    expect(routeBody).toMatch(/await recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
+    const gate = readFileSync(new URL("../src/services/evidence/artifact-download-gate.service.ts", import.meta.url), "utf8");
+    expect(gate).toMatch(/CustodyEventType\.EVIDENCE_DOWNLOADED/);
+    expect(gate).toMatch(/"authenticated_original_download"/);
   });
 });
 
@@ -268,10 +266,8 @@ describe("Phase 32.7.1 — custody/audit semantics preserved", () => {
     expect(SRC).toMatch(/action:\s*"verification\.page_opened"/);
   });
 
-  it("EVIDENCE_VIEWED custody event still emitted on authenticated original access", () => {
-    expect(SRC).toMatch(
-      /prismaPkg\.CustodyEventType\.EVIDENCE_VIEWED[\s\S]{0,400}accessMode:\s*"authenticated_original_access"/,
-    );
+  it("a custody event is still emitted on authenticated original access (EVIDENCE_DOWNLOADED since ET-CUS-07)", () => {
+    expect(SRC).toMatch(/await recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
   });
 
   it("verification.package_accessed audit still emitted on package download", () => {
