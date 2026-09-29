@@ -3643,6 +3643,8 @@ async function buildPublicEvidenceContent(params: {
     sizeBytes: bigint | number | null;
     storageBucket: string | null;
     storageKey: string | null;
+    /** ET-SM-03 — the signed version of the primary original. */
+    storageVersionId?: string | null;
     fileSha256: string | null;
     intakePlanJson?: Prisma.JsonValue | null;
     originalFileName?: string | null;
@@ -3661,6 +3663,8 @@ async function buildPublicEvidenceContent(params: {
     checklistStepId?: string | null;
     storageBucket: string;
     storageKey: string;
+    /** ET-SM-03 — the version this part was sealed at. */
+    storageVersionId?: string | null;
   }>;
 }): Promise<{
   summary: PublicEvidenceContentSummary;
@@ -3730,10 +3734,21 @@ async function buildPublicEvidenceContent(params: {
             Boolean(part.storageBucket) &&
             Boolean(part.storageKey);
 
+          // ET-SM-03 — the SIGNED version, never "whatever is latest at the
+          // key": the page prints the sealed sha256 beside this link. A part
+          // is pinned to its own version, or to the record's when it is the
+          // primary object.
+          const sealedVersionId =
+            part.storageVersionId ??
+            (params.evidence.storageBucket === part.storageBucket &&
+            params.evidence.storageKey === part.storageKey
+              ? (params.evidence.storageVersionId ?? null)
+              : null);
           const viewUrl = canExposeDirectUrl
             ? await presignGetObject({
                 bucket: part.storageBucket,
                 key: part.storageKey,
+                versionId: sealedVersionId,
                 expiresInSeconds: 600,
               })
             : null;
@@ -8908,6 +8923,7 @@ return {
               durationMs: true,
               storageBucket: true,
               storageKey: true,
+              storageVersionId: true,
               storageRegion: true,
               storageObjectLockMode: true,
               storageObjectLockRetainUntilUtc: true,
@@ -9196,6 +9212,7 @@ return {
             sizeBytes: evidence.sizeBytes,
             storageBucket: evidence.storageBucket,
             storageKey: evidence.storageKey,
+            storageVersionId: evidence.storageVersionId ?? null,
             fileSha256: evidence.fileSha256,
             intakePlanJson: evidence.intakePlanJson ?? null,
             originalFileName: evidence.originalFileName ?? null,
@@ -10016,6 +10033,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             durationMs: true,
             storageBucket: true,
             storageKey: true,
+            storageVersionId: true,
             privateRole: true,
             checklistStepId: true,
           },
@@ -10035,6 +10053,7 @@ const content = await buildPublicEvidenceContent({
     sizeBytes: evidence.sizeBytes,
     storageBucket: evidence.storageBucket,
     storageKey: evidence.storageKey,
+    storageVersionId: evidence.storageVersionId ?? null,
     fileSha256: evidence.fileSha256,
     intakePlanJson: evidence.intakePlanJson ?? null,
     originalFileName: evidence.originalFileName ?? null,
@@ -10378,6 +10397,7 @@ const parts = await prisma.evidencePart.findMany({
     durationMs: true,
     storageBucket: true,
     storageKey: true,
+    storageVersionId: true,
     privateRole: true,
     checklistStepId: true,
   },
@@ -10397,6 +10417,7 @@ const content = await buildPublicEvidenceContent({
     sizeBytes: refreshed.sizeBytes,
     storageBucket: refreshed.storageBucket,
     storageKey: refreshed.storageKey,
+    storageVersionId: refreshed.storageVersionId ?? null,
     fileSha256: refreshed.fileSha256,
     intakePlanJson: refreshed.intakePlanJson ?? null,
     originalFileName: refreshed.originalFileName ?? null,
@@ -12448,6 +12469,8 @@ action: "evidence.certification_requested",
         otsAnchorCheck: true,
         storageBucket: true,
         storageKey: true,
+        // ET-SM-03 — the signed version of the original (the page links it).
+        storageVersionId: true,
         storageRegion: true,
         storageObjectLockMode: true,
         storageObjectLockRetainUntilUtc: true,
@@ -12901,6 +12924,7 @@ const snapshotTrustDecision =
         durationMs: true,
         storageBucket: true,
         storageKey: true,
+        storageVersionId: true,
         privateRole: true,
         checklistStepId: true,
       },
@@ -12956,6 +12980,7 @@ const content = await buildPublicEvidenceContent({
     sizeBytes: evidence.sizeBytes,
     storageBucket: evidence.storageBucket,
     storageKey: evidence.storageKey,
+    storageVersionId: evidence.storageVersionId ?? null,
     fileSha256: evidence.fileSha256,
     intakePlanJson: evidence.intakePlanJson ?? null,
 originalFileName: evidence.originalFileName ?? null,

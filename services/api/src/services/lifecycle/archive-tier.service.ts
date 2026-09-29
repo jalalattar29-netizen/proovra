@@ -249,6 +249,7 @@ export async function transitionEvidenceTier(
       sizeBytes: true,
       storageBucket: true,
       storageKey: true,
+      storageVersionId: true,
     },
   });
   if (!evidence || evidence.teamId !== input.teamId) {
@@ -362,7 +363,13 @@ export async function transitionEvidenceTier(
 
   // -- 4. S3 CopyObject (changes storage class in-place) --
   try {
-    await copyObjectStorageClass({ bucket, key, storageClass: storageClassAfter });
+    await copyObjectStorageClass({
+      bucket,
+      key,
+      storageClass: storageClassAfter,
+      // ET-SM-03 — archive the SEALED version, not whatever is latest.
+      sourceVersionId: evidence.storageVersionId ?? null,
+    });
   } catch (err) {
     const failureReason = boundFailureReason(err);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

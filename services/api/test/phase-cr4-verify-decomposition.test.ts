@@ -240,7 +240,8 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Rebaselined 2026-09-29 (EVIDENCE-LIFECYCLE REMEDIATION, TSA batch): 59,356 -> 59,826 — finalize persists the token-read imprint beside the request digest (ET-TSA-03) and the validation facts + bounded failure code (ET-TSA-01/06).
     // Rebaselined 2026-09-29: 59,826 -> 59,931 — the finalize claim refuses a released (soft-deleted) reservation (ET-DC-01).
     // Rebaselined 2026-09-29: 59,931 -> 60,529 — ET-SEC-11: a REPORTED record's repeat complete is alreadyFinalized (+ duplicate-finalize security event)
-    expect(sz).toBe(60529);
+    // Rebaselined 2026-09-29: 60,529 -> 60,968 — ET-SM-03: retention targets and the lock snapshot address the sealed version
+    expect(sz).toBe(60968);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

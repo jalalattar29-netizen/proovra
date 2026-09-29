@@ -453,6 +453,12 @@ export async function putObjectBuffer(params: {
 export async function applyObjectRetention(params: {
   bucket: string;
   key: string;
+  /**
+   * ET-SM-03 — the version to lock. Retention on a versioned bucket applies to
+   * ONE version; without it S3 locks whatever is latest at the key, which is
+   * not necessarily the version the record was sealed at.
+   */
+  versionId?: string | null;
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
   bypassGovernance?: boolean;
@@ -476,6 +482,7 @@ export async function applyObjectRetention(params: {
       new PutObjectRetentionCommand({
         Bucket: bucket,
         Key: key,
+        ...(clean(params.versionId ?? null) ? { VersionId: clean(params.versionId ?? null)! } : {}),
         Retention: {
           Mode: params.mode,
           RetainUntilDate: params.retainUntilDate,
@@ -493,6 +500,7 @@ export async function applyObjectRetention(params: {
 export async function applyDefaultObjectRetention(params: {
   bucket: string;
   key: string;
+  versionId?: string | null;
   bypassGovernance?: boolean;
 }) {
   const defaults = readObjectLockDefaults();
@@ -500,6 +508,7 @@ export async function applyDefaultObjectRetention(params: {
   return applyObjectRetention({
     bucket: params.bucket,
     key: params.key,
+    versionId: params.versionId ?? null,
     mode: defaults.mode,
     retainUntilDate: defaults.retainUntilDate,
     bypassGovernance: params.bypassGovernance,
@@ -509,6 +518,8 @@ export async function applyDefaultObjectRetention(params: {
 export async function headObject(params: {
   bucket: string;
   key: string;
+  /** ET-SM-03 — describe this version (the sealed one), not the latest. */
+  versionId?: string | null;
   /**
    * Ask the store for the object's recorded SHA-256 (ChecksumMode ENABLED).
    * Opt-in: the default HEAD is unchanged for every existing caller.
@@ -535,6 +546,7 @@ export async function headObject(params: {
         new HeadObjectCommand({
           Bucket: bucket,
           Key: key,
+          ...(clean(params.versionId ?? null) ? { VersionId: clean(params.versionId ?? null)! } : {}),
           ...(params.withChecksum ? { ChecksumMode: "ENABLED" as const } : {}),
         })
       );
@@ -747,12 +759,19 @@ export async function copyObjectStorageClass(params: {
   bucket: string;
   key: string;
   storageClass: string;
+  /**
+   * ET-SM-03 — copy FROM the sealed version. Without it the copy read whatever
+   * was latest at the key, so the archived bytes were not necessarily the ones
+   * the record's signature covers.
+   */
+  sourceVersionId?: string | null;
 }): Promise<void> {
+  const sourceVersionId = clean(params.sourceVersionId ?? null);
   await s3.send(
     new CopyObjectCommand({
       Bucket: params.bucket,
       Key: params.key,
-      CopySource: `${params.bucket}/${params.key}`,
+      CopySource: `${params.bucket}/${params.key}${sourceVersionId ? `?versionId=${encodeURIComponent(sourceVersionId)}` : ""}`,
       StorageClass: params.storageClass as StorageClass,
       MetadataDirective: "COPY",
     })

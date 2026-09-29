@@ -336,7 +336,8 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // Rebaselined 2026-09-29 (EVIDENCE-LIFECYCLE REMEDIATION, TSA batch): 59,356 -> 59,826 — finalize persists the token-read imprint beside the request digest (ET-TSA-03) and the validation facts + bounded failure code (ET-TSA-01/06).
 // Rebaselined 2026-09-29: 59,826 -> 59,931 — the finalize claim refuses a released (soft-deleted) reservation (ET-DC-01).
 // Rebaselined 2026-09-29: 59,931 -> 60,529 — ET-SEC-11: a REPORTED record's repeat complete is alreadyFinalized (+ duplicate-finalize security event)
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 60529;
+// Rebaselined 2026-09-29: 60,529 -> 60,968 — ET-SM-03: retention targets and the lock snapshot address the sealed version
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 60968;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

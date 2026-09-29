@@ -80,6 +80,8 @@ type ProcessedPart = {
 type RetentionTarget = {
   bucket: string;
   key: string;
+  /** ET-SM-03 — the sealed version; retention and the lock snapshot address it. */
+  versionId?: string | null;
   evidencePartId?: string;
 };
 
@@ -284,7 +286,7 @@ async function applyRetentionOrThrow(
   targets: RetentionTarget[]
 ): Promise<{ anyApplied: boolean; reason: string | null }> {
   const deduped = Array.from(
-    new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
+    new Map(targets.map((item) => [`${item.bucket}:${item.key}:${item.versionId ?? ""}`, item])).values()
   );
 
   let anyApplied = false;
@@ -295,6 +297,7 @@ async function applyRetentionOrThrow(
       const result = await applyDefaultObjectRetention({
         bucket: target.bucket,
         key: target.key,
+        versionId: target.versionId ?? null,
       });
       if (result?.applied === true) {
         anyApplied = true;
@@ -586,6 +589,7 @@ export async function completeEvidence(params: {
           retentionTargets.push({
             bucket: evidenceBucket,
             key: evidenceKey,
+            versionId: evidence.storageVersionId ?? null,
           });
         }
 
@@ -802,6 +806,7 @@ export async function completeEvidence(params: {
           retentionTargets.push({
             bucket,
             key,
+            versionId: meta.versionId ?? null,
             evidencePartId: part.id,
           });
         }
@@ -966,6 +971,7 @@ const fingerprint = buildFingerprint({
         retentionTargets.push({
           bucket,
           key,
+          versionId: meta.versionId ?? null,
         });
 
         primaryVersionId = meta.versionId ?? null;
@@ -1298,6 +1304,7 @@ const captureMethod =
         const lockedMeta = await headObject({
           bucket: primaryTarget.bucket,
           key: primaryTarget.key,
+          versionId: primaryTarget.versionId ?? null,
         });
 
         await prisma.evidence.update({
@@ -1323,6 +1330,7 @@ const captureMethod =
             const partMeta = await headObject({
               bucket: target.bucket,
               key: target.key,
+              versionId: target.versionId ?? null,
             });
 
             await prisma.evidencePart.update({
