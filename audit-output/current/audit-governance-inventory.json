@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 389,
+    "AuditFilesInventoried": 391,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 237
+    "ProductBehaviorTestsInventoried": 238
   },
   "reportRoles": {
     "counts": {
@@ -158,9 +158,9 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 237,
+    "PRODUCT_BEHAVIOR_TEST": 238,
     "CONTINUATION_CHECKPOINT": 1,
-    "DOMAIN_AUTHORITY": 70,
+    "DOMAIN_AUTHORITY": 71,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
@@ -6248,6 +6248,36 @@
       "path": "services/api/test/security-event-actor-authority.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/stale-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/support/local-tsa-authority.ts",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
       "imports": [],
       "importedBy": [],
       "spawns": [],
