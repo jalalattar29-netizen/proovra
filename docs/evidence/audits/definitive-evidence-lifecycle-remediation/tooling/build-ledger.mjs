@@ -28,7 +28,17 @@ const fail = (m) => { console.error(`ledger: ${m}`); process.exit(1); };
 // Commits on this branch since the baseline that cite a finding id.
 const log = execFileSync("git", ["-C", repo, "log", "--reverse", "--format=%H%x1f%s%x1f%b%x1e", `${BASE}..HEAD`], { encoding: "utf8" })
   .split("\x1e").map((s) => s.trim()).filter(Boolean)
-  .map((s) => { const [sha, subject, body] = s.split("\x1f"); return { sha, subject, text: `${subject}\n${body ?? ""}` }; });
+  .map((s) => { const [sha, subject, body] = s.split("\x1f"); return { sha, subject, text: expandIdRanges(`${subject}\n${body ?? ""}`) }; });
+
+// A message may cite a contiguous run as "ET-TSA-01..09"; expand it to the
+// individual ids so each is matched exactly (ids stay zero-padded to two digits).
+function expandIdRanges(text) {
+  return text.replace(/\b(ET-[A-Z]+)-(\d{2})\.\.(\d{2})\b/g, (_m, family, from, to) => {
+    const out = [];
+    for (let n = Number(from); n <= Number(to); n++) out.push(`${family}-${String(n).padStart(2, "0")}`);
+    return out.join(" ");
+  });
+}
 const filesOf = (sha) => execFileSync("git", ["-C", repo, "show", "--name-only", "--format=", sha], { encoding: "utf8" }).split("\n").filter(Boolean);
 const isProduct = (f) => /^(apps|services|packages)\//.test(f) && !/\/(test|tests|__tests__|e2e)\//.test(f) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(f);
 

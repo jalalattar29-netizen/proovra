@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 21 |
+| FIXED_IN_THIS_TASK | 30 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 1 |
-| STILL_PRESENT | 131 |
+| STILL_PRESENT | 122 |
 
-Open by severity: P0 0 · P1 8 · P2 74 · P3 50
+Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -41,8 +41,8 @@ Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 | ET-SEC-05 | P1 | FIXED_IN_THIS_TASK | canonical engine first; creator / OWNER / ADMIN only after current authority passes | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-05] |
 | ET-SEC-06 | P1 | FIXED_IN_THIS_TASK | applyEvidenceLifecycleAction write step under the evidence lock refuses a decided claim (DESTRUCTION_IN_PROGRESS) | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-06: restore is refused while the executor holds a decided claim] |
 | ET-SEC-07 | P1 | STILL_PRESENT |  |  |  |
-| ET-TSA-01 | P1 | STILL_PRESENT |  |  |  |
-| ET-TSA-03 | P1 | STILL_PRESENT |  |  |  |
+| ET-TSA-01 | P1 | FIXED_IN_THIS_TASK | services/api/src/services/timestamp/validate-tsa-token.ts validateTsaToken (openssl ts -verify -queryfile -CAfile <env anchor> -attime genTime + accepted policy); presentedTsaStatus (packages/shared) is the one read-side reading | d263f4f61f | services/api/test/tsa-token-validation.test.ts (13 cases); services/api/test/tsa-finalize-persistence.integration.test.ts (trusted STAMPED+validated, forged FAILED); services/api/test/public-verify-tsa-missing-imprint.integration.test.ts (validated -> verified, legacy -> TOKEN_RECORDED_NOT_VALIDATED); packages/shared/tests/verification-claim-consistency.test.mjs |
+| ET-TSA-03 | P1 | FIXED_IN_THIS_TASK | TimestampResult.messageImprint = parsed token imprint; requestDigestHex = digest sent; compareTimestampDigest only answers for a presented (validated) STAMPED | d263f4f61f | services/api/test/tsa-token-validation.test.ts; services/api/test/tsa-finalize-persistence.integration.test.ts [token imprint beside request digest]; services/api/test/public-verify-tsa-missing-imprint.integration.test.ts [legacy token: timestampDigestMatches null]; phase-ia-digest-policy.test.ts [ET-TSA-03] |
 | ET-ACQ-01 | P2 | STILL_PRESENT |  |  |  |
 | ET-ACQ-02 | P2 | PARTIALLY_FIXED | counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only) |
 | ET-ACQ-03 | P2 | STILL_PRESENT |  |  |  |
@@ -114,10 +114,10 @@ Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 | ET-SM-03 | P2 | STILL_PRESENT |  |  |  |
 | ET-SM-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-SM-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-TSA-02 | P2 | STILL_PRESENT |  |  |  |
-| ET-TSA-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-TSA-05 | P2 | STILL_PRESENT |  |  |  |
-| ET-TSA-06 | P2 | STILL_PRESENT |  |  |  |
+| ET-TSA-02 | P2 | FIXED_IN_THIS_TASK | parseTsaReply (missing imprint => tsa_response_parse_failed) + timestamp.service reply stage (openssl 'token not present' => tsa_token_missing) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-02]; services/api/test/phase-ia-tsa-false-failed.test.ts [granted reply with NO readable imprint] |
+| ET-TSA-04 | P2 | FIXED_IN_THIS_TASK | processor.ts passes timestampToken only when presentedTsaStatus === STAMPED; README describes a not-included unvalidated reply | d263f4f61f | services/worker unit suite (package README/entries); source: processor.ts timestampToken gate |
+| ET-TSA-05 | P2 | FIXED_IN_THIS_TASK | verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256 | d263f4f61f | services/worker unit suite |
+| ET-TSA-06 | P2 | FIXED_IN_THIS_TASK | evidence.tsa_failure_code (bounded TimestampFailureCode) written at finalize and in the TIMESTAMP_* custody payload | d263f4f61f | services/api/test/tsa-finalize-persistence.integration.test.ts [tsa_token_untrusted, tsa_message_imprint_mismatch persisted] |
 | ET-UPL-02 | P2 | STILL_PRESENT |  |  |  |
 | ET-UPL-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-ACQ-05 | P3 | STILL_PRESENT |  |  |  |
@@ -165,9 +165,9 @@ Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 | ET-SEC-33 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-34 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-35 | P3 | STILL_PRESENT |  |  |  |
-| ET-TSA-07 | P3 | STILL_PRESENT |  |  |  |
-| ET-TSA-08 | P3 | STILL_PRESENT |  |  |  |
-| ET-TSA-09 | P3 | STILL_PRESENT |  |  |  |
+| ET-TSA-07 | P3 | FIXED_IN_THIS_TASK | classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv] |
+| ET-TSA-08 | P3 | FIXED_IN_THIS_TASK | report technical-model reference notes point to the package (timestamp.tsr when validated); integrity-snapshot docblock states no parser is wired and names the validator | d263f4f61f | services/worker unit suite; grep: no 'technical verification endpoint' remains in services/apps/packages |
+| ET-TSA-09 | P3 | FIXED_IN_THIS_TASK | kept-token-validation.ts evaluateKeptTsaToken (same parser + same validator; serial, genTime, imprint required) used by repair-tsa-failed-with-token.ts; remediation-registry names the CLI as the one later writer | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-09 kept-token decision: validated ok; other digest, forged, no anchor, no token refused]; services/api/test/phase-ia-tsa-false-failed.test.ts [ET-TSA-09 source contracts] |
 | ET-UPL-03 | P3 | STILL_PRESENT |  |  |  |
 | ET-UPL-05 | P3 | STILL_PRESENT |  |  |  |
 
@@ -439,6 +439,38 @@ Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
 
+## ET-TSA-01 — RFC3161 responses are accepted as STAMPED without signature, certificate-chain, trust-anchor, nonce or policy validation
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** createEvidenceTimestamp persisted STAMPED from `openssl ts -reply -text` output alone; nothing validated the CMS signature, chain, trust anchor, nonce or policy.
+- **canonicalAuthority:** services/api/src/services/timestamp/validate-tsa-token.ts validateTsaToken (openssl ts -verify -queryfile -CAfile <env anchor> -attime genTime + accepted policy); presentedTsaStatus (packages/shared) is the one read-side reading
+- **obsoleteRemoved:** the text-only granted => STAMPED branch; the read-side positive-status checks now receive the presented status
+- **redTest:** services/api/test/tsa-token-validation.test.ts [forged, expired signer, wrong nonce, corrupted, policy, no anchor, test anchor in production] (red on the prior tree: forged / expired-signer / replayed-nonce / corrupted tokens returned STAMPED (evidence/tsa-red-baseline.txt))
+- **greenTest:** services/api/test/tsa-token-validation.test.ts (13 cases); services/api/test/tsa-finalize-persistence.integration.test.ts (trusted STAMPED+validated, forged FAILED); services/api/test/public-verify-tsa-missing-imprint.integration.test.ts (validated -> verified, legacy -> TOKEN_RECORDED_NOT_VALIDATED); packages/shared/tests/verification-claim-consistency.test.mjs
+- **negativeAuthTests:** forged self-signed token, expired signer, replayed nonce, corrupted signature, policy outside allow-list, unset anchor, test anchor under NODE_ENV=production — all FAILED
+- **migrationImpact:** additive 20280802000000_evidence_tsa_validation (4 nullable evidence columns; EXPAND, SAFE_TO_APPLY_NOW; registered in curation, deployment plan, drift allowlist, inventory)
+- **compatibilityImpact:** legacy STAMPED rows (no tsa_validated_at_utc) now present as RECORDED_NOT_VALIDATED everywhere until the operator CLI validates their kept token; with no anchor configured new tokens are kept but recorded FAILED tsa_trust_anchor_not_configured
+- **remainingExternalProof:** Production TSA_TRUST_BUNDLE_PATH must be provisioned with the real provider's root before deploy (unset fails closed); validating a real provider token is external proof not available locally
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-03 — Every read-side 'timestamp digest matches' check compares the sent digest to itself
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** TimestampResult.messageImprint was the digest sent, and both tsaMessageImprint and tsaInputDigestHex were written from it, so every 'imprint matches' check compared a value with itself.
+- **canonicalAuthority:** TimestampResult.messageImprint = parsed token imprint; requestDigestHex = digest sent; compareTimestampDigest only answers for a presented (validated) STAMPED
+- **obsoleteRemoved:** messageImprint: digestHex in the service; tsaInputDigestHex from messageImprint at finalize and in both custody payloads
+- **redTest:** services/api/test/tsa-token-validation.test.ts [wrong_imprint: expected token imprint abab.., got the sent digest] (red on the prior tree: forged / expired-signer / replayed-nonce / corrupted tokens returned STAMPED (evidence/tsa-red-baseline.txt))
+- **greenTest:** services/api/test/tsa-token-validation.test.ts; services/api/test/tsa-finalize-persistence.integration.test.ts [token imprint beside request digest]; services/api/test/public-verify-tsa-missing-imprint.integration.test.ts [legacy token: timestampDigestMatches null]; phase-ia-digest-policy.test.ts [ET-TSA-03]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
 ## ET-ACQ-02 — Interrupted web captures leave Evidence in UPLOADING permanently; these rows count against record caps and are never reaped
 
 - **severity:** P2
@@ -494,4 +526,102 @@ Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+
+## ET-TSA-02 — Granted reply without a parseable imprint (incl. granted status with no timeStampToken) is persisted as STAMPED
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** parseTsaReply treated a granted reply with no readable imprint as granted with a warning; a granted status without a token reached the provider-error classifier.
+- **canonicalAuthority:** parseTsaReply (missing imprint => tsa_response_parse_failed) + timestamp.service reply stage (openssl 'token not present' => tsa_token_missing)
+- **redTest:** services/api/test/tsa-token-validation.test.ts [granted_no_token] (red: classified tsa_provider_http_error)
+- **greenTest:** services/api/test/tsa-token-validation.test.ts [ET-TSA-02]; services/api/test/phase-ia-tsa-false-failed.test.ts [granted reply with NO readable imprint]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-04 — Verification package ships FAILED (rejected / imprint-mismatched) replies as timestamp.tsr and the README says 'Included' without the FAILED status
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The package appended timestamp.tsr whenever tsaTokenBase64 was present, including FAILED replies, and the README called it included.
+- **canonicalAuthority:** processor.ts passes timestampToken only when presentedTsaStatus === STAMPED; README describes a not-included unvalidated reply
+- **greenTest:** services/worker unit suite (package README/entries); source: processor.ts timestampToken gate
+- **migrationImpact:** none
+- **compatibilityImpact:** packages for FAILED or legacy-unvalidated records no longer contain timestamp.tsr
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-05 — Multipart TSA imprint is the undocumented '\|'-joined composite, while the package tells reviewers the reproducible digest is the LF-joined manifest hash
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The package never stated that the RFC 3161 token certifies the '\|'-joined multipart composite, and labelled multipartManifestSha256 the reproducible digest.
+- **canonicalAuthority:** verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256
+- **greenTest:** services/worker unit suite
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-06 — Provider-unavailable, rejected and invalid-token outcomes all collapse to tsaStatus=FAILED; failureCode is not persisted
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** failureCode was computed but never persisted; provider outage, rejection and invalid token all read FAILED with free text.
+- **canonicalAuthority:** evidence.tsa_failure_code (bounded TimestampFailureCode) written at finalize and in the TIMESTAMP_* custody payload
+- **redTest:** services/api/test/tsa-finalize-persistence.integration.test.ts (column did not exist on the prior tree)
+- **greenTest:** services/api/test/tsa-finalize-persistence.integration.test.ts [tsa_token_untrusted, tsa_message_imprint_mismatch persisted]
+- **migrationImpact:** additive 20280802000000_evidence_tsa_validation (4 nullable evidence columns; EXPAND, SAFE_TO_APPLY_NOW; registered in curation, deployment plan, drift allowlist, inventory)
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-07 — TSA failure classifier substring-matches the full execFile error (argv incl. URL and user:password, digest, temp path); real timeouts are never classified as timeouts
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** classifyTsaSubprocessError substring-matched the whole execFile error (argv with user:password, digest, URL); a kill on timeout was never classified as a timeout.
+- **canonicalAuthority:** classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K)
+- **obsoleteRemoved:** curl -u user:password in argv; message substring matching
+- **redTest:** services/api/test/tsa-token-validation.test.ts [unreachable provider] (red: tsa_unknown_error)
+- **greenTest:** services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-08 — Report claims the token is available via a 'technical verification endpoint' that does not exist; comments claim a worker ASN.1 TSA parser that does not exist
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Report copy promised a 'technical verification endpoint' that does not exist; a docblock claimed a worker ASN.1 TSA parser that does not exist.
+- **canonicalAuthority:** report technical-model reference notes point to the package (timestamp.tsr when validated); integrity-snapshot docblock states no parser is wired and names the validator
+- **greenTest:** services/worker unit suite; grep: no 'technical verification endpoint' remains in services/apps/packages
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-TSA-09 — Manual TSA repair CLI writes STAMPED without the serial+genTime precondition its docstring states, and contradicts the 'written once inside finalize' authority claim
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The repair CLI wrote STAMPED on granted without enforcing its documented serial+genTime precondition and without validating the token; the registry claimed tsaStatus is written only at finalize.
+- **canonicalAuthority:** kept-token-validation.ts evaluateKeptTsaToken (same parser + same validator; serial, genTime, imprint required) used by repair-tsa-failed-with-token.ts; remediation-registry names the CLI as the one later writer
+- **obsoleteRemoved:** the CLI's own openssl parse + granted-only write path
+- **redTest:** source contract on the prior tree: the CLI wrote STAMPED after `if (!parsed.granted)` with no validation (phase-ia-tsa-false-failed.test.ts pinned that shape)
+- **greenTest:** services/api/test/tsa-token-validation.test.ts [ET-TSA-09 kept-token decision: validated ok; other digest, forged, no anchor, no token refused]; services/api/test/phase-ia-tsa-false-failed.test.ts [ET-TSA-09 source contracts]
+- **migrationImpact:** none
+- **compatibilityImpact:** the CLI now also validates legacy STAMPED-unvalidated rows (records tsa_validated_at_utc, no custody event); FAILED->STAMPED appends TIMESTAMP_APPLIED with repair_source tsa_kept_token_validated
+- **remainingExternalProof:** Production TSA_TRUST_BUNDLE_PATH must be provisioned with the real provider's root before deploy (unset fails closed); validating a real provider token is external proof not available locally
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
+- **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
 
