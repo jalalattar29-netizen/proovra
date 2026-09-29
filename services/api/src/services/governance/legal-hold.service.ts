@@ -929,120 +929,43 @@ export async function releaseLegalHoldAnyStore(
 }
 
 // ===========================================================================
-// PHASE 12 POINT 3 — CANONICAL-ONLY COUNT/LIST HELPERS.
+// ET-SEC-17 — the case-deletion hold decision.
 //
-// Before this phase ~33 runtime sites queried the LEGACY delegates
-// (`prisma.caseLegalHold`, `prisma.legalHold`) directly. Every one of them
-// throws the moment 20271108000000 drops those tables, and every one of them
-// was blind to holds placed through the canonical service. These helpers are
-// the ONE replacement: they answer the same questions against
-// `evidence_legal_holds` — the single authority — so a call site needs no
-// knowledge of which store a hold originally came from.
-//
-// Scope mapping (see 20271107000000_legal_hold_backfill):
-//   legacy case_legal_holds row  → scope='CASE',      case_id set
-//   legacy legal_holds row       → scope='WORKSPACE'  (kind WORKSPACE/ORG)
-//                                  scope='EVIDENCE'   (kind EVIDENCE)
-//                                  scope='CASE'       (kind CASE)
+// A CASE hold on the case, any WORKSPACE hold, and any historical ACTIVE hold
+// (unresolvable to a target, so it must still block) prevent deleting the
+// case. The decision FAILS CLOSED: a store error is `unavailable`, never
+// `clear` — on a40ca76f the catch answered "no hold" and the case was deleted
+// and every link detached while the hold state was unknown.
 // ===========================================================================
+export type CaseDeletionHoldDecision =
+  | { kind: "clear" }
+  | { kind: "held"; holdIds: string[] }
+  | { kind: "unavailable" };
 
-/** ACTIVE case-scoped holds covering ANY of the given cases. */
-export async function countActiveCaseHolds(
-  input: { teamId?: string; caseIds?: string[]; caseId?: string },
+export async function evaluateCaseDeletionHold(
+  input: { caseId: string; teamId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<number> {
-  const caseIds = input.caseId
-    ? [input.caseId]
-    : input.caseIds && input.caseIds.length > 0
-      ? input.caseIds
-      : null;
-  return client.evidenceLegalHold.count({
-    where: {
-      scope: "CASE",
-      status: "ACTIVE",
-      ...(input.teamId ? { teamId: input.teamId } : {}),
-      ...(caseIds ? { caseId: { in: caseIds } } : {}),
-    },
-  });
-}
-
-/** Case-scoped holds in the legacy projection shape, canonical-sourced. */
-export async function listCaseHolds(
-  input: {
-    teamId?: string;
-    teamIds?: string[];
-    caseIds?: string[];
-    caseId?: string;
-    status?: "ACTIVE" | "RELEASED";
-    limit?: number;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<
-  Array<{
-    id: string;
-    teamId: string;
-    caseId: string | null;
-    title: string;
-    reason: string | null;
-    status: string;
-    placedByUserId: string;
-    placedAtUtc: Date;
-    releasedByUserId: string | null;
-    releasedAtUtc: Date | null;
-    releaseNote: string | null;
-  }>
-> {
-  const caseIds = input.caseId
-    ? [input.caseId]
-    : input.caseIds && input.caseIds.length > 0
-      ? input.caseIds
-      : null;
-  const rows = await client.evidenceLegalHold.findMany({
-    where: {
-      scope: "CASE",
-      ...(input.status ? { status: input.status } : {}),
-      ...(input.teamId ? { teamId: input.teamId } : {}),
-      ...(input.teamIds && input.teamIds.length > 0
-        ? { teamId: { in: input.teamIds } }
-        : {}),
-      ...(caseIds ? { caseId: { in: caseIds } } : {}),
-    },
-    orderBy: { placedAtUtc: "desc" },
-    ...(input.limit ? { take: input.limit } : {}),
-  });
-  return rows.map((r) => ({
-    id: r.id,
-    teamId: r.teamId,
-    caseId: r.caseId,
-    title: r.title,
-    reason: r.reason,
-    status: r.status,
-    placedByUserId: r.placedByUserId,
-    placedAtUtc: r.placedAtUtc,
-    releasedByUserId: r.releasedByUserId,
-    releasedAtUtc: r.releasedAtUtc,
-    releaseNote: r.releaseNote,
-  }));
-}
-
-/**
- * Lifecycle-store holds by state, canonical-sourced. `state` uses the legacy
- * vocabulary (ACTIVE / RELEASED / EXPIRED) which the canonical status enum
- * carries verbatim.
- */
-export async function countLifecycleHolds(
-  input: { teamId?: string; teamIds?: string[]; state: "ACTIVE" | "RELEASED" | "EXPIRED" },
-  client: PrismaClient = defaultPrisma,
-): Promise<number> {
-  return client.evidenceLegalHold.count({
-    where: {
-      status: input.state,
-      ...(input.teamId ? { teamId: input.teamId } : {}),
-      ...(input.teamIds && input.teamIds.length > 0
-        ? { teamId: { in: input.teamIds } }
-        : {}),
-    },
-  });
+): Promise<CaseDeletionHoldDecision> {
+  try {
+    const activeHolds = await client.evidenceLegalHold.findMany({
+      where: {
+        teamId: input.teamId,
+        status: "ACTIVE",
+        OR: [
+          { scope: "CASE", caseId: input.caseId },
+          { scope: "WORKSPACE" },
+          { historical: true },
+        ],
+      },
+      select: { id: true },
+      take: 50,
+    });
+    return activeHolds.length > 0
+      ? { kind: "held", holdIds: activeHolds.map((h) => h.id) }
+      : { kind: "clear" };
+  } catch {
+    return { kind: "unavailable" };
+  }
 }
 
 // ---------------------------------------------------------------------------

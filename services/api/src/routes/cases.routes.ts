@@ -42,46 +42,12 @@ import {
   getCaseAssignmentRoles,
 } from "../services/cases/case-permission.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
+import { evaluateCaseDeletionHold } from "../services/governance/legal-hold.service.js";
 // PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
 import {
   assertWorkspaceAllowsCases,
   resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
-
-// Phase 4B Final Closure I5 — legal-hold gate for case deletion.
-// Queries CASE + WORKSPACE + ORGANIZATION holds scoped to the teamId.
-// Returns ok=true if no active hold blocks the action; error swallowed
-// so engine failure never blocks the operational path.
-async function checkCaseLegalHold(
-  caseId: string,
-  teamId: string,
-): Promise<{ ok: boolean; holdIds: string[] }> {
-  try {
-    // P12.3 canonical-only. A canonical WORKSPACE row has no target columns,
-    // so it matches on scope alone (the query is teamId-anchored). Historical
-    // rows are matched explicitly: an unresolvable ACTIVE hold must still
-    // block — fail closed.
-    const activeHolds = await prisma.evidenceLegalHold.findMany({
-      where: {
-        teamId,
-        status: "ACTIVE",
-        OR: [
-          { scope: "CASE", caseId },
-          { scope: "WORKSPACE" },
-          { historical: true },
-        ],
-      },
-      select: { id: true },
-      take: 50,
-    });
-    if (activeHolds.length > 0) {
-      return { ok: false, holdIds: activeHolds.map((h) => h.id) };
-    }
-    return { ok: true, holdIds: [] };
-  } catch {
-    return { ok: true, holdIds: [] };
-  }
-}
 
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
@@ -1288,12 +1254,26 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
-      // WORKSPACE hold MUST block deletion. Helper is try/catch-safe.
+      // WORKSPACE hold MUST block deletion. ET-SEC-17 — it fails CLOSED: an
+      // unreadable hold state is 503 and the case stays.
       // K4 — evaluated AFTER the permission gate so hold ids are only ever
       // disclosed to a caller who could otherwise delete the case.
       if (item.teamId) {
-        const holdChk = await checkCaseLegalHold(id, item.teamId);
-        if (!holdChk.ok) {
+        const holdDecision = await evaluateCaseDeletionHold({ caseId: id, teamId: item.teamId });
+        if (holdDecision.kind === "unavailable") {
+          auditCaseAction(req, {
+            userId,
+            action: "cases.delete",
+            outcome: "blocked",
+            severity: "critical",
+            resourceId: id,
+            teamId: item.teamId,
+            metadata: { reason: "legal_hold_state_unavailable" },
+          });
+          return reply.code(503).send({ denial: "LEGAL_HOLD_STATE_UNAVAILABLE" });
+        }
+        if (holdDecision.kind === "held") {
+          const holdChk = { holdIds: holdDecision.holdIds };
           auditCaseAction(req, {
             userId,
             action: "cases.delete",

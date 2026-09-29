@@ -506,6 +506,17 @@ const AnnotationBody = z.object({
 const AnnotationUpdateBody = AnnotationBody.partial();
 
 /**
+ * ET-SEC-32 — the ONE annotation part-ownership check, for create AND edit.
+ * On a40ca76f only POST checked it, so a PATCH could point an annotation at
+ * another record's part.
+ */
+async function annotationPartBelongsToEvidence(partId: string, evidenceId: string): Promise<boolean> {
+  const part = await prisma.evidencePart.findUnique({ where: { id: partId }, select: { evidenceId: true } });
+  return part?.evidenceId === evidenceId;
+}
+const ANNOTATION_PART_MISMATCH = { message: "Annotation part does not belong to this evidence" } as const;
+
+/**
  * PHASE 12 POINT 4 PASS C1 — the reviewer-workflow PATCH is the
  * ADMINISTRATIVE surface (assignment / priority / due date / routing state).
  * Verdict statuses are DERIVED from the immutable decision log and are
@@ -7712,11 +7723,8 @@ return {
     const body = AnnotationBody.parse(req.body);
     await getEvidenceWithReadAccess(userId, id);
 
-    if (body.evidencePartId) {
-      const part = await prisma.evidencePart.findUnique({ where: { id: body.evidencePartId } });
-      if (!part || part.evidenceId !== id) {
-        return reply.code(400).send({ message: "Annotation part does not belong to this evidence" });
-      }
+    if (body.evidencePartId && !(await annotationPartBelongsToEvidence(body.evidencePartId, id))) {
+      return reply.code(400).send(ANNOTATION_PART_MISMATCH);
     }
 
     const created = await prisma.evidenceAnnotation.create({
@@ -7793,6 +7801,9 @@ return {
         (await canManageEvidenceCollaborativeContent(userId, evidence));
       if (!canManage) {
         return reply.code(403).send({ message: "Forbidden" });
+      }
+      if (body.evidencePartId && !(await annotationPartBelongsToEvidence(body.evidencePartId, id))) {
+        return reply.code(400).send(ANNOTATION_PART_MISMATCH);
       }
 
       const updated = await prisma.evidenceAnnotation.update({
