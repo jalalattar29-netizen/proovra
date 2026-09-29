@@ -344,6 +344,10 @@ export function mapCustodyEventLabel(eventType: string | null | undefined): stri
       return "Evidence record unlocked";
     case "RETENTION_AUTO_EXTENDED":
       return "Retention period extended by policy";
+    case "REDACTION_RECORDED":
+      return "Redaction step recorded";
+    case "REVIEW_DECISION_RECORDED":
+      return "Review decision recorded";
     case "OTS_FAILED":
       return "OpenTimestamps provider returned failure";
     case "OTS_ATTEMPT_ERROR":

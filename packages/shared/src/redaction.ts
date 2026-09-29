@@ -421,6 +421,24 @@ export const REDACTION_ACTIVITY_CODES = [
 export type RedactionActivityCode =
   (typeof REDACTION_ACTIVITY_CODES)[number];
 
+/**
+ * ET-CUS-12 — the redaction steps that are custody facts of the ORIGINAL
+ * record: a redacted version decided on, published or superseded, and a
+ * derivative rendered, released or quarantined. Drafting steps (regions,
+ * detections) stay in the redaction activity log only.
+ */
+export const REDACTION_CUSTODY_MATERIAL_CODES: ReadonlyArray<RedactionActivityCode> = [
+  "VERSION_APPROVED",
+  "VERSION_REJECTED",
+  "VERSION_PUBLISHED",
+  "VERSION_SUPERSEDED",
+  "APPROVAL_GRANTED",
+  "APPROVAL_DENIED",
+  "DERIVATIVE_RENDER_COMPLETED",
+  "DERIVATIVE_DOWNLOADED",
+  "DERIVATIVE_QUARANTINED",
+];
+
 // ===========================================================================
 // 12. Bounded denial reasons
 // ===========================================================================

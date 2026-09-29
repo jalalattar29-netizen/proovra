@@ -3218,6 +3218,9 @@ enum CustodyEventType {
   EVIDENCE_UNLOCKED
   // ET-CUS-10: retention was auto-extended by policy.
   RETENTION_AUTO_EXTENDED
+  // ET-CUS-12: a material redaction step (payload.code) and a review decision.
+  REDACTION_RECORDED
+  REVIEW_DECISION_RECORDED
 }
 
 enum AuthProvider {

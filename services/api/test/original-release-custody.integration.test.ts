@@ -57,7 +57,7 @@ describe("original byte release is on the custody chain (live PostgreSQL 16)", (
         orderBy: { sequence: "asc" },
         select: { eventType: true, payload: true },
       })
-    ).map((e) => ({ type: String(e.eventType), ...(e.payload as Record<string, unknown>) }));
+    ).map((e): Record<string, unknown> => ({ type: String(e.eventType), ...(e.payload as Record<string, unknown>) }));
   const get = (url: string) =>
     h.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` } });
 

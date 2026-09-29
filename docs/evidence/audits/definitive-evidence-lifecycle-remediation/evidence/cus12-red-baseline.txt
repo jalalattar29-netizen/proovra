@@ -1,0 +1,6 @@
+[31m   [31m×[31m redaction and review decisions on the custody chain (live PostgreSQL 16)[2m > [22ma material redaction step is recorded on the record; a drafting step is not[39m[32m 23[2mms[22m[39m
+[31m     → expected [] to deeply equal [ ObjectContaining{…} ][39m
+[31m   [31m×[31m redaction and review decisions on the custody chain (live PostgreSQL 16)[2m > [22ma review status decision is recorded on the record; an assignment-only update is not[39m[32m 123[2mms[22m[39m
+[31m     → expected [] to deeply equal [ ObjectContaining{…} ][39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m
