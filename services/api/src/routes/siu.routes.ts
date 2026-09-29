@@ -24,7 +24,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
-import { enforceSensitiveAction } from "../services/governance.service.js";
+import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -183,6 +183,45 @@ async function requireCaseActor(
   // capability.
   const exposePii = c.ownerUserId === userId;
   return { userId, teamId: c.teamId, exposePii, role: member.role ? String(member.role) : null };
+}
+
+/**
+ * How many of the case's records would NOT release their report or package on
+ * their own download route (2026-09-29, audits H1 and M2) — THE per-record
+ * download gate, applied to each artifact a bundle carries. Case access was
+ * established by requireCaseActor, and each record is in this case and this
+ * workspace's population, so the gate's read step is already satisfied.
+ * Used when a bundle is built AND when a stored bundle is downloaded again: a
+ * legal hold placed after generation stops the stored bytes leaving too.
+ */
+async function countSiuRecordsWithheld(
+  req: FastifyRequest,
+  ctx: { teamId: string; userId: string },
+  caseId: string,
+): Promise<number> {
+  const scope = await workspaceEvidenceWhere(ctx.teamId, prisma);
+  const caseEvidence = await prisma.evidence.findMany({
+    where: { caseLinks: { some: { caseId } }, AND: [scope], deletedAt: null },
+    select: { id: true },
+  });
+  let withheld = 0;
+  for (const ev of caseEvidence) {
+    for (const kind of ["report", "package"] as const) {
+      const decision = await evaluateArtifactDownload({
+        evidenceId: ev.id,
+        actorUserId: ctx.userId,
+        kind,
+        ip: req.ip,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+        readAccess: async () => undefined,
+      });
+      if (!decision.allowed) {
+        withheld++;
+        break;
+      }
+    }
+  }
+  return withheld;
 }
 
 export async function siuRoutes(app: FastifyInstance) {
@@ -660,28 +699,19 @@ export async function siuRoutes(app: FastifyInstance) {
         });
       }
       /*
-       * THE PACKAGE-DOWNLOAD POLICY APPLIES TO A PACKAGE IN A BUNDLE
-       * (2026-09-29, audit H1). The bundle carries each record's verification
-       * package; a record whose package the workspace governance refuses to
-       * release on its own download route must not leave inside a bundle.
-       * Any refusal withholds the whole export, with a count — never a
-       * bundle that silently drops or includes it.
+       * EVERY ARTIFACT IN THE BUNDLE PASSES THE SAME DOWNLOAD GATE (2026-09-29,
+       * audits H1 and M2). The bundle carries each record's report and
+       * verification package; each is released only if THE per-record download
+       * gate (evaluateArtifactDownload) would release it on its own route —
+       * workspace policy, the template overlay, the verification publish
+       * policy, export eligibility (a legal hold of any scope, a trashed or
+       * destruction-bound lifecycle, an active destruction review) and, for a
+       * record with no workspace row, the Personal-owner rule. The package-only
+       * check this replaces let a held record's report and package leave in a
+       * bundle. Any refusal withholds the whole export, with a count — never a
+       * bundle that silently drops or includes an artifact.
        */
-      const scope = await workspaceEvidenceWhere(ctx.teamId, prisma);
-      const caseEvidence = await prisma.evidence.findMany({
-        where: { caseLinks: { some: { caseId: params.id } }, AND: [scope], deletedAt: null },
-        select: { id: true, teamId: true, retentionUntilUtc: true },
-      });
-      let withheld = 0;
-      for (const ev of caseEvidence) {
-        const decision = await enforceSensitiveAction("download_package", {
-          teamId: ev.teamId,
-          role: ctx.role as never,
-          evidence: { id: ev.id, teamId: ev.teamId, retentionUntilUtc: ev.retentionUntilUtc ?? null },
-          consultTemplatePolicy: true,
-        });
-        if (!decision.allowed) withheld++;
-      }
+      const withheld = await countSiuRecordsWithheld(req, ctx, params.id);
       if (withheld > 0) {
         await emitTenantAudit({
           action: "siu_export_blocked",
@@ -1094,6 +1124,14 @@ export async function siuRoutes(app: FastifyInstance) {
         .parse(req.params);
       const ctx = await requireCaseActor(req, reply, params.id);
       if (!ctx) return;
+      // The stored bundle carries the same artifacts; the same gate applies
+      // NOW, not only when it was generated (2026-09-29, audit M2).
+      const withheldNow = await countSiuRecordsWithheld(req, ctx, params.id);
+      if (withheldNow > 0) {
+        return reply.code(403).send({
+          error: { code: "siu_export_blocked_by_policy", withheldRecords: withheldNow },
+        });
+      }
       const outcome = await downloadSiuExportArtifact({
         caseId: params.id,
         teamId: ctx.teamId,

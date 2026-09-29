@@ -11579,8 +11579,11 @@ model CaseSiuExport {
   artifactSha256        String?   @map("artifact_sha256") @db.VarChar(64)
   artifactSizeBytes     BigInt?   @map("artifact_size_bytes")
   manifestSha256        String?   @map("manifest_sha256") @db.VarChar(64)
-  /// Bounded set of artifact-inclusion notes (e.g.
-  /// `report_pdf_included=true` / `verification_package_included=false`).
+  /// A RECORD of what the bundle carried, written once by the builder:
+  /// `{ reportsIncluded, reportsMissing, verificationPackagesIncluded,
+  /// verificationPackagesMissing }`. It is not a setting — nothing selects
+  /// artifacts; every record's latest report and its paired package are
+  /// bundled, and only when THE per-record download gate releases both.
   artifactInclusionJson Json      @default("{}") @map("artifact_inclusion_json")
   generatedByUserId     String?   @map("generated_by_user_id") @db.Uuid
   generatedAtUtc        DateTime  @default(now()) @map("generated_at_utc") @db.Timestamptz(6)
