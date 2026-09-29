@@ -89,37 +89,23 @@ test("each output shows the server's own verb: a missing package is Recover pack
   assert.equal(r.texts().some((t) => /Regenerate/.test(t)), false);
   await r.press("Recover package: Gate video");
   await settle();
-  assert.deepEqual(posts, [{ path: "/v1/evidence/e3/reports/regenerate", body: { intent: "RECOVER" } }]);
+  assert.deepEqual(posts, [
+    { path: "/v1/evidence/e3/reports/regenerate", body: { intent: "RECOVER", output: "verificationPackage" } },
+  ]);
   r.unmount();
 });
 
-test("a complete record offers no verb; Issue updated report is behind ⋯, needs a reason, and is confirmed with versions and the estimate", async () => {
+// 2026-09-29 — the ordinary Reports row never offers an updated report; it is
+// the record's explicit, reasoned action on the evidence screen. The fixture's
+// complete row may still carry CREATE_NEW_VERSION (an API from before the
+// rule): the row renders nothing for it.
+test("a complete record offers no verb and no Issue updated report on the Reports row", async () => {
   const r = await render();
-  // No per-output verb on a complete record.
   assert.equal(r.byLabel("Generate report & package: Roof photo").length, 0);
-  await r.press("More actions: Roof photo");
-  await settle();
-  await r.press("Issue updated report: Roof photo");
-  await settle();
-  const t = r.texts().join(" | ");
-  assert.ok(r.hasText("Issue updated report (version 3)?"), t);
-  assert.ok(r.hasText("Issues report version 3, dated today, and its verification package, alongside version 2."), t);
-  assert.ok(r.hasText("It documents facts as they stand now. Earlier versions are kept unchanged, keep their own dates and stay downloadable."), t);
-  assert.ok(r.hasText("Estimated additional storage: about 3.0 MB"), t);
-  // Nothing is sent until the new version is confirmed.
+  assert.equal(r.byLabel("More actions: Roof photo").length, 0);
+  assert.equal(r.byLabel("Issue updated report: Roof photo").length, 0);
+  assert.equal(r.texts().some((t) => /Issue updated report|Regenerate/.test(t)), false);
   assert.deepEqual(posts, []);
-  // Without a reason the confirmation cannot be sent.
-  await r.press("Issue updated report");
-  await settle();
-  assert.deepEqual(posts, []);
-  await r.type("Reason for the updated report", "Document the later anchor");
-  await r.press("Issue updated report");
-  await settle();
-  assert.equal(posts.length, 1);
-  assert.equal(posts[0].body.reason, "Document the later anchor");
-  assert.equal(posts[0].path, "/v1/evidence/e1/reports/regenerate");
-  assert.equal(posts[0].body.intent, "NEW_VERSION");
-  assert.match(posts[0].body.clientRequestKey, /^nv-/);
   r.unmount();
 });
 

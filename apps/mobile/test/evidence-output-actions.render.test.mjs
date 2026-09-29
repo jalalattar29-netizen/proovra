@@ -98,7 +98,9 @@ test("a missing package is recovered from the stored report: its own panel, its 
   assert.equal(r.texts().some((t) => /Regenerate/.test(t)), false);
   await r.press("Recover verification package");
   await settle();
-  assert.deepEqual(posts, [{ path: "/v1/evidence/ev-1/reports/regenerate", body: { intent: "RECOVER" } }]);
+  assert.deepEqual(posts, [
+    { path: "/v1/evidence/ev-1/reports/regenerate", body: { intent: "RECOVER", output: "verificationPackage" } },
+  ]);
   assert.ok(r.hasText("Recovery requested."));
   r.unmount();
 });

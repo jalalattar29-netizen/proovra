@@ -252,7 +252,12 @@ describe("Reports row — generation actions", () => {
 
     fireEvent.click(btn("ev-pkg")!);
     expect(posts()).toEqual([
-      { path: "/v1/evidence/ev-pkg/reports/regenerate", method: "POST", body: { intent: "RECOVER" } },
+      {
+        path: "/v1/evidence/ev-pkg/reports/regenerate",
+        method: "POST",
+        // The output whose control was used travels with the intent.
+        body: { intent: "RECOVER", output: "verificationPackage" },
+      },
     ]);
     expect(container.querySelector("[data-confirm-action-modal]")).toBeNull();
     expect(navigations).toEqual([]);
@@ -264,8 +269,8 @@ describe("Reports row — generation actions", () => {
     fireEvent.click(container.querySelector("[data-reports-regenerate='ev-failed']")!);
     expect(container.querySelector("[data-confirm-action-modal]")).toBeNull();
     expect(posts().map((p) => [p.path, p.body])).toEqual([
-      ["/v1/evidence/ev-new/reports/regenerate", { intent: "GENERATE" }],
-      ["/v1/evidence/ev-failed/reports/regenerate", { intent: "RETRY" }],
+      ["/v1/evidence/ev-new/reports/regenerate", { intent: "GENERATE", output: "report" }],
+      ["/v1/evidence/ev-failed/reports/regenerate", { intent: "RETRY", output: "report" }],
     ]);
     expect(navigations).toEqual([]);
   });
@@ -278,98 +283,26 @@ describe("Reports row — generation actions", () => {
     expect(badge?.getAttribute("title")).toMatch(/operators/);
   });
 
-  async function openNewVersion(container: HTMLElement) {
-    const trigger = container.querySelector(
-      "[data-testid='reports-new-version-ev-ready']",
-    ) as HTMLButtonElement;
-    expect(trigger).toBeTruthy();
-    fireEvent.click(trigger);
-    const item = await waitFor(() => {
-      const el = document.querySelector("[data-reports-row-row-action='create-new-version']");
-      expect(el).toBeTruthy();
-      return el as HTMLButtonElement;
-    });
-    expect(item.textContent).toContain("Issue updated report");
-    fireEvent.click(item);
-    const modal = await waitFor(() => {
-      const m = document.querySelector("[data-confirm-action-modal]");
-      expect(m).toBeTruthy();
-      return m as HTMLElement;
-    });
-    // An updated report records why it was issued.
-    fireEvent.change(modal.querySelector("[data-new-version-reason]")!, {
-      target: { value: "Document the later anchor" },
-    });
-    return modal;
-  }
-
-  it("Issue updated report is behind the overflow menu and states versions, retention and the estimate before posting", async () => {
+  /*
+   * 2026-09-29 — A COMPLETE PAIR OFFERS NOTHING ON THE ORDINARY ROW.
+   *
+   * The screenshot showed a complete report/package pair opening "Issue
+   * updated report (version 3)" from this row. An updated report is the
+   * record's explicit, reasoned action (Evidence Detail); the row shows
+   * status, downloads, history and the way into the record — nothing else.
+   * The fixture's ev-ready still carries CREATE_NEW_VERSION, as an API from
+   * before this rule would send: the row must not render it either way.
+   */
+  it("a complete pair offers no Recover, Retry, Regenerate or Issue updated report — even if a stale API advertises one", async () => {
     const { container } = await mount();
-    const modal = await openNewVersion(container);
-    // The offer is read from the record's own status, not assumed by the row.
-    expect(requests.some((r) => r.path === "/v1/evidence/ev-ready/artifacts/status")).toBe(true);
-    const text = modal.textContent ?? "";
-    expect(text).toContain("Issue updated report (version 8)?");
-    expect(text).toContain("Issues report version 8, dated today, and its verification package, alongside version 7.");
-    expect(text).toContain("Earlier versions are kept unchanged");
-    expect(text).toMatch(/Estimated additional storage: about 5\.0 MB/);
-    expect(text).toContain("Workspace storage now: 200 MB used of 1.0 GB.");
-    expect(text).toContain("No evidence credit is charged.");
+    expect(container.querySelector("[data-reports-regenerate='ev-ready']")).toBeNull();
+    expect(container.querySelector("[data-testid='reports-new-version-ev-ready']")).toBeNull();
+    expect(document.querySelector("[data-reports-row-row-action='create-new-version']")).toBeNull();
+    expect(container.textContent).not.toMatch(/Issue updated report|Regenerate/);
+    const actions = container.querySelector("[data-reports-row-actions='ev-ready']");
+    expect(actions?.querySelector("[data-reports-open-evidence='ev-ready']")).toBeTruthy();
+    expect(actions?.textContent).not.toMatch(/Recover|Retry/);
     expect(posts()).toHaveLength(0);
-
-    fireEvent.click(modal.querySelector("[data-confirm-action-cancel='true']")!);
-    await waitFor(() => expect(document.querySelector("[data-confirm-action-modal]")).toBeNull());
-    expect(posts()).toHaveLength(0);
-    expect(navigations).toEqual([]);
-  });
-
-  it("a confirmed new version posts ONCE with its idempotency key, then re-reads summary and list", async () => {
-    const { container } = await mount();
-    const modal = await openNewVersion(container);
-    const confirm = modal.querySelector("[data-confirm-action-submit='true']") as HTMLButtonElement;
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
-    await waitFor(() => expect(posts()).toHaveLength(1));
-    const [post] = posts();
-    expect(post!.path).toBe("/v1/evidence/ev-ready/reports/regenerate");
-    expect(post!.body?.intent).toBe("NEW_VERSION");
-    expect(String(post!.body?.clientRequestKey)).toMatch(/^nv-[A-Za-z0-9._:-]{6,}$/);
-    expect(post!.body?.reason).toBe("Document the later anchor");
-
-    const before = requests.filter((r) => r.path.startsWith("/v1/reports/artifacts")).length;
-    await act(async () => {
-      regenerateResolvers[0]!.resolve({ evidenceId: "ev-ready", enqueued: true, outcome: "ENQUEUED", message: "Creating version 8." });
-    });
-    await waitFor(() => {
-      const reads = requests.filter((r) => r.path.startsWith("/v1/reports/artifacts")).slice(before);
-      expect(reads.some((r) => !r.path.includes("summary=0"))).toBe(true);
-      expect(reads.some((r) => r.path.includes("summary=0"))).toBe(true);
-    });
-    expect(container.querySelector("[data-reports-row-regen-notice='ev-ready']")?.textContent).toBe("Creating version 8.");
-  });
-
-  it("an unanswered new-version request is retried with the SAME key; an answered one mints a new key", async () => {
-    const { container } = await mount();
-    let modal = await openNewVersion(container);
-    fireEvent.click(modal.querySelector("[data-confirm-action-submit='true']")!);
-    await waitFor(() => expect(posts()).toHaveLength(1));
-    await act(async () => {
-      regenerateResolvers[0]!.reject(Object.assign(new Error("offline"), { statusCode: 0 }));
-    });
-    await waitFor(() => expect(container.querySelector("[data-reports-row-error='ev-ready']")).toBeTruthy());
-
-    modal = await openNewVersion(container);
-    fireEvent.click(modal.querySelector("[data-confirm-action-submit='true']")!);
-    await waitFor(() => expect(posts()).toHaveLength(2));
-    expect(posts()[1]!.body?.clientRequestKey).toBe(posts()[0]!.body?.clientRequestKey);
-    await act(async () => {
-      regenerateResolvers[1]!.resolve({ outcome: "REPLAYED", enqueued: false, message: "Already received." });
-    });
-
-    modal = await openNewVersion(container);
-    fireEvent.click(modal.querySelector("[data-confirm-action-submit='true']")!);
-    await waitFor(() => expect(posts()).toHaveLength(3));
-    expect(posts()[2]!.body?.clientRequestKey).not.toBe(posts()[0]!.body?.clientRequestKey);
   });
 
   it("a declined request shows the server's reason, and the row re-reads its state", async () => {

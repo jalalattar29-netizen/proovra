@@ -209,6 +209,33 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     expect(await requestCount(id)).toBe(0);
   });
 
+  it("A (Reports row) — a complete pair's ROW advertises no verb and no updated report, over real HTTP (2026-09-29)", async () => {
+    const id = await evidence();
+    await report(id, 1);
+    await pkg(id, 1);
+    for (const path of [
+      `/v1/reports/artifacts?teamId=${A().teamId}&limit=100`,
+      `/v1/reports?limit=100`,
+    ]) {
+      const res = await get(A().ownerToken, path);
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as {
+        sections?: { artifacts?: { items?: Array<Record<string, unknown>> } };
+        items?: Array<Record<string, unknown>>;
+      };
+      const items = body.sections?.artifacts?.items ?? body.items ?? [];
+      const row = items.find((r) => r.evidenceId === id) as
+        | { outputs: { report: { action: string }; verificationPackage: { action: string }; newVersion: { action: string } } }
+        | undefined;
+      expect(row, `${path} must list the record`).toBeTruthy();
+      expect(row!.outputs.report.action, path).toBe("NONE");
+      expect(row!.outputs.verificationPackage.action, path).toBe("NONE");
+      expect(row!.outputs.newVersion.action, path).toBe("NONE");
+    }
+    // …while the record's own status still offers the explicit, reasoned action.
+    expect((await status(id)).outputs.newVersion.action).toBe("CREATE_NEW_VERSION");
+  });
+
   it("C — report READY, package missing: RECOVER the package only; the POST creates a package-only request", async () => {
     const id = await evidence();
     await report(id, 1);

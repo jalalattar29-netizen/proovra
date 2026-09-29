@@ -981,9 +981,15 @@ export async function listWorkspaceArtifacts(input: {
               downloadable: pkg !== null,
               latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },
-            newVersion: loaded
-              ? { action: loaded.actions.newVersion.action, reason: loaded.actions.newVersion.reason }
-              : { action: "NONE", reason: "PERMISSION_DENIED" },
+            /*
+             * THE ORDINARY REPORTS ROW NEVER OFFERS AN UPDATED REPORT
+             * (2026-09-29). A complete pair on this row opened "Issue updated
+             * report (version N)". An updated report is an exceptional,
+             * reasoned issuance that belongs to the record (Evidence Detail),
+             * where its reason, issue date, storage and earlier versions are
+             * shown. The row's projection says so, so no client can render it.
+             */
+            newVersion: { action: "NONE", reason: "NOT_REQUIRED" },
             pollIntervalMs:
               loaded &&
               [loaded.reportRequest?.state, loaded.packageRequest?.state].some(

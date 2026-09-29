@@ -21,7 +21,6 @@ import {
 import type { ArtifactRow, ReportOutputAction } from "../product/reports";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraButton, ProovraText } from "./index";
-import { NewVersionAction } from "./new-version-action";
 
 export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequested?: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -62,8 +61,9 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
     terminalReasonCode: row.actionWithheldReason,
     actionUnavailableReason: row.actionWithheldReason,
   });
-  const offersNewVersion = row.newVersion?.action === "CREATE_NEW_VERSION";
-  if (row.outputActions.length === 0 && !withheld && !offersNewVersion) return null;
+  // No updated-report action on the Reports row (2026-09-29): it is the
+  // record's explicit, reasoned action, on the evidence screen.
+  if (row.outputActions.length === 0 && !withheld) return null;
   return (
     <View style={{ gap: 4, paddingBottom: theme.space.s2 }} testID={`report-row-action-${row.evidenceId}`}>
       {withheld ? <ProovraBadge label={withheld} tone="neutral" /> : null}
@@ -82,14 +82,6 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
             />
           );
         })}
-        {/* Optional and secondary: behind its own menu, read fresh on open. */}
-        <NewVersionAction
-          evidenceId={row.evidenceId}
-          displayTitle={row.displayTitle}
-          offer={row.newVersion}
-          readCurrentOffer
-          onRequested={onRequested}
-        />
       </View>
       {error || notice ? (
         <ProovraText variant="label" color={error ? theme.color.status.risk.fg : theme.color.ink.secondary}>{error ?? notice}</ProovraText>

@@ -36,11 +36,6 @@ import {
   type OutputKind,
 } from "@proovra/shared";
 import {
-  NewVersionMenu,
-  type NewVersionOffer,
-  type NewVersionRequestResult,
-} from "../evidence-outputs/NewVersionMenu";
-import {
   readGenerationOutcome,
   type GenerationResponse,
 } from "../../lib/evidence/generation-outcome";
@@ -1256,45 +1251,6 @@ function ArtifactRowActions({
     }
   };
 
-  const requestNewVersion = async (
-    clientRequestKey: string,
-    reason: string,
-  ): Promise<NewVersionRequestResult> => {
-    if (busy) return "unanswered";
-    setBusy("regen");
-    setError(null);
-    setRegenNotice(null);
-    try {
-      const resp = (await apiFetch(
-        `/v1/evidence/${row.evidenceId}/reports/regenerate`,
-        {
-          method: "POST",
-          body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey, reason }),
-        },
-      )) as GenerationResponse;
-      setRegenNotice(readGenerationOutcome(resp).message);
-      return "answered";
-    } catch (err) {
-      setError(requestErrorMessage(err));
-      const status = (err as { statusCode?: unknown })?.statusCode;
-      return typeof status === "number" && status >= 400 && status < 500
-        ? "answered"
-        : "unanswered";
-    } finally {
-      setBusy(null);
-      onOutputsRequested?.();
-    }
-  };
-
-  // The row carries the decision; the confirmation reads the current offer
-  // (versions, estimate, allowance) from the record's own status.
-  const loadNewVersionOffer = async (): Promise<NewVersionOffer | null> => {
-    const status = (await apiFetch(
-      `/v1/evidence/${row.evidenceId}/artifacts/status`,
-      { method: "GET" },
-    )) as { outputs?: { newVersion?: NewVersionOffer } } | null;
-    return status?.outputs?.newVersion ?? null;
-  };
 
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
@@ -1482,17 +1438,8 @@ function ArtifactRowActions({
       >
         Open evidence
       </Link>
-      {/* A new version is SECONDARY and optional: after the downloads and the
-          way into the record, behind a menu and a confirmation. */}
-      <NewVersionMenu
-        offer={row.outputs?.newVersion ?? null}
-        loadOffer={loadNewVersionOffer}
-        busy={busy !== null}
-        request={requestNewVersion}
-        menuLabel={`More actions for ${row.title || row.displayFileName || "this record"}`}
-        dataPrefix="reports-row"
-        testId={`reports-new-version-${row.evidenceId}`}
-      />
+      {/* No updated-report action on this row (2026-09-29): it is the
+          record's explicit, reasoned action, in Evidence Detail. */}
       {error ? (
         <span
           role="alert"

@@ -516,9 +516,15 @@ export default async function registerReportsRoutes(
               downloadable: pkg !== null,
               latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },
-            newVersion: loaded
-              ? { action: loaded.actions.newVersion.action, reason: loaded.actions.newVersion.reason }
-              : { action: "NONE" as const, reason: "PERMISSION_DENIED" as const },
+            /*
+             * THE ORDINARY REPORTS ROW NEVER OFFERS AN UPDATED REPORT
+             * (2026-09-29). A complete pair on this row opened "Issue updated
+             * report (version N)". An updated report is an exceptional,
+             * reasoned issuance that belongs to the record (Evidence Detail),
+             * where its reason, issue date, storage and earlier versions are
+             * shown. The row's projection says so, so no client can render it.
+             */
+            newVersion: { action: "NONE" as const, reason: "NOT_REQUIRED" as const },
             pollIntervalMs:
               loaded &&
               [loaded.reportRequest?.state, loaded.packageRequest?.state].some(
