@@ -286,21 +286,26 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/operations/index.tsx:388",
+      "site": "apps/mobile/app/(stack)/operations/index.tsx:391",
+      "match": {
+        "method": "POST",
+        "caller": "OperationsScreen",
+        "path": "/v1/ops/incidents/<interp>/<interp>"
+      },
       "helper": "buildOpsLifecyclePath(id, action) — action is LifecycleAction (\"ack\" | \"resolve\" | \"suppress\")",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/operations/index.tsx:388",
-        "apps/mobile/app/(stack)/operations/index.tsx:451",
-        "apps/mobile/app/(stack)/operations/index.tsx:452",
-        "apps/mobile/app/(stack)/operations/index.tsx:453"
+        "apps/mobile/app/(stack)/operations/index.tsx:391",
+        "apps/mobile/app/(stack)/operations/index.tsx:454",
+        "apps/mobile/app/(stack)/operations/index.tsx:455",
+        "apps/mobile/app/(stack)/operations/index.tsx:456"
       ],
       "routes": [
         "POST /v1/ops/incidents/:id/ack",
         "POST /v1/ops/incidents/:id/resolve",
         "POST /v1/ops/incidents/:id/suppress"
       ],
-      "evidence": "lifecycle(id, \"ack\" | \"resolve\" | \"suppress\") at :451-453; LifecycleAction is declared in apps/mobile/src/product/ops-console.ts:372.",
-      "reviewedAtUtc": "2026-09-25"
+      "evidence": "lifecycle(id, \"ack\" | \"resolve\" | \"suppress\") at :454-456; LifecycleAction is declared in apps/mobile/src/product/ops-console.ts:372. Re-read 2026-09-29 after ET-REC-04 added three imports above the call (line 388 -> 391); a match block now names the call independent of its line.",
+      "reviewedAtUtc": "2026-09-29"
     },
     {
       "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:243",

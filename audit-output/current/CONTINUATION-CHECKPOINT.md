@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1305
-ROUTE_ATTRIBUTED_REACHABLE                  1167
+TerminalWriters                             1304
+ROUTE_ATTRIBUTED_REACHABLE                  1166
 JOB_ATTRIBUTED_REACHABLE                     119
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -566,3 +566,16 @@ node services/api/scripts/audit/index.mjs --closure-check
   had changed path, not behaviour.
 - ET-CUS-02..14 add custody writes inside existing transactions (same writer
   sites); no other bucket moves.
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION B8: REPORTS / RECOVERY (writers 1305 -> 1304)
+
+- ET-REC-09: the communications retry and cancel-retry routes each wrote
+  `communicationMessage.update` after a separate read; both now reach
+  `transitionCommunicationForOperator` (one conditional `updateMany` + tenant
+  audit in one transaction) (-2, +1). TerminalWriters 1305 -> 1304,
+  ROUTE_ATTRIBUTED_REACHABLE 1167 -> 1166.
+- consumer-resolutions: the reviewed answer for the mobile Operations
+  lifecycle call follows it (388 -> 391 after ET-REC-04's imports) and gains a
+  line-independent `match` block.
+- The other B8 fixes change reads, projections, copy and worker return values;
+  no other bucket moves.

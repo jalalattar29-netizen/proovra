@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "07c14ba7f8b2fa505b7eb84811af0026423b8c0d089fabbede70c4b05df07a6b",
   "totals": {
     "routes": 1170,
-    "routesWithAnyTestCaller": 40,
+    "routesWithAnyTestCaller": 41,
     "testOnlyRoutes": 3,
-    "testCallSites": 70,
+    "testCallSites": 71,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -5982,9 +5982,11 @@
     },
     {
       "routeId": "POST /v1/ops/incidents/:id/remediate",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/operations-remediation-outcome-envelope.test.ts"
+      ]
     },
     {
       "routeId": "POST /v1/ops/incidents/:id/resolve",
@@ -7119,5 +7121,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "352782826327af7b1b0be709d6511327d337d555f505c16d94b22c80f6ea3830"
+  "contentHash": "8586bcfd61ffbc868490107261caaa36c5a1646bdddd08c00666fb5014c33827"
 }

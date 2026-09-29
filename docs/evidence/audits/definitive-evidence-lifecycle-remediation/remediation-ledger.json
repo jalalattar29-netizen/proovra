@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 54,
+    "FIXED_IN_THIS_TASK": 73,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 99,
+    "STILL_PRESENT": 80,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 56,
-      "P3": 43
+      "P2": 50,
+      "P3": 30
     }
   },
   "openIds": {
@@ -54,12 +54,6 @@
       "ET-Q-04",
       "ET-Q-05",
       "ET-Q-06",
-      "ET-REC-02",
-      "ET-REC-03",
-      "ET-REC-04",
-      "ET-RPT-01",
-      "ET-RPT-02",
-      "ET-RPT-03",
       "ET-SEC-11",
       "ET-SEC-13",
       "ET-SEC-14",
@@ -104,19 +98,6 @@
       "ET-Q-08",
       "ET-Q-09",
       "ET-Q-10",
-      "ET-REC-01",
-      "ET-REC-05",
-      "ET-REC-06",
-      "ET-REC-07",
-      "ET-REC-08",
-      "ET-REC-09",
-      "ET-REC-10",
-      "ET-REC-11",
-      "ET-RPT-04",
-      "ET-RPT-05",
-      "ET-RPT-06",
-      "ET-RPT-07",
-      "ET-RPT-09",
       "ET-SEC-28",
       "ET-SEC-29",
       "ET-SEC-30",
@@ -1526,6 +1507,7 @@
       "productFiles": [
         "services/api/prisma/migrations/20280804000000_custody_chain_transfer_event/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/routes/product-and-lifecycle.routes.ts",
         "services/api/src/services/exchange/chain-transfer.service.ts",
@@ -1538,7 +1520,8 @@
       "migrationImpact": "20280804000000_custody_chain_transfer_event: enum value CHAIN_TRANSFER_CUSTODY_EXTENDED (EXPAND)",
       "compatibilityImpact": "none",
       "commits": [
-        "b916261bf1 fix(custody): chain-of-custody transfers reach the custody chain, bound to the workspace (ET-CUS-02)"
+        "b916261bf1 fix(custody): chain-of-custody transfers reach the custody chain, bound to the workspace (ET-CUS-02)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1561,6 +1544,7 @@
         "packages/shared-runtime/src/governance/effective-legal-hold.ts",
         "packages/shared-runtime/src/governance/legal-hold-custody.ts",
         "packages/shared-runtime/src/index.ts",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/services/governance/legal-hold.service.ts",
         "services/worker/src/index.ts"
       ],
@@ -1571,7 +1555,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "33ad2d5f17 fix(custody): every record a legal hold covers shows it on its custody chain (ET-CUS-03)"
+        "33ad2d5f17 fix(custody): every record a legal hold covers shows it on its custody chain (ET-CUS-03)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1595,6 +1580,7 @@
       "productFiles": [
         "packages/shared-runtime/src/custody/custody-chain.ts",
         "services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/scripts/seed-home-personas.ts"
       ],
       "redTest": "services/api/test/custody-append-only.integration.test.ts (evidence/cus04-red-baseline.txt: UPDATE/DELETE accepted; stripped chain 'legacy')",
@@ -1604,7 +1590,8 @@
       "migrationImpact": "20280805000000_custody_append_only: function + two triggers (EXPAND; no row rewritten)",
       "compatibilityImpact": "tests that simulate tampering disable the trigger explicitly",
       "commits": [
-        "27fca6ef77 fix(custody): custody and the platform audit chain are append-only in the database; a stripped chain does not verify (ET-CUS-04)"
+        "27fca6ef77 fix(custody): custody and the platform audit chain are append-only in the database; a stripped chain does not verify (ET-CUS-04)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1628,6 +1615,7 @@
       "productFiles": [
         "packages/shared-runtime/src/audit/admin-audit-chain.ts",
         "packages/shared-runtime/src/index.ts",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/services/platform-audit-log.service.ts",
         "services/worker/src/lib/admin-audit-chain.ts",
         "services/worker/src/platform-audit-append.ts"
@@ -1639,7 +1627,9 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "3360fc9288 fix(audit): one platform-audit append; createdAt strictly increasing so the chain cannot fork (ET-CUS-05)"
+        "3360fc9288 fix(audit): one platform-audit append; createdAt strictly increasing so the chain cannot fork (ET-CUS-05)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated",
+        "d4af564e42 test(audit): fakes keep the chain head's createdAt; convergence guards scan shared-runtime and any receiver"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1661,6 +1651,7 @@
       "canonicalAuthority": "services/worker custody-issuance-cutoff custodyThroughIssuance (sequence prefix through the issuance event)",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/worker/src/custody-issuance-cutoff.ts",
         "services/worker/src/exchange-package-builder.ts",
         "services/worker/src/processor.ts"
@@ -1672,7 +1663,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)"
+        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1695,6 +1687,7 @@
         "packages/shared/src/redaction.ts",
         "services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-review/reviewer-audit.service.ts",
         "services/api/src/services/evidence/artifact-download-gate.service.ts",
@@ -1709,7 +1702,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)",
-        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)"
+        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1734,6 +1728,7 @@
         "packages/shared/src/index.ts",
         "services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/evidence.routes.ts",
         "services/worker/src/governance/retention-reconciliation.worker.ts",
         "services/worker/src/report-v2/normalizers.ts"
@@ -1745,7 +1740,8 @@
       "migrationImpact": "20280806000000_custody_unlock_and_retention_extension: enum values (EXPAND)",
       "compatibilityImpact": "none",
       "commits": [
-        "d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)"
+        "d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1764,6 +1760,7 @@
       "canonicalAuthority": "services/worker exchange-package-builder: full chain with payloads + hash formula; per-evidence failure throws EXCHANGE_EVIDENCE_READ_FAILED",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/worker/src/custody-issuance-cutoff.ts",
         "services/worker/src/exchange-package-builder.ts",
         "services/worker/src/processor.ts"
@@ -1775,7 +1772,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)"
+        "24a30ca91c fix(package): custody exports are complete, contiguous and recomputable (ET-CUS-06, ET-CUS-09)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1798,6 +1796,7 @@
         "packages/shared/src/index.ts",
         "services/api/prisma/migrations/20280806000000_custody_unlock_and_retention_extension/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence/artifact-download-gate.service.ts",
         "services/worker/src/governance/retention-reconciliation.worker.ts",
@@ -1811,7 +1810,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "d917c7387a fix(custody): unlock and policy retention extension are custody facts; only workspace use extends retention (ET-CUS-08, ET-CUS-10)",
-        "2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)"
+        "2ac81f7b1f fix(custody): every response that releases original bytes leaves a custody fact (ET-CUS-07)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -1834,6 +1834,7 @@
       "canonicalAuthority": "@proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create) in the mutation's transaction (publication, certification, finalization governance, retention sweeper); swallowCustodyAppendError for non-mutating facts",
       "obsoleteRemoved": "the route-level post-commit appends in the certification routes; the .catch(() => null) custody appends",
       "productFiles": [
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-certification.service.ts",
@@ -1849,7 +1850,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)"
+        "426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2626,20 +2628,31 @@
         "services/api/src/services/operations/source-truth-recovery.service.ts:250",
         "services/api/src/services/operations/remediation-registry.ts:425"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Probe/fingerprint shape mismatch plus category-level remediation mapping.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The OTS:<id>:GLOBAL_BUDGET_EXHAUSTED incident was NOT_APPLICABLE to its probe forever and carried false WORKER guidance with no action.",
+      "canonicalAuthority": "shared parseOtsBudgetExhaustedFingerprint: the OTS probe resolves it when otsStatus leaves FAILED; entryForIncident routes it to the ots_failure entry",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/index.ts",
+        "packages/shared/src/ots.ts",
+        "services/api/src/routes/ops.routes.ts",
+        "services/api/src/services/integrity/ots-anchoring-authority.service.ts",
+        "services/api/src/services/operations/operations-source-probes.ts",
+        "services/api/src/services/operations/remediation-executor.ts",
+        "services/api/src/services/operations/remediation-registry.ts",
+        "services/worker/src/ots-state.ts"
+      ],
+      "redTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-02] (evidence/ET-REC-01-02-06-red-baseline.txt)",
+      "greenTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-02: offered Resume; stays open while failing; resolves when anchored]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-03",
@@ -2652,20 +2665,25 @@
         "services/api/src/services/reports/output-recovery.service.ts:535",
         "packages/shared-runtime/src/reports/report-generation-request.ts:253"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The 2026-09-29 writer change was applied to the writer and one executor branch, not to the facts loader.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The output facts set workspaceResolved from team_id alone, withdrawing Generate/Recover/Retry for team_id-NULL Personal records the writer and worker accept.",
+      "canonicalAuthority": "@proovra/shared-runtime resolveEvidenceWorkspaceIds (batched; resolveEvidenceWorkspaceId delegates) used by loadEvidenceOutputFacts",
+      "obsoleteRemoved": "the operator path's local workspace compensation in requestOutputRecovery",
+      "productFiles": [
+        "packages/shared-runtime/src/workspace-scope.ts",
+        "services/api/src/services/reports/output-recovery.service.ts"
+      ],
+      "redTest": "services/api/test/output-facts-null-team-workspace.integration.test.ts (evidence/ET-REC-03-red-baseline.txt)",
+      "greenTest": "services/api/test/output-facts-null-team-workspace.integration.test.ts; services/api/test/artifact-action-contract.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "7726a1b540 fix(outputs): one workspace-resolution rule for the output projection and the writer (ET-REC-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-04",
@@ -2677,20 +2695,25 @@
         "apps/mobile/app/(stack)/operations/index.tsx:1164",
         "services/api/src/routes/ops.routes.ts:1576"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Projection field dropped in mobile parser.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The mobile parser dropped requiresReason and the remediate call sent no reason (400 remediation_reason_required).",
+      "canonicalAuthority": "mobile ops-console buildRemediateBody + remediationReasonReady; the inspector collects the reason",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/app/(stack)/operations/index.tsx",
+        "apps/mobile/src/product/ops-console.ts"
+      ],
+      "redTest": "apps/mobile/test/ops-remediation-reason.test.mjs (evidence/ET-REC-04-red-baseline.txt)",
+      "greenTest": "apps/mobile/test/ops-remediation-reason.test.mjs",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "2223b6502a fix(mobile): Operations collects the reason an action requires before sending it (ET-REC-04)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-01",
@@ -2705,20 +2728,30 @@
         "packages/shared/src/evidence-output-lifecycle.ts:1116",
         "apps/web/components/reports-experience/ReportsIndex.tsx:1255"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two consumers of the same facts: the state derivation ranks artifact availability above generation failure; the action resolver consults afterLatestReport failures. The page's card set is built only from the state.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A failed updated-report request on a record with a report was classified READY only; no card or filter found the failure the row's Retry/escalation signalled.",
+      "canonicalAuthority": "reports-aggregator classifyWorkspaceOutputs reportUpdateFailed (READY + latest report request failed) → reportsUpdateFailed card, report_update_failed filter, row report.updateFailed",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/src/product/reports.ts",
+        "apps/web/components/reports-experience/ReportsIndex.tsx",
+        "apps/web/components/reports-experience/types.ts",
+        "packages/shared/src/evidence-output-lifecycle.ts",
+        "packages/shared/src/output-action-copy.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/services/reports/reports-aggregator.service.ts"
+      ],
+      "redTest": "services/api/test/reports-blocked-update-failed.integration.test.ts (evidence/ET-RPT-01-02-04-05-06-red-baseline.txt)",
+      "greenTest": "services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-01]; services/api/test/reports-summary-filter-parity.integration.test.ts (tile = filter total); apps/web/__tests__/reports-lifecycle-deep-link.test.ts; apps/mobile/test/reports.test.mjs",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "additive summary field + filter; web/mobile feature-detect them (web deploys before the API)",
+      "commits": [
+        "717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-02",
@@ -2732,20 +2765,30 @@
         "services/api/src/services/reports/reports-aggregator.service.ts:1212",
         "apps/web/components/reports-experience/ReportsIndex.tsx:1349"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Legacy five-value vocabulary maps request-level BLOCKED to not_requested; the package 'blocked' label is keyed on governance metadata, not on the canonical state the card counts.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Request-level BLOCKED was in no report bucket and read 'not requested'; the package row read 'not requested' unless the gate metadata flag was set while its tile counted it blocked.",
+      "canonicalAuthority": "toReportLifecycle/toPackageLifecycle: canonical BLOCKED → 'blocked' (server, web fallback, mobile fallback); reportsBlocked card + report_blocked filter",
+      "obsoleteRemoved": "the case-workspace route's hand-kept lifecycle enum (derived from REPORT_LIFECYCLE_FILTERS)",
+      "productFiles": [
+        "apps/mobile/src/product/reports.ts",
+        "apps/web/components/reports-experience/ReportsIndex.tsx",
+        "apps/web/components/reports-experience/types.ts",
+        "packages/shared/src/evidence-output-lifecycle.ts",
+        "packages/shared/src/output-action-copy.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/services/reports/reports-aggregator.service.ts"
+      ],
+      "redTest": "services/api/test/reports-blocked-update-failed.integration.test.ts (evidence/ET-RPT-01-02-04-05-06-red-baseline.txt: 'not_requested' to be 'blocked')",
+      "greenTest": "services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-02: every row the Packages blocked card opens says blocked]; apps/mobile/test/reports.test.mjs",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-03",
@@ -2757,20 +2800,28 @@
         "services/worker/src/config.ts:78",
         "services/worker/src/report-v2/sections/lifecycle-summary.ts:111"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Storage-layer field reused as the legal-hold statement after S3 legal hold was retired; canonical section never wired.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The report's only legal-hold row printed the inert S3 object-lock legal-hold header (default OFF) and never read the canonical hold.",
+      "canonicalAuthority": "worker finalized report path: evaluateEffectiveLegalHold → ReportRecordLegalHold (ACTIVE/NONE/UNAVAILABLE) → reportLegalHoldLabel; storage header its own 'Storage Object Lock legal hold' row",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/custody-labels.ts",
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-v2/build-view-model.ts",
+        "services/worker/src/report-v2/custody-model.ts",
+        "services/worker/src/report-v2/types.ts"
+      ],
+      "redTest": "services/worker/test/report-legal-hold-truth.test.ts (evidence/ET-RPT-03-red-baseline.txt)",
+      "greenTest": "services/worker/test/report-legal-hold-truth.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-11",
@@ -3715,6 +3766,7 @@
         "packages/shared/src/redaction.ts",
         "services/api/prisma/migrations/20280807000000_custody_redaction_and_review/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/services/evidence-review/reviewer-audit.service.ts",
         "services/api/src/services/redaction/redaction-activity.service.ts",
         "services/worker/src/report-v2/normalizers.ts"
@@ -3726,7 +3778,8 @@
       "migrationImpact": "20280807000000_custody_redaction_and_review: enum values (EXPAND)",
       "compatibilityImpact": "none",
       "commits": [
-        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)"
+        "60cc9d95b0 fix(custody): released redactions and review decisions reach the record's custody chain (ET-CUS-12)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3756,6 +3809,7 @@
         "packages/shared/src/index.ts",
         "services/api/prisma/migrations/20280808000000_custody_retention_policy_applied/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/evidence-certification.service.ts",
@@ -3765,7 +3819,11 @@
         "services/api/src/services/governance/finalization-governance.service.ts",
         "services/api/src/services/governance/publication.service.ts",
         "services/api/src/services/governance/retention-sweeper.service.ts",
-        "services/worker/src/report-v2/normalizers.ts"
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-v2/build-view-model.ts",
+        "services/worker/src/report-v2/custody-model.ts",
+        "services/worker/src/report-v2/normalizers.ts",
+        "services/worker/src/report-v2/types.ts"
       ],
       "redTest": "services/api/test/custody-timeline-latest.integration.test.ts (evidence/ET-CUS-13-red-baseline.txt: expected 499 to be 510); services/api/test/custody-append-no-silent-catch.test.ts widened (found the intake-lineage silent catch)",
       "greenTest": "services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code)",
@@ -3775,7 +3833,9 @@
       "compatibilityImpact": "custodyLifecycle gains truncated/displayLimit; the lists are the latest 500 per class",
       "commits": [
         "426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11)",
-        "67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13)"
+        "67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated",
+        "0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3795,8 +3855,12 @@
       "canonicalAuthority": "platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/scripts/capability-authority/tenant-binding.mjs",
+        "services/api/src/routes/admin-security.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/audit/tenant-audit.service.ts",
+        "services/api/src/services/operations/remediation-executor.ts",
+        "services/api/src/services/operations/remediation-registry.ts",
         "services/api/src/services/platform-audit-log.service.ts"
       ],
       "redTest": "services/api/test/audit-request-context-columns.integration.test.ts (evidence/ET-CUS-14-red-baseline.txt)",
@@ -3806,7 +3870,9 @@
       "migrationImpact": "none (historic rows stay sealed; mask on read)",
       "compatibilityImpact": "none",
       "commits": [
-        "d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14)"
+        "d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14)",
+        "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated",
+        "98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -4255,29 +4321,38 @@
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:94",
         "services/api/src/services/operations/remediation-executor.ts:270"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Adapter reads only `enqueued`, not `collapsed`.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "requestEvidenceOtsAnchoring ignored enqueue's { enqueued: true, collapsed: true }, so a collapse answered QUEUED with a success audit.",
+      "canonicalAuthority": "ots-anchoring-authority: collapsed → { requested: false, reason: 'collapsed' } → executor ALREADY_IN_PROGRESS",
       "obsoleteRemoved": null,
       "productFiles": [
         "packages/shared-runtime/src/ops/metrics.service.ts",
+        "packages/shared/src/index.ts",
+        "packages/shared/src/ots.ts",
         "packages/shared/src/queue-integrity/enqueue.ts",
+        "services/api/src/routes/ops.routes.ts",
+        "services/api/src/services/integrity/ots-anchoring-authority.service.ts",
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+        "services/api/src/services/operations/operations-source-probes.ts",
+        "services/api/src/services/operations/remediation-executor.ts",
+        "services/api/src/services/operations/remediation-registry.ts",
         "services/worker/src/ots-initialization-reconciler.ts",
+        "services/worker/src/ots-state.ts",
         "services/worker/src/ots-upgrade.processor.ts",
         "services/worker/src/queue.ts"
       ],
-      "redTest": null,
-      "greenTest": null,
+      "redTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-01] (evidence/ET-REC-01-02-06-red-baseline.txt)",
+      "greenTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-01]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered"
+        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered",
+        "a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)"
       ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-05",
@@ -4289,20 +4364,25 @@
         "apps/web/app/(app)/operations/page.tsx:1246",
         "services/api/src/services/operations/remediation-executor.ts:84"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Error body shape not read by the web page.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Non-2xx remediate answers were a bare { remediation } body the web apiFetch cannot lift, so the server's outcome became 'could not be started'.",
+      "canonicalAuthority": "ops.routes remediate: non-2xx also sends error { code: remediation_<result>, message, remediation }; operations/page.tsx shows it",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/(app)/operations/page.tsx",
+        "services/api/src/routes/ops.routes.ts"
+      ],
+      "redTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-06 envelope] + apps/web/__tests__/operations-remediation-outcome-envelope.test.ts (evidence/ET-REC-05-red-baseline.txt)",
+      "greenTest": "apps/web/__tests__/operations-remediation-outcome-envelope.test.ts (real apiFetch)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "51797a4ddc fix(operations): a refused, ineligible or queue-unavailable remediation shows the server's answer on web (ET-REC-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-06",
@@ -4314,20 +4394,31 @@
         "services/worker/src/ots-upgrade.processor.ts:400",
         "services/worker/src/ots-state.ts:186"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Executor precheck only knows ANCHORED/UPGRADED.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Resume OTS anchoring was offered and answered QUEUED for a permanently invalid proof the worker skips.",
+      "canonicalAuthority": "@proovra/shared OTS_PERMANENT_PROOF_FAILURES (worker re-exports); registry drops Resume from the record's facts; executor NOT_ELIGIBLE",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared/src/index.ts",
+        "packages/shared/src/ots.ts",
+        "services/api/src/routes/ops.routes.ts",
+        "services/api/src/services/integrity/ots-anchoring-authority.service.ts",
+        "services/api/src/services/operations/operations-source-probes.ts",
+        "services/api/src/services/operations/remediation-executor.ts",
+        "services/api/src/services/operations/remediation-registry.ts",
+        "services/worker/src/ots-state.ts"
+      ],
+      "redTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-06] (evidence/ET-REC-01-02-06-red-baseline.txt)",
+      "greenTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-06]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "a35244ea60 fix(operations): OTS remediation answers match what the worker will do (ET-REC-01, -02, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-07",
@@ -4338,20 +4429,26 @@
         "services/api/src/routes/admin-security.routes.ts:719",
         "services/api/src/services/operations/remediation-executor.ts:177"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two ad hoc mappings.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Workspace and platform remediation derived the audit outcome differently (refusals as success; intent-already-met as error).",
+      "canonicalAuthority": "remediation-registry remediationAuditOutcome (both paths)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/admin-security.routes.ts",
+        "services/api/src/services/operations/remediation-executor.ts",
+        "services/api/src/services/operations/remediation-registry.ts"
+      ],
+      "redTest": "services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-07] + services/api/test/remediation-audit-outcome.test.ts (evidence/ET-REC-07-red-baseline.txt)",
+      "greenTest": "services/api/test/remediation-audit-outcome.test.ts; services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-07]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-08",
@@ -4363,20 +4460,25 @@
         "services/worker/src/report-generation-authority.ts:160",
         "services/worker/src/processor.ts:5334"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Transport-level retry is independent of the durable authority.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Queue retry/replay of a GenerateReportJob whose durable request is settled reported success while the worker no-ops.",
+      "canonicalAuthority": "queue-replay-action settledReportRequestFor (SETTLED_REPORT_REQUEST_STATES) → 409 report_request_settled",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/operations-queues.routes.ts",
+        "services/api/src/services/operations/queue-replay-action.service.ts"
+      ],
+      "redTest": "services/api/test/runtime-proof-operations.integration.test.ts [ET-REC-08] (evidence/ET-REC-08-red-baseline.txt)",
+      "greenTest": "services/api/test/runtime-proof-operations.integration.test.ts [ET-REC-08]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "580c5eb20f fix(operations): a report job whose request is settled cannot be \"replayed\" into a no-op (ET-REC-08)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-09",
@@ -4387,20 +4489,24 @@
         "services/api/src/routes/communications.routes.ts:307",
         "services/api/src/routes/communications.routes.ts:330"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Route predates audit/claim conventions.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Communications manual retry/cancel wrote no audit and updated by id after a separate read.",
+      "canonicalAuthority": "communications.routes transitionCommunicationForOperator (conditional updateMany + tenant audit in one transaction)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/communications.routes.ts"
+      ],
+      "redTest": "services/api/test/communications-retry-audit.integration.test.ts (evidence/ET-REC-09-red-baseline.txt)",
+      "greenTest": "services/api/test/communications-retry-audit.integration.test.ts",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/communications-retry-audit.integration.test.ts [two concurrent cancels: one applies, one audited]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "9cc1e1b56a fix(communications): manual re-send and cancel are audited and conditional on the state read (ET-REC-09)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-10",
@@ -4413,20 +4519,24 @@
         "packages/shared/src/queue-integrity/retry-policy.ts:69",
         "services/worker/src/report-generation-authority.ts:88"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two retry budgets.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "BullMQ's per-run exhaustion (attempt 5) opened a 'retry budget exhausted' incident while the durable 12-claim budget kept the request retryable.",
+      "canonicalAuthority": "one budget: report-generation-authority opens the exhausted incident at FAILED_TERMINAL (REPORT_RECONCILE_MAX_ATTEMPTS)",
+      "obsoleteRemoved": "the per-run HIGH recordReportFailureIncident in the worker's retry-exhausted DLQ branch",
+      "productFiles": [
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/point5/report-package-recovery.integration.test.ts [ET-REC-10] (evidence/ET-REC-10-red-baseline.txt)",
+      "greenTest": "services/api/test/point5/report-package-recovery.integration.test.ts [ET-REC-10 + D3]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "9e8a0514b0 fix(worker): one retry budget — no \"budget exhausted\" incident while the durable request is still retryable (ET-REC-10)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-REC-11",
@@ -4437,20 +4547,25 @@
         "services/api/src/services/reports/report-generation-authority.service.ts:353",
         "services/api/src/services/automation/automation-triggers.ts:123"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Trigger bound to request creation by design (ARCH-005 comment).",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "EVIDENCE_REPORTED fired per API-side generation request (before any report, keyed by request id) and never for worker first issuance.",
+      "canonicalAuthority": "automation-triggers detectTimeBasedAutomationTriggers: EVIDENCE_REPORTED detected from issued Report rows (report.issued:<reportId>), workspace by resolveEvidenceWorkspaceIds",
+      "obsoleteRemoved": "triggerEvidenceReported and its request-time call",
+      "productFiles": [
+        "services/api/src/services/automation/automation-triggers.ts",
+        "services/api/src/services/reports/report-generation-authority.service.ts"
+      ],
+      "redTest": "services/api/test/automation-evidence-reported-issued.integration.test.ts (evidence/ET-REC-11-red-baseline.txt)",
+      "greenTest": "services/api/test/automation-evidence-reported-issued.integration.test.ts; services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "owner question answered by the product contract ('Report generated'); rules now fire on issuance, up to one sweep interval later",
+      "commits": [
+        "b73bfbd586 fix(automation): EVIDENCE_REPORTED fires once per issued report, never per generation request (ET-REC-11)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-04",
@@ -4461,20 +4576,30 @@
         "services/api/src/services/reports/reports-aggregator.service.ts:750",
         "services/api/src/services/reports/reports-aggregator.service.ts:912"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Fallback constant reuses PERMISSION_DENIED.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A failed batched facts read gave every row NONE/PERMISSION_DENIED ('Needs permission') while the section said ok and polling stopped.",
+      "canonicalAuthority": "shared OUTPUT_ACTION_UNAVAILABLE_REASONS ACTIONS_UNAVAILABLE (+ copy); aggregator: degraded section, 15 s poll",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/src/product/reports.ts",
+        "apps/web/components/reports-experience/ReportsIndex.tsx",
+        "apps/web/components/reports-experience/types.ts",
+        "packages/shared/src/evidence-output-lifecycle.ts",
+        "packages/shared/src/output-action-copy.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/services/reports/reports-aggregator.service.ts"
+      ],
+      "redTest": "services/api/test/reports-blocked-update-failed.integration.test.ts (evidence/ET-RPT-01-02-04-05-06-red-baseline.txt: 'ok' to be 'degraded')",
+      "greenTest": "services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-04]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-05",
@@ -4485,20 +4610,30 @@
         "apps/web/components/reports-experience/ReportsIndex.tsx:384",
         "apps/web/components/reports-experience/ReportsIndex.tsx:321"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "No 'loading' member in the summary section state; fallback has no summary source.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The summary started 'unavailable' (shown during load) and on the user-scoped fallback said 'temporarily unavailable' forever.",
+      "canonicalAuthority": "ReportsIndex summaryAnswered (loading phase) + fallback-view notice",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/src/product/reports.ts",
+        "apps/web/components/reports-experience/ReportsIndex.tsx",
+        "apps/web/components/reports-experience/types.ts",
+        "packages/shared/src/evidence-output-lifecycle.ts",
+        "packages/shared/src/output-action-copy.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/services/reports/reports-aggregator.service.ts"
+      ],
+      "redTest": "apps/web/__tests__/reports-lifecycle-deep-link.test.ts [ET-RPT-05/06] (evidence/ET-RPT-01-02-04-05-06-red-baseline.txt)",
+      "greenTest": "apps/web/__tests__/reports-lifecycle-deep-link.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-06",
@@ -4509,20 +4644,30 @@
         "apps/web/components/reports-experience/ReportsIndex.tsx:1244",
         "apps/web/components/reports-experience/ReportsIndex.tsx:1462"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "tone ignored.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The Reports row discarded readGenerationOutcome().tone and styled every outcome success-green.",
+      "canonicalAuthority": "readGenerationOutcome tone → app-status-text data-tone (GENERATION_OUTCOME_STATUS_TONE)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/src/product/reports.ts",
+        "apps/web/components/reports-experience/ReportsIndex.tsx",
+        "apps/web/components/reports-experience/types.ts",
+        "packages/shared/src/evidence-output-lifecycle.ts",
+        "packages/shared/src/output-action-copy.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/services/reports/reports-aggregator.service.ts"
+      ],
+      "redTest": "apps/web/__tests__/reports-lifecycle-deep-link.test.ts [ET-RPT-05/06]",
+      "greenTest": "apps/web/__tests__/reports-lifecycle-deep-link.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "717dad0252 fix(reports): blocked and updated-report failures have a row, card and filter; unreadable facts are not a permission claim (ET-RPT-01, -02, -04, -05, -06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-07",
@@ -4533,20 +4678,24 @@
         "services/worker/src/processor.ts:3079",
         "services/worker/src/processor.ts:3088"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Run result not returned to caller.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A succeeded request recorded the newest report as its result with code 'generated', whatever the run produced or targeted.",
+      "canonicalAuthority": "worker runReportGeneration → ReportRunResult (generated / package_built / pair_complete / already_issued) → resultReportId = that (evidence, version) row",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/point5/report-package-recovery.integration.test.ts [EXACT VERSION, pair-complete retry] (evidence/ET-RPT-07-red-baseline.txt)",
+      "greenTest": "services/api/test/point5/report-package-recovery.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "df2a28cef1 fix(worker): a succeeded report request records the report it produced or targeted, and how (ET-RPT-07)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-RPT-09",
@@ -4558,20 +4707,24 @@
         "packages/shared/src/trust-decision.ts:1315",
         "services/worker/src/report-v2/truth-model.ts:122"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Signal status not split by resolveOtsAnchorClaim result.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The executive conclusion said 'finalized supporting publication materials' for an OTS anchor not checked against the chain.",
+      "canonicalAuthority": "truth-model buildExecutiveConclusion reads the bitcoin_anchoring signal's ANCHORED_NOT_CHECKED claim (OTS_ANCHOR_CLAIM_LABELS); scoring unchanged",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/report-v2/truth-model.ts"
+      ],
+      "redTest": "services/worker/test/report-anchoring-conclusion.test.ts (evidence/ET-RPT-09-red-baseline.txt)",
+      "greenTest": "services/worker/test/report-anchoring-conclusion.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "4d105329a6 fix(report): the executive conclusion does not call an unchecked OTS anchor \"finalized\" (ET-RPT-09)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-28",
