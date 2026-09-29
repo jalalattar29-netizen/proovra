@@ -814,6 +814,20 @@ export async function completeDirectCapture(input: {
       endReason: "COMPLETED",
     },
   });
+  if (claim.count !== 1) {
+    // ET-DC-01: only a session that IS bound to this record may be answered as
+    // bound. A session a discard ended is not — never report bound:true for it.
+    const current = await db.captureSession.findUnique({
+      where: { id: session.id },
+      select: { status: true, finalizedEvidenceId: true },
+    });
+    if (
+      current?.status !== prismaPkg.CaptureSessionStatus.BOUND ||
+      current.finalizedEvidenceId !== evidenceId
+    ) {
+      throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+    }
+  }
   if (claim.count === 1) {
     const head = await db.captureTrustEventRecord.findFirst({
       where: { teamId: session.teamId!, captureSessionId: session.id },
@@ -932,6 +946,17 @@ export async function discardDirectCaptureSession(
       select: { id: true, status: true, finalizedEvidenceId: true },
     });
     if (!fresh) throw new DirectCaptureError("SESSION_NOT_FOUND");
+    // ET-DC-01: and against FINALIZATION of the reserved record, which holds
+    // the evidence lock (evidence-complete.service) for its whole transaction.
+    // Without it a discard sent while finalization was hashing released the
+    // reservation underneath it: the record was signed after being deleted, or
+    // the two transactions deadlocked. Taken BEFORE anything is read or
+    // written, so the status checks below see finalization's committed result.
+    // Lock order: capture session, then evidence — finalization never takes
+    // the session lock.
+    if (fresh.finalizedEvidenceId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fresh.finalizedEvidenceId}))`;
+    }
     if (fresh.status === prismaPkg.CaptureSessionStatus.BOUND) {
       throw new DirectCaptureError("SESSION_NOT_ACTIVE");
     }

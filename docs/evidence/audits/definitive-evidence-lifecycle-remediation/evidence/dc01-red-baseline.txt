@@ -1,0 +1,70 @@
+
+> proovra-api@1.0.0 test:integration:run D:\pv-evidence-remediation\services\api
+> vitest run --config vitest.integration.config.ts "test/direct-capture-discard-race.integration.test.ts"
+
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mD:/pv-evidence-remediation/services/api[39m
+
+{"level":"info","msg":"otel.bootstrap_started","serviceName":"proovra-api","endpointConfigured":false,"protocol":"http/protobuf"}
+{"level":"info","msg":"otel.bootstrap_disabled","reason":"OTEL_ENABLED not true","defaultServiceName":"proovra-api"}
+[90mstderr[2m | test/direct-capture-discard-race.integration.test.ts[2m > [22m[2mdirect capture: discard racing completion (live PostgreSQL 16)
+[22m[39m{"level":"warn","event":"ai.provider.unavailable","reason":"PROVIDER_NOT_CONFIGURED","detail":"OPENAI_AI_ENABLED is not 'true' or no API key is available to this process."}
+
+[90mstderr[2m | test/direct-capture-discard-race.integration.test.ts[2m > [22m[2mdirect capture: discard racing completion (live PostgreSQL 16)
+[22m[39m{"level":"warn","event":"ai.provider.unavailable","reason":"PROVIDER_NOT_CONFIGURED","detail":"OPENAI_AI_ENABLED is not 'true' or no API key is available to this process."}
+
+{"level":30,"time":1790698872395,"service":"api","mode":"disabled","msg":"aws_secrets.disabled"}
+{"level":30,"time":1790698872395,"service":"api","snapshot":{"nodeEnv":"test","isProduction":false,"database":{"configured":true,"reason":null},"authJwt":{"configured":true,"reason":null},"communications":{"configured":false,"reason":"COMMUNICATIONS_ENABLED_off","twilio":{"configured":false,"reason":"missing:TWILIO_ACCOUNT_SID,TWILIO_API_KEY,TWILIO_API_SECRET"},"verify":{"configured":false,"reason":"TWILIO_VERIFY_SERVICE_SID_missing"},"recipientHashSecret":{"configured":true,"reason":null}},"identitySecurity":{"configured":false,"reason":"IDENTITY_SECURITY_ENABLED_off","hashSecret":{"configured":true,"reason":null}},"notifications":{"configured":false,"reason":"NOTIFICATIONS_ENABLED_off","resend":{"configured":true,"reason":null},"idempotencySecret":{"configured":true,"reason":null}},"ai":{"configured":false,"reason":"OPENAI_AI_ENABLED_off"},"integrations":{"configured":false,"reason":"INTEGRATIONS_ENABLED_off"},"cronSecrets":{"notification":{"configured":false,"reason":"NOTIFICATION_CRON_SECRET_missing"},"integration":{"configured":false,"reason":"INTEGRATION_CRON_SECRET_missing"}}},"msg":"phase20.startup.config_snapshot"}
+{"level":30,"time":1790698872686,"service":"api","phase":"startup.object_lock","mode":"disabled","msg":"object_lock.disabled"}
+{"level":30,"time":1790698872986,"service":"api","ranAtUtc":"2026-09-29T16:21:12.986Z","durationMs":299,"checked":109,"msg":"runtime.schema_validation.healthy"}
+{"level":40,"time":1790698872986,"service":"api","reconciler":"operations","msg":"operations_reconciler.disabled"}
+{"level":40,"time":1790698872986,"service":"api","reconciler":"billing_addon_retry","msg":"billing_addon_retry.disabled"}
+{"level":40,"time":1790698872986,"service":"api","reconciler":"billing","msg":"billing_reconciler.disabled"}
+{"level":30,"time":1790698873262,"service":"api","reqId":"cafed427-e2be-4176-b2d8-3f01dac403c7","requestId":"cafed427-e2be-4176-b2d8-3f01dac403c7","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"cafed427-e2be-4176-b2d8-3f01dac403c7","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions","durationMs":50,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"request.completed"}
+{"level":30,"time":1790698873393,"service":"api","reqId":"04081dd7-a688-4f6e-8dac-4c8a8b89b671","requestId":"04081dd7-a688-4f6e-8dac-4c8a8b89b671","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"04081dd7-a688-4f6e-8dac-4c8a8b89b671","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/evidence","durationMs":130,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"request.completed"}
+{"level":30,"time":1790698873424,"service":"api","reqId":"ce2ac55d-144c-487b-9f10-7cfde9b5242b","requestId":"ce2ac55d-144c-487b-9f10-7cfde9b5242b","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","evidenceId":"d52488b1-77bf-4e53-9370-f08183edd2a7","requestId":"ce2ac55d-144c-487b-9f10-7cfde9b5242b","statusCode":201,"method":"POST","url":"/v1/evidence/d52488b1-77bf-4e53-9370-f08183edd2a7/parts","durationMs":30,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","evidenceId":"d52488b1-77bf-4e53-9370-f08183edd2a7","msg":"request.completed"}
+{"level":30,"time":1790698873446,"service":"api","reqId":"481cb0f6-6290-401a-9154-449b216c2bad","requestId":"481cb0f6-6290-401a-9154-449b216c2bad","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"481cb0f6-6290-401a-9154-449b216c2bad","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/parts/0/declaration","durationMs":21,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"request.completed"}
+{"level":50,"time":1790698874563,"service":"api","reqId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/discard","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","errorCode":"DATABASE_ERROR","statusCode":500,"prismaCode":"P2010","prismaMissingColumn":null,"prismaMissingTable":null,"prismaModelName":null,"prismaMessage":"\nInvalid `prisma.$executeRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `deadlock detected`","msg":"request.failed.database_error"}
+{"level":50,"time":1790698874563,"service":"api","reqId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","statusCode":500,"method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/discard","durationMs":1042,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"request.completed.infrastructure_error"}
+{"level":50,"time":1790698874563,"service":"api","reqId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","alert":true,"severity":"critical","requestId":"9ff027de-8bae-4f8d-8f49-51c88b5735c9","reason":"api_5xx_response","statusCode":500,"method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/discard","durationMs":1042,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"operational.alert"}
+[90mstderr[2m | test/direct-capture-discard-race.integration.test.ts[2m > [22m[2mdirect capture: discard racing completion (live PostgreSQL 16)[2m > [22m[2ma discard sent while finalization is hashing never deletes a record that then gets signed
+[22m[39m[api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: [32m'd52488b1-77bf-4e53-9370-f08183edd2a7'[39m,
+  teamId: [32m'2e2f9064-60ab-443a-9bae-36a187e04d5f'[39m,
+  reason: [32m'job_already_live'[39m,
+  jobId: [32m'graph-reconcile-2e2f9064-60ab-443a-9bae-36a187e04d5f'[39m
+}
+
+{"level":30,"time":1790698874673,"service":"api","reqId":"68f28a27-0a1e-4732-a1a9-d4c990932965","requestId":"68f28a27-0a1e-4732-a1a9-d4c990932965","userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","requestId":"68f28a27-0a1e-4732-a1a9-d4c990932965","statusCode":200,"method":"POST","url":"/v1/capture/direct-sessions/322013c3-8c3b-4b5d-bd17-04cb2e73da31/complete","durationMs":1226,"userId":"ca1928cb-2ebb-4859-b41f-57bb9fb127c5","msg":"request.completed"}
+ [31m❯[39m test/direct-capture-discard-race.integration.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 9764[2mms[22m[39m
+[31m   [31m×[31m direct capture: discard racing completion (live PostgreSQL 16)[2m > [22ma discard sent while finalization is hashing never deletes a record that then gets signed[39m[33m 1484[2mms[22m[39m
+[31m     → {"ev":{"status":"SIGNED","deletedAt":null},"session":"BOUND","types":["EVIDENCE_CREATED","IDENTITY_SNAPSHOT_RECORDED","UPLOAD_AUTHORIZED","UPLOAD_COMPLETED","SIGNATURE_APPLIED","STORAGE_PROTECTION_UNAVAILABLE","CAPTURE_TRUST_EVENT"],"done":[200,"{\"result\":{\"evidenceId\":\"d52488b1-77bf-4e53-9370-f08183edd2a7\",\"status\":\"SIGNED\",\"fileSha256\":\"a6dfedd3fb94f85c4c5ab7e24f865e5a48f7025bff6d90ccfc8f66ae886dfe42\",\"bound\":true,\"alreadyBound\":false,\"dige"],"discard":[500,"{\"error\":{\"code\":\"DATABASE_ERROR\",\"message\":\"Request failed.\",\"requestId\":\"9ff027de-8bae-4f8d-8f49-51c88b5735c9\"}}"]}: expected 500 to be 409 // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/direct-capture-discard-race.integration.test.ts[2m > [22mdirect capture: discard racing completion (live PostgreSQL 16)[2m > [22ma discard sent while finalization is hashing never deletes a record that then gets signed
+[31m[1mAssertionError[22m: {"ev":{"status":"SIGNED","deletedAt":null},"session":"BOUND","types":["EVIDENCE_CREATED","IDENTITY_SNAPSHOT_RECORDED","UPLOAD_AUTHORIZED","UPLOAD_COMPLETED","SIGNATURE_APPLIED","STORAGE_PROTECTION_UNAVAILABLE","CAPTURE_TRUST_EVENT"],"done":[200,"{\"result\":{\"evidenceId\":\"d52488b1-77bf-4e53-9370-f08183edd2a7\",\"status\":\"SIGNED\",\"fileSha256\":\"a6dfedd3fb94f85c4c5ab7e24f865e5a48f7025bff6d90ccfc8f66ae886dfe42\",\"bound\":true,\"alreadyBound\":false,\"dige"],"discard":[500,"{\"error\":{\"code\":\"DATABASE_ERROR\",\"message\":\"Request failed.\",\"requestId\":\"9ff027de-8bae-4f8d-8f49-51c88b5735c9\"}}"]}: expected 500 to be 409 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 409[39m
+[31m+ 500[39m
+
+[36m [2m❯[22m test/direct-capture-discard-race.integration.test.ts:[2m208:44[22m[39m
+    [90m206| [39m      [34mexpect[39m(done[33m.[39mstatusCode[33m,[39m observed)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+    [90m207| [39m      expect(done.json().result, observed).toMatchObject({ bound: true…
+    [90m208| [39m      [34mexpect[39m(discard[33m.[39mstatusCode[33m,[39m observed)[33m.[39m[34mtoBe[39m([34m409[39m)[33m;[39m
+    [90m   | [39m                                           [31m^[39m
+    [90m209| [39m    } [35melse[39m {
+    [90m210| [39m      [34mexpect[39m(ev[33m.[39mdeletedAt[33m,[39m observed)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 18:21:04
+[2m   Duration [22m 10.02s[2m (transform 3.50s, setup 36ms, collect 16ms, tests 9.76s, environment 0ms, prepare 58ms)[22m
+
+ ELIFECYCLE  Command failed with exit code 1.

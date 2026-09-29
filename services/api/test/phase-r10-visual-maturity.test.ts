@@ -621,7 +621,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
       // (audit D11); publication approval honoured at the finalize claim (D3);
       // the signed VersionId of each original is hashed and recorded (D14).
       // Rebaselined 2026-09-29 (EVIDENCE-LIFECYCLE REMEDIATION, TSA batch): 59,356 -> 59,826 — finalize persists the token-read imprint beside the request digest (ET-TSA-03) and the validation facts + bounded failure code (ET-TSA-01/06).
-    ).toBe(59826);
+    // Rebaselined 2026-09-29: 59,826 -> 59,931 — the finalize claim refuses a released (soft-deleted) reservation (ET-DC-01).
+    ).toBe(59931);
   });
 
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {

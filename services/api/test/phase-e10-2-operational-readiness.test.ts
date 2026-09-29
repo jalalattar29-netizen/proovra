@@ -354,7 +354,8 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // (audit D11); publication approval honoured at the finalize claim (D3);
       // the signed VersionId of each original is hashed and recorded (D14).
       // Rebaselined 2026-09-29 (EVIDENCE-LIFECYCLE REMEDIATION, TSA batch): 59,356 -> 59,826 — finalize persists the token-read imprint beside the request digest (ET-TSA-03) and the validation facts + bounded failure code (ET-TSA-01/06).
-      { rel: "src/services/evidence-complete.service.ts", expected: 59826 },
+      // Rebaselined 2026-09-29: 59,826 -> 59,931 — the finalize claim refuses a released (soft-deleted) reservation (ET-DC-01).
+      { rel: "src/services/evidence-complete.service.ts", expected: 59931 },
       {
               // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
       // convergence. The artifact query filtered `prisma.evidence` by the legacy

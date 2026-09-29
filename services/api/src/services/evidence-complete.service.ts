@@ -1101,6 +1101,8 @@ const captureMethod =
 
       const finalizeClaim = await tx.evidence.updateMany({
         where: {
+          // ET-DC-01: a released (soft-deleted) reservation is never signed.
+          deletedAt: null,
           id: evidence.id,
           status: {
             in: [EvidenceStatus.CREATED, EvidenceStatus.UPLOADING],
