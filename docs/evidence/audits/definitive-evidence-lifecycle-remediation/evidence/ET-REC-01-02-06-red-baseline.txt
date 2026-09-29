@@ -1,0 +1,9 @@
+ET-REC-01/02/06 red baseline — operations-ots-remediation-truth.integration.test.ts against HEAD ots-anchoring-authority / remediation-executor / remediation-registry / operations-source-probes / ops.routes
+   × OTS remediation truth (live PostgreSQL 16) > ET-REC-02: the budget-exhausted incident offers the OTS action (not WORKER guidance) and resolves when the proof recovers 113ms
+     → expected [] to include 'ots.resume_anchoring'
+   × OTS remediation truth (live PostgreSQL 16) > ET-REC-06: a permanently invalid proof offers no Resume, and a Resume POST is NOT_ELIGIBLE with no queued event 61ms
+     → expected 'DIRECT_REMEDIATION' to be 'READ_ONLY_GUIDANCE' // Object.is equality
+   × OTS remediation truth (live PostgreSQL 16) > ET-REC-01: a Resume that collapses onto a live job is ALREADY_IN_PROGRESS, not a new request 20ms
+     → expected { requested: true, …(1) } to match object { requested: false, …(1) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)

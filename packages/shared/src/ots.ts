@@ -180,3 +180,27 @@ export const OTS_ANCHOR_CLAIM_LABELS: Readonly<Record<OtsAnchorClaim, string>> =
   UNAVAILABLE: "OpenTimestamps unavailable",
   NOT_CONFIGURED: "OpenTimestamps not configured",
 };
+
+/**
+ * OTS PROOF FAILURES NO RE-RUN CAN REPAIR (ET-REC-06, 2026-09-29).
+ *
+ * The recorded proof does not commit to this record's digest, or cannot be
+ * parsed. The worker ends such a job as `proof_invalid_terminal` without a
+ * change, so Operations must not offer "Resume OTS anchoring" for it or answer
+ * QUEUED. One list for the worker, the executor and the remediation registry.
+ */
+export const OTS_PERMANENT_PROOF_FAILURES = ["PROOF_HASH_MISMATCH", "MALFORMED_PROOF"] as const;
+export type OtsPermanentProofFailure = (typeof OTS_PERMANENT_PROOF_FAILURES)[number];
+
+export function isPermanentOtsProofFailureReason(reason: string | null | undefined): boolean {
+  return (OTS_PERMANENT_PROOF_FAILURES as readonly string[]).includes(String(reason ?? ""));
+}
+
+/**
+ * The Worker's budget-exhausted bridge fingerprint, `OTS:<evidenceId>:GLOBAL_BUDGET_EXHAUSTED`
+ * (ET-REC-02). Returns the evidence id, or null for any other shape.
+ */
+export function parseOtsBudgetExhaustedFingerprint(fingerprint: string): string | null {
+  const m = /^OTS:([A-Za-z0-9-]{8,64}):GLOBAL_BUDGET_EXHAUSTED$/.exec(fingerprint);
+  return m ? m[1]! : null;
+}

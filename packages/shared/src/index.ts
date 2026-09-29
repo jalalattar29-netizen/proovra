@@ -537,6 +537,11 @@ export {
   resolveOtsAnchorClaim,
   parseOtsAnchorClaim,
   otsClaimBadge,
+  // ET-REC-02 / ET-REC-06 — the terminal proof failures and the budget bridge fingerprint.
+  OTS_PERMANENT_PROOF_FAILURES,
+  type OtsPermanentProofFailure,
+  isPermanentOtsProofFailureReason,
+  parseOtsBudgetExhaustedFingerprint,
 } from "./ots.js";
 
 // -----------------------------------------------------------------------------

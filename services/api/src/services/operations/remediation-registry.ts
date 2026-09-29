@@ -35,6 +35,7 @@
  * can read and cannot act on, which is the safe direction to be wrong in.
  */
 
+import { isPermanentOtsProofFailureReason, parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
 import type { IncidentCategory } from "@proovra/shared";
 
 // ===========================================================================
@@ -272,6 +273,9 @@ export type IntegrityClass =
 const TSA_UNSAFE_REASON =
   "A timestamp proves a record existed at a moment. Re-contacting the authority now would mint a token whose genTime is later than the evidence it certifies, and presenting that as the record's timestamp would assert something untrue. The provider is therefore never re-contacted for finalized evidence: `tsaStatus` is written inside the finalize claim, and there is no TSA queue or job in the canonical registry to re-run. The one later writer is the operator validation CLI (repair-tsa-failed-with-token), which never contacts the provider: it only validates the token already kept, with the same validator as issuance.";
 
+const OTS_PROOF_INVALID_GUIDANCE =
+  "The recorded OpenTimestamps proof does not match this record or could not be read, so re-running anchoring cannot repair it and none is offered. The evidence, its signature and its RFC 3161 timestamp are unaffected; the record is reported without a Bitcoin anchor.";
+
 const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
   Object.freeze({
     ots_failure: {
@@ -462,6 +466,10 @@ export function entryForIncident(input: {
     const cls = integrityClassOf(input.fingerprint);
     if (cls) return INTEGRITY_ENTRIES[cls];
   }
+  // ET-REC-02 — the Worker's OTS budget-exhausted bridge is category WORKER,
+  // whose generic guidance says records "recover when it does" — false for a
+  // terminal state. It is an OTS failure of one record, and gets that entry.
+  if (parseOtsBudgetExhaustedFingerprint(input.fingerprint)) return INTEGRITY_ENTRIES.ots_failure;
   const entry = (
     CATEGORY_ENTRIES as Record<string, RemediationEntry | undefined>
   )[input.category];
@@ -471,6 +479,12 @@ export function entryForIncident(input: {
 }
 
 export type RemediationContext = {
+  /**
+   * ET-REC-06 — facts about the affected record the static entry cannot
+   * know. A permanently invalid OTS proof (PROOF_HASH_MISMATCH /
+   * MALFORMED_PROOF) is never offered "Resume OTS anchoring".
+   */
+  record?: { otsStatus: string | null; otsFailureReason: string | null } | null;
   /** Server-resolved permissions for THIS caller in THIS workspace. */
   can: (permission: RemediationPermission) => boolean;
 /** Server-resolved permission check for deep-link destinations. */
@@ -514,6 +528,24 @@ export function resolveRemediations(
       actions: [],
       deepLink: null,
       guidance: null,
+      unsafeReason: null,
+    };
+  }
+
+  if (
+    entry.action?.actionId === RESUME_OTS.actionId &&
+    ctx.record?.otsStatus === "FAILED" &&
+    isPermanentOtsProofFailureReason(ctx.record.otsFailureReason)
+  ) {
+    return {
+      disposition: "READ_ONLY_GUIDANCE",
+      actions: [],
+      deepLink:
+        entry.deepLink &&
+        (entry.deepLink.requiredPermission === null || ctx.hasPermission(entry.deepLink.requiredPermission))
+          ? entry.deepLink
+          : null,
+      guidance: OTS_PROOF_INVALID_GUIDANCE,
       unsafeReason: null,
     };
   }

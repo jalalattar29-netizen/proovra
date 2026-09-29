@@ -88,7 +88,16 @@ export async function requestEvidenceOtsAnchoring(input: {
       traceId: input.trigger,
     });
 
-    if (outcome.enqueued) return { requested: true, jobId: outcome.jobId };
+    // ET-REC-01 — enqueue signals a collapse onto a live job as
+    // { enqueued: true, collapsed: true }. It was returned as a new request, so
+    // Operations answered QUEUED, wrote "remediation_queued" and audited a
+    // success for work it did not start; the ALREADY_IN_PROGRESS branch was
+    // unreachable.
+    if (outcome.enqueued) {
+      return outcome.collapsed
+        ? { requested: false, reason: "collapsed", jobId: outcome.jobId }
+        : { requested: true, jobId: outcome.jobId };
+    }
 
     const reason = String(outcome.reason ?? "");
     if (reason.includes("collapsed") || reason.includes("duplicate")) {

@@ -183,11 +183,10 @@ export type OtsRowSnapshot = {
   otsAnchorCheck: string | null;
 };
 
-export const OTS_PERMANENT_PROOF_FAILURES = [
-  "PROOF_HASH_MISMATCH",
-  "MALFORMED_PROOF",
-] as const;
-export type OtsPermanentProofFailure = (typeof OTS_PERMANENT_PROOF_FAILURES)[number];
+// ET-REC-06 — THE list lives in @proovra/shared (the executor and the
+// remediation registry read it too); re-exported for this module's callers.
+import { OTS_PERMANENT_PROOF_FAILURES, type OtsPermanentProofFailure } from "@proovra/shared";
+export { OTS_PERMANENT_PROOF_FAILURES, type OtsPermanentProofFailure };
 
 export type OtsObservation =
   | {

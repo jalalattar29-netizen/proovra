@@ -1444,9 +1444,21 @@ export async function opsRoutes(app: FastifyInstance) {
         await allows(permission);
       }
 
+      // ET-REC-06 — the affected record's OTS facts, so a permanently invalid
+      // proof is not offered a Resume the worker would ignore.
+      const remediationRecord = detail.relatedEvidenceId
+        ? await prisma.evidence
+            .findFirst({
+              where: { id: detail.relatedEvidenceId, teamId: q.teamId },
+              select: { otsStatus: true, otsFailureReason: true },
+            })
+            .then((r) => (r ? { otsStatus: r.otsStatus ? String(r.otsStatus) : null, otsFailureReason: r.otsFailureReason ?? null } : null))
+            .catch(() => null)
+        : null;
       const remediation = resolveRemediations(
         { category: detail.category, fingerprint: detail.fingerprint },
         {
+          record: remediationRecord,
           can: (permission: RemediationPermission) =>
             permissionCache.get(permission) === true,
           hasPermission: (permission: string) =>

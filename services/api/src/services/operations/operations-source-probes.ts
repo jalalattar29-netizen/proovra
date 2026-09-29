@@ -43,6 +43,7 @@
  * guessing in either direction.
  */
 
+import { parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
@@ -601,7 +602,13 @@ async function observeIntegrity(
   const base = { observedAtUtc: ctx.now } as const;
   try {
     const integrity = await import("./evidence-integrity-conditions.service.js");
-    const parts = integrity.parseIntegrityFingerprint(ctx.fingerprint);
+    // ET-REC-02 — the Worker's OTS bridge fingerprint (OTS:<id>:GLOBAL_BUDGET_EXHAUSTED)
+    // names the same record's OTS failure; parsed here so it can resolve when
+    // otsStatus leaves FAILED instead of being NOT_APPLICABLE forever.
+    const budgetEvidenceId = which === "ots" ? parseOtsBudgetExhaustedFingerprint(ctx.fingerprint) : null;
+    const parts = budgetEvidenceId
+      ? { integrityClass: "ots_failure" as const, evidenceId: budgetEvidenceId }
+      : integrity.parseIntegrityFingerprint(ctx.fingerprint);
     if (!parts) return { ...base, activity: "NOT_APPLICABLE" };
     // A subject id that cannot name a row is NOT_APPLICABLE, not UNKNOWN.
     if (!identifiableSubject(parts.evidenceId)) {

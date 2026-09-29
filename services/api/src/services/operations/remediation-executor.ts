@@ -38,6 +38,7 @@
  * Redis errors, Prisma errors and queue names stay in the logs.
  */
 
+import { isPermanentOtsProofFailureReason } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -142,6 +143,7 @@ export async function executeRemediation(
       teamId: true,
       status: true,
       otsStatus: true,
+      otsFailureReason: true,
       deletedAt: true,
     },
   });
@@ -240,11 +242,18 @@ export async function executeRemediation(
 async function resumeOtsAnchoring(evidence: {
   id: string;
   otsStatus: string | null;
+  otsFailureReason?: string | null;
 }): Promise<ExecuteRemediationOutcome> {
   // An already-anchored proof is immutable and needs nothing. Re-running would
   // spend work to reach the state it is already in.
   if (evidence.otsStatus === "ANCHORED" || evidence.otsStatus === "UPGRADED") {
     return outcome("ALREADY_SATISFIED");
+  }
+  // ET-REC-06 — a proof that does not commit to this record, or cannot be
+  // parsed, is terminal: the worker ends the job without a change. Queueing
+  // it answered QUEUED and recorded "remediation_queued" for nothing.
+  if (evidence.otsStatus === "FAILED" && isPermanentOtsProofFailureReason(evidence.otsFailureReason)) {
+    return outcome("NOT_ELIGIBLE");
   }
 
   /*
