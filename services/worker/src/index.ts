@@ -1245,9 +1245,18 @@ async function runRetentionRecon(trigger: string) {
   if (retentionReconciliationRunning) return;
   retentionReconciliationRunning = true;
   try {
-    const outcome = await withCronLock("retention-reconciliation", () =>
-      runRetentionReconciliation({ trigger }),
-    );
+    const outcome = await withCronLock("retention-reconciliation", async () => {
+      const r = await runRetentionReconciliation({ trigger });
+      // ET-CUS-03 — legal-hold coverage onto every covered record's custody
+      // chain (CASE / WORKSPACE scopes, later links, earlier failures).
+      const { reconcileLegalHoldCustody } = await import("@proovra/shared-runtime");
+      const { prisma } = await import("./db.js");
+      const holds = await reconcileLegalHoldCustody(prisma as never);
+      if (holds.appended > 0 || holds.failed > 0) {
+        logger.info({ ...holds, trigger }, "governance.legal_hold_custody.reconciled");
+      }
+      return r;
+    });
     if (!outcome.ran) {
       logger.debug({ trigger }, "governance.retention_reconciliation.skipped_locked");
     }

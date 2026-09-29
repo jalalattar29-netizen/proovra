@@ -11,18 +11,9 @@
  *
  * Every destructive path now evaluates the UNION and FAILS CLOSED.
  *
- * ---------------------------------------------------------------------------
- * MIRRORED FILE — DO NOT EDIT ONE COPY.
- *
- *   services/api/src/services/governance/effective-legal-hold.ts
- *   services/worker/src/governance/effective-legal-hold.ts
- *
- * are BYTE-IDENTICAL. The worker process cannot import api services, so the
- * union rule is duplicated rather than allowed to diverge — the same pattern
- * already used by `lifecycle-legal-hold.ts`. The convergence matrix
- * (services/api/test/phase-12b-legal-hold-convergence.test.ts) fails if the
- * two files drift by a single byte.
- * ---------------------------------------------------------------------------
+ * ONE FILE. It used to be mirrored byte-for-byte into the API and the Worker;
+ * since 2026-09-29 both import this module from @proovra/shared-runtime and the
+ * mirrors are deleted.
  *
  * FAIL-CLOSED CONTRACT
  *

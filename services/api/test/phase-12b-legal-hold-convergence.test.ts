@@ -144,9 +144,11 @@ function makeWorld(seed: {
   }
 
   const locks: string[] = [];
+  const custodyEvents: Row[] = [];
   const client: Record<string, unknown> = {
     __state: state,
     __locks: locks,
+    __custodyEvents: custodyEvents,
     // ET-SEC-01 — evidence-scope placement serialises with the destruction
     // executor on the evidence advisory lock inside a transaction.
     $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -154,6 +156,24 @@ function makeWorld(seed: {
       return 0;
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(client),
+    // ET-CUS-03 — an EVIDENCE-scope hold appends its custody event inside the
+    // placement / release transaction; wider scopes reconcile through $queryRaw.
+    $queryRaw: async () => [],
+    custodyEvent: {
+      findFirst: async (args: { where: Row & { payload?: { equals?: unknown } } }) =>
+        custodyEvents.find(
+          (e) =>
+            e.evidenceId === args.where.evidenceId &&
+            (args.where.eventType === undefined || e.eventType === args.where.eventType) &&
+            (args.where.payload?.equals === undefined ||
+              (e.payload as Row | null)?.legalHoldId === args.where.payload.equals),
+        ) ?? null,
+      create: async (args: { data: Row }) => {
+        const row = { id: `ce-${custodyEvents.length + 1}`, ...args.data };
+        custodyEvents.push(row);
+        return row;
+      },
+    },
     evidence: {
       findUnique: async (args: { where: Row }) =>
         state.evidence.find((r) => matchesWhere(r, args.where)) ?? null,
@@ -695,7 +715,14 @@ describe("PHASE 12B CLUSTER 8 — no evidence becomes destructible", () => {
       { teamId: TEAM, scope: "EVIDENCE", evidenceId: EVIDENCE, actorUserId: USER, title: "Litigation" },
       client,
     );
-    expect((client as unknown as { __locks: string[] }).__locks).toEqual([EVIDENCE]);
+    // The placement guard, then (ET-CUS-03) the in-transaction custody append:
+    // every lock taken is the evidence lock, and the guard takes it first.
+    const locks = (client as unknown as { __locks: string[] }).__locks;
+    expect(locks[0]).toBe(EVIDENCE);
+    expect([...new Set(locks)]).toEqual([EVIDENCE]);
+    // ...and the hold is on the record's custody chain in the same transaction.
+    const events = (client as unknown as { __custodyEvents: Array<{ eventType: string }> }).__custodyEvents;
+    expect(events.map((e) => e.eventType)).toEqual(["LEGAL_HOLD_PLACED"]);
   });
 
   it("ET-SEC-01: a placement on a record the executor already decided to destroy is refused, and nothing is written", async () => {

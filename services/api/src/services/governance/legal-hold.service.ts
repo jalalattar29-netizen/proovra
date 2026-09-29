@@ -40,7 +40,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { triggerLegalHoldCreated } from "../automation/automation-triggers.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendCustodyEvent } from "../custody-events.service.js";
+import { appendLegalHoldCustodyTx, reconcileLegalHoldCustody } from "@proovra/shared-runtime";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import {
   evaluateEffectiveLegalHold,
@@ -317,7 +317,7 @@ export async function placeCanonicalLegalHold(
         throw new LegalHoldError("destruction_committed");
       }
     }
-    return c.evidenceLegalHold.create({
+    const created = await c.evidenceLegalHold.create({
     data: {
       teamId: input.teamId,
       scope,
@@ -341,6 +341,19 @@ export async function placeCanonicalLegalHold(
     },
     select: CANONICAL_SELECT,
   });
+    // ET-CUS-03: the record's custody chain shows the hold in the SAME
+    // transaction that places it. Wider scopes are reconciled below.
+    if (scope === "EVIDENCE" && evidenceId) {
+      await appendLegalHoldCustodyTx(c as unknown as Prisma.TransactionClient, {
+        hold: created as unknown as { id: string; scope: string; title: string },
+        evidenceId,
+        kind: "PLACED",
+        actorUserId: input.actorUserId,
+        at: (created as unknown as { placedAtUtc: Date }).placedAtUtc,
+        source: "COMMAND",
+      });
+    }
+    return created;
   };
   const hold = ("$transaction" in client && typeof client.$transaction === "function"
     ? await client.$transaction((tx) => writeHold(tx as unknown as PrismaClient))
@@ -359,12 +372,7 @@ export async function placeCanonicalLegalHold(
     context: { scope: String(scope), status: "ACTIVE" },
   });
 
-  await fanOutCustodyEvents(client, hold, "LEGAL_HOLD_PLACED", {
-    legalHoldId: hold.id,
-    scope,
-    title: hold.title,
-    placedByUserId: input.actorUserId,
-  });
+  await reconcileHoldCoverageNow(client, hold);
 
   // PHASE 12 POINT 3 — template-identity provenance on the outbound event.
   // The retired scope-generic writer enriched its webhook with the evidence
@@ -492,11 +500,14 @@ export async function releaseCanonicalLegalHold(
 
   // The `version` predicate makes the UPDATE itself the concurrency guard:
   // two concurrent releases cannot both win, even with no expectedVersion.
-  const updated = await client.evidenceLegalHold.updateMany({
+  // ET-CUS-03: the claim and the evidence-scope custody event commit together.
+  const releasedAt = new Date();
+  const writeRelease = async (c: PrismaClient) => {
+  const updated = await c.evidenceLegalHold.updateMany({
     where: { id: hold.id, teamId: input.teamId, version: hold.version },
     data: {
       status: "RELEASED",
-      releasedAtUtc: new Date(),
+      releasedAtUtc: releasedAt,
       releasedByUserId: input.actorUserId,
       releaseNote: note.slice(0, 4000),
       releaseApprovalState: hold.releaseApprovalRequired
@@ -517,20 +528,32 @@ export async function releaseCanonicalLegalHold(
       expectedVersion: hold.version,
     });
   }
+    if (hold.scope === "EVIDENCE" && hold.evidenceId) {
+      await appendLegalHoldCustodyTx(c as unknown as Prisma.TransactionClient, {
+        hold,
+        evidenceId: hold.evidenceId,
+        kind: "RELEASED",
+        actorUserId: input.actorUserId,
+        at: releasedAt,
+        // Release note is INTERNAL — captured in the custody chain for
+        // reviewers, never surfaced on public verify or any external surface.
+        releaseNoteInternal: note,
+        source: "COMMAND",
+      });
+    }
+  };
+  if ("$transaction" in client && typeof client.$transaction === "function") {
+    await client.$transaction((tx) => writeRelease(tx as unknown as PrismaClient));
+  } else {
+    await writeRelease(client);
+  }
 
   const released = (await client.evidenceLegalHold.findUnique({
     where: { id: hold.id },
     select: CANONICAL_SELECT,
   })) as CanonicalLegalHoldRow;
 
-  await fanOutCustodyEvents(client, released, "LEGAL_HOLD_RELEASED", {
-    legalHoldId: released.id,
-    scope: released.scope,
-    releasedByUserId: input.actorUserId,
-    // Release note is INTERNAL — captured in the custody chain for reviewers,
-    // never surfaced on public verify or any external surface.
-    releaseNoteInternal: note.slice(0, 4000),
-  });
+  await reconcileHoldCoverageNow(client, released);
 
   // The evidence-hold webhook catalogue has no `governance.legal_hold_released`
   // event; the release fan-out lives on the lifecycle webhook stream, which
@@ -585,50 +608,31 @@ async function emitLifecycleHoldWebhook(
 }
 
 /**
- * Appends the custody event to every evidence row the hold covers. Best
- * effort by design: the hold itself is already durable, and an audit fan-out
- * failure must never undo or block a preservation control.
- *
- * WORKSPACE scope intentionally does NOT fan out per-evidence — a workspace
- * may hold millions of records, and the control is recorded on the hold row
- * plus the webhook stream.
+ * CASE / WORKSPACE coverage onto the custody chain (ET-CUS-03), right after the
+ * command commits. Bounded: the Worker's governance sweep reconciles whatever
+ * is left (a large scope, a failure, a record linked or created later), so a
+ * failure here is logged and retried — never silently lost. An EVIDENCE-scope
+ * hold already recorded its event inside the command's transaction.
  */
-async function fanOutCustodyEvents(
+async function reconcileHoldCoverageNow(
   client: PrismaClient,
   hold: CanonicalLegalHoldRow,
-  eventType: "LEGAL_HOLD_PLACED" | "LEGAL_HOLD_RELEASED",
-  payload: Prisma.InputJsonValue,
 ): Promise<void> {
+  if (hold.scope === "EVIDENCE") return;
+  if (!("$transaction" in client) || typeof client.$transaction !== "function") return;
   try {
-    let evidenceIds: string[] = [];
-    if (hold.scope === "EVIDENCE" && hold.evidenceId) {
-      evidenceIds = [hold.evidenceId];
-    } else if (hold.scope === "CASE" && hold.caseId) {
-      const linked = await client.caseEvidenceLink.findMany({
-        where: { caseId: hold.caseId },
-        select: { evidenceId: true },
-        take: 1000,
-      });
-      evidenceIds = linked.map((l) => l.evidenceId);
+    const r = await reconcileLegalHoldCustody(client, { holdId: hold.id, perHoldLimit: 500 });
+    if (r.failed > 0) {
+      console.warn(JSON.stringify({ event: "legal_hold.custody_reconcile_partial", holdId: hold.id, ...r }));
     }
-    await Promise.all(
-      evidenceIds.map((evidenceId) =>
-        appendCustodyEvent({
-          evidenceId,
-          eventType:
-            eventType === "LEGAL_HOLD_PLACED"
-              ? hold.scope === "CASE"
-                ? "CASE_LEGAL_HOLD_APPLIED"
-                : "LEGAL_HOLD_PLACED"
-              : hold.scope === "CASE"
-                ? "CASE_LEGAL_HOLD_RELEASED"
-                : "LEGAL_HOLD_RELEASED",
-          payload,
-        }).catch(() => null),
-      ),
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "legal_hold.custody_reconcile_deferred",
+        holdId: hold.id,
+        error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+      }),
     );
-  } catch {
-    /* audit fan-out never breaks the operational path */
   }
 }
 

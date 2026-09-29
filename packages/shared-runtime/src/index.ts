@@ -84,6 +84,8 @@ export * from "./custody/custody-chain.js";
 // reservations, and the one release (API discard + Worker sweep).
 export * from "./evidence-reservation/reservation.js";
 export * from "./governance/effective-legal-hold.js";
+// ET-CUS-03 — legal-hold coverage on the custody chain (command + sweep).
+export * from "./governance/legal-hold-custody.js";
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/version-port.js";
 export * from "./evidence-destruction/approval.js";
