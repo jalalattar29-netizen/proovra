@@ -132,6 +132,15 @@ export type TenantAuditEnvelope = {
   /** Hash of the authenticated session (never the raw sid/JWT). */
   sessionRefHash?: string | null;
   authMethod?: string | null;
+  /**
+   * ET-CUS-14 — request context goes to the MASKED columns, never metadata
+   * (metadata is hashed, so a raw address there can never be masked). The
+   * sink also lifts these keys out of metadata for callers not yet moved.
+   */
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  /** Request id for the requestId column; defaults to correlationId. */
+  requestId?: string | null;
 
   organizationId?: string | null;
   /** The authoritative Workspace (teamId) — from persistence, never the URL. */
@@ -393,6 +402,9 @@ export async function emitTenantAudit(
     requestedState: boundedLabel(env.requestedState, 64),
     resultingState: boundedLabel(env.resultingState, 64),
     reasonCode: boundedLabel(env.reasonCode, 64),
+    requestId: env.requestId ?? env.correlationId ?? null,
+    ipAddress: env.ipAddress ?? null,
+    userAgent: env.userAgent ?? null,
     metadata,
     db,
   });
@@ -432,6 +444,10 @@ export type PlatformAuditEnvelope = {
   reasonCode?: string | null;
   supportActorUserId?: string | null;
   breakGlassGrantId?: string | null;
+  /** ET-CUS-14 — masked columns, never metadata. */
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
 };
 
 export async function emitPlatformAudit(
@@ -473,6 +489,9 @@ export async function emitPlatformAudit(
     requestedState: boundedLabel(env.requestedState, 64),
     resultingState: boundedLabel(env.resultingState, 64),
     reasonCode: boundedLabel(env.reasonCode, 64),
+    requestId: env.requestId ?? env.correlationId ?? null,
+    ipAddress: env.ipAddress ?? null,
+    userAgent: env.userAgent ?? null,
     metadata,
     db,
   });

@@ -139,6 +139,58 @@ export function sanitizeAuditMetadata(raw: unknown): Prisma.InputJsonValue {
   return sanitizeValue(raw, 0) as Prisma.InputJsonValue;
 }
 
+/**
+ * REQUEST CONTEXT NEVER SEALS INTO METADATA (ET-CUS-14, 2026-09-29).
+ *
+ * The masking of client address and user-agent (safeIpPreview /
+ * safeUaPreview, PHASE 5 §12) applies to the ipAddress/userAgent COLUMNS.
+ * The tenant facade never filled those: ~40 callers put `ipAddress: req.ip`
+ * and `userAgent` into METADATA, which is canonicalised into the V4 hash —
+ * raw personal data sealed where it can never be masked or redacted. And the
+ * requestId column stayed null, so the admin requestId filter found none of
+ * these rows.
+ *
+ * Every row passes through here, so this is the one place the rule lives:
+ * top-level address / user-agent keys are LIFTED out of metadata into the
+ * masked columns (an explicit column value wins), and a correlationId fills
+ * an empty requestId column. Historic rows stay sealed (mask on read).
+ */
+const METADATA_IP_KEYS = new Set(["ipaddress", "ip", "clientip", "remoteaddress", "remoteip"]);
+const METADATA_UA_KEYS = new Set(["useragent", "ua"]);
+
+export function liftRequestContextFromMetadata(raw: unknown): {
+  metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
+  correlationId: string | null;
+} {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { metadata: raw, ipAddress: null, userAgent: null, correlationId: null };
+  }
+  const out: Record<string, unknown> = {};
+  let ipAddress: string | null = null;
+  let userAgent: string | null = null;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const k = key.toLowerCase();
+    if (METADATA_IP_KEYS.has(k)) {
+      if (ipAddress === null && typeof value === "string" && value.trim()) ipAddress = value.trim();
+      continue;
+    }
+    if (METADATA_UA_KEYS.has(k)) {
+      if (userAgent === null && typeof value === "string" && value.trim()) userAgent = value.trim();
+      continue;
+    }
+    out[key] = value;
+  }
+  const c = (raw as Record<string, unknown>).correlationId;
+  return {
+    metadata: out,
+    ipAddress,
+    userAgent,
+    correlationId: typeof c === "string" && c.trim() ? c.trim() : null,
+  };
+}
+
 export function assertMetadataSize(metadata: Prisma.InputJsonValue): void {
   const size = Buffer.byteLength(JSON.stringify(metadata), "utf8");
   if (size > METADATA_MAX_BYTES) {
@@ -228,7 +280,9 @@ export async function appendPlatformAuditLog(
   }
 
   const db = params.db ?? prisma;
-  const sanitized = sanitizeAuditMetadata(params.metadata);
+  // ET-CUS-14: address / user-agent go to the MASKED columns, never the hash.
+  const lifted = liftRequestContextFromMetadata(params.metadata);
+  const sanitized = sanitizeAuditMetadata(lifted.metadata);
   assertMetadataSize(sanitized);
 
   const category = truncateString(params.category, MAX_CATEGORY_LEN);
@@ -237,7 +291,10 @@ export async function appendPlatformAuditLog(
   const outcome = truncateString(params.outcome, MAX_OUTCOME_LEN);
   const resourceType = truncateString(params.resourceType, MAX_RESOURCE_TYPE_LEN);
   const resourceId = truncateString(params.resourceId, MAX_RESOURCE_ID_LEN);
-  const requestId = truncateString(params.requestId, MAX_REQUEST_ID_LEN);
+  const requestId = truncateString(
+    params.requestId ?? lifted.correlationId,
+    MAX_REQUEST_ID_LEN,
+  );
 
   /**
    * PHASE 12 CORRECTIVE PASS — NEW-001 (2026-08-06). NESTED-TRANSACTION FIX.
@@ -315,8 +372,8 @@ export async function appendPlatformAuditLog(
       reasonCode: params.reasonCode ?? null,
       eventVersion: ADMIN_AUDIT_EVENT_VERSION,
       metadata: sanitized,
-      ipAddress: safeIpPreview(params.ipAddress ?? undefined),
-      userAgent: safeUaPreview(params.userAgent ?? undefined),
+      ipAddress: safeIpPreview(params.ipAddress ?? lifted.ipAddress ?? undefined),
+      userAgent: safeUaPreview(params.userAgent ?? lifted.userAgent ?? undefined),
     }),
   );
 }

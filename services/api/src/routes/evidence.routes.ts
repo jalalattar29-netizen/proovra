@@ -1358,11 +1358,12 @@ function auditEvidenceAction(
     resourceType: "evidence",
     resourceId: params.resourceId ?? null,
     correlationId: req.id ?? null,
+    // ET-CUS-14: masked columns, not hashed metadata.
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
     metadata: {
       ...(params.metadata ?? {}),
       severity: params.severity ?? "info",
-      ipAddress: req.ip,
-      userAgent: readUserAgent(req),
     },
   }).catch(noteCustodyFailure);
 }
@@ -1397,10 +1398,11 @@ function auditVerificationAction(
     resourceType: "evidence_verification",
     resourceId: params.resourceId ?? null,
     correlationId: req.id ?? null,
+    // ET-CUS-14: masked columns, not hashed metadata.
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
     metadata: {
       ...(params.metadata ?? {}),
-      ipAddress: req.ip,
-      userAgent: readUserAgent(req),
     },
   }).catch(noteCustodyFailure);
 }
