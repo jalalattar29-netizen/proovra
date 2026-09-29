@@ -74,6 +74,18 @@ export async function evaluateFinalizationGovernance(input: {
       consultTemplatePolicy: true,
     });
     if (!decision.allowed) {
+      // A REFUSED FINALIZATION PUBLISHES NOTHING, AND SAYS SO (2026-09-29).
+      // Every record is created with public_verify_state PUBLISHED (the
+      // column default), so a refused, never-signed record read "Published"
+      // in the library filter. It is marked NOT_PUBLISHED; a later
+      // finalization under a changed policy then needs an explicit publish.
+      // A signed record is never touched here.
+      await prisma.evidence
+        .updateMany({
+          where: { id: evidence.id, signedAtUtc: null },
+          data: { publicVerifyState: "NOT_PUBLISHED" },
+        })
+        .catch(() => undefined);
       await appendCustodyEvent({
         evidenceId: evidence.id,
         eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,

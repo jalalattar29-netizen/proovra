@@ -275,6 +275,35 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     expect(ev.status).not.toBe("SIGNED");
   });
 
+  it("D3 (2026-09-29): an extension capture in a workspace whose policy forbids public Verify is NOT sealed, published or served", async () => {
+    const teamId = owner().teamId;
+    const existing = await prisma.workspaceGovernancePolicy.findUnique({ where: { teamId } });
+    if (existing) await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: { allowPublicVerify: false } as never });
+    else await prisma.workspaceGovernancePolicy.create({ data: { teamId, allowPublicVerify: false } as never });
+    try {
+      const { token, sessionId, evidenceId, manifestJson } = await stageWebCapture();
+      const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
+      expect(done.statusCode, done.body).toBe(409);
+      expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
+      const ev = await prisma.evidence.findUniqueOrThrow({
+        where: { id: evidenceId },
+        select: { status: true, signedAtUtc: true, publicVerifyState: true },
+      });
+      expect(ev.status).not.toBe("SIGNED");
+      expect(ev.signedAtUtc).toBeNull();
+      expect(ev.publicVerifyState).not.toBe("PUBLISHED");
+      // No public verification link is served for it.
+      const pub = await app.inject({ method: "GET", url: `/public/verify/${evidenceId}` });
+      expect(pub.statusCode).toBe(404);
+      // The refusal is on the record's custody chain.
+      expect(
+        await prisma.custodyEvent.count({ where: { evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" } }),
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: { allowPublicVerify: true } as never });
+    }
+  });
+
   it("refuses a manifest that omits a declared part", async () => {
     const { token, sessionId, manifestJson } = await stageWebCapture({ omitDomFromManifest: true });
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });

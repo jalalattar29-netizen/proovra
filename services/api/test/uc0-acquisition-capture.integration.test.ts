@@ -567,8 +567,16 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       );
       expect(done.statusCode, done.body).toBe(409);
       expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
-      const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: staged.evidenceId }, select: { status: true } });
+      const ev = await prisma.evidence.findUniqueOrThrow({
+        where: { id: staged.evidenceId },
+        select: { status: true, signedAtUtc: true, publicVerifyState: true },
+      });
       expect(ev.status).not.toBe("SIGNED");
+      expect(ev.signedAtUtc).toBeNull();
+      expect(ev.publicVerifyState).not.toBe("PUBLISHED");
+      // No public verification link is served for the refused record.
+      const pub = await harness.app.inject({ method: "GET", url: `/public/verify/${staged.evidenceId}` });
+      expect(pub.statusCode).toBe(404);
       const blocked = await prisma.custodyEvent.count({
         where: { evidenceId: staged.evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" },
       });
