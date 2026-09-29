@@ -59,7 +59,7 @@
 import archiver from "archiver";
 import { createHash, randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "./db.js";
 import { putObjectBuffer } from "./storage.js";
 import { env } from "./config.js";
@@ -292,13 +292,29 @@ async function appendKindContent(params: {
     ).map((row) => row.id),
   );
   const safeIds = requestedIds.filter((id) => ownedIds.has(id));
+  /*
+   * EVERY ITEM READS THROUGH THE SAME SCOPE (2026-09-29). The id gate above
+   * used the canonical scope, but each kind then re-read with a bare
+   * `teamId`, so a Personal record stored with team_id NULL passed the gate
+   * and silently vanished from the ZIP. Evidence reads use the workspace
+   * scope; rows that hang off an in-scope record are bound by that record
+   * (evidenceId) and may carry this workspace or none — never another one.
+   */
+  const inScope = (eid: string): Prisma.EvidenceWhereInput => ({ AND: [{ id: eid }, workspaceScope] });
+  // Redaction projects and intelligence jobs always carry their workspace id
+  // (a Personal workspace's own team id); review workflows may carry none.
+  const childOf = (eid: string) => ({ evidenceId: eid, teamId });
+  const reviewOf = (eid: string): Prisma.EvidenceReviewWorkflowWhereInput => ({
+    evidenceId: eid,
+    OR: [{ teamId }, { teamId: null }],
+  });
 
   switch (kind) {
     case "EVIDENCE": {
       for (const eid of safeIds) {
         try {
           const ev = await prisma.evidence.findFirst({
-            where: { id: eid, teamId },
+            where: inScope(eid),
             select: {
               id: true,
               title: true,
@@ -397,7 +413,7 @@ async function appendKindContent(params: {
         try {
           const workflows = await prisma.evidenceReviewWorkflow
             .findMany({
-              where: { evidenceId: eid, teamId },
+              where: reviewOf(eid),
               take: 5,
               select: { id: true, workspaceType: true },
             })
@@ -422,7 +438,7 @@ async function appendKindContent(params: {
         try {
           const projects = await prisma.redactionProject
             .findMany({
-              where: { evidenceId: eid, teamId },
+              where: childOf(eid),
               take: 5,
               select: { id: true, createdAt: true },
             })
@@ -453,7 +469,7 @@ async function appendKindContent(params: {
         try {
           const workflows = await prisma.evidenceReviewWorkflow
             .findMany({
-              where: { evidenceId: eid, teamId },
+              where: reviewOf(eid),
               take: 5,
               select: { id: true, workspaceType: true },
             })
@@ -483,7 +499,7 @@ async function appendKindContent(params: {
         try {
           const projects = await prisma.redactionProject
             .findMany({
-              where: { evidenceId: eid, teamId },
+              where: childOf(eid),
               take: 5,
               select: { id: true, createdAt: true },
             })
@@ -513,7 +529,7 @@ async function appendKindContent(params: {
         try {
           const job = await prisma.evidenceIntelligenceJob
             .findFirst({
-              where: { evidenceId: eid, teamId },
+              where: childOf(eid),
               orderBy: { createdAt: "desc" },
               select: {
                 id: true,
@@ -582,7 +598,7 @@ async function appendKindContent(params: {
     case "AUDIT": {
       try {
         const totalCustody = await prisma.custodyEvent
-          .count({ where: { evidence: { teamId } } })
+          .count({ where: { evidence: workspaceScope } })
           .catch(() => 0);
         appendEntry(
           archive,
@@ -608,7 +624,7 @@ async function appendKindContent(params: {
       for (const eid of safeIds.slice(0, 500)) {
         try {
           const ev = await prisma.evidence.findFirst({
-            where: { id: eid, teamId },
+            where: inScope(eid),
             select: {
               id: true,
               verificationStatus: true,
@@ -718,8 +734,9 @@ async function resolveProvenanceForEvidenceIds(
     return { byEvidenceId, distinct: [] };
   }
 
+  const scope = await workspaceEvidenceWhere(teamId, prisma);
   const rows = await prisma.evidence.findMany({
-    where: { id: { in: evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE) }, teamId },
+    where: { AND: [{ id: { in: evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE) } }, scope] },
     select: {
       id: true,
       templateSlug: true,
@@ -780,7 +797,24 @@ export async function buildExchangePackage(
     ? (pkg.evidenceIds as string[])
     : [];
   const limited = rawIds.length > MAX_EVIDENCE_PER_PACKAGE;
-  const evidenceIds = rawIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
+  /*
+   * ONE SCOPED ID LIST FOR THE WHOLE PACKAGE (2026-09-29). The manifest used to
+   * echo the row's RAW ids, so a stale or forged row could place another
+   * tenant's evidence id in the ZIP even though every kind then skipped it.
+   * Out-of-scope ids are now dropped here — from the manifest and every kind —
+   * and only their COUNT is recorded, never the ids.
+   */
+  const candidateIds = rawIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
+  const inScope = new Set(
+    (
+      await prisma.evidence.findMany({
+        where: { AND: [{ id: { in: candidateIds } }, await workspaceEvidenceWhere(teamId, prisma)] },
+        select: { id: true },
+      })
+    ).map((row) => row.id),
+  );
+  const evidenceIds = candidateIds.filter((id) => inScope.has(id));
+  const excludedOutOfScope = candidateIds.length - evidenceIds.length;
 
   // THE CLAIM. A caller that does not win it does nothing at all — no ZIP is
   // assembled, no object is uploaded and no terminal state is written, so the
@@ -850,6 +884,8 @@ export async function buildExchangePackage(
         generatedAtUtc: new Date().toISOString(),
         evidenceCount: evidenceIds.length,
         evidenceIds,
+        // How many requested ids were not in this workspace's scope (never which).
+        excludedOutOfScope,
         limited,
         limitCap: MAX_EVIDENCE_PER_PACKAGE,
         caseId: pkg.caseId ?? null,

@@ -423,6 +423,8 @@ export { deriveAnchorSemantics } from "./anchor.js";
 
 export type {
   EffectiveOtsStatus,
+  OtsAnchorCheck,
+  OtsAnchorClaim,
   OtsAnchorCompletenessInput,
 } from "./ots.js";
 
@@ -520,9 +522,13 @@ export type {
 
 export {
   isCompleteOtsAnchor,
+  isPublicAnchoringVerified,
   isValidOtsBitcoinTxid,
+  normalizeOtsAnchorCheck,
   normalizeOtsStatusValue,
+  OTS_ANCHOR_CLAIM_LABELS,
   resolveEffectiveOtsStatus,
+  resolveOtsAnchorClaim,
 } from "./ots.js";
 
 // -----------------------------------------------------------------------------

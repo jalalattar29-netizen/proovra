@@ -62,84 +62,46 @@ const UPGRADE_SRC = readSource("../src/ots-upgrade.processor.ts");
 // ============================================================================
 
 describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedule a follow-up", () => {
-  it("the upgrade processor's PENDING branch calls enqueueOtsUpgradeJob with the follow-up id", () => {
-    // Anchor the PENDING branch: "ANCHOR_MATERIAL_RECOVERED" |
-    // "STILL_PENDING" | pendingOutput | !commandErrored — that branch
-    // MUST flow to the enqueueOtsUpgradeJob call further down (either
-    // directly OR via the txidRecoveredWhileAnchored else-branch).
-    // Anchor on `if (` followed by the kind check so we land on the
-    // branch code, not the comment block above it. The actual file has
-    // varied whitespace between the `if (` and the predicate; use a
-    // regex match.
-    const m = UPGRADE_SRC.match(
-      /if \(\s*\n?\s*classification\.kind === "ANCHOR_MATERIAL_RECOVERED"/,
-    );
-    expect(m).not.toBeNull();
-    // The whole PENDING-branch `if` statement the regex anchored on
-    // (WCC-NEW-027: structural, not a 14000-char budget).
-    const block = enclosingSource(
-      UPGRADE_SRC,
-      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
-      "statement",
-      { unique: true, fileName: "ots-upgrade.processor.ts" },
-    );
-    // The else-of-(txidRecoveredWhileAnchored) is where the budget
-    // check + enqueue lives. Pin both:
-    expect(block).toMatch(/isOtsGlobalBudgetExhausted\(/);
-    expect(block).toMatch(/enqueueOtsUpgradeJob\(evidenceId,\s*\{/);
-    // The enqueue MUST set a delayMs (no immediate retry storm).
-    expect(block).toMatch(/delayMs:\s*60\s*\*\s*60\s*\*\s*1000/);
-    // AND it MUST tell the enqueue authority that the live job under the
-    // target id is the CALLER.
-    //
-    // PHASE 12 — POINT 5 renamed this mechanism without weakening it. There
-    // used to be two ids (`ots-upgrade-<id>` and
-    // `ots-upgrade-followup-<id>`) and an `excludeJobId` the producer
-    // interpreted itself; there is now ONE id and a `selfJobId` the SHARED
-    // enqueue authority interprets. The guarantee is identical and is the
-    // reason both exist: without it this call finds its own active job,
-    // collapses onto it, schedules nothing, and the evidence stays
-    // OTS-PENDING forever with an empty queue — the exact production
-    // incident this file was written for.
-    expect(block).toMatch(/selfJobId:\s*job\.id/);
-  });
+  // 2026-09-29 — the invariant is unchanged; its location moved. The processor
+  // no longer writes per classification branch: it decides ONE transition
+  // (`decideOtsTransition`) and applies it compare-and-set. A PENDING outcome
+  // is `transition.status === "PENDING"`, and that is where the follow-up is
+  // scheduled. Behaviour is pinned in ots-upgrade-processor.behaviour.test.ts.
+  const afterDecision = () => UPGRADE_SRC.slice(UPGRADE_SRC.indexOf("const transition = decideOtsTransition("));
 
-  it("the FULLY_ANCHORED branch is the ONLY terminal-success branch (no spurious follow-up)", () => {
-    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027: structural, so
-    // new custody-payload fields cannot push the asserted text out, and the
-    // absence check below cannot read the next branch).
-    const block = enclosingSource(
-      UPGRADE_SRC,
-      'if (classification.kind === "FULLY_ANCHORED")',
-      "statement",
-      { fileName: "ots-upgrade.processor.ts" },
-    );
-    expect(block).toMatch(/status:\s*"ANCHORED"/);
-    // FULLY_ANCHORED neither re-issues a report (2026-09-29) nor enqueues
-    // another upgrade job.
-    expect(block).not.toMatch(/enqueueReportJob|forceRegenerate/);
-    // No enqueueOtsUpgradeJob in this branch.
-    expect(block.match(/enqueueOtsUpgradeJob\(/)).toBeNull();
-  });
-
-  it("the global-budget-exhausted branch terminates without re-enqueue", () => {
-    // The block holding the budget check: the `else` of
-    // txidRecoveredWhileAnchored, which contains BOTH the exhausted branch and
-    // the follow-up enqueue after it, so the ordering check below is live.
-    const block = enclosingSource(UPGRADE_SRC, "isOtsGlobalBudgetExhausted({", "block", {
+  it("a PENDING transition schedules the delayed, self-aware follow-up", () => {
+    const block = enclosingSource(UPGRADE_SRC, 'if (transition.status === "PENDING")', "statement", {
       unique: true,
       fileName: "ots-upgrade.processor.ts",
     });
-    // Writes FAILED + records incident.
-    expect(block).toMatch(/status:\s*"FAILED"/);
-    expect(block).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
+    expect(block).toMatch(/enqueueOtsUpgradeJob\(evidenceId,\s*\{/);
+    // A delay (no immediate retry storm)…
+    expect(block).toMatch(/delayMs:\s*60\s*\*\s*60\s*\*\s*1000/);
+    // …and the live job under the target id is the CALLER: without this the
+    // call collapses onto its own active job, schedules nothing, and the
+    // evidence stays OTS-PENDING forever with an empty queue.
+    expect(block).toMatch(/selfJobId:\s*job\.id/);
+  });
+
+  it("no other outcome schedules a follow-up (anchored and failed are terminal for this job)", () => {
+    const enqueues = afterDecision().match(/enqueueOtsUpgradeJob\(/g) ?? [];
+    expect(enqueues.length).toBe(1);
+    // A transient attempt error throws for the job's own retry budget instead.
+    expect(afterDecision()).toMatch(/throw new Error\("OTS_UPGRADE_ATTEMPT_FAILED"\)/);
+  });
+
+  it("the global-budget-exhausted outcome terminates without re-enqueue", () => {
+    // occurrence 1: the first match is the custody payload's budgetDays spread.
+    const block = enclosingSource(UPGRADE_SRC, 'transition.phase === "global_budget_exhausted"', "statement", {
+      occurrence: 1,
+      fileName: "ots-upgrade.processor.ts",
+    });
     expect(block).toMatch(/recordWorkerIncident\(/);
-    // Returns BEFORE the enqueueOtsUpgradeJob call further down.
-    const enqueueIdxInBlock = block.indexOf("enqueueOtsUpgradeJob(");
-    const returnIdxInBlock = block.indexOf("return;");
-    if (enqueueIdxInBlock > -1) {
-      expect(returnIdxInBlock).toBeLessThan(enqueueIdxInBlock);
-    }
+    expect(block).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
+    expect(block).toMatch(/return;\s*\}$/);
+    // …and it sits BEFORE the only follow-up enqueue.
+    const src = afterDecision();
+    expect(src.indexOf(block)).toBeLessThan(src.indexOf('if (transition.status === "PENDING")'));
   });
 });
 

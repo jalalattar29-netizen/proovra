@@ -310,10 +310,13 @@ describe("Phase IA-OTS-info-fallback — processor source contract", () => {
     );
   });
 
-  it("processor records `anchored_via_info` phase in the custody payload when classifier returns that phase", () => {
+  it("an info-confirmed anchor is recorded as PROOF_STRUCTURE — never as chain-verified (2026-09-29)", () => {
     const src = readProcessor();
-    expect(src).toMatch(/classification\.phase === "anchored_via_info"/);
-    expect(src).toMatch(/"ots_info_no_verify_available"/);
+    // `ots info` reads the proof offline; only `ots verify` checks the chain.
+    expect(src).toMatch(/const verified = verify\?\.verified === true;/);
+    expect(src).toMatch(/check:\s*verified\s*\?\s*"BITCOIN_VERIFIED"\s*:\s*"PROOF_STRUCTURE"/);
+    // The block time is taken only from the chain check, never invented.
+    expect(src).toMatch(/verified && classification\.anchoredAtUtc \? new Date\(classification\.anchoredAtUtc\) : null/);
   });
 
   it("report regen is gated to the FULLY_ANCHORED branch only (no `ots_anchored` regen on ANCHOR_MATERIAL_RECOVERED)", () => {
@@ -326,14 +329,12 @@ describe("Phase IA-OTS-info-fallback — processor source contract", () => {
     expect(src).not.toMatch(/regenerateReason:\s*"ots_anchored"/);
   });
 
-  it("FULLY_ANCHORED branch returns BEFORE any enqueueOtsUpgradeJob (no follow-up after ANCHORED)", () => {
+  it("no follow-up after ANCHORED: the only post-write enqueue is gated on a PENDING transition", () => {
     const src = readProcessor();
-    // The "ots.upgrade.anchored" log line is the last statement in
-    // the FULLY_ANCHORED arm; the return; immediately follows.
-    const anchoredLogRet = src.search(
-      /"ots\.upgrade\.anchored"\s*\)\s*;\s*return;/,
-    );
-    expect(anchoredLogRet).toBeGreaterThan(-1);
+    const after = src.slice(src.indexOf("const transition = decideOtsTransition("));
+    const enqueues = after.match(/enqueueOtsUpgradeJob\(/g) ?? [];
+    expect(enqueues.length).toBe(1);
+    expect(after).toMatch(/if \(transition\.status === "PENDING"\) \{\s*(\/\/[^\n]*\n\s*)*await enqueueOtsUpgradeJob\(/);
   });
 });
 

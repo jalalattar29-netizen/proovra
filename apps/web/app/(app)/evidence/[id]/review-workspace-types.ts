@@ -212,6 +212,9 @@ export type PreservationMatrix = {
   ots: {
     status: string | null;
     effectiveStatus: string | null;
+    /** 2026-09-29: how the anchor was established, and the one claim it supports. */
+    anchorCheck?: string | null;
+    anchorClaim?: string | null;
     proofPresent: boolean;
     hashMatches: boolean | null;
     anchoredAtUtc: string | null;

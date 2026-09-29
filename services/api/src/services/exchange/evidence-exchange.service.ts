@@ -31,7 +31,9 @@ import {
   type ExchangePackageState,
   type WebhookEventKind,
 } from "@proovra/shared";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
+import { caseVisibleToWhere } from "../cases/case-visibility.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
@@ -87,7 +89,7 @@ export type CreateExchangePackageInput = {
 
 export type CreateExchangePackageResult =
   | { ok: true; packageId: string }
-  | { ok: false; denial: "INVALID_KIND" | "INVALID_EVIDENCE" };
+  | { ok: false; denial: "INVALID_KIND" | "INVALID_EVIDENCE" | "INVALID_CASE" };
 
 export async function createExchangePackage(
   input: CreateExchangePackageInput,
@@ -110,6 +112,16 @@ export async function createExchangePackage(
   });
   if (owned !== uniqueIds.length) {
     return { ok: false, denial: "INVALID_EVIDENCE" };
+  }
+  // A NAMED CASE must be in this workspace and visible to the requester — a
+  // restricted case is visible only to its owner and its access list
+  // (2026-09-29). Same answer for "absent" and "not yours".
+  if (input.caseId) {
+    const caseScope = await workspaceCaseWhere(input.teamId, prisma);
+    const visible = await prisma.case.count({
+      where: { AND: [{ id: input.caseId }, caseScope, caseVisibleToWhere(input.createdByUserId)] },
+    });
+    if (visible !== 1) return { ok: false, denial: "INVALID_CASE" };
   }
   const row = await prisma.evidenceExchangePackage.create({
     data: {

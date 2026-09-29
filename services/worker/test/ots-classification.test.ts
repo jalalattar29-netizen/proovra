@@ -164,19 +164,20 @@ describe("classifyOtsResult — hybrid state safeguards", () => {
     expect(result.kind).toBe("STILL_PENDING");
   });
 
-  it("back-compat: verify omitted + legacy 'anchored' upgrade output → FULLY_ANCHORED via heuristic", () => {
+  it("NO text-only promotion (2026-09-29): verify omitted + 'anchored' upgrade output is NOT an anchor", () => {
     const anchoredUpgrade = parseOtsUpgradeOutput(
       "",
       `Bitcoin transaction: ${TXID}\nSuccess! Timestamp complete.`,
     );
     const result = classifyOtsResult({
       upgrade: anchoredUpgrade,
-      // verify is undefined — caller did NOT run it.
+      // verify is undefined — caller did NOT run it — and no info either.
       existingTxid: null,
       commandErrored: false,
     });
-    expect(result.kind).toBe("FULLY_ANCHORED");
-    expect(result.reason).toMatch(/legacy heuristic/);
+    // Anchor material, not an anchor: only the proof (verify / info) proves one.
+    expect(result.kind).toBe("ANCHOR_MATERIAL_RECOVERED");
+    expect(result.txid).toBe(TXID);
   });
 
   it("verify INCOMPLETE overrides ambiguous upgrade output — never promotes to FULLY_ANCHORED", () => {

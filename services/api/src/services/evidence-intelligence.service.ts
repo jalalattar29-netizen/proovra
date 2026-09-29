@@ -5,6 +5,7 @@ import { evaluateCustodyChain } from "./custody-events.service.js";
 import {
   deriveCanonicalArtifactAvailability,
   isAccessCustodyEventType,
+  isPublicAnchoringVerified,
   normalizeOtsStatusValue,
 } from "@proovra/shared";
 import type {
@@ -59,6 +60,9 @@ type EvidenceIntelligenceInput = {
     signingKeyVersion: number | null;
     tsaStatus: string | null;
     otsStatus: string | null;
+    /** 2026-09-29: the one OTS claim needs the anchor time and how it was established. */
+    otsAnchoredAtUtc?: Date | string | null;
+    otsAnchorCheck?: string | null;
     reportGeneratedAtUtc: Date | string | null;
     verificationPackageGeneratedAtUtc: Date | string | null;
     latestReportVersion: number | null;
@@ -726,9 +730,7 @@ function buildReviewerAlerts(params: {
     });
   }
 
-  const anchorVerified = Boolean(
-    params.anchor?.transactionId || params.anchor?.anchoredAtUtc
-  );
+  const anchorVerified = anchorVerifiedFor(params);
   if (!anchorVerified && !params.anchor?.configured) {
     alerts.push({
       severity: "warning",
@@ -853,6 +855,22 @@ function formatNullableDate(value: Date | string | null | undefined): string | n
   return date.toISOString();
 }
 
+/**
+ * "OpenTimestamps Bitcoin anchoring verified" is the ONE OTS claim
+ * (2026-09-29): an anchor verified against the Bitcoin chain. A transaction id
+ * or an anchored-at time on the anchor summary is anchor material, not that.
+ */
+function anchorVerifiedFor(params: {
+  evidence: { otsStatus: string | null; otsAnchoredAtUtc?: Date | string | null; otsAnchorCheck?: string | null };
+  anchor?: { anchoredAtUtc?: Date | string | null } | null;
+}): boolean {
+  return isPublicAnchoringVerified({
+    status: params.evidence.otsStatus,
+    anchoredAtUtc: params.evidence.otsAnchoredAtUtc ?? params.anchor?.anchoredAtUtc ?? null,
+    anchorCheck: params.evidence.otsAnchorCheck ?? null,
+  });
+}
+
 export async function buildEvidenceIntelligence(
   params: EvidenceIntelligenceInput
 ): Promise<EvidenceIntelligence> {
@@ -966,9 +984,7 @@ export async function buildEvidenceIntelligence(
       chainValid: chain.valid,
       chainMode: chain.mode,
       outputs: params.outputs,
-      anchorVerified: Boolean(
-        params.anchor?.transactionId || params.anchor?.anchoredAtUtc
-      ),
+      anchorVerified: anchorVerifiedFor(params),
     }),
     verificationProof: buildVerificationProof(params.evidence),
     artifacts: buildArtifactSummaries({ evidence: params.evidence }),
@@ -985,9 +1001,7 @@ export async function buildEvidenceIntelligence(
       evidence: params.evidence,
       chainValid: chain.valid,
       outputs: params.outputs,
-      anchorVerified: Boolean(
-        params.anchor?.transactionId || params.anchor?.anchoredAtUtc
-      ),
+      anchorVerified: anchorVerifiedFor(params),
     }),
   };
 }

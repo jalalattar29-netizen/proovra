@@ -874,6 +874,33 @@ async function observeEvidenceArtifact(
  * The record and, when the writer recorded it, the report version a pipeline
  * fingerprint is about. Pure; exported for tests.
  */
+/**
+ * THE EXACT COMPONENT A REPORT/PACKAGE CONDITION NAMES (2026-09-29) — what an
+ * operator inspects and what recovery must target. Read from the condition's
+ * own fingerprint; when the row also names a record (`relatedEvidenceId`) the
+ * two must agree, or there is no target. Null for any other source.
+ */
+export function incidentRecordTarget(incident: {
+  sourceId: string | null;
+  fingerprint: string;
+  relatedEvidenceId: string | null;
+}): { component: "REPORT" | "VERIFICATION_PACKAGE"; evidenceId: string; reportVersion: number | null } | null {
+  if (
+    incident.sourceId !== "pipeline.report_generation_failed" &&
+    incident.sourceId !== "pipeline.package_generation_failed"
+  ) {
+    return null;
+  }
+  const parsed = parseArtifactFingerprint(incident.fingerprint);
+  if (!parsed?.evidenceId || !/^[0-9a-f-]{36}$/i.test(parsed.evidenceId)) return null;
+  if (incident.relatedEvidenceId && incident.relatedEvidenceId !== parsed.evidenceId) return null;
+  return {
+    component: parsed.packageFailureClass ? "VERIFICATION_PACKAGE" : "REPORT",
+    evidenceId: parsed.evidenceId,
+    reportVersion: parsed.reportVersion,
+  };
+}
+
 export function parseArtifactFingerprint(fingerprint: string): {
   evidenceId: string | null;
   reportVersion: number | null;

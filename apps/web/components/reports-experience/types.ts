@@ -204,3 +204,22 @@ export function lifecycleFilterFromSearch(search: string): LifecycleFilter | nul
     ? (value as LifecycleFilter)
     : null;
 }
+
+/**
+ * ROLLOUT COMPATIBILITY (2026-09-29). The web app deploys on every push to
+ * main; the API deploys separately, after its migration. An API without the
+ * truthful buckets answers the previous summary and REJECTS the new lifecycle
+ * filters with a 400. The page shows the new cards and offers these filters
+ * only once the summary proves the API supports them.
+ */
+export function supportsTruthfulOutputBuckets(summary: ReportsSummary | null | undefined): boolean {
+  return typeof summary?.reportsNotIssued === "number";
+}
+
+/** Filters only an API with the truthful buckets accepts. */
+export const TRUTHFUL_BUCKET_FILTERS: ReadonlySet<LifecycleFilter> = new Set<LifecycleFilter>([
+  "package_missing",
+  "report_awaiting_issuance",
+  "report_not_issued",
+  "entitlement_unavailable",
+]);

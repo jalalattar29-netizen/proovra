@@ -14,7 +14,9 @@ import {
   keysetAfter,
   keysetPage,
 } from "../services/pagination/keyset-cursor.js";
-import { projectIncident } from "../services/observability/incident.service.js";
+import { probeConditionActivity, projectIncident } from "../services/observability/incident.service.js";
+import { resolveIncidentSourceWorkspace } from "../services/observability/incident-scope.js";
+import { incidentRecordTarget } from "../services/operations/operations-source-probes.js";
 
 /**
  * Platform Control Center P1 — Platform Security & Incidents aggregate.
@@ -461,6 +463,9 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
           const subject = row.teamId ? subjectById.get(row.teamId) : undefined;
           return {
             ...projected,
+            // The exact component a report/package condition names (2026-09-29)
+            // — including one with no owning workspace. Null for other sources.
+            target: incidentRecordTarget(row),
             affected: subject
               ? {
                   workspaceId: subject.id,
@@ -623,6 +628,118 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
         .send({ error: { code, message: "Incident action refused" } });
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // RECORD CONDITIONS WITH NO WORKSPACE ROW — INSPECT AND RECOVER (2026-09-29).
+  //
+  // A report/package failure for a Personal record stored with team_id NULL is
+  // written LEGACY_UNSCOPED. It appeared in the list above and nowhere else:
+  // no detail, no remediation (the tenant route needs a workspace), and a
+  // manual resolve could never be proven. These two routes give a platform
+  // operator — and only one: `requirePlatformAdmin` is the only door — the
+  // inspection and the SAME canonical component recovery a workspace incident
+  // gets. The row is never assigned a team; the recovery is scoped to the
+  // RECORD's workspace by the durable writer, and the condition closes only
+  // through the verified source-truth transition.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/admin/incidents/:id",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const idParse = IncidentIdParam.safeParse((req.params as { id?: unknown }).id);
+      if (!idParse.success) {
+        return reply
+          .code(400)
+          .send(createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, { reason: "invalid incident id" }, "Invalid incident id"));
+      }
+      const row = await prisma.operationalIncident.findUnique({ where: { id: idParse.data } });
+      if (!row) return reply.code(404).send({ error: { code: "incident_not_found" } });
+      const target = incidentRecordTarget(row);
+      const recordWorkspaceId = target ? await resolveIncidentSourceWorkspace(row, prisma) : null;
+      const activity =
+        target && recordWorkspaceId
+          ? await probeConditionActivity(
+              { sourceId: row.sourceId, category: row.category, fingerprint: row.fingerprint, teamId: recordWorkspaceId },
+              prisma,
+            ).catch(() => "UNKNOWN" as const)
+          : null;
+      const events = await prisma.operationalIncidentEvent.findMany({
+        where: { incidentId: row.id },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { eventType: true, safeMessage: true, createdAt: true },
+      });
+      return reply.code(200).send({
+        incident: projectIncident(row),
+        target,
+        // Where the condition's source is read — the record's workspace.
+        recordWorkspaceId,
+        // What the source says NOW: ACTIVE (still missing), RECOVERED, UNKNOWN.
+        sourceActivity: activity,
+        events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      });
+    },
+  );
+
+  const RemediateBody = z.object({
+    reason: z.string().trim().min(3).max(300),
+    /** Retry after an exhausted/deterministic failure — never automatic. */
+    supersede: z.boolean().optional(),
+  });
+
+  app.post(
+    "/v1/admin/incidents/:id/remediate",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const idParse = IncidentIdParam.safeParse((req.params as { id?: unknown }).id);
+      const body = RemediateBody.safeParse(req.body ?? {});
+      if (!idParse.success || !body.success) {
+        return reply
+          .code(400)
+          .send(createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, { reason: "a reason (3–300 characters) is required" }, "Invalid remediation request"));
+      }
+      const actorUserId = req.user!.sub;
+      const row = await prisma.operationalIncident.findUnique({ where: { id: idParse.data } });
+      if (!row) return reply.code(404).send({ error: { code: "incident_not_found" } });
+      const target = incidentRecordTarget(row);
+      if (!target) {
+        return reply.code(409).send({ error: { code: "NOT_A_RECORD_CONDITION", message: "This condition has no report or package to recover." } });
+      }
+      if (!(await resolveIncidentSourceWorkspace(row, prisma))) {
+        return reply.code(409).send({ error: { code: "RECORD_WORKSPACE_UNRESOLVED", message: "The record has no workspace to recover it in." } });
+      }
+      const { executePlatformRecordRecovery } = await import("../services/operations/remediation-executor.js");
+      const result = await executePlatformRecordRecovery({
+        target,
+        actorUserId,
+        supersede: body.data.supersede === true,
+      });
+      await emitPlatformAudit({
+        action: "admin.incident_remediate",
+        outcome: result.result === "FAILED" ? "error" : "success",
+        sourceApp: "API",
+        actorUserId,
+        resourceType: "operational_incident",
+        resourceId: row.id,
+        correlationId: req.id,
+        metadata: {
+          incidentTeamId: row.teamId ?? null,
+          incidentScope: String(row.scope),
+          component: target.component,
+          reportVersion: target.reportVersion,
+          supersede: body.data.supersede === true,
+          reason: body.data.reason,
+          result: result.result,
+        },
+      }).catch(() => null);
+      return reply.code(result.result === "QUEUED" || result.result === "ALREADY_IN_PROGRESS" || result.result === "ALREADY_SATISFIED" ? 200 : 409).send({
+        result: result.result,
+        message: result.message,
+        reference: result.reference ?? null,
+        target,
+      });
+    },
+  );
 
   for (const action of ["acknowledge", "resolve", "assign"] as const) {
     app.post(

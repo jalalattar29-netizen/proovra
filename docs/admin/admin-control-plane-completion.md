@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**35 routes** · 35 completed · 0 pending · 1168 API routes traced
+**35 routes** · 35 completed · 0 pending · 1170 API routes traced
 
 ## Status
 
@@ -126,10 +126,12 @@
 | `/admin/evidence-ops` | GET | `/v1/admin/evidence-health` | requirePlatformAdmin | AUDIT |
 | `/admin/evidence-ops/records` | GET | `/v1/admin/evidence-health/records` | requirePlatformAdmin | AUDIT |
 | `/admin/executive` | GET | `/v1/admin/executive` | requirePlatformAdmin | NONE |
+| `/admin/operations` | GET | `/v1/admin/incidents/:id` | requirePlatformAdmin | AUDIT |
 | `/admin/operations` | GET | `/v1/admin/incidents` | requirePlatformAdmin | FILTER |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/acknowledge` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/resolve` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/assign` | requirePlatformAdmin | NONE |
+| `/admin/operations` | POST | `/v1/admin/incidents/:id/remediate` | requirePlatformAdmin | AUDIT |
 | `/admin/operations` | GET | `/v1/admin/security-events` | requirePlatformAdmin | FILTER |
 | `/admin/platform-health` | GET | `/v1/admin/platform-health` | requirePlatformAdmin | NONE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -249,7 +251,7 @@
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
 | `/admin/evidence-ops/records` | 629 | 2c/1t/0s |  |
 | `/admin/executive` | 731 | 4c/2t/8s |  |
-| `/admin/operations` | 731 | 2c/2t/2s |  |
+| `/admin/operations` | 864 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
 | `/admin/platform/exports` | 860 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 1135 | 0c/1t/6s |  |

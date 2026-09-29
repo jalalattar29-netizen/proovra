@@ -12,6 +12,11 @@
  * web's rule (`rows()`), so a card says "not recorded" once instead of eight
  * times.
  */
+import {
+  OTS_ANCHOR_CLAIM_LABELS,
+  resolveOtsAnchorClaim,
+  type OtsAnchorClaim,
+} from "@proovra/shared";
 
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -241,6 +246,8 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown): 
         bitcoinTxid: s(ots["bitcoinTxid"]),
         anchoredAtUtc: s(ots["anchoredAtUtc"]),
         proofPresent: ots["proofPresent"] === true,
+        anchorCheck: s(ots["anchorCheck"]),
+        anchorClaim: s(ots["anchorClaim"]),
       }),
     },
     { label: "Bitcoin transaction ID", value: s(ots["bitcoinTxid"]), mono: true, copyable: true },
@@ -298,15 +305,28 @@ export function timestampStatusLabel(status: string | null): string {
   }
 }
 
-/** sections-model.ts anchoringStatusLabel (txid-truthful). */
-export function anchoringStatusLabel(input: { status: string | null; bitcoinTxid: string | null; anchoredAtUtc: string | null; proofPresent: boolean }): string {
-  const st = (input.status ?? "").toUpperCase();
-  const anchored = Boolean(input.bitcoinTxid) || Boolean(input.anchoredAtUtc);
-  if (st === "ANCHORED" && anchored) return "OpenTimestamps Bitcoin anchoring verified";
-  if (st === "ANCHORED" || st === "PENDING" || input.proofPresent) return "OpenTimestamps proof present; Bitcoin anchoring pending";
-  if (st === "FAILED") return "OpenTimestamps anchoring failed";
-  if (st === "DISABLED") return "OpenTimestamps unavailable";
-  return "OpenTimestamps not configured";
+/** sections-model.ts anchoringStatusLabel — the one OTS claim. */
+export function anchoringStatusLabel(input: {
+  status: string | null;
+  bitcoinTxid: string | null;
+  anchoredAtUtc: string | null;
+  proofPresent: boolean;
+  anchorCheck?: string | null;
+  anchorClaim?: string | null;
+}): string {
+  // The ONE OTS claim (2026-09-29): "verified" only when the server says the
+  // anchor was verified against the Bitcoin chain.
+  const serverClaim = input.anchorClaim as OtsAnchorClaim | null | undefined;
+  const claim =
+    serverClaim && serverClaim in OTS_ANCHOR_CLAIM_LABELS
+      ? serverClaim
+      : resolveOtsAnchorClaim({
+          status: input.status,
+          anchoredAtUtc: input.anchoredAtUtc,
+          anchorCheck: input.anchorCheck ?? null,
+          proofPresent: input.proofPresent,
+        });
+  return OTS_ANCHOR_CLAIM_LABELS[claim];
 }
 
 function objectLockLabel(mode: string | null): string | null {

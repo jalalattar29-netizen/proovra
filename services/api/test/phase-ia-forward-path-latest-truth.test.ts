@@ -180,29 +180,16 @@ describe("Phase IA-forward-path — OTS-anchored regen produces a version bump",
       fileName: "ots-upgrade.processor.ts",
     });
     expect(block).not.toMatch(/enqueueReportJob|requestReportGeneration|forceRegenerate/);
-    expect(block).toMatch(/NO REPORT IS RE-ISSUED BECAUSE A PROOF IMPROVED/);
+    // The branch now only turns the classification into an observation; the
+    // no-report rule is stated where the write happens.
+    expect(block).toMatch(/kind:\s*"ANCHOR_PROVEN"/);
+    expect(UP).toMatch(/NO REPORT IS RE-ISSUED BECAUSE A PROOF CHANGED/);
   });
 
-  it("ANCHOR_MATERIAL_RECOVERED (PENDING) does NOT enqueue with forceRegenerate", () => {
-    // The only forceRegenerate call inside the pending branch is gated
-    // on `txidRecoveredWhileAnchored` (a legacy edge case: ANCHORED row
-    // discovers its txid). Bare ANCHOR_MATERIAL_RECOVERED / STILL_PENDING
-    // must NOT trigger a regen.
-    // The whole pending-branch `if` statement whose condition names it.
-    const block = enclosingSource(
-      UP,
-      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
-      "statement",
-      { fileName: "ots-upgrade.processor.ts" },
-    );
-    // Within this branch, the ONLY enqueueReportJob is the legacy
-    // txidRecoveredWhileAnchored one.
-    const regens = block.match(/enqueueReportJob\(/g) ?? [];
-    expect(regens.length).toBeLessThanOrEqual(1);
-    if (regens.length === 1) {
-      expect(block).toMatch(
-        /if \(txidRecoveredWhileAnchored\)[\s\S]{0,400}enqueueReportJob/,
-      );
-    }
+  it("a PENDING outcome (incl. recovered anchor material) never re-issues a report (2026-09-29)", () => {
+    // The pending branch no longer exists as its own statement: every
+    // classification becomes one observation. No path in the processor
+    // requests a report at all.
+    expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGeneration\(|forceRegenerate:/);
   });
 });

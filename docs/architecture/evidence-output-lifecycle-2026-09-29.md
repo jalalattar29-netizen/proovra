@@ -71,9 +71,12 @@ worker's `output-issuance.ts`.
 
 ## 5. Migration
 
-`20280730000000_evidence_output_lifecycle` — EXPAND, additive, nullable, no
-backfill. Registered in the deployment plan, curation, inventory (284
-migrations, 0 gate failures) and the security-event drift allowlist.
+`20280730000000_evidence_output_lifecycle` and
+`20280731000000_evidence_ots_anchor_check` (the nullable
+`evidence.ots_anchor_check`, §12; separate because a committed migration is
+never edited) — both EXPAND, additive, nullable, no backfill. Registered in the
+deployment plan, curation, inventory (285 migrations, 0 gate failures) and the
+security-event drift allowlist. Apply both before deploying the API and worker.
 
 **Clean-boot rehearsal (2026-09-29):**
 
@@ -191,13 +194,112 @@ The destruction executor now works per object version:
 * **Locales.** The product ships English copy only; no i18n catalogues exist to update. The new strings live in the shared copy modules (`output-action-copy.ts`, `user-facing-errors.ts`).
 * **Accessibility.** The reason input has a label and an accessible name. Summary cards that carry a filter are real buttons.
 
-## 11. Open gates
+## 11. OTS state transitions
+
+One pure rule, `decideOtsTransition` (`services/worker/src/ots-state.ts`),
+decides how an observation changes a record's OTS state. The upgrade processor
+applies every write compare-and-set (`applyOtsTransition`) against the exact
+snapshot it decided from. A delayed job, a duplicate delivery or a concurrent
+worker therefore cannot overwrite newer OTS facts; a stale observation is
+discarded.
+
+| Observation | Established by | Effect |
+|---|---|---|
+| `ANCHOR_PROVEN` | `ots verify` against the chain (`BITCOIN_VERIFIED`), or `ots info` offline showing the proof commits to this record's hash with a Bitcoin block attestation (`PROOF_STRUCTURE`) | `ANCHORED`, with the check recorded in `evidence.ots_anchor_check`. A stronger check replaces a weaker one, never the reverse. The anchor time is the block time when the chain check reports it, else the existing anchor time, else the observation time. |
+| `PENDING` | a valid proof not (yet) anchored: incomplete or unknown | Never demotes a checked anchor. A legacy `ANCHORED` row whose anchor was never checked and which the re-check cannot confirm is demoted to `PENDING`, keeping its proof. An `ANCHORED` label is not kept just to avoid a downgrade. |
+| `TRANSIENT_ERROR` | the attempt failed (network, timeout, calendar, missing binary) | **No OTS column changes.** An `OTS_ATTEMPT_ERROR` custody event is written and the job throws into its retry budget. This replaces the old behaviour of writing `FAILED` and clearing the anchor time. |
+| `PROOF_INVALID` | the proof commits to another hash (`PROOF_HASH_MISMATCH`), or it is not an OpenTimestamps proof (`MALFORMED_PROOF`) | `FAILED` with that code; the stored proof is preserved. Terminal: never retried or resurrected. |
+| `BUDGET_EXHAUSTED` | a `PENDING` proof that did not anchor within the global budget | `FAILED`, plus a CRITICAL incident. Never applied to an anchored row. |
+
+The text-only "legacy heuristic" is removed: `ots upgrade` output alone no
+longer promotes to `ANCHORED`. OTS recovery touches OTS only. It requests no
+report and rewrites no issued PDF, and custody events are written only for
+material changes.
+
+## 12. The anchoring claim (`publicAnchoringVerified`)
+
+`resolveOtsAnchorClaim` (`packages/shared/src/ots.ts`) is the only source of
+the claim. The claim is **VERIFIED** only for an anchored record whose anchor
+was verified against the Bitcoin chain. The other claims are:
+- **ANCHORED_NOT_CHECKED**: a proof-structure anchor, or a historical anchor whose check was never recorded.
+- **PENDING**: this includes an `ANCHORED` label with no anchor time.
+- **FAILED**
+- **UNAVAILABLE** and **NOT_CONFIGURED**
+
+A status string, a txid, an anchor time or a pending operation never makes the
+claim VERIFIED.
+
+The same claim feeds every surface:
+- the package manifest (`publicAnchoringVerified`, plus an explicit `anchoringClaim`);
+- `anchor.json` and `opentimestamps.json` (`anchorCheck`, `anchorClaim`, `publicAnchoringVerified`);
+- the package README;
+- report PDF labels;
+- the trust decision's `anchoringStatusLabel`;
+- evidence intelligence;
+- public Verify's basic tier (`not_checked` with basis `PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED`);
+- the web and mobile technical appendix, which prefer the server's `anchorClaim`.
+
+The format-5 seal binds the manifest, so flipping the value is detected
+(`ENTRIES_MATCH_INDEX`).
+
+Historical packages are immutable and are not re-signed. Packages issued before
+format 5 signed `publicAnchoringVerified` from "a txid or anchor time exists".
+Every package in production today is in that set. The artifact history labels
+them "older format; anchoring not chain-checked" rather than repeating their
+claim.
+
+## 13. Record conditions with no workspace row
+
+A report/package failure for a Personal record stored with `team_id` NULL is
+recorded as `LEGACY_UNSCOPED` with `team_id` NULL. It is deduplicated by
+fingerprint and never shown on a tenant surface.
+
+`resolveEvidenceWorkspaceId` (`packages/shared-runtime/src/workspace-scope.ts`)
+is the exact inverse of the existing personal-workspace widening: such a record
+belongs to its owner's personal workspace. The row is never assigned a team.
+That workspace is used to:
+- scope the durable request, both in the writer and in the worker's run-time
+  tenancy re-check. Previously no request could ever be written for such a
+  record;
+- read the condition's source (`resolveIncidentSourceWorkspace`) for a manual
+  resolve and for the scheduled `sweepUnscopedSourceTruthRecoveries`.
+
+A platform operator (`requirePlatformAdmin`) can:
+- list the condition with its exact target (component and report version);
+- open `GET /v1/admin/incidents/:id` for the target, the record's workspace,
+  the live source activity and recent events;
+- invoke `POST /v1/admin/incidents/:id/remediate` with a required reason, audited.
+
+Remediation runs the same canonical `requestOutputRecovery` as workspace
+remediation, targeting exactly package vN. Without `supersede` it never retries
+a deterministic terminal failure. The condition closes only when the probe
+proves that exact component and version repaired; a wrong-version repair
+leaves it open. The admin operations page shows the target and a Recover action.
+
+## 14. Exchange packages
+
+Every exchange kind, the provenance lookup and the manifest read through the
+canonical workspace scope. A Personal record stored with `team_id` NULL is
+included, with its latest report version and metadata. A stale or forged
+package row naming another owner's or workspace's record builds without it:
+the manifest records only an `excludedOutOfScope` count, never the ids.
+
+At creation, a request naming a foreign or missing id is refused with one
+answer (`INVALID_EVIDENCE`). A named case must be in the workspace and visible
+to the requester under the restricted-case rule (`caseVisibleToWhere`, now
+shared with Reports); otherwise the answer is `INVALID_CASE`.
+
+## 15. Open gates
 
 * Real AWS Object Lock validation. MinIO accepts a checksum-less PUT into a
-  default-retention bucket, so it cannot reproduce the AWS refusal.
+  default-retention bucket, so it cannot reproduce the AWS refusal. The live
+  incident is not resolved until a deployed worker publishes and verifies a
+  package in the real bucket.
 * Whether the image that raised the incident actually contained the defect.
   The deployed SHA is unknown; the first image containing the defect is
   `4579c997` (2026-09-18).
-* Teamless incidents (`team_id` NULL) have no operator surface yet.
 * TSA token signature verification is not performed; the label says
   "not checked" instead of "verified".
+* Worker containers have no Bitcoin node, so new anchors will normally be
+  `PROOF_STRUCTURE` ("not checked against the chain"). `BITCOIN_VERIFIED`
+  requires a Bitcoin RPC for `ots verify`.

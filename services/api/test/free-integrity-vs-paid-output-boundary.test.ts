@@ -118,10 +118,14 @@ describe("OTS is reached from finalization, not from report generation", () => {
 
   it("initialization and upgrade share one queue and one state machine", () => {
     // Not a second queue: the upgrade processor is the entry point for both
-    // phases, and both persist through `buildOtsEvidenceUpdateData`.
+    // phases. Initialization persists through `buildOtsEvidenceUpdateData`;
+    // the upgrade decides through the ONE transition rule
+    // (`decideOtsTransition`, which builds its data with the same shape
+    // builder) and writes compare-and-set (2026-09-29).
     expect(UPGRADE).toMatch(/ensureEvidenceOtsInitialized\(/);
     expect(LIFECYCLE).toMatch(/buildOtsEvidenceUpdateData\(/);
-    expect(UPGRADE).toMatch(/buildOtsEvidenceUpdateData\(/);
+    expect(UPGRADE).toMatch(/decideOtsTransition\(/);
+    expect(UPGRADE).toMatch(/applyOtsTransition\(/);
   });
 });
 

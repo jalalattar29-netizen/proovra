@@ -1,3 +1,4 @@
+import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 import { ReportEvidenceAssetKind } from "./types.js";
@@ -407,14 +408,19 @@ export function mapOtsStatusPublicLabel(status: string | null | undefined): stri
 export function mapOtsStatusPublicLabelWithTxid(params: {
   status: string | null | undefined;
   bitcoinTxid: string | null | undefined;
+  /** 2026-09-29: the one OTS claim needs these; "verified" only for BITCOIN_VERIFIED. */
+  anchoredAtUtc?: string | Date | null;
+  anchorCheck?: string | null;
 }): string {
   const status = safe(params.status, "").toUpperCase();
-  const hasTxid =
-    typeof params.bitcoinTxid === "string" &&
-    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
-
-  if (status === "ANCHORED" && hasTxid) {
-    return "OpenTimestamps Bitcoin anchoring verified";
+  if (status === "ANCHORED") {
+    const claim = resolveOtsAnchorClaim({
+      status: params.status,
+      anchoredAtUtc: params.anchoredAtUtc ?? null,
+      anchorCheck: params.anchorCheck ?? null,
+    });
+    // An ANCHORED status with no anchor time is not an anchor at all.
+    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return OTS_ANCHOR_CLAIM_LABELS[claim];
   }
   return mapOtsStatusPublicLabel(params.status);
 }
@@ -503,7 +509,8 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
   switch (safe(mode, "").toUpperCase()) {
     case "ANCHORED":
     case "ACTIVE":
-      return "OpenTimestamps Bitcoin anchoring verified";
+      // A MODE says anchoring happened, not that anyone checked it (2026-09-29).
+      return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
     case "BITCOIN_ANCHORING_PENDING":
     case "READY":
       return "OTS proof present; Bitcoin anchoring pending";
@@ -553,16 +560,20 @@ export function mapPublicAnchoringLabelFromOts(input: {
   otsAnchoredAtUtc?: string | null;
   otsProofPresent?: boolean | null;
   fallbackAnchorMode?: string | null;
+  otsAnchorCheck?: string | null;
 }): string {
   const status = safe(input.otsStatus, "").toUpperCase();
-  const hasTxid =
-    typeof input.otsBitcoinTxid === "string" &&
-    /^[a-f0-9]{64}$/i.test(input.otsBitcoinTxid.trim());
-  const hasAnchoredAt = Boolean(input.otsAnchoredAtUtc);
   const hasProof = Boolean(input.otsProofPresent);
 
-  if (status === "ANCHORED" && (hasTxid || hasAnchoredAt)) {
-    return "OpenTimestamps Bitcoin anchoring verified";
+  // THE ONE OTS CLAIM (2026-09-29): a txid or anchored-at time shows anchor
+  // material; only a chain-verified anchor reads "verified".
+  if (status === "ANCHORED") {
+    const claim = resolveOtsAnchorClaim({
+      status: input.otsStatus,
+      anchoredAtUtc: input.otsAnchoredAtUtc ?? null,
+      anchorCheck: input.otsAnchorCheck ?? null,
+    });
+    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return OTS_ANCHOR_CLAIM_LABELS[claim];
   }
   if (status === "FAILED") {
     return "OpenTimestamps anchoring failed";

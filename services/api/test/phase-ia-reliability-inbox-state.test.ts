@@ -480,19 +480,19 @@ describe("Phase IA-reliability — worker DLQ failures bridge into OperationalIn
   });
 
   it("normal OTS PENDING / RETRY_SCHEDULED / WAITING_CONFIRMATIONS NEVER produces an incident", () => {
-    // The OTS terminal block only calls recordWorkerIncident inside
-    // the budget-exhausted branch — we assert the call site is wrapped
-    // in the `if (isOtsGlobalBudgetExhausted(...))` block.
+    // 2026-09-29: the processor decides ONE transition; the incident is
+    // emitted only when that transition is the budget exhaustion. A PENDING
+    // or transient outcome never reaches it.
     const callIdx = OTS.indexOf("recordWorkerIncident(");
     expect(callIdx).toBeGreaterThan(-1);
+    expect(OTS.match(/recordWorkerIncident\(/g)?.length).toBe(1);
     const upTo = OTS.slice(0, callIdx);
-    // The nearest preceding `if (` should be the budget-exhausted check.
-    const budgetCheck = upTo.lastIndexOf("isOtsGlobalBudgetExhausted");
+    const guard = upTo.lastIndexOf('if (transition.phase === "global_budget_exhausted")');
     expect(
-      budgetCheck,
+      guard,
       "incident emission must sit inside the budget-exhausted branch",
     ).toBeGreaterThan(-1);
-    expect(callIdx - budgetCheck).toBeLessThan(3000);
+    expect(callIdx - guard).toBeLessThan(1500);
   });
 
   it("OTS bridge is best-effort — incident emission failure is logged + swallowed", () => {

@@ -46,6 +46,7 @@ import {
   maskPublicEmailsInText,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
+  resolveOtsAnchorClaim,
   // Phase 2 — canonical legal boundary so the public-verify response
   // emits the same boundary copy as the snapshot outputs (Report PDF
   // and Verification Package) will in Phase 3.
@@ -983,6 +984,7 @@ const SAFE_EVIDENCE_SELECT = {
   otsAnchoredAtUtc: true,
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
+  otsAnchorCheck: true,
   signedAtUtc: true,
   capturedAtUtc: true,
   reportGeneratedAtUtc: true,
@@ -1118,6 +1120,7 @@ type SafeEvidence = {
   otsAnchoredAtUtc: string | null;
   otsUpgradedAtUtc: string | null;
   otsFailureReason: string | null;
+  otsAnchorCheck: string | null;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
   verificationStatus: prismaPkg.VerificationStatus | null;
@@ -2146,6 +2149,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
       ? e.otsUpgradedAtUtc.toISOString()
       : null,
     otsFailureReason: e.otsFailureReason ?? null,
+    otsAnchorCheck: e.otsAnchorCheck ?? null,
     displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
     type: e.type,
@@ -9263,6 +9267,7 @@ const timestampDigestMatches: boolean | null =
               effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
             otsCalendar: evidence.otsCalendar ?? null,
             otsFailureReason: evidence.otsFailureReason ?? null,
+            otsAnchorCheck: evidence.otsAnchorCheck ?? null,
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
             storageObjectLockRetainUntilUtc: storage?.retainUntil ?? null,
@@ -9611,6 +9616,15 @@ const timestampDigestMatches: boolean | null =
               ots: {
                 status: evidence.otsStatus ?? null,
                 effectiveStatus: effectiveOtsStatus,
+                // 2026-09-29: how the anchor was established, and the one claim
+                // it supports — clients render this, never re-derive "verified".
+                anchorCheck: evidence.otsAnchorCheck ?? null,
+                anchorClaim: resolveOtsAnchorClaim({
+                  status: evidence.otsStatus,
+                  anchoredAtUtc: effectiveOtsAnchoredAtUtc,
+                  anchorCheck: evidence.otsAnchorCheck,
+                  proofPresent: Boolean(evidence.otsProofBase64),
+                }),
                 proofPresent: Boolean(evidence.otsProofBase64),
                 hashMatches: otsHashMatches,
                 anchoredAtUtc:
@@ -12628,6 +12642,7 @@ action: "evidence.certification_requested",
         otsAnchoredAtUtc: true,
         otsUpgradedAtUtc: true,
         otsFailureReason: true,
+        otsAnchorCheck: true,
         storageBucket: true,
         storageKey: true,
         storageRegion: true,
@@ -13248,6 +13263,7 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
     otsCalendar: evidence.otsCalendar ?? null,
     otsFailureReason: evidence.otsFailureReason ?? null,
+    otsAnchorCheck: evidence.otsAnchorCheck ?? null,
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
     storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
@@ -13882,6 +13898,7 @@ const basicVerification = buildBasicVerification({
   otsStatus: effectiveOtsStatus ?? null,
   otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc ?? null,
+  otsAnchorCheck: evidence.otsAnchorCheck ?? null,
   latestReport: latestReport
     ? { version: latestReport.version, generatedAtUtc: latestReport.generatedAtUtc, pdfSha256: latestReport.pdfSha256 ?? null }
     : null,
@@ -14038,6 +14055,13 @@ timestampedDigestNote:
       failureReason: evidence.otsFailureReason ?? null,
       proofPresent: Boolean(evidence.otsProofBase64),
       hashMatchesFingerprintHash: otsHashMatches,
+      anchorCheck: evidence.otsAnchorCheck ?? null,
+      anchorClaim: resolveOtsAnchorClaim({
+        status: evidence.otsStatus,
+        anchoredAtUtc: effectiveOtsAnchoredAtUtc,
+        anchorCheck: evidence.otsAnchorCheck,
+        proofPresent: Boolean(evidence.otsProofBase64),
+      }),
     },
     anchor,
   },

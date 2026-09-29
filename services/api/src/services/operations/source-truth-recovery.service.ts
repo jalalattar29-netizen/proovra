@@ -43,7 +43,11 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
+import {
+  legacyUnscopedIncidentWhere,
+  resolveIncidentSourceWorkspace,
+  workspaceIncidentWhereWith,
+} from "../observability/incident-scope.js";
 
 import { buildProbeContext, probeSource } from "./operations-source-probes.js";
 
@@ -140,15 +144,104 @@ export async function sweepSourceTruthRecoveries(
     return { examined: 0, resolved: 0, truncated: false };
   }
 
+  const resolved = await closeRecoveredConditions(rows, {
+    lifecycle,
+    sourceId: input.sourceId,
+    now,
+    client,
+    workspaceFor: async () => input.teamId,
+  });
+
+  return { examined: rows.length, resolved, truncated };
+}
+
+/**
+ * THE SAME SWEEP FOR RECORD CONDITIONS WITH NO WORKSPACE ROW (2026-09-29).
+ *
+ * A report/package failure for a Personal record stored with team_id NULL is
+ * written LEGACY_UNSCOPED with team_id NULL. The workspace sweep above can
+ * never select it, so it stayed open forever even after its exact component
+ * was repaired. This reads each such condition in its RECORD's workspace
+ * (`resolveIncidentSourceWorkspace`) and closes it through the same verified
+ * transition. Rows are selected by scope + source, never by any tenant's id;
+ * nothing is written to team_id.
+ */
+export async function sweepUnscopedSourceTruthRecoveries(
+  input: { sourceId: string; now?: Date; limit?: number },
+  client: PrismaClient = defaultPrisma,
+): Promise<SourceTruthRecoverySweep> {
+  const lifecycle = lifecycleForSourceId(input.sourceId);
+  if (
+    !lifecycle ||
+    lifecycle.resolutionAuthority !== "SOURCE_TRUTH" ||
+    lifecycle.recoveryPolicy !== "PROBE_AUTO_RESOLVE" ||
+    lifecycle.activityProbeKey === "NONE"
+  ) {
+    return { examined: 0, resolved: 0, truncated: false };
+  }
+  const now = input.now ?? new Date();
+  const limit = Math.max(1, Math.min(input.limit ?? SWEEP_LIMIT, SWEEP_LIMIT));
+  const open = await client.operationalIncident.findMany({
+    where: {
+      ...legacyUnscopedIncidentWhere(),
+      teamId: null,
+      relatedEvidenceId: { not: null },
+      sourceId: input.sourceId,
+      status: {
+        in: [
+          prismaPkg.IncidentStatus.OPEN,
+          prismaPkg.IncidentStatus.ACKNOWLEDGED,
+          prismaPkg.IncidentStatus.SUPPRESSED,
+        ],
+      },
+    },
+    select: { id: true, status: true, fingerprint: true, teamId: true, scope: true, relatedEvidenceId: true },
+    orderBy: [{ firstSeenAtUtc: "asc" }, { id: "asc" }],
+    take: limit + 1,
+  });
+  const truncated = open.length > limit;
+  const rows = truncated ? open.slice(0, limit) : open;
+  if (rows.length === 0) return { examined: 0, resolved: 0, truncated: false };
+  const resolved = await closeRecoveredConditions(rows, {
+    lifecycle,
+    sourceId: input.sourceId,
+    now,
+    client,
+    workspaceFor: (row) => resolveIncidentSourceWorkspace(row, client),
+  });
+  return { examined: rows.length, resolved, truncated };
+}
+
+type RecoveryRow = { id: string; status: prismaPkg.IncidentStatus; fingerprint: string };
+
+/**
+ * Probe each condition in its workspace and close the ones its source proves
+ * recovered — compare-and-set, with a domain-truth event and the SLA cycle
+ * closed. Shared by the workspace sweep and the unscoped-record sweep so there
+ * is one close path.
+ */
+async function closeRecoveredConditions<R extends RecoveryRow>(
+  rows: readonly R[],
+  args: {
+    lifecycle: NonNullable<ReturnType<typeof lifecycleForSourceId>>;
+    sourceId: string;
+    now: Date;
+    client: PrismaClient;
+    workspaceFor: (row: R) => Promise<string | null>;
+  },
+): Promise<number> {
   let resolved = 0;
   for (const row of rows) {
+    const teamId = await args.workspaceFor(row);
+    // No workspace to read the source in: it stays open and visible.
+    if (!teamId) continue;
     const ctx = await buildProbeContext({
-      teamId: input.teamId,
+      teamId,
       fingerprint: row.fingerprint,
-      client,
-      now,
+      client: args.client,
+      now: args.now,
     });
-    const observation = await probeSource(lifecycle.activityProbeKey, ctx);
+    const observation = await probeSource(args.lifecycle.activityProbeKey, ctx);
     // ONLY a proven recovery closes anything. ACTIVE leaves it open,
     // UNKNOWN leaves it open, and NOT_APPLICABLE leaves it open too — a
     // subject that vanished is what the source's `notApplicableDisposition`
@@ -164,20 +257,20 @@ export async function sweepSourceTruthRecoveries(
 
     // Compare-and-set on the status this sweep read: a reopen or a manual
     // transition that landed between the probe and this write wins.
-    const closed = await client.operationalIncident.updateMany({
+    const closed = await args.client.operationalIncident.updateMany({
       where: { id: row.id, status: row.status },
       data: {
         status: prismaPkg.IncidentStatus.RESOLVED,
-        resolvedAtUtc: now,
+        resolvedAtUtc: args.now,
         // No human resolver is invented for a domain-truth resolution, and
         // `acknowledgedAtUtc` / `acknowledgedByUserId` are left alone: who
         // took this on is part of what happened to it.
         resolvedByUserId: null,
-        resolutionNote: `Resolved from source truth: ${lifecycle.displayLabel} is no longer reported by its source.`,
+        resolutionNote: `Resolved from source truth: ${args.lifecycle.displayLabel} is no longer reported by its source.`,
       },
     });
     if (closed.count === 0) continue;
-    await client.operationalIncidentEvent
+    await args.client.operationalIncidentEvent
       .create({
         data: {
           incidentId: row.id,
@@ -185,7 +278,7 @@ export async function sweepSourceTruthRecoveries(
           safeMessage:
             "The condition's own source now reports recovery. Resolved from positive domain evidence, not from absence in a scan.",
           metadataJson: {
-            sourceId: input.sourceId,
+            sourceId: args.sourceId,
             previousStatus: row.status,
           } as prismaPkg.Prisma.InputJsonValue,
         },
@@ -194,12 +287,12 @@ export async function sweepSourceTruthRecoveries(
 
     await import("./incident-sla-cycle.service.js")
       .then((cycles) =>
-        cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, client),
+        cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, args.client),
       )
       .catch(() => null);
 
     resolved += 1;
   }
 
-  return { examined: rows.length, resolved, truncated };
+  return resolved;
 }

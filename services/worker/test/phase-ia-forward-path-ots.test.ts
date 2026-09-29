@@ -165,50 +165,44 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     );
   });
 
-  it("FULLY_ANCHORED branch writes ANCHORED and does NOT re-issue a report (2026-09-29)", () => {
-    // An anchor that lands later is a LATER FACT: recorded on the record and
-    // shown by Verify. Issued reports keep what they said; no new version.
+  /*
+   * 2026-09-29 — THE BRANCHES BECAME OBSERVATIONS. The processor no longer
+   * writes per classification branch; it turns the classification into ONE
+   * typed observation and applies `decideOtsTransition` compare-and-set.
+   * Behaviour (anchored, pending, transient, invalid, stale, duplicate,
+   * concurrent) is pinned in ots-upgrade-processor.behaviour.test.ts and the
+   * rule itself in ots-transition-rule.test.ts; these pin the wiring.
+   */
+  it("FULLY_ANCHORED becomes ANCHOR_PROVEN with the check that proved it — and no report", () => {
     const block = fullyAnchoredBranch();
-    expect(block).toMatch(/status:\s*"ANCHORED"/);
-    expect(block).not.toMatch(/enqueueReportJob|requestReportGeneration|forceRegenerate/);
+    expect(block).toMatch(/kind:\s*"ANCHOR_PROVEN"/);
+    expect(block).toMatch(/check:\s*verified\s*\?\s*"BITCOIN_VERIFIED"\s*:\s*"PROOF_STRUCTURE"/);
+    expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGeneration\(|forceRegenerate:/);
   });
 
-  it("FULLY_ANCHORED branch writes ANCHORED + custody event inside the SAME transaction", () => {
-    const block = fullyAnchoredBranch();
-    expect(block).toMatch(
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1200}tx\.evidence\.update[\s\S]{0,1500}appendCustodyEventTx\(tx,/,
+  it("every write is compare-and-set with its custody event in the SAME transaction", () => {
+    expect(UP).toMatch(
+      /prisma\.\$transaction\(async \(tx\) => \{\s*const won = await applyOtsTransition\(tx, evidenceId, snapshot, transition\);[\s\S]{0,300}appendCustodyEventTx\(tx,/,
     );
+    // No unconditional evidence write remains in the processor.
+    expect(UP).not.toMatch(/tx\.evidence\.update\(/);
+    expect(UP).not.toMatch(/prisma\.evidence\.update\(/);
   });
 
-  it("FULLY_ANCHORED custody event payload exposes verifyConfirmed + completionSource", () => {
-    const block = fullyAnchoredBranch();
-    // Phase IA-OTS-info-fallback — `verifyConfirmed` now means
-    // "verify succeeded" (verify?.verified === true), not just
-    // "verify ran". `completionSource` now has 3 values:
-    // `ots_info_no_verify_available` (info-confirms branch),
-    // `ots_verify` (verify-confirms branch), `ots_upgrade_heuristic`
-    // (legacy fallback).
-    expect(block).toMatch(/verifyConfirmed:\s*verify\?\.\s*verified === true/);
-    expect(block).toMatch(/"ots_info_no_verify_available"/);
-    expect(block).toMatch(/"ots_verify"/);
-    expect(block).toMatch(/"ots_upgrade_heuristic"/);
+  it("the custody payload records what verify and info established", () => {
+    expect(UP).toMatch(/verifyConfirmed:\s*verify\?\.\s*verified === true/);
+    expect(UP).toMatch(/classification:\s*classification\.kind/);
+    expect(UP).toMatch(/classifierPhase:\s*classification\.phase/);
+    expect(UP).toMatch(/classifierReason:\s*classification\.reason/);
+    expect(UP).toMatch(/anchorCheck:\s*transition\.data\.otsAnchorCheck/);
   });
 
-  it("ANCHOR_MATERIAL_RECOVERED / STILL_PENDING branch keeps PENDING + records classification", () => {
-    // The whole ANCHOR_MATERIAL_RECOVERED / STILL_PENDING `if` statement.
-    const block = enclosingSource(
-      UP,
-      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
-      "statement",
-      { unique: true, fileName: "ots-upgrade.processor.ts" },
-    );
-    // Status stays PENDING (or preserved-ANCHORED for the legacy
-    // anchored-no-public-receipt case).
-    expect(block).toMatch(/status:\s*shouldPreserveAnchoredState\s*\?\s*"ANCHORED"\s*:\s*"PENDING"/);
-    // Custody event carries the classifier kind for forensics.
-    expect(block).toMatch(/classification:\s*classification\.kind/);
-    expect(block).toMatch(/classifierPhase:\s*classification\.phase/);
-    expect(block).toMatch(/classifierReason:\s*classification\.reason/);
+  it("a hard command error is a TRANSIENT attempt error, not a proof failure", () => {
+    const block = enclosingSource(UP, 'classification.kind === "FAILED"', "statement", {
+      unique: true,
+      fileName: "ots-upgrade.processor.ts",
+    });
+    expect(block).toMatch(/kind:\s*"TRANSIENT_ERROR"/);
   });
 
   it("PENDING branch re-enqueues a delayed follow-up that is not collapsed away", () => {
@@ -237,22 +231,23 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     expect(regenSites.length).toBe(0);
   });
 
-  it("global budget exhaustion writes FAILED + records OperationalIncident", () => {
-    const idx = UP.indexOf("isOtsGlobalBudgetExhausted");
-    expect(idx).toBeGreaterThan(-1);
-    // Scan FORWARD from the call site for the exhausted branch — the
-    // declaration of isOtsGlobalBudgetExhausted appears earlier in the
-    // file so we want the LAST occurrence (the call inside the
-    // PENDING-else branch).
-    // The `if (isOtsGlobalBudgetExhausted({ … })) { … }` statement.
+  it("global budget exhaustion is an observation on a PENDING proof, then FAILED + a CRITICAL incident", () => {
     const block = enclosingSource(UP, "isOtsGlobalBudgetExhausted({", "statement", {
       unique: true,
       fileName: "ots-upgrade.processor.ts",
     });
-    expect(block).toMatch(/status:\s*"FAILED"/);
-    expect(block).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
-    expect(block).toMatch(/recordWorkerIncident\(/);
-    expect(block).toMatch(/severity:\s*"CRITICAL"/);
+    // Only a pending observation of a record that is not anchored qualifies.
+    expect(block).toMatch(/observation\.kind === "PENDING"/);
+    expect(block).toMatch(/effectiveStatus !== "ANCHORED"/);
+    expect(block).toMatch(/kind:\s*"BUDGET_EXHAUSTED"/);
+    // occurrence 1: the first is the custody payload's budgetDays spread.
+    const incident = enclosingSource(UP, 'transition.phase === "global_budget_exhausted"', "statement", {
+      occurrence: 1,
+      fileName: "ots-upgrade.processor.ts",
+    });
+    expect(incident).toMatch(/recordWorkerIncident\(/);
+    expect(incident).toMatch(/severity:\s*"CRITICAL"/);
+    expect(incident).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
   });
 });
 
@@ -317,10 +312,9 @@ describe("Phase IA-forward-path-OTS — classifier promotes ONLY on verify succe
     expect(cls.txid).toBeNull();
   });
 
-  it("upgrade reports anchored heuristic with NO verify → FULLY_ANCHORED (legacy fallback)", () => {
-    // When the worker cannot run verify (no hash), the legacy heuristic
-    // is honored as a back-compat fallback. Pin the call shape: verify
-    // is `undefined`, NOT `null`.
+  it("anchored-looking upgrade TEXT with no proof check is NOT an anchor (2026-09-29)", () => {
+    // The text-only legacy heuristic is gone: without verify or info proving
+    // the attestation, "Success! Timestamp complete" is not an anchor.
     const upgradeStdout = "Success! Timestamp complete\n";
     const upgrade = parseOtsUpgradeOutput(upgradeStdout, "");
     const cls = classifyOtsResult({
@@ -330,7 +324,7 @@ describe("Phase IA-forward-path-OTS — classifier promotes ONLY on verify succe
       commandErrored: false,
       mergedErrorText: null,
     });
-    expect(cls.kind).toBe("FULLY_ANCHORED");
+    expect(cls.kind).toBe("STILL_PENDING");
   });
 
   it("hard command error with no pending-like text → FAILED (NOT marked anchored)", () => {

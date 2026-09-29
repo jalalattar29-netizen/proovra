@@ -22,6 +22,7 @@
  *     while the artifact list still renders.
  */
 
+import { caseVisibleToWhere } from "../cases/case-visibility.js";
 import type { Prisma } from "@prisma/client";
 
 import { evidenceIntakeIdentityArms } from "../search/intake-identity-search.js";
@@ -593,15 +594,7 @@ export async function listWorkspaceArtifacts(input: {
      * so a member left off a restricted case could learn it exists, what it is
      * called and which records belong to it.
      */
-    const visibleCase: Prisma.CaseWhereInput = input.callerUserId
-      ? {
-          OR: [
-            { access: { none: {} } },
-            { access: { some: { userId: input.callerUserId } } },
-            { ownerUserId: input.callerUserId },
-          ],
-        }
-      : { access: { none: {} } };
+    const visibleCase: Prisma.CaseWhereInput = caseVisibleToWhere(input.callerUserId);
     if (input.caseId) {
       whereBase.caseLinks = {
         some: { caseId: input.caseId, case: visibleCase },

@@ -1,7 +1,7 @@
 import {
-  normalizeOtsStatusValue,
   isValidOtsBitcoinTxid,
-  resolveEffectiveOtsStatus,
+  OTS_ANCHOR_CLAIM_LABELS,
+  resolveOtsAnchorClaim,
 } from "./ots.js";
 
 export type AnchorSemanticsInput = {
@@ -9,6 +9,8 @@ export type AnchorSemanticsInput = {
   anchoredAtUtc?: string | null;
   otsStatus?: string | null;
   otsProofPresent?: boolean | null;
+  /** How the anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null (not recorded). */
+  otsAnchorCheck?: string | null;
   publicVerificationBaseUrl?: string | null;
   evidenceId?: string | null;
 };
@@ -20,7 +22,7 @@ export type AnchorSemantics = {
   anchoredAtUtc: string | null;
   bitcoinTxid: string | null;
   publicAnchoringVerified: boolean;
-  anchoringStatus: "verified" | "pending" | "failed" | "unavailable";
+  anchoringStatus: "verified" | "anchored_not_checked" | "pending" | "failed" | "unavailable";
   anchoringLabel: string;
   anchorMode: "anchored" | "bitcoin_anchoring_pending" | "failed" | "not_configured";
   publicVerificationUrl: string | null;
@@ -65,51 +67,47 @@ export function deriveAnchorSemantics(
   // anchoring concept PROOVRA models; there is no separate public
   // publication / receipt layer.
   const hasAnchorMaterial = Boolean(transactionId || anchoredAtUtc);
-  const publicAnchoringVerified = Boolean(bitcoinTxid || anchoredAtUtc);
-  const normalizedOtsStatus = normalizeOtsStatusValue(input.otsStatus);
-  const effectiveOtsStatus = resolveEffectiveOtsStatus({
-    status: normalizedOtsStatus,
-    bitcoinTxid,
-    anchoredAtUtc,
-  });
+  /*
+   * ONE PREDICATE (2026-09-29). This was `Boolean(bitcoinTxid || anchoredAtUtc)`
+   * — a txid or a timestamp on the row, which says the proof was upgraded, not
+   * that anyone checked its Bitcoin attestation. The claim now comes from the
+   * shared OTS claim: VERIFIED only when the anchor was verified against the
+   * Bitcoin chain. Legacy anchor material with no OTS status reads as anchored,
+   * not checked.
+   */
+  const claim =
+    input.otsStatus == null && hasAnchorMaterial
+      ? // Legacy anchor material with no OTS state: recorded, never checked.
+        "ANCHORED_NOT_CHECKED"
+      : resolveOtsAnchorClaim({
+          status: input.otsStatus,
+          anchoredAtUtc,
+          anchorCheck: input.otsAnchorCheck ?? null,
+          proofPresent: input.otsProofPresent ?? null,
+        });
+  const publicAnchoringVerified = claim === "VERIFIED";
   const anchorMode: AnchorSemantics["anchorMode"] =
-    normalizedOtsStatus === "FAILED"
+    claim === "FAILED"
       ? "failed"
-      : publicAnchoringVerified
+      : claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED"
         ? "anchored"
-        : hasAnchorMaterial ||
-          effectiveOtsStatus === "ANCHORED" ||
-          effectiveOtsStatus === "PENDING"
+        : claim === "PENDING" || hasAnchorMaterial
           ? "bitcoin_anchoring_pending"
           : "not_configured";
 
-  let anchoringStatus: AnchorSemantics["anchoringStatus"] = "unavailable";
+  const anchoringStatus: AnchorSemantics["anchoringStatus"] =
+    claim === "VERIFIED"
+      ? "verified"
+      : claim === "ANCHORED_NOT_CHECKED"
+        ? "anchored_not_checked"
+        : claim === "PENDING"
+          ? "pending"
+          : claim === "FAILED"
+            ? "failed"
+            : "unavailable";
 
-  if (normalizedOtsStatus === "FAILED") {
-    anchoringStatus = "failed";
-  } else if (publicAnchoringVerified) {
-    anchoringStatus = "verified";
-  } else if (
-    Boolean(input.otsProofPresent) ||
-    effectiveOtsStatus === "ANCHORED" ||
-    effectiveOtsStatus === "PENDING" ||
-    hasAnchorMaterial
-  ) {
-    anchoringStatus = "pending";
-  }
-
-  // Phase IA-OTS-hybrid-fix (UX correction) — visible callers keep the
-  // existing short-form anchor labels. Detailed PENDING+txid
-  // explanation is provided to technical-appendix surfaces via the
-  // worker's `mapOtsStatusTechnicalDetail` helper, not here.
   const anchoringLabel =
-    anchoringStatus === "verified"
-      ? "OpenTimestamps Bitcoin anchoring verified"
-      : anchoringStatus === "pending"
-        ? "OpenTimestamps proof present; Bitcoin anchoring pending"
-        : anchoringStatus === "failed"
-          ? "OpenTimestamps anchoring failed"
-          : "OpenTimestamps unavailable";
+    claim === "NOT_CONFIGURED" ? OTS_ANCHOR_CLAIM_LABELS.UNAVAILABLE : OTS_ANCHOR_CLAIM_LABELS[claim];
 
   return {
     transactionId,

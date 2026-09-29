@@ -541,6 +541,8 @@ function buildVerificationSummaryRows(
         canonicalMaterials.otsState.effectiveStatus ??
         canonicalMaterials.otsState.otsStatus,
       bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+      anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
+      anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
     })
   );
   add("Last Verified At (UTC)", formatReportTimestamp(evidence.lastVerifiedAtUtc));
@@ -637,6 +639,8 @@ function buildReviewReadinessRows(
       canonicalMaterials.otsState.effectiveStatus ??
       canonicalMaterials.otsState.otsStatus,
     bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+    anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
+    anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
   }),
 },
     {
@@ -842,6 +846,8 @@ function buildStorageRows(
           canonicalMaterials.otsState.effectiveStatus ??
           canonicalMaterials.otsState.otsStatus,
         bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+        anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
+        anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
       }),
     },
     {
@@ -1218,6 +1224,8 @@ function buildTechnicalAppendixCourtRows(params: {
   value: mapOtsStatusPublicLabelWithTxid({
     status: params.evidence.otsStatus,
     bitcoinTxid: params.evidence.otsBitcoinTxid,
+    anchoredAtUtc: params.evidence.otsAnchoredAtUtc,
+    anchorCheck: params.evidence.otsAnchorCheck ?? null,
   }),
 },
     {

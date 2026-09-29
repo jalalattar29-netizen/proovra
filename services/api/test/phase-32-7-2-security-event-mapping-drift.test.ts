@@ -1348,6 +1348,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // columns on reports and verification_packages. EXPAND; no
       // `security_events` object is touched.
       "20280730000000_evidence_output_lifecycle",
+      // Evidence OTS anchor check (2026-09-29): one nullable evidence column. EXPAND.
+      "20280731000000_evidence_ots_anchor_check",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

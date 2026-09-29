@@ -12,6 +12,11 @@
  * content-credential acronyms are intentionally excluded.
  */
 
+import {
+  OTS_ANCHOR_CLAIM_LABELS,
+  resolveOtsAnchorClaim,
+  type OtsAnchorClaim,
+} from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -377,25 +382,30 @@ export function timestampStatusLabel(status: string | null | undefined): string 
   }
 }
 
-/** OTS/Bitcoin anchoring status → reviewer label (txid-truthful). */
+/**
+ * OTS/Bitcoin anchoring status → reviewer label: the ONE OTS claim
+ * (2026-09-29). "Verified" only when the server says the anchor was verified
+ * against the Bitcoin chain; a txid or anchored-at time alone is not that.
+ */
 export function anchoringStatusLabel(input: {
   status: string | null | undefined;
   bitcoinTxid: string | null | undefined;
   anchoredAtUtc: string | null | undefined;
   proofPresent: boolean;
+  anchorCheck?: string | null;
+  anchorClaim?: string | null;
 }): string {
-  const s = (input.status ?? "").toUpperCase();
-  const anchored =
-    Boolean(input.bitcoinTxid) || Boolean(input.anchoredAtUtc);
-  if (s === "ANCHORED" && anchored) {
-    return "OpenTimestamps Bitcoin anchoring verified";
-  }
-  if (s === "ANCHORED" || s === "PENDING" || input.proofPresent) {
-    return "OpenTimestamps proof present; Bitcoin anchoring pending";
-  }
-  if (s === "FAILED") return "OpenTimestamps anchoring failed";
-  if (s === "DISABLED") return "OpenTimestamps unavailable";
-  return "OpenTimestamps not configured";
+  const serverClaim = input.anchorClaim as OtsAnchorClaim | null | undefined;
+  const claim =
+    serverClaim && serverClaim in OTS_ANCHOR_CLAIM_LABELS
+      ? serverClaim
+      : resolveOtsAnchorClaim({
+          status: input.status,
+          anchoredAtUtc: input.anchoredAtUtc,
+          anchorCheck: input.anchorCheck ?? null,
+          proofPresent: input.proofPresent,
+        });
+  return OTS_ANCHOR_CLAIM_LABELS[claim];
 }
 
 export type PreservationInput = {
@@ -408,6 +418,8 @@ export type PreservationInput = {
     bitcoinTxid: string | null;
     anchoredAtUtc: string | null;
     calendar: string | null;
+    anchorCheck?: string | null;
+    anchorClaim?: string | null;
   };
   storage: { objectLockMode?: string | null; retainUntilUtc?: string | null; immutableLabel?: string | null };
 };
@@ -469,6 +481,8 @@ export function buildIntegrityRows(input: {
         bitcoinTxid: p.ots.bitcoinTxid,
         anchoredAtUtc: p.ots.anchoredAtUtc,
         proofPresent: p.ots.proofPresent,
+        anchorCheck: p.ots.anchorCheck ?? null,
+        anchorClaim: p.ots.anchorClaim ?? null,
       }),
     },
     { label: "Bitcoin transaction ID", value: p.ots.bitcoinTxid, mono: true, copyable: true },

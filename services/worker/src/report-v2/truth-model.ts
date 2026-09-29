@@ -5,6 +5,7 @@ import {
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
   type CanonicalEvidenceMaterials,
+  OTS_ANCHOR_CLAIM_LABELS,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import {
@@ -269,7 +270,8 @@ export function buildAnchorPublicationSummary(
   anchor: ReportAnchorSummary | null
 ): string {
   if (anchor?.transactionId || anchor?.anchoredAtUtc) {
-    return "OpenTimestamps Bitcoin anchoring verified";
+    // Anchor material recorded; the summary carries no chain check (2026-09-29).
+    return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
   }
 
   if (anchor?.configured) {
@@ -380,6 +382,7 @@ export function buildReportCanonicalMaterials(params: {
       otsAnchoredAtUtc: ev.otsAnchoredAtUtc ?? null,
       otsUpgradedAtUtc:
         (ev as { otsUpgradedAtUtc?: string | null }).otsUpgradedAtUtc ?? null,
+      otsAnchorCheck: ev.otsAnchorCheck ?? null,
       otsProofPresent: Boolean(
         (ev as { otsProofBase64?: string | null }).otsProofBase64,
       ),

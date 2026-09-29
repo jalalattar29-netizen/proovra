@@ -210,97 +210,52 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 3: verify VERIFIED → ANCHORED",
 //   lives inside the classification.kind === "FULLY_ANCHORED" arm.)
 // ============================================================================
 
-describe("Phase IA-OTS-hybrid-fix — Scenario 4: report regen gating", () => {
-  it("processor source restricts `ots_anchored` regen to the FULLY_ANCHORED branch only", async () => {
+describe("Phase IA-OTS-hybrid-fix — Scenario 4: no report is re-issued (2026-09-29)", () => {
+  it("the processor never requests or re-issues a report for any OTS outcome", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const proc = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../src/ots-upgrade.processor.ts",
-          import.meta.url,
-        ),
-      ),
+      fileURLToPath(new URL("../src/ots-upgrade.processor.ts", import.meta.url)),
       "utf8",
     );
-
-    // Every `regenerateReason: "ots_anchored"` MUST appear within the
-    // FULLY_ANCHORED branch — i.e., after the
-    // `if (classification.kind === "FULLY_ANCHORED")` guard and before
-    // the matching `return`.
-    const anchoredBranchStart = proc.indexOf(
-      'if (classification.kind === "FULLY_ANCHORED")',
-    );
-    expect(anchoredBranchStart, "FULLY_ANCHORED branch missing").toBeGreaterThan(
-      -1,
-    );
-    // 2026-09-29: no branch re-issues a report any more.
     expect(proc).not.toMatch(/regenerateReason:\s*"ots_anchored"/);
-
-    // The ANCHOR_MATERIAL_RECOVERED branch must NOT enqueue an
-    // `ots_anchored` regen. The legitimate "anchor material
-    // recovered" regen has a distinct reason string.
-    const recoveredBranchStart = proc.indexOf(
-      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
-    );
-    expect(recoveredBranchStart, "ANCHOR_MATERIAL_RECOVERED branch missing").toBeGreaterThan(
-      -1,
-    );
-    // The recovered branch should only use the
-    // `ots_anchor_material_recovered` reason (when it enqueues at
-    // all — and that path is gated on `txidRecoveredWhileAnchored`).
     expect(proc).not.toMatch(/regenerateReason:\s*"ots_anchor_material_recovered"/);
-    expect(proc).not.toMatch(/enqueueReportJob/);
+    expect(proc).not.toMatch(/enqueueReportJob|requestReportGeneration/);
   });
 });
 
 // ============================================================================
-// Scenario 5 — No follow-up after ANCHORED.
+// Scenario 5 — No follow-up after ANCHORED. Pinned by BEHAVIOUR in
+// ots-upgrade-processor.behaviour.test.ts ("duplicate delivery after the
+// anchor is recorded does nothing at all"; the anchored cases assert no
+// follow-up is enqueued). The structural pins below name the guards.
 // ============================================================================
 
 describe("Phase IA-OTS-hybrid-fix — Scenario 5: no duplicate follow-up after ANCHORED", () => {
-  it("processor returns early when effectiveStatus is ANCHORED + defensible txid", async () => {
+  it("the processor returns early for a checked anchor or a legacy anchor with a defensible txid", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const proc = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../src/ots-upgrade.processor.ts",
-          import.meta.url,
-        ),
-      ),
+      fileURLToPath(new URL("../src/ots-upgrade.processor.ts", import.meta.url)),
       "utf8",
     );
-
-    // Pin the early-return guard: when the row is already ANCHORED
-    // and has a defensible txid, the processor must NOT enqueue a
-    // follow-up — it just returns.
     expect(proc).toMatch(
-      /if\s*\(effectiveStatus === "ANCHORED" && hasDefensibleTxid\)\s*\{[\s\S]{0,400}return;\s*\}/,
+      /isCheckedOtsAnchor\(snapshot\) \|\|\s*\(effectiveStatus === "ANCHORED" && hasDefensibleTxid\)/,
     );
   });
 
-  it("FULLY_ANCHORED branch returns before enqueueOtsUpgradeJob fires", async () => {
+  it("only a PENDING transition schedules the follow-up", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const proc = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../src/ots-upgrade.processor.ts",
-          import.meta.url,
-        ),
-      ),
+      fileURLToPath(new URL("../src/ots-upgrade.processor.ts", import.meta.url)),
       "utf8",
     );
-    // The FULLY_ANCHORED branch must end with a `return;` BEFORE
-    // the ANCHOR_MATERIAL_RECOVERED / STILL_PENDING branch can call
-    // `enqueueOtsUpgradeJob`. Pin that the structure persists.
-    const anchoredBranchEnd = proc.search(
-      /"ots\.upgrade\.anchored"\s*\)\s*;\s*return;/,
-    );
-    expect(anchoredBranchEnd).toBeGreaterThan(-1);
+    expect(proc).toMatch(/if \(transition\.status === "PENDING"\) \{[\s\S]{0,600}enqueueOtsUpgradeJob\(/);
+    expect(proc.match(/enqueueOtsUpgradeJob\(/g)?.length).toBe(2); // init follow-up + pending follow-up
   });
 });
+
 
 // ============================================================================
 // Scenario 6 — Defensive: verify ERROR → classifier falls back to legacy
@@ -308,40 +263,23 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 5: no duplicate follow-up after A
 // ============================================================================
 
 describe("Phase IA-OTS-hybrid-fix — Scenario 6: verify ERROR fallback (defensive)", () => {
-  it("verify=null + unambiguous anchored upgrade output → FULLY_ANCHORED (legacy heuristic)", () => {
-    // The processor passes `verify: null` to the classifier when
-    // verifyOtsProof returned ERROR / BINARY_MISSING / DISABLED.
-    // The classifier must fall back to the legacy heuristic if the
-    // upgrade output is unambiguous.
+  it("verify=null + unambiguous anchored upgrade TEXT is NOT promoted (2026-09-29: no text-only anchors)", () => {
+    // The text-only "legacy heuristic" is gone: an anchor is established only
+    // by the proof (ots verify, or ots info offline). Anchored-looking output
+    // with no proof check is anchor material, never an anchor.
     const anchoredUpgrade = parseOtsUpgradeOutput(
       "",
       `Bitcoin transaction: ${TXID}\nSuccess! Timestamp complete.`,
     );
-    const result = classifyOtsResult({
-      upgrade: anchoredUpgrade,
-      verify: null, // verify failed in a non-recoverable way
-      existingTxid: null,
-      commandErrored: false,
-    });
-    expect(result.kind).toBe("FULLY_ANCHORED");
-    expect(result.reason).toMatch(/legacy heuristic/i);
-  });
-
-  it("verify=undefined (caller did not run verify) — same legacy-heuristic behavior", () => {
-    // Back-compat — pre-Phase-IA callers that don't pass verify
-    // must continue to land in FULLY_ANCHORED on an unambiguous
-    // upgrade output.
-    const anchoredUpgrade = parseOtsUpgradeOutput(
-      "",
-      `Bitcoin transaction: ${TXID}\nSuccess! Timestamp complete.`,
-    );
-    const result = classifyOtsResult({
-      upgrade: anchoredUpgrade,
-      // verify intentionally omitted.
-      existingTxid: null,
-      commandErrored: false,
-    });
-    expect(result.kind).toBe("FULLY_ANCHORED");
+    for (const verify of [null, undefined]) {
+      const result = classifyOtsResult({
+        upgrade: anchoredUpgrade,
+        verify,
+        existingTxid: null,
+        commandErrored: false,
+      });
+      expect(result.kind).toBe("ANCHOR_MATERIAL_RECOVERED");
+    }
   });
 
   it("verify=null + AMBIGUOUS upgrade (Bitcoin tx + pending markers) → ANCHOR_MATERIAL_RECOVERED, NOT promoted", () => {
@@ -409,11 +347,20 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     );
   });
 
-  it("ANCHORED + valid txid → 'OpenTimestamps Bitcoin anchoring verified' (verified-state label preserved)", () => {
+  it("ANCHORED + valid txid is NOT 'verified' unless the anchor was verified against the chain (2026-09-29)", () => {
     expect(
       mapOtsStatusPublicLabelWithTxid({
         status: "ANCHORED",
         bitcoinTxid: TXID,
+        anchoredAtUtc: "2026-09-20T10:00:00.000Z",
+      }),
+    ).not.toMatch(/verified/i);
+    expect(
+      mapOtsStatusPublicLabelWithTxid({
+        status: "ANCHORED",
+        bitcoinTxid: TXID,
+        anchoredAtUtc: "2026-09-20T10:00:00.000Z",
+        anchorCheck: "BITCOIN_VERIFIED",
       }),
     ).toBe("OpenTimestamps Bitcoin anchoring verified");
   });

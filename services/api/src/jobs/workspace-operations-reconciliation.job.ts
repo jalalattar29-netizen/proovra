@@ -63,6 +63,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { reconcileWorkspaceOperations } from "../services/operations/operations-reconciliation.service.js";
+import { sweepUnscopedSourceTruthRecoveries } from "../services/operations/source-truth-recovery.service.js";
 
 /**
  * How many workspaces one tick will touch.
@@ -198,6 +199,18 @@ export async function runWorkspaceOperationsSweep(
       if (outcome.kind === "already_running") result.locked += 1;
       else if (outcome.kind === "failed") result.failed += 1;
       else result.reconciled += 1;
+    } catch {
+      result.failed += 1;
+    }
+  }
+
+  // RECORD CONDITIONS WITH NO WORKSPACE ROW (2026-09-29). A report/package
+  // failure for a Personal record stored with team_id NULL is LEGACY_UNSCOPED,
+  // so no workspace pass above can select it. Swept once per tick, each read in
+  // its record's workspace; a failure here never costs the workspace sweep.
+  for (const sourceId of ["pipeline.report_generation_failed", "pipeline.package_generation_failed"]) {
+    try {
+      await sweepUnscopedSourceTruthRecoveries({ sourceId });
     } catch {
       result.failed += 1;
     }

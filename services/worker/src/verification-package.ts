@@ -31,6 +31,9 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
   deriveAnchorSemantics,
+  normalizeOtsAnchorCheck,
+  OTS_ANCHOR_CLAIM_LABELS,
+  resolveOtsAnchorClaim,
   deriveCanonicalWorkspaceScope,
   describeCanonicalWorkspaceScope,
   evidenceLocationSourceLabel,
@@ -139,6 +142,9 @@ type AnchorPayload = {
   statusLabel?: string;
   transactionId?: string | null;
   anchoredAtUtc?: string | null;
+  /** The record's OTS state and how its anchor was established (2026-09-29). */
+  otsStatus?: string | null;
+  otsAnchorCheck?: string | null;
 };
 
 type PackageManifest = {
@@ -170,6 +176,11 @@ type PackageManifest = {
   anchorStatusLabel?: string | null;
   anchorProvider: string | null;
   publicAnchoringVerified: boolean;
+  /**
+   * The one OTS claim behind publicAnchoringVerified (2026-09-29):
+   * verified | anchored_not_checked | pending | failed | unavailable | not_included.
+   */
+  anchoringClaim: string;
   transactionId: string | null;
   verificationProfile: "FORENSIC_INTEGRITY";
   contents: {
@@ -588,28 +599,15 @@ function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
   }
 }
 
-function getAnchorStatusLabel(
-  mode: AnchorMode,
-  options?: { bitcoinTxid?: string | null }
-): string {
-  // Truthful Bitcoin-anchoring label: only say "Bitcoin anchoring verified"
-  // when the OTS proof has progressed to ANCHORED AND a valid Bitcoin
-  // transaction id is recorded. The previous verified-state label
-  // could appear before the Bitcoin upgrade pass attached a txid.
-  const hasTxid =
-    typeof options?.bitcoinTxid === "string" &&
-    /^[a-f0-9]{64}$/i.test(options.bitcoinTxid.trim());
-
-  // Phase IA-OTS-hybrid-fix (UX correction) — the verification-package
-  // anchor label stays at its existing short-form wording. The
-  // long-form technical detail ("Bitcoin transaction detected;
-  // anchoring verification pending") lives only in the technical
-  // appendix / smoke output via `mapOtsStatusTechnicalDetail`.
+/**
+ * The label for a package WITHOUT anchor material. With anchor material the
+ * label is `deriveAnchorSemantics(...).anchoringLabel` — the one OTS claim —
+ * which is the only place "verified" can come from (2026-09-29).
+ */
+function getAnchorStatusLabel(mode: AnchorMode): string {
   switch (mode) {
     case "anchored":
-      return hasTxid
-        ? "OpenTimestamps Bitcoin anchoring verified"
-        : "OpenTimestamps proof present; Bitcoin anchoring pending";
+      return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
     case "failed":
       return "OpenTimestamps anchoring failed";
     case "not_configured":
@@ -762,6 +760,8 @@ export type OtsPackageArtifactInput = {
   anchoredAtUtc: string | null;
   upgradedAtUtc: string | null;
   failureReason: string | null;
+  /** How the anchor was established (2026-09-29); null when not recorded. */
+  anchorCheck?: string | null;
 };
 
 export type OtsPackageArtifactCompanion = {
@@ -776,6 +776,13 @@ export type OtsPackageArtifactCompanion = {
   failureReason: string | null;
   proofPresent: boolean;
   proofFile: string | null;
+  /**
+   * The one OTS claim (2026-09-29): anchorCheck says how an anchor was
+   * established; publicAnchoringVerified is true only for BITCOIN_VERIFIED.
+   */
+  anchorCheck: string | null;
+  anchorClaim: string;
+  publicAnchoringVerified: boolean;
   verificationHint: string;
 };
 
@@ -797,10 +804,17 @@ export function decideOtsPackageArtifact(
   // ANCHORED → PENDING when neither txid NOR anchoredAtUtc supports it,
   // matching the canonical resolveEffectiveOtsStatus + isCompleteOtsAnchor
   // rules used by report / public-verify.
+  // 2026-09-29: the SHARED completeness rule (an anchor needs its anchor
+  // time), so the companion, the manifest and public Verify agree.
   const canonicalStatus =
-    statusRaw === "ANCHORED" && !hasValidTxid && !hasAnchoredAt
+    statusRaw === "ANCHORED" && !hasAnchoredAt
       ? "PENDING"
       : statusRaw || "UNKNOWN";
+  const anchorClaim = resolveOtsAnchorClaim({
+    status: input.status,
+    anchoredAtUtc: input.anchoredAtUtc,
+    anchorCheck: input.anchorCheck ?? null,
+  });
 
   // Decode proof bytes ONLY when bytes exist. Never fabricated.
   let proofBytes: Buffer | null = null;
@@ -835,6 +849,9 @@ export function decideOtsPackageArtifact(
       canonicalStatus === "FAILED" ? input.failureReason ?? null : null,
     proofPresent: Boolean(proofBytes),
     proofFile: proofBytes ? "opentimestamps-proof.ots" : null,
+    anchorCheck: canonicalStatus === "ANCHORED" ? normalizeOtsAnchorCheck(input.anchorCheck) : null,
+    anchorClaim,
+    publicAnchoringVerified: anchorClaim === "VERIFIED",
     verificationHint: proofBytes
       ? "Verify with: ots verify opentimestamps-proof.ots"
       : "OTS proof bytes are not present on this record; status above is the canonical OTS state at package generation time.",
@@ -1445,6 +1462,8 @@ function buildAnchorReadmeSection(params: {
   hasAnchorPayload: boolean;
   otsStatus?: string | null;
   bitcoinTxid?: string | null;
+  /** deriveAnchorSemantics(...).anchoringStatus — the one OTS claim. */
+  anchoringClaim?: string | null;
 }): string {
   const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
@@ -1462,25 +1481,22 @@ No anchor.json file is included in this package.
 Anchoring status: ${params.anchorStatusLabel}.`;
   }
 
-  // Truthful Bitcoin-anchoring section: only assert "Bitcoin anchoring verified"
-  // when a valid Bitcoin transaction id is recorded for the OTS proof.
-  const hasBitcoinTxid =
-    typeof params.bitcoinTxid === "string" &&
-    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
-
+  // THE ONE CLAIM (2026-09-29): "verified" only when the proof's Bitcoin
+  // attestation was checked against the chain. A recorded transaction
+  // reference alone is anchor material, not a verification.
   if (params.anchorMode === "anchored") {
-    if (hasBitcoinTxid) {
+    if (params.anchoringClaim === "verified") {
       return `ANCHOR STATUS
 
 anchor.json is included in this package.
-OpenTimestamps Bitcoin anchoring verified (transaction reference recorded).
+OpenTimestamps Bitcoin anchoring verified: the proof's Bitcoin attestation was checked against the Bitcoin chain (ots verify).
 This anchoring layer is independent from RFC 3161 timestamping.`;
     }
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-OpenTimestamps proof present; Bitcoin anchoring pending.
-A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof. Re-check this package after the OTS upgrade pass for confirmed Bitcoin anchoring.
+OpenTimestamps proof anchored to a Bitcoin block${params.bitcoinTxid ? " (transaction reference recorded)" : ""}.
+The attestation was NOT checked against the Bitcoin chain when this package was issued; publicAnchoringVerified is false. Verify the included proof independently (ots verify) if chain-level confirmation is required.
 This anchoring layer is independent from RFC 3161 timestamping.`;
   }
 
@@ -1704,6 +1720,8 @@ function buildPackageManifest(params: {
   anchorStatusLabel: string;
   anchorProvider?: string | null;
   anchor?: AnchorPayload | null;
+  publicAnchoringVerified: boolean;
+  anchoringClaim: string;
   hasTimestampToken: boolean;
   hasActualCertifications: boolean;
   hasReportArtifact: boolean;
@@ -1776,12 +1794,11 @@ function buildPackageManifest(params: {
     anchorMode: params.anchorMode,
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
-    // PROOVRA models a single anchoring concept: OpenTimestamps → Bitcoin.
-    // publicAnchoringVerified is true when a Bitcoin transaction reference
-    // or an anchored timestamp is recorded for the OTS proof.
-    publicAnchoringVerified: Boolean(
-      params.anchor?.transactionId || params.anchor?.anchoredAtUtc
-    ),
+    // THE ONE OTS CLAIM (2026-09-29): true only when the proof's Bitcoin
+    // attestation was verified against the chain. A recorded transaction
+    // reference or anchored-at time is anchor material, not verification.
+    publicAnchoringVerified: params.publicAnchoringVerified,
+    anchoringClaim: params.anchoringClaim,
     transactionId: params.anchor?.transactionId ?? null,
     verificationProfile: "FORENSIC_INTEGRITY",
     contents: {
@@ -1853,6 +1870,7 @@ function buildReadme(params: {
   timestampStatus?: string | null;
   otsStatus?: string | null;
   bitcoinTxid?: string | null;
+  anchoringClaim?: string | null;
   metadata: VerificationPackageMetadata;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
@@ -2016,6 +2034,7 @@ ${buildAnchorReadmeSection({
   hasAnchorPayload: params.anchorIncluded,
   otsStatus: params.otsStatus,
   bitcoinTxid: params.bitcoinTxid,
+  anchoringClaim: params.anchoringClaim,
 })}
 
 EVIDENCE CONTAINER BOUNDARY
@@ -2410,6 +2429,7 @@ export async function createVerificationPackage(data: {
     anchoredAtUtc: string | null;
     upgradedAtUtc: string | null;
     failureReason: string | null;
+    anchorCheck?: string | null;
   } | null;
   /**
    * Phase 31.9 — OPTIONAL advisory intelligence manifests. When
@@ -2646,18 +2666,28 @@ export async function createVerificationPackage(data: {
       anchor: data.anchor ?? null,
       trustDecision: data.trustDecision,
     });
-    const anchorStatusLabel = getAnchorStatusLabel(anchorMode, {
-      bitcoinTxid: data.anchor?.transactionId ?? null,
-    });
     const anchorIncluded = Boolean(data.anchor);
+    /*
+     * ONE ANCHORING CLAIM (2026-09-29). The manifest, anchor.json, the README
+     * and the status label all read this. It was computed with `otsStatus:
+     * null`, and the manifest used `Boolean(transactionId || anchoredAtUtc)` —
+     * a txid on the row was signed as "publicAnchoringVerified: true" whether
+     * or not anything checked the proof's Bitcoin attestation. Now it is
+     * VERIFIED only for an anchor verified against the Bitcoin chain
+     * (evidence.ots_anchor_check = BITCOIN_VERIFIED).
+     */
     const anchorSemantics = data.anchor
       ? deriveAnchorSemantics({
           transactionId: data.anchor.transactionId ?? null,
           anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
-          otsStatus: null,
+          otsStatus: data.anchor.otsStatus ?? null,
+          otsAnchorCheck: data.anchor.otsAnchorCheck ?? null,
           otsProofPresent: null,
         })
       : null;
+    const anchorStatusLabel = anchorSemantics
+      ? anchorSemantics.anchoringLabel
+      : getAnchorStatusLabel(anchorMode);
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
       custodian: data.certifications?.custodian ?? null,
@@ -2787,6 +2817,7 @@ export async function createVerificationPackage(data: {
           statusLabel: anchorStatusLabel,
           publicAnchoringVerified:
             anchorSemantics?.publicAnchoringVerified ?? false,
+          anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
           transactionId: data.anchor.transactionId ?? null,
           anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
         }),
@@ -2805,6 +2836,8 @@ export async function createVerificationPackage(data: {
       anchorStatusLabel,
       anchorProvider: data.anchorProvider,
       anchor: data.anchor ?? null,
+      publicAnchoringVerified: anchorSemantics?.publicAnchoringVerified ?? false,
+      anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
       hasTimestampToken,
       hasActualCertifications: certificationSummary.hasActualCertifications,
       hasReportArtifact: Boolean(data.reportPdf),
@@ -3135,6 +3168,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           timestampStatus: metadata.tsaStatus ?? null,
           otsStatus: metadata.otsStatus ?? null,
           bitcoinTxid: data.anchor?.transactionId ?? null,
+          anchoringClaim: anchorSemantics?.anchoringStatus ?? null,
           metadata,
         })
       ),

@@ -3208,6 +3208,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='verification_packages' AND column_name='package_sha256'\"",
       "evidence": "EVIDENCE OUTPUT LIFECYCLE (2026-09-29). Adds nullable reports.s3_version_id / issue_kind / issue_reason / previous_report_version / custody_through_sequence and nullable verification_packages.package_sha256 / s3_version_id / package_format_version / report_issued_at_utc / custody_through_sequence. No enum, constraint or existing column is changed; nothing is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns (issue_kind is VARCHAR, not an enum); code built after it writes them, so apply before deploying the API and worker. Historic rows keep NULL, which readers present as 'not recorded'."
+    },
+    "20280731000000_evidence_ots_anchor_check": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name='ots_anchor_check'\"",
+      "evidence": "EVIDENCE OTS ANCHOR CHECK (2026-09-29). Adds nullable evidence.ots_anchor_check VARCHAR(24): BITCOIN_VERIFIED (ots verify against the Bitcoin chain) | PROOF_STRUCTURE (the proof commits to this hash with a Bitcoin block attestation; chain not checked). No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the column; code built after it reads and writes it, so apply before deploying the API and worker. Historic rows keep NULL, which every reader presents as anchored-not-checked."
     }
   }
 }

@@ -278,6 +278,33 @@ export async function resolvePersonalScope(
 }
 
 /**
+ * THE WORKSPACE A RECORD BELONGS TO (2026-09-29) — the exact inverse of the
+ * widening in `evidenceScopeFor`.
+ *
+ * A record with a `team_id` belongs to that workspace. A record stored with
+ * `team_id` NULL (Personal / legacy) belongs to its OWNER's personal workspace
+ * — the one `evidenceScopeFor` already widens to include it
+ * (`teams_one_personal_space_per_owner_uk` makes it unique). Null when neither
+ * exists: such a record has no workspace and nothing may be scoped to it.
+ *
+ * Read-only. It assigns nothing — the record keeps `team_id` NULL; this only
+ * answers which workspace's scope it is in, so a durable request, a probe or an
+ * operator action can be scoped to the SAME workspace the reads already use.
+ */
+export async function resolveEvidenceWorkspaceId(
+  evidence: { teamId: string | null; ownerUserId: string | null },
+  client: Pick<PrismaClient, "team"> = getRegisteredPrisma(),
+): Promise<string | null> {
+  if (evidence.teamId) return evidence.teamId;
+  if (!evidence.ownerUserId) return null;
+  const personal = await client.team.findFirst({
+    where: { ownerUserId: evidence.ownerUserId, isPersonal: true },
+    select: { id: true },
+  });
+  return personal?.id ?? null;
+}
+
+/**
  * Resolve a bare workspace id into the scope input the projections take.
  *
  * `isPersonal` is the column the personal-workspace fallback has always keyed

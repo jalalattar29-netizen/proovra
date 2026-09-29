@@ -26,8 +26,12 @@ import type { IntegrationHarness } from "./integration-harness.js";
 // The worker package builder is exercised against the live database; only
 // its object-storage upload and its env-validated config/db modules are
 // replaced (the builder is handed the test's Prisma client explicitly).
+// The uploaded ZIP bytes are kept so a case can open the package it built.
+const uploaded = vi.hoisted(() => new Map<string, Buffer>());
 vi.mock("../../worker/src/storage.js", () => ({
-  putObjectBuffer: async () => undefined,
+  putObjectBuffer: async (p: { key: string; body: Buffer }) => {
+    uploaded.set(p.key, Buffer.from(p.body));
+  },
 }));
 vi.mock("../../worker/src/config.js", () => ({
   env: { S3_BUCKET: "test-bucket" },
@@ -291,6 +295,177 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
     // A second pass finds no BUILDING package and meters nothing.
     await buildExchangePackage(pkg.id, prisma as never);
     expect(await exportUsage(teamA.teamId)).toBe(before + 1);
+  });
+
+
+  // ===========================================================================
+  // EXCHANGE SCOPE (2026-09-29) — every item reads through the canonical scope
+  // ===========================================================================
+  //
+  // A Personal record may be stored with team_id NULL; it belongs to its owner's
+  // personal workspace. The id gate accepted it, then each kind re-read with a
+  // bare teamId and it vanished from the ZIP. Isolation is unchanged: another
+  // owner's, another workspace's, or a restricted case's records are refused
+  // (or, if a stale row names them, excluded) without leaking anything.
+
+  async function evidenceFor(input: { teamId: string | null; ownerUserId: string; reportVersions?: number[] }) {
+    // A workspace record carries its workspace's organization (evidence_team_implies_org_chk).
+    const organizationId = input.teamId
+      ? (await prisma.team.findUniqueOrThrow({ where: { id: input.teamId }, select: { organizationId: true } })).organizationId
+      : null;
+    const ev = await prisma.evidence.create({
+      data: {
+        title: `exchange-scope ${randomUUID().slice(0, 8)}`,
+        type: "PHOTO",
+        status: "SIGNED",
+        teamId: input.teamId,
+        organizationId,
+        ownerUserId: input.ownerUserId,
+        fileSha256: "a".repeat(64),
+      } as never,
+      select: { id: true },
+    });
+    for (const version of input.reportVersions ?? []) {
+      await prisma.report.create({
+        data: {
+          evidenceId: ev.id,
+          version,
+          storageBucket: "test-bucket",
+          storageKey: `reports/${ev.id}/v${version}.pdf`,
+          generatedAtUtc: new Date(Date.UTC(2026, 8, version)),
+        },
+      });
+    }
+    return ev.id;
+  }
+
+  async function createAndBuild(input: {
+    teamId: string;
+    userId: string;
+    kind: "EVIDENCE" | "REPORT" | "VERIFICATION" | "CASE";
+    evidenceIds: string[];
+    caseId?: string | null;
+  }) {
+    const { createExchangePackage } = await import("../src/services/exchange/evidence-exchange.service.js");
+    const res = await createExchangePackage({
+      prisma: prisma as never,
+      teamId: input.teamId,
+      kind: input.kind,
+      evidenceIds: input.evidenceIds,
+      caseId: input.caseId ?? null,
+      createdByUserId: input.userId,
+    });
+    if (!res.ok) return { res, entries: null };
+    const packageId = res.packageId;
+    const { buildExchangePackage } = await import("../../worker/src/exchange-package-builder.js");
+    await buildExchangePackage(packageId, prisma as never);
+    const row = await prisma.evidenceExchangePackage.findUniqueOrThrow({
+      where: { id: packageId },
+      select: { state: true, storageKey: true },
+    });
+    expect(row.state).toBe("READY");
+    const { readZipEntries } = await import("./point5/_zip-entries.js");
+    return { res, entries: readZipEntries(uploaded.get(row.storageKey!)!) };
+  }
+
+  const names = (entries: Map<string, Buffer> | null) => [...(entries?.keys() ?? [])];
+  const jsonOf = (entries: Map<string, Buffer>, name: string) =>
+    JSON.parse(entries.get(name)!.toString("utf8")) as Record<string, unknown>;
+
+  it("EXCHANGE a Personal record stored with team_id NULL is included, with its latest report version", async () => {
+    const { personal } = h.fixtures;
+    const eid = await evidenceFor({ teamId: null, ownerUserId: personal.userId, reportVersions: [1, 2] });
+
+    const report = await createAndBuild({ teamId: personal.teamId, userId: personal.userId, kind: "REPORT", evidenceIds: [eid] });
+    expect(report.res.ok).toBe(true);
+    const meta = jsonOf(report.entries!, `reports/${eid}/metadata.json`);
+    expect(meta).toMatchObject({ evidenceId: eid, report: { version: 2 } });
+
+    const evidence = await createAndBuild({ teamId: personal.teamId, userId: personal.userId, kind: "EVIDENCE", evidenceIds: [eid] });
+    expect(names(evidence.entries)).toContain(`evidence/${eid}/metadata.json`);
+    expect(jsonOf(evidence.entries!, `evidence/${eid}/metadata.json`)).toMatchObject({ evidenceId: eid, fileSha256: "a".repeat(64) });
+
+    const verification = await createAndBuild({ teamId: personal.teamId, userId: personal.userId, kind: "VERIFICATION", evidenceIds: [eid] });
+    expect(names(verification.entries)).toContain(`verification/${eid}/metadata.json`);
+  });
+
+  it("EXCHANGE another owner's Personal record (team_id NULL) is refused, and never leaks into a package", async () => {
+    const { personal, teamA } = h.fixtures;
+    const foreign = await evidenceFor({ teamId: null, ownerUserId: teamA.ownerUserId, reportVersions: [3] });
+
+    const refused = await createAndBuild({ teamId: personal.teamId, userId: personal.userId, kind: "REPORT", evidenceIds: [foreign] });
+    expect(refused.res).toEqual({ ok: false, denial: "INVALID_EVIDENCE" });
+
+    // A stale or forged package row naming it builds WITHOUT it: no id, version, date or bytes.
+    const pkg = await prisma.evidenceExchangePackage.create({
+      data: { teamId: personal.teamId, kind: "REPORT", state: "BUILDING", evidenceIds: [foreign] as never, createdByUserId: personal.userId } as never,
+      select: { id: true },
+    });
+    const { buildExchangePackage } = await import("../../worker/src/exchange-package-builder.js");
+    await buildExchangePackage(pkg.id, prisma as never);
+    const row = await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id: pkg.id }, select: { storageKey: true } });
+    const { readZipEntries } = await import("./point5/_zip-entries.js");
+    const zip = readZipEntries(uploaded.get(row.storageKey!)!);
+    for (const [name, bytes] of zip) {
+      expect(name).not.toContain(foreign);
+      if (name !== "exchange-manifest.json" && !name.endsWith("manifest.json")) continue;
+      expect(bytes.toString("utf8").includes(foreign), name).toBe(false);
+    }
+  });
+
+  it("EXCHANGE workspace records are included; another workspace's are refused; a mixed request writes nothing", async () => {
+    const { teamA, teamB } = h.fixtures;
+    const own = await evidenceFor({ teamId: teamA.teamId, ownerUserId: teamA.ownerUserId, reportVersions: [1] });
+    const other = await evidenceFor({ teamId: teamB.teamId, ownerUserId: teamB.ownerUserId, reportVersions: [1] });
+
+    const ok = await createAndBuild({ teamId: teamA.teamId, userId: teamA.ownerUserId, kind: "REPORT", evidenceIds: [own] });
+    expect(ok.res.ok).toBe(true);
+    expect(names(ok.entries)).toContain(`reports/${own}/metadata.json`);
+
+    const before = await prisma.evidenceExchangePackage.count({ where: { teamId: teamA.teamId } });
+    for (const ids of [[other], [own, other]]) {
+      const r = await createAndBuild({ teamId: teamA.teamId, userId: teamA.ownerUserId, kind: "REPORT", evidenceIds: ids });
+      expect(r.res).toEqual({ ok: false, denial: "INVALID_EVIDENCE" });
+    }
+    expect(await prisma.evidenceExchangePackage.count({ where: { teamId: teamA.teamId } })).toBe(before);
+  });
+
+  it("EXCHANGE a restricted case is refused to a member off its access list, allowed to one on it", async () => {
+    const { teamA } = h.fixtures;
+    const own = await evidenceFor({ teamId: teamA.teamId, ownerUserId: teamA.ownerUserId });
+    const restricted = await prisma.case.create({
+      data: { name: `restricted ${randomUUID().slice(0, 8)}`, teamId: teamA.teamId, ownerUserId: teamA.ownerUserId } as never,
+      select: { id: true },
+    });
+    await prisma.caseAccess.create({ data: { caseId: restricted.id, userId: teamA.adminUserId } });
+
+    const denied = await createAndBuild({
+      teamId: teamA.teamId,
+      userId: teamA.memberUserId,
+      kind: "CASE",
+      evidenceIds: [own],
+      caseId: restricted.id,
+    });
+    expect(denied.res).toEqual({ ok: false, denial: "INVALID_CASE" });
+
+    const allowed = await createAndBuild({
+      teamId: teamA.teamId,
+      userId: teamA.adminUserId,
+      kind: "CASE",
+      evidenceIds: [own],
+      caseId: restricted.id,
+    });
+    expect(allowed.res.ok).toBe(true);
+    expect(jsonOf(allowed.entries!, `cases/${restricted.id}/metadata.json`)).toMatchObject({ evidenceIds: [own] });
+
+    // Another workspace's case is "absent", with the same answer.
+    const { teamB } = h.fixtures;
+    const foreignCase = await prisma.case.create({
+      data: { name: "foreign", teamId: teamB.teamId, ownerUserId: teamB.ownerUserId } as never,
+      select: { id: true },
+    });
+    const foreign = await createAndBuild({ teamId: teamA.teamId, userId: teamA.ownerUserId, kind: "CASE", evidenceIds: [own], caseId: foreignCase.id });
+    expect(foreign.res).toEqual({ ok: false, denial: "INVALID_CASE" });
   });
 
   // ===========================================================================

@@ -273,6 +273,10 @@ describe("report v2 pipeline", () => {
           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         anchorAnchoredAtUtc: null,
         otsStatus: "ANCHORED",
+        // 2026-09-29: an anchor needs its time (isCompleteOtsAnchor); the OTS
+        // anchor time now reaches the anchor summary when the legacy anchor
+        // record has none.
+        otsAnchoredAtUtc: "2026-09-20T10:00:00.000Z",
       },
     });
 
@@ -289,6 +293,8 @@ describe("report v2 pipeline", () => {
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     );
     expect(html.toLowerCase()).not.toContain("public anchoring");
+    // Anchored, but nothing checked it against the chain: never "verified".
+    expect(html).not.toContain("OpenTimestamps Bitcoin anchoring verified");
   });
 
   it("keeps full hashes and supporting previewable evidence visually represented", async () => {

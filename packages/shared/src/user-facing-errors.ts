@@ -464,6 +464,18 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "The request could not be sent safely. Reload the page and try again; no new version was created.",
     severity: "error",
   },
+  NOT_A_RECORD_CONDITION: {
+    title: "Nothing to recover for this condition",
+    message:
+      "This condition does not name a report or verification package, so there is no component to recover. Acknowledge, assign or resolve it instead.",
+    severity: "info",
+  },
+  RECORD_WORKSPACE_UNRESOLVED: {
+    title: "The record has no workspace",
+    message:
+      "The record this condition names has no workspace to recover it in (its owner has no personal workspace). Nothing was requested.",
+    severity: "warning",
+  },
   UPDATED_REPORT_REASON_REQUIRED: {
     title: "Add a reason for the updated report",
     message:

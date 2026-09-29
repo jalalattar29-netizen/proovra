@@ -34,6 +34,7 @@ import {
   isRecoverableBlockedTerminalReason,
   classifyTerminalReason,
 } from "@proovra/shared";
+import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
 /**
  * Artifact kinds a request may name. Bounded because the processor branches on
@@ -242,11 +243,16 @@ export async function createReportGenerationRequest(
   // ---- Tenancy comes from the evidence row, both now and again at run time --
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId, deletedAt: null },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, ownerUserId: true },
   });
   if (!evidence) return { created: false, reason: "evidence_not_found" };
-  if (!evidence.teamId) {
-    // An evidence row with no workspace cannot be scoped, and a request that
+  // THE RECORD'S WORKSPACE (2026-09-29): its team, or — for a Personal
+  // record stored with team_id NULL — its owner's personal workspace, the same
+  // one every read already scopes it to. Such a record could never be issued
+  // or recovered before, because this refused it.
+  const workspaceId = await resolveEvidenceWorkspaceId(evidence, prisma);
+  if (!workspaceId) {
+    // A record with no workspace at all cannot be scoped, and a request that
     // cannot be scoped must not exist.
     return { created: false, reason: "evidence_workspace_unresolved" };
   }
@@ -256,7 +262,7 @@ export async function createReportGenerationRequest(
   // reports — so a request created before a workspace's first policy edit does
   // not read as stale the moment that edit lands.
   const policy = await prisma.workspaceGovernancePolicy.findFirst({
-    where: { teamId: evidence.teamId },
+    where: { teamId: workspaceId },
     select: { version: true },
   });
 
@@ -398,7 +404,7 @@ export async function createReportGenerationRequest(
     blockedButRecoverable &&
     !(await blockerStillActive(prisma, {
       evidenceId,
-      teamId: evidence.teamId,
+      teamId: workspaceId,
       terminalReasonCode: head!.terminalReasonCode,
     }));
 
@@ -423,7 +429,7 @@ export async function createReportGenerationRequest(
   try {
     const created = await prisma.reportGenerationRequest.create({
       data: {
-        teamId: evidence.teamId,
+        teamId: workspaceId,
         evidenceId,
         artifactType,
         purpose: input.purpose,
@@ -448,7 +454,7 @@ export async function createReportGenerationRequest(
       created: true,
       requestId: created.id,
       state: created.state,
-      teamId: evidence.teamId,
+      teamId: workspaceId,
       deduplicated: false,
       superseded,
       terminalReasonCode: null,

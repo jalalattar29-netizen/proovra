@@ -286,7 +286,7 @@ async function resumeOtsAnchoring(evidence: {
 async function recoverArtifacts(
   evidenceId: string,
   actorUserId: string,
-  opts: { supersede: boolean },
+  opts: { supersede: boolean; platformOperator?: boolean; packageForReportVersion?: number | null },
 ): Promise<ExecuteRemediationOutcome> {
   const result: OutputRecoveryResult = await requestOutputRecovery({
     evidenceId,
@@ -294,6 +294,8 @@ async function recoverArtifacts(
     purpose: "operator_regenerate",
     regenerateReason: opts.supersede ? "operations_supersede" : "operations_remediation",
     operatorSupersede: opts.supersede,
+    platformOperator: opts.platformOperator === true,
+    packageForReportVersion: opts.packageForReportVersion ?? null,
   });
 
   if (result.kind === "not_found") return outcome("NOT_ELIGIBLE");
@@ -324,4 +326,30 @@ async function recoverArtifacts(
     default:
       return outcome("FAILED");
   }
+}
+
+/**
+ * PLATFORM-OPERATOR RECOVERY OF ONE RECORD CONDITION (2026-09-29).
+ *
+ * The same canonical component recovery the workspace remediation runs
+ * (`recoverArtifacts` → `requestOutputRecovery`), for a report/package
+ * condition a platform operator acts on — including one with no workspace row
+ * (a Personal record stored with team_id NULL). The caller's route has
+ * already proven platform authority and recorded a reason. The recovery is
+ * scoped to the RECORD's workspace by the durable writer, and targets the
+ * EXACT component the condition names: package vN for PACKAGE:<id>:v<N>:*.
+ * A deterministic (terminal) failure is never retried here without
+ * `supersede`.
+ */
+export async function executePlatformRecordRecovery(input: {
+  target: { component: "REPORT" | "VERIFICATION_PACKAGE"; evidenceId: string; reportVersion: number | null };
+  actorUserId: string;
+  supersede: boolean;
+}): Promise<ExecuteRemediationOutcome> {
+  return recoverArtifacts(input.target.evidenceId, input.actorUserId, {
+    supersede: input.supersede,
+    platformOperator: true,
+    packageForReportVersion:
+      input.target.component === "VERIFICATION_PACKAGE" ? input.target.reportVersion : null,
+  });
 }

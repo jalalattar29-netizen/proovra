@@ -243,15 +243,30 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
   assert.equal(byLabel["Immutable storage"], "Compliance retention lock");
 });
 
-test("anchoring label is txid-truthful; timestamp labels map correctly", () => {
+test("anchoring label follows the one OTS claim (2026-09-29); timestamp labels map correctly", () => {
+  const anchored = {
+    status: "ANCHORED",
+    bitcoinTxid: "e".repeat(64),
+    anchoredAtUtc: "2026-06-02T00:00:00Z",
+    proofPresent: true,
+  };
+  // A txid and an anchor time are anchor material, not a chain verification.
   assert.equal(
-    anchoringStatusLabel({
-      status: "ANCHORED",
-      bitcoinTxid: "e".repeat(64),
-      anchoredAtUtc: "2026-06-02T00:00:00Z",
-      proofPresent: true,
-    }),
+    anchoringStatusLabel(anchored),
+    "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
+  );
+  assert.equal(
+    anchoringStatusLabel({ ...anchored, anchorCheck: "PROOF_STRUCTURE" }),
+    "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
+  );
+  assert.equal(
+    anchoringStatusLabel({ ...anchored, anchorCheck: "BITCOIN_VERIFIED" }),
     "OpenTimestamps Bitcoin anchoring verified",
+  );
+  // The server's claim wins when present — the client never re-derives "verified".
+  assert.equal(
+    anchoringStatusLabel({ ...anchored, anchorClaim: "PENDING" }),
+    "OpenTimestamps proof present; Bitcoin anchoring pending",
   );
   assert.equal(
     anchoringStatusLabel({

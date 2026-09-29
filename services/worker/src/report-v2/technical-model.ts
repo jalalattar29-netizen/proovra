@@ -92,8 +92,13 @@ export function resolveAnchorSummary(
 
   const semantics = deriveAnchorSemantics({
     transactionId: evidence.anchorTransactionId ?? null,
-    anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
+    // The OTS anchor time is the canonical one; the legacy anchor record's is a
+    // fallback. Without it an anchored OTS proof read as pending (2026-09-29).
+    anchoredAtUtc:
+      evidence.anchorAnchoredAtUtc ??
+      (evidence.otsAnchoredAtUtc ? new Date(evidence.otsAnchoredAtUtc).toISOString() : null),
     otsStatus: evidence.otsStatus,
+    otsAnchorCheck: evidence.otsAnchorCheck ?? null,
     otsProofPresent: Boolean(evidence.otsProofBase64),
   });
 
@@ -293,6 +298,8 @@ export function buildOtsRows(
       value: mapOtsStatusPublicLabelWithTxid({
         status: evidence.otsStatus,
         bitcoinTxid: evidence.otsBitcoinTxid,
+        anchoredAtUtc: evidence.otsAnchoredAtUtc,
+        anchorCheck: evidence.otsAnchorCheck ?? null,
       }),
     },
     {
@@ -318,6 +325,7 @@ export function buildAnchorRows(
     otsBitcoinTxid?: string | null;
     otsAnchoredAtUtc?: string | null;
     otsProofPresent?: boolean | null;
+    otsAnchorCheck?: string | null;
   } | null
 ): KeyValueRow[] {
   if (!anchorSummary) return [];
@@ -333,6 +341,7 @@ export function buildAnchorRows(
         otsAnchoredAtUtc: otsFacts.otsAnchoredAtUtc ?? null,
         otsProofPresent: otsFacts.otsProofPresent ?? null,
         fallbackAnchorMode: anchorSummary.mode,
+        otsAnchorCheck: otsFacts.otsAnchorCheck ?? null,
       })
     : mapAnchorModePublicLabel(anchorSummary.mode);
 
@@ -432,6 +441,7 @@ const fingerprintRows: KeyValueRow[] = [
         otsBitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
         otsAnchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
         otsProofPresent: canonicalMaterials.otsState.proofPresent,
+        otsAnchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
       })
     ),
     timestampStatusLabel: mapTimestampStatusPublicLabel(
@@ -445,6 +455,8 @@ const fingerprintRows: KeyValueRow[] = [
         canonicalMaterials.otsState.effectiveStatus ??
         canonicalMaterials.otsState.otsStatus,
       bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+      anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
+      anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
     }),
     otsStatusTone:
       safe(

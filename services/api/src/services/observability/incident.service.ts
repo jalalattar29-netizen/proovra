@@ -68,6 +68,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import {
   scopeForWorkspaceId,
   workspaceIncidentWhere,
+  resolveIncidentSourceWorkspace,
 } from "./incident-scope.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
@@ -1142,6 +1143,10 @@ async function transitionIncident(
   // matched on it. In PLATFORM_ADMIN scope the caller supplied none, and for a
   // PLATFORM or LEGACY_UNSCOPED condition there is none to supply.
   const subjectTeamId: string | null = existing.teamId ?? null;
+  // Where the condition's SOURCE is read — the subject's workspace, or for a
+  // LEGACY_UNSCOPED record condition that record's workspace (2026-09-29).
+  const probeTeamId: string | null =
+    subjectTeamId ?? (await resolveIncidentSourceWorkspace(existing, client));
 
   if (
     !isAllowedIncidentStatusTransition(
@@ -1213,14 +1218,14 @@ async function transitionIncident(
             // unreadable source gets, reached the same way: it is deliberately
             // NOT a special case that lets a platform operator declare a
             // condition over without evidence.
-            subjectTeamId === null
+            probeTeamId === null
             ? "UNKNOWN"
             : await probeConditionActivity(
                 {
                   sourceId: existing.sourceId,
                   category: existing.category,
                   fingerprint: existing.fingerprint,
-                  teamId: subjectTeamId,
+                  teamId: probeTeamId,
                 },
                 client,
               )

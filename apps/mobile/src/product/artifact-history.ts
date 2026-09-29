@@ -20,6 +20,11 @@ export interface ArtifactVersion {
   immutableRecorded: boolean;
   /** Packages only: the report version this package certifies (2026-09-29). */
   certifiesReportVersion: number | null;
+  /**
+   * Packages only: format 5 (sealed). An older package's signed anchoring
+   * statement predates the chain-check rule (2026-09-29).
+   */
+  sealed: boolean;
 }
 
 export interface ArtifactHistory {
@@ -39,6 +44,7 @@ function versions(v: unknown): ArtifactVersion[] {
       immutableRecorded: x.immutableRecorded === true,
       certifiesReportVersion:
         typeof x.certifiesReportVersion === "number" ? (x.certifiesReportVersion as number) : null,
+      sealed: x.sealed === true,
     }));
 }
 

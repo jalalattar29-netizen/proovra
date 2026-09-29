@@ -46,6 +46,8 @@ import {
   getWorkEntryOrThrow,
 } from "@proovra/shared";
 
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+
 import { prisma } from "./db.js";
 import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
@@ -176,7 +178,7 @@ export async function resolveAndClaimReportRequest(input: {
   // ---- Tenancy: derived from the evidence row, not from the request --------
   const evidence = await prisma.evidence.findFirst({
     where: { id: request.evidenceId, deletedAt: null },
-    select: { id: true, teamId: true, status: true },
+    select: { id: true, teamId: true, ownerUserId: true, status: true },
   });
   if (!evidence) {
     await markRequestTerminal({
@@ -186,7 +188,11 @@ export async function resolveAndClaimReportRequest(input: {
     });
     return { outcome: "noop", reason: "evidence_not_found" };
   }
-  if (!evidence.teamId || evidence.teamId !== request.teamId) {
+  // The record's workspace — its team, or its owner's personal workspace for
+  // a Personal record stored with team_id NULL (2026-09-29): the same
+  // resolution the writer used, re-derived here at run time.
+  const workspaceId = await resolveEvidenceWorkspaceId(evidence, prisma);
+  if (!workspaceId || workspaceId !== request.teamId) {
     // The evidence moved workspace, or the request was written against one it
     // never belonged to. Either way the run is refused before it can read a
     // single byte of the other tenant's material.
@@ -206,7 +212,7 @@ export async function resolveAndClaimReportRequest(input: {
   // Organization. So "is this workspace still allowed to do work" resolves
   // through the org, which is also where suspension is applied.
   const workspace = await prisma.team.findUnique({
-    where: { id: evidence.teamId },
+    where: { id: workspaceId },
     select: { id: true, organizationId: true },
   });
   if (!workspace) {
@@ -232,7 +238,7 @@ export async function resolveAndClaimReportRequest(input: {
 
   // ---- Policy version, reloaded and compared -------------------------------
   const policy = await prisma.workspaceGovernancePolicy.findFirst({
-    where: { teamId: evidence.teamId },
+    where: { teamId: workspaceId },
     select: { version: true },
   });
   const currentPolicyVersion = policy?.version ?? 0;
@@ -262,7 +268,7 @@ export async function resolveAndClaimReportRequest(input: {
      */
     const hold = (
       await evaluateEffectiveLegalHold(prisma, {
-        teamId: evidence.teamId,
+        teamId: workspaceId,
         evidenceId: evidence.id,
       }).catch(() => ({ held: true }))
     ).held;
@@ -308,7 +314,7 @@ export async function resolveAndClaimReportRequest(input: {
     command: {
       requestId: request.id,
       evidenceId: evidence.id,
-      teamId: evidence.teamId,
+      teamId: workspaceId,
       artifactType: request.artifactType,
       forceRegenerate: request.forceRegenerate,
       regenerateReason: request.regenerateReason,

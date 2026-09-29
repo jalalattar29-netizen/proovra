@@ -85,7 +85,11 @@ import type {
   ReportsArtifactsEnvelope,
   ReportsSummary,
 } from "./types";
-import { lifecycleFilterFromSearch } from "./types";
+import {
+  lifecycleFilterFromSearch,
+  supportsTruthfulOutputBuckets,
+  TRUTHFUL_BUCKET_FILTERS,
+} from "./types";
 
 /**
  * THE SUMMARY STRIP, declared once.
@@ -136,6 +140,28 @@ const SUMMARY_METRICS = [
   label: string;
   tone: string;
 }>;
+
+/**
+ * ROLLOUT COMPATIBILITY (2026-09-29). The web app deploys on every push to
+ * main; the API deploys separately, after its migration. Until then the API
+ * answers with the PREVIOUS summary (no truthful buckets) and a lifecycle enum
+ * that REJECTS the new filters with a 400. So the page asks the summary what
+ * the API supports: the new buckets appear (and their filters are offered)
+ * only once the API returns them, and until then the previous two cards are
+ * shown exactly as before — never an error, never an empty card.
+ */
+
+const LEGACY_SUMMARY_METRICS = [
+  { key: "reports_not_requested", field: "reportsNotRequested", filter: null, label: "Reports not requested", tone: "slate" },
+  { key: "packages_not_requested", field: "packagesNotRequested", filter: null, label: "Packages not requested", tone: "slate" },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  field: keyof ReportsSummary;
+  filter: LifecycleFilter | null;
+  label: string;
+  tone: string;
+}>;
+
 
 /** The server default. Named so the pager and the page agree on one number. */
 const REPORTS_PAGE_SIZE = 25;
@@ -360,6 +386,12 @@ export function ReportsIndex() {
   const [summarySection, setSummarySection] = useState<
     ReportsArtifactsEnvelope["sections"]["summary"]
   >({ status: "unavailable", data: null });
+  // Learned once from the API (see supportsTruthfulOutputBuckets) and kept:
+  // a filtered request may skip the summary, the capability does not change.
+  const [truthfulBuckets, setTruthfulBuckets] = useState(false);
+  useEffect(() => {
+    if (supportsTruthfulOutputBuckets(summarySection.data)) setTruthfulBuckets(true);
+  }, [summarySection.data]);
 
   const loadSummary = useCallback(async () => {
     if (!workspaceId) return;
@@ -583,10 +615,19 @@ export function ReportsIndex() {
   // A deep link opens on its filter (2026-09-29; e.g. Billing →
   // "First issuance pending"). Read after mount so the server-rendered and
   // first client render agree; an unknown value is ignored.
+  const deepLinkApplied = useRef(false);
   useEffect(() => {
+    if (deepLinkApplied.current) return;
     const linked = lifecycleFilterFromSearch(window.location.search);
-    if (linked && linked !== "all") changeFilter(linked);
-  }, [changeFilter]);
+    if (!linked || linked === "all") {
+      deepLinkApplied.current = true;
+      return;
+    }
+    // A truthful-bucket filter waits until the API has shown it supports it.
+    if (TRUTHFUL_BUCKET_FILTERS.has(linked) && !truthfulBuckets) return;
+    deepLinkApplied.current = true;
+    changeFilter(linked);
+  }, [changeFilter, truthfulBuckets]);
   const changeSearch = useCallback((next: string) => {
     setSearch(next);
     setCursors([]);
@@ -658,7 +699,7 @@ export function ReportsIndex() {
       ? Math.max(1, Math.ceil(sections.artifacts.total / REPORTS_PAGE_SIZE))
       : null;
 
-  const lifecycleFilters: Array<[LifecycleFilter, string]> = [
+  const allLifecycleFilters: Array<[LifecycleFilter, string]> = [
     ["all", "All"],
     ["report_ready", "Report ready"],
     ["report_pending", "Report pending"],
@@ -672,6 +713,10 @@ export function ReportsIndex() {
     ["report_not_issued", "Not issued (plan)"],
     ["entitlement_unavailable", "Subscription check pending"],
   ];
+  // Offered only when the API has shown it supports them (see above).
+  const lifecycleFilters = truthfulBuckets
+    ? allLifecycleFilters
+    : allLifecycleFilters.filter(([key]) => !TRUTHFUL_BUCKET_FILTERS.has(key));
 
   return (
     <PageShell
@@ -725,7 +770,10 @@ export function ReportsIndex() {
       {summarySection.status === "ok" && summarySection.data ? (
         <PageSection title="Operational summary" data-reports-summary>
           <ul className="rpt-summary__grid" data-reports-summary-grid>
-            {SUMMARY_METRICS.filter(
+            {(supportsTruthfulOutputBuckets(summarySection.data)
+              ? SUMMARY_METRICS
+              : [...SUMMARY_METRICS, ...LEGACY_SUMMARY_METRICS]
+            ).filter(
               (m) => typeof summarySection.data![m.field] === "number",
             ).map((m) => (
               <li key={m.key}>

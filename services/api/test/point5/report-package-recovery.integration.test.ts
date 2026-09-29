@@ -723,4 +723,140 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(s.req!.stage).toBe("PACKAGE_PUBLISHED");
     expect(s.req!.state).toBe("SUCCEEDED");
   });
+
+  // -------------------------------------------------------------------------
+  // publicAnchoringVerified — THE ONE OTS CLAIM, SIGNED (2026-09-29)
+  //
+  // The manifest used to sign `publicAnchoringVerified: true` whenever a
+  // transaction id or an anchored-at time was on the record. It is now true
+  // ONLY for an anchor verified against the Bitcoin chain
+  // (ots_anchor_check = BITCOIN_VERIFIED), and the manifest, anchor.json and
+  // opentimestamps.json state the same claim. The seal binds all of it.
+  // -------------------------------------------------------------------------
+  const MAGIC_PROOF = Buffer.concat([
+    Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex"),
+    Buffer.from("fixture-proof-body"),
+  ]).toString("base64");
+  const TXID = "e".repeat(64);
+  const ANCHORED_AT = new Date("2026-09-20T10:00:00.000Z");
+
+  async function packageEntriesFor(ots: Record<string, unknown>) {
+    const { evidenceId, teamId } = await signedEvidence();
+    await prisma.evidence.update({ where: { id: evidenceId }, data: ots as never });
+    const id = await request({ evidenceId, teamId });
+    expect(await run(id, 0)).toBeNull();
+    const s = await state(evidenceId, id);
+    expect(s.packages.map((p) => p.version)).toEqual([1]);
+    const zip = stored(s.packages[0]!.storageBucket, s.packages[0]!.storageKey);
+    return readZipEntries(zip!);
+  }
+  const json = (entries: Map<string, Buffer>, name: string) => {
+    const key = [...entries.keys()].find((k) => k === name || k.endsWith(`/${name}`));
+    return key ? (JSON.parse(entries.get(key)!.toString("utf8")) as Record<string, unknown>) : null;
+  };
+
+  const CASES: Array<{ name: string; ots: Record<string, unknown>; verified: boolean; claim: string }> = [
+    {
+      name: "pending proof",
+      ots: { otsStatus: "PENDING", otsProofBase64: MAGIC_PROOF, otsHash: "7".repeat(64) },
+      verified: false,
+      claim: "pending",
+    },
+    {
+      name: "failed proof",
+      ots: { otsStatus: "FAILED", otsProofBase64: MAGIC_PROOF, otsFailureReason: "PROOF_HASH_MISMATCH" },
+      verified: false,
+      claim: "failed",
+    },
+    {
+      name: "anchored and verified against the chain",
+      ots: {
+        otsStatus: "ANCHORED",
+        otsProofBase64: MAGIC_PROOF,
+        otsBitcoinTxid: TXID,
+        otsAnchoredAtUtc: ANCHORED_AT,
+        otsAnchorCheck: "BITCOIN_VERIFIED",
+      },
+      verified: true,
+      claim: "verified",
+    },
+    {
+      name: "anchored by proof structure only (chain not checked)",
+      ots: {
+        otsStatus: "ANCHORED",
+        otsProofBase64: MAGIC_PROOF,
+        otsBitcoinTxid: TXID,
+        otsAnchoredAtUtc: ANCHORED_AT,
+        otsAnchorCheck: "PROOF_STRUCTURE",
+      },
+      verified: false,
+      claim: "anchored_not_checked",
+    },
+    {
+      name: "anchored before the check was recorded (historical row, check NULL)",
+      ots: { otsStatus: "ANCHORED", otsProofBase64: MAGIC_PROOF, otsBitcoinTxid: TXID, otsAnchoredAtUtc: ANCHORED_AT },
+      verified: false,
+      claim: "anchored_not_checked",
+    },
+    {
+      name: "ANCHORED label with a txid but no anchor time (no valid proof of anchoring)",
+      ots: { otsStatus: "ANCHORED", otsProofBase64: MAGIC_PROOF, otsBitcoinTxid: TXID },
+      verified: false,
+      claim: "pending",
+    },
+  ];
+
+  for (const c of CASES) {
+    it(`the signed manifest claims publicAnchoringVerified=${c.verified} for a ${c.name}`, async () => {
+      const entries = await packageEntriesFor(c.ots);
+      const manifest = json(entries, "package-manifest.json");
+      expect(manifest, "package-manifest.json").toBeTruthy();
+      expect(manifest!.publicAnchoringVerified).toBe(c.verified);
+      // The explicit claim is present whether or not anchor.json is included.
+      if (manifest!.anchorIncluded) {
+        expect(manifest!.anchoringClaim).toBe(c.claim);
+        expect(json(entries, "anchor.json")).toMatchObject({ publicAnchoringVerified: c.verified, anchoringClaim: c.claim });
+      }
+      const companion = json(entries, "opentimestamps.json");
+      if (companion) {
+        expect(companion.publicAnchoringVerified).toBe(c.verified);
+        expect(companion.anchorClaim).toBe(c.claim.toUpperCase());
+      }
+      // No surface inside the package may call an unchecked anchor verified.
+      if (!c.verified) {
+        for (const [name, bytes] of entries) {
+          if (/\.(json|txt|md)$/i.test(name)) {
+            expect(bytes.toString("utf8"), name).not.toContain("OpenTimestamps Bitcoin anchoring verified");
+          }
+        }
+      }
+    });
+  }
+
+  it("the seal binds the manifest: flipping publicAnchoringVerified is detected", async () => {
+    const { verifySealedPackageEntries } = await import("@proovra/shared");
+    const { verify, createPublicKey } = await import("node:crypto");
+    const entries = await packageEntriesFor(CASES[3]!.ots); // anchored, not checked → false
+    const check = (m: Map<string, Buffer>) =>
+      verifySealedPackageEntries({
+        entries: m,
+        sha256Hex: (b) => createHash("sha256").update(b).digest("hex"),
+        verifyEd25519: (msg, sig, pem) => verify(null, msg, createPublicKey(pem), Buffer.from(sig, "base64")),
+        decodeUtf8: (b) => Buffer.from(b).toString("utf8"),
+        hexToBytes: (hex) => Buffer.from(hex, "hex"),
+      });
+    const intact = check(entries);
+    expect(intact.failures, JSON.stringify(intact.failures)).toEqual([]);
+    expect(intact.ok).toBe(true);
+
+    const key = [...entries.keys()].find((k) => k.endsWith("package-manifest.json"))!;
+    const forged = JSON.parse(entries.get(key)!.toString("utf8")) as Record<string, unknown>;
+    expect(forged.publicAnchoringVerified).toBe(false);
+    forged.publicAnchoringVerified = true;
+    const tampered = new Map(entries);
+    tampered.set(key, Buffer.from(JSON.stringify(forged, null, 2)));
+    const result = check(tampered);
+    expect(result.ok).toBe(false);
+    expect(result.failures.map((f) => f.check)).toContain("ENTRIES_MATCH_INDEX");
+  });
 });

@@ -213,6 +213,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // An updated report records why it was issued (2026-09-29); the server's
   // message says what to write.
   UPDATED_REPORT_REASON_REQUIRED: { disposition: "customer", where: "global" },
+  // Platform operator recovery of a record condition (2026-09-29).
+  NOT_A_RECORD_CONDITION: { disposition: "customer", where: "global" },
+  RECORD_WORKSPACE_UNRESOLVED: { disposition: "customer", where: "global" },
   CONCURRENCY_LIMITED: { disposition: "customer", where: "global" },
   OUTPUT_ACTION_UNAVAILABLE: { disposition: "customer", where: "global" },
   AI_CHAT_RATE_LIMITED: { disposition: "customer", where: "global" },

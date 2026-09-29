@@ -24,7 +24,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
-import { platformInternalSourceIds } from "@proovra/shared-runtime";
+import { platformInternalSourceIds, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import type { Prisma } from "@prisma/client";
 
 export type IncidentScopeName = prismaPkg.IncidentScope;
@@ -196,4 +196,30 @@ export function platformIncidentWhere(): Prisma.OperationalIncidentWhereInput {
  */
 export function legacyUnscopedIncidentWhere(): Prisma.OperationalIncidentWhereInput {
   return { scope: prismaPkg.IncidentScope.LEGACY_UNSCOPED };
+}
+
+/**
+ * THE WORKSPACE AN INCIDENT'S SOURCE MUST BE READ IN (2026-09-29).
+ *
+ * Every source probe is workspace-scoped. A WORKSPACE condition carries its
+ * workspace. A LEGACY_UNSCOPED condition that names a record
+ * (`relatedEvidenceId`) — a report/package failure for a Personal record stored
+ * with team_id NULL — is read in that RECORD's workspace (its owner's personal
+ * workspace), resolved from the record, never from the caller and never
+ * written back: the row keeps team_id NULL and stays off every tenant surface.
+ * A PLATFORM condition, or an unscoped one naming no record, has no workspace;
+ * it stays unprobeable and fails closed.
+ */
+export async function resolveIncidentSourceWorkspace(
+  incident: { teamId: string | null; scope: string | null; relatedEvidenceId: string | null },
+  client: Pick<import("@prisma/client").PrismaClient, "evidence" | "team">,
+): Promise<string | null> {
+  if (incident.teamId) return incident.teamId;
+  if (incident.scope !== prismaPkg.IncidentScope.LEGACY_UNSCOPED || !incident.relatedEvidenceId) return null;
+  const evidence = await client.evidence.findUnique({
+    where: { id: incident.relatedEvidenceId },
+    select: { teamId: true, ownerUserId: true },
+  });
+  if (!evidence) return null;
+  return resolveEvidenceWorkspaceId(evidence, client);
 }

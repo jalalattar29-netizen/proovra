@@ -501,41 +501,14 @@ export function classifyOtsResult(
       };
     }
   }
-  // Back-compat: when verify did not produce a usable result (caller
-  // never ran it, OR `verifyOtsProof` returned a non-VERIFIED /
-  // non-INCOMPLETE status — ERROR / BINARY_MISSING / DISABLED — and
-  // the processor passed `null` to communicate that), AND the legacy
-  // heuristic is unambiguous, honor it. This is the forward-path
-  // defense against a permanently-broken verify call stranding
-  // otherwise-anchored evidence in ANCHOR_MATERIAL_RECOVERED forever.
-  //
-  // CRITICAL safety: the legacy heuristic requires BOTH
-  // `upgrade.anchoredOutput === true` AND `upgrade.pendingOutput ===
-  // false`. The runtime evidence whose upgrade output contains both
-  // "Bitcoin transaction" AND "Pending confirmation" sets BOTH flags;
-  // we never false-positive promote that to FULLY_ANCHORED.
-  //
-  // Phase IA-OTS-hybrid-fix — broadened from `verify === undefined`
-  // to `verify == null` so the ERROR / BINARY_MISSING / DISABLED
-  // verify outcomes also fall back to the legacy heuristic. Without
-  // this, a verify call that errored (e.g., OTS_BIN does not accept
-  // `-d <hash>`) would keep promotable evidence stuck in
-  // ANCHOR_MATERIAL_RECOVERED indefinitely.
-  if (
-    verify == null &&
-    upgrade.anchoredOutput &&
-    !upgrade.pendingOutput
-  ) {
-    return {
-      kind: "FULLY_ANCHORED",
-      txid,
-      anchoredAtUtc: null,
-      blockHeight: null,
-      phase: "anchored",
-      reason:
-        "ots upgrade reported anchored completion (verify unavailable — legacy heuristic).",
-    };
-  }
+  // NO TEXT-ONLY PROMOTION (2026-09-29). A "legacy heuristic" used to promote
+  // to FULLY_ANCHORED from `ots upgrade` output alone ("anchored-like, not
+  // pending") when verify was unavailable — with no check that the proof
+  // carries a Bitcoin attestation for THIS record's hash. An anchor is now
+  // established only by the proof itself: `ots verify` (1) or `ots info`
+  // offline (1b). The same binary that runs `upgrade` runs `info` without a
+  // network, so nothing genuinely anchored is stranded by removing it; such
+  // output now classifies as ANCHOR_MATERIAL_RECOVERED / STILL_PENDING below.
 
   // 2. FAILED — only when the command errored AND the error doesn't
   //    look like a transient pending-like condition AND verify didn't

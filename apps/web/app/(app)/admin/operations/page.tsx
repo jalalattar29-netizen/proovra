@@ -63,6 +63,11 @@ import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 type IncidentRow = {
   id: string;
   teamId: string | null;
+  /**
+   * The exact report/package a record condition names (2026-09-29) — also for
+   * a condition with no owning workspace (a Personal record, team_id NULL).
+   */
+  target?: { component: "REPORT" | "VERIFICATION_PACKAGE"; evidenceId: string; reportVersion: number | null } | null;
   scope: string;
   category: string;
   severity: string;
@@ -154,8 +159,12 @@ function ConditionSubject({ row }: { row: IncidentRow }) {
 
   if (row.relatedEvidenceId) {
     return (
-      <div className="adm-help" style={style}>
-        Record{" "}
+      <div className="adm-help" style={style} data-incident-target={row.target ? row.target.component : undefined}>
+        {row.target
+          ? `${row.target.component === "VERIFICATION_PACKAGE" ? "Package" : "Report"}${
+              row.target.reportVersion != null ? ` v${row.target.reportVersion}` : ""
+            } · record `
+          : "Record "}
         <Link
           href={`/admin/evidence-ops/records?evidenceId=${encodeURIComponent(
             row.relatedEvidenceId,
@@ -206,6 +215,33 @@ export default function AdminOperationsPage() {
   // throw the operator's text away.
   const [noteFor, setNoteFor] = useState<IncidentRow | null>(null);
   const [noteText, setNoteText] = useState("");
+  // Recovery of the exact component a record condition names (2026-09-29).
+  const [recoverFor, setRecoverFor] = useState<IncidentRow | null>(null);
+  const [recoverReason, setRecoverReason] = useState("");
+  const [recoverSupersede, setRecoverSupersede] = useState(false);
+  // What the condition's source says NOW, read in the record's workspace.
+  const [recoverDetail, setRecoverDetail] = useState<{
+    sourceActivity: string | null;
+    recordWorkspaceId: string | null;
+  } | null>(null);
+  const openRecover = useCallback(async (row: IncidentRow) => {
+    setRecoverReason("");
+    setRecoverSupersede(false);
+    setRecoverDetail(null);
+    setRecoverFor(row);
+    try {
+      const detail = (await apiFetch(`/v1/admin/incidents/${encodeURIComponent(row.id)}`)) as {
+        sourceActivity?: string | null;
+        recordWorkspaceId?: string | null;
+      };
+      setRecoverDetail({
+        sourceActivity: detail.sourceActivity ?? null,
+        recordWorkspaceId: detail.recordWorkspaceId ?? null,
+      });
+    } catch {
+      setRecoverDetail({ sourceActivity: null, recordWorkspaceId: null });
+    }
+  }, []);
   const [data, setData] = useState<IncidentsResponse | null>(null);
   /**
    * ADM-P1-002 — the state that made the empty table lie.
@@ -511,6 +547,19 @@ export default function AdminOperationsPage() {
             >
               {r.assignedOperatorUserId ? "Unassign" : "Assign to me"}
             </Button>
+            {r.target && r.status !== "RESOLVED" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                data-incident-recover={r.id}
+                disabled={busyId === r.id}
+                aria-label={`Recover the ${r.target.component === "VERIFICATION_PACKAGE" ? "package" : "report"}: "${r.title}"`}
+                title="Requests the canonical recovery of exactly this component. The condition closes only when its source confirms the repair."
+                onClick={() => void openRecover(r)}
+              >
+                Recover
+              </Button>
+            ) : null}
             {/* Only a slug with a runbook behind it gets a button. Most
                 incident `runbookSlug` values are condition labels with no
                 document, and the reader 404s an unknown slug by design — a
@@ -631,6 +680,90 @@ export default function AdminOperationsPage() {
       </FilterBar>
 
       <Card>
+        {recoverFor && recoverFor.target ? (
+          <div
+            data-incident-recover-panel={recoverFor.id}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              padding: 12,
+              marginBottom: 12,
+              border: "1px solid var(--border-default)",
+              borderRadius: 10,
+            }}
+          >
+            <label htmlFor="incident-recover-reason" style={{ fontSize: 13, fontWeight: 600 }}>
+              Recover the {recoverFor.target.component === "VERIFICATION_PACKAGE" ? "verification package" : "report"}
+              {recoverFor.target.reportVersion != null ? ` for report v${recoverFor.target.reportVersion}` : ""} of record{" "}
+              {shortId(recoverFor.target.evidenceId)}. Why? (recorded in the audit log)
+            </label>
+            <div className="adm-help" data-incident-source-activity={recoverDetail?.sourceActivity ?? "loading"}>
+              {recoverDetail === null
+                ? "Checking the component's current state…"
+                : recoverDetail.sourceActivity === "ACTIVE"
+                  ? "Its source still reports this component missing."
+                  : recoverDetail.sourceActivity === "RECOVERED"
+                    ? "Its source already reports this component present — the condition will close on the next sweep."
+                    : "Its current state could not be read."}
+              {recoverDetail?.recordWorkspaceId
+                ? ` Record workspace ${shortId(recoverDetail.recordWorkspaceId)}.`
+                : ""}
+            </div>
+            <textarea
+              id="incident-recover-reason"
+              value={recoverReason}
+              onChange={(e) => setRecoverReason(e.target.value)}
+              maxLength={300}
+              rows={2}
+              style={{ fontSize: 13, padding: 8, borderRadius: 8 }}
+            />
+            <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={recoverSupersede}
+                onChange={(e) => setRecoverSupersede(e.target.checked)}
+              />
+              Retry after an exhausted or deterministic failure (only once its cause is fixed)
+            </label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busyId === recoverFor.id || recoverReason.trim().length < 3}
+                disabledReason={recoverReason.trim().length < 3 ? "State why this recovery is being requested." : undefined}
+                onClick={async () => {
+                  const row = recoverFor;
+                  setBusyId(row.id);
+                  try {
+                    const res = (await apiFetch(
+                      `/v1/admin/incidents/${encodeURIComponent(row.id)}/remediate`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({ reason: recoverReason.trim(), supersede: recoverSupersede }),
+                      },
+                    )) as { message?: string };
+                    addToast(res.message ?? "Recovery requested.", "success");
+                    setRecoverFor(null);
+                    await load();
+                  } catch (err) {
+                    addToast(
+                      toSafeUserError(err, { message: "The recovery could not be requested." }).message,
+                      "error",
+                    );
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+              >
+                Request recovery
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setRecoverFor(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {noteFor ? (
           <div
             data-incident-resolution-note={noteFor.id}

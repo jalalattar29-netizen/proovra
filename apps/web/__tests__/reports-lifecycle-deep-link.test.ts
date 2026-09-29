@@ -48,3 +48,32 @@ test("the Reports page applies a deep-linked filter after mount", () => {
   );
   assert.match(index, /lifecycleFilterFromSearch\(window\.location\.search\)/);
 });
+
+// ROLLOUT COMPATIBILITY — the web app deploys on every push to main, before the
+// API it talks to. Against the previous API it must behave exactly as before.
+test("an API without the truthful buckets keeps the previous cards and is never sent a filter it rejects", async () => {
+  const { supportsTruthfulOutputBuckets, TRUTHFUL_BUCKET_FILTERS } = await import(
+    "../components/reports-experience/types"
+  );
+  const previousApiSummary = { reportsReady: 3, reportsNotRequested: 2, packagesNotRequested: 1 };
+  assert.equal(supportsTruthfulOutputBuckets(previousApiSummary as never), false);
+  assert.equal(supportsTruthfulOutputBuckets({ ...previousApiSummary, reportsNotIssued: 0 } as never), true);
+  assert.equal(supportsTruthfulOutputBuckets(null), false);
+
+  // Exactly the filters the previous API's enum did not accept are gated.
+  assert.deepEqual(
+    [...TRUTHFUL_BUCKET_FILTERS].sort(),
+    ["entitlement_unavailable", "package_missing", "report_awaiting_issuance", "report_not_issued"],
+  );
+
+  const index = readFileSync(
+    new URL("../components/reports-experience/ReportsIndex.tsx", import.meta.url),
+    "utf8",
+  );
+  // The previous cards return when the API lacks the new buckets…
+  assert.match(index, /supportsTruthfulOutputBuckets\(summarySection\.data\)\s*\?\s*SUMMARY_METRICS\s*:\s*\[\.\.\.SUMMARY_METRICS, \.\.\.LEGACY_SUMMARY_METRICS\]/);
+  // …the new filters are offered only once the API has shown them…
+  assert.match(index, /allLifecycleFilters\.filter\(\(\[key\]\) => !TRUTHFUL_BUCKET_FILTERS\.has\(key\)\)/);
+  // …and a deep link to one waits for that proof.
+  assert.match(index, /TRUTHFUL_BUCKET_FILTERS\.has\(linked\) && !truthfulBuckets/);
+});

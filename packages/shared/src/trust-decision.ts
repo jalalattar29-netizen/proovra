@@ -2,6 +2,7 @@ import {
   classifyCustodyEventType,
   type CustodyEventCategory,
 } from "./custody.js";
+import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "./ots.js";
 
 export type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
 
@@ -373,6 +374,11 @@ export type TrustDecisionEvidenceInput = {
   otsAnchoredAtUtc?: string | null;
   otsCalendar?: string | null;
   otsFailureReason?: string | null;
+  /**
+   * How the anchor was established (2026-09-29): BITCOIN_VERIFIED | PROOF_STRUCTURE,
+   * null when not recorded. Only BITCOIN_VERIFIED may be called verified.
+   */
+  otsAnchorCheck?: string | null;
   storageImmutable?: boolean | null;
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
@@ -847,15 +853,27 @@ function buildAnchoringSignal(
   }
 
   if (isAnchoredOts(evidence.otsStatus) && defensibleAnchorMaterial) {
+    // THE CLAIM FOLLOWS THE CHECK (2026-09-29). Anchoring material on the row
+    // (a txid, an anchored-at time) shows the proof was upgraded to a Bitcoin
+    // attestation; only `ots verify` against the chain makes it VERIFIED.
+    const verified =
+      resolveOtsAnchorClaim({
+        status: evidence.otsStatus,
+        anchoredAtUtc: evidence.otsAnchoredAtUtc ?? evidence.anchor?.anchoredAtUtc ?? null,
+        anchorCheck: evidence.otsAnchorCheck ?? null,
+      }) === "VERIFIED";
     return makeSignal({
       key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "passed",
       points: 10,
       maxPoints: 10,
-      summary: "OpenTimestamps Bitcoin anchoring verified",
-      detail:
-        "OpenTimestamps anchoring metadata includes defensible public evidence such as a valid Bitcoin transaction id or an anchored timestamp.",
+      summary: verified
+        ? OTS_ANCHOR_CLAIM_LABELS.VERIFIED
+        : OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED,
+      detail: verified
+        ? "The OpenTimestamps proof was verified against the Bitcoin chain."
+        : "The OpenTimestamps proof is anchored to a Bitcoin block (a valid Bitcoin transaction id or an anchored timestamp is recorded), but the attestation was not checked against the Bitcoin chain.",
     });
   }
 
@@ -1437,7 +1455,9 @@ export function buildEvidenceTrustDecision(
     shortLabel,
     title,
     confidenceLabel,
-    anchoringStatusLabel: getAnchoringStateLabel(anchoringState),
+    // A finalized anchor says exactly what was checked (see buildAnchoringSignal).
+    anchoringStatusLabel:
+      anchoringState === "finalized" ? anchoring.summary : getAnchoringStateLabel(anchoringState),
     summary,
     primaryReason,
     reviewerAction,

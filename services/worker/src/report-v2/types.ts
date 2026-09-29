@@ -283,6 +283,8 @@ export type ReportEvidence = {
   otsAnchoredAtUtc?: string | null;
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
+  /** How the OTS anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
+  otsAnchorCheck?: string | null;
   anchor?: ReportAnchorSummary | null;
   certifications?: {
     custodian?: ReportCertificationSnapshot;

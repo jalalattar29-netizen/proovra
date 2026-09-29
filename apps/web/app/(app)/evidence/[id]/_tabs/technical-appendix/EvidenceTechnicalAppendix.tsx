@@ -321,6 +321,8 @@ export function EvidenceTechnicalAppendix({
               bitcoinTxid: pm?.ots?.bitcoinTxid ?? null,
               anchoredAtUtc: pm?.ots?.anchoredAtUtc ?? null,
               calendar: pm?.ots?.calendar ?? null,
+              anchorCheck: pm?.ots?.anchorCheck ?? null,
+              anchorClaim: pm?.ots?.anchorClaim ?? null,
             },
             storage: {},
           }}

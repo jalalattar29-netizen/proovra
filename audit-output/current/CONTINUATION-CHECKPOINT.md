@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1167
-RegisteredRoutes                            1168
+ProductionRegisteredRoutes                  1169
+RegisteredRoutes                            1170
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1309
+TerminalWriters                             1306
 ROUTE_ATTRIBUTED_REACHABLE                  1168
-JOB_ATTRIBUTED_REACHABLE                     124
+JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          14
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        967
+ProductConsumedRoutes                        969
 NonProductDispositionedRoutes                200
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
@@ -298,6 +298,22 @@ asserted. REMOVED:
 Bucket deltas: ROUTE_ATTRIBUTED_REACHABLE 1170 -> 1168, JOB_ATTRIBUTED_REACHABLE
 130 -> 124, PORT_ATTRIBUTED_REACHABLE 1 -> 0. Every removed writer is a retired
 path; no product capability lost its writer.
+
+### 2026-09-29 — OTS / ANCHORING / UNSCOPED CONDITIONS / EXCHANGE (routes 1168 -> 1170, writers 1309 -> 1306)
+
+Measured against the previous commit, not asserted.
+
+- RegisteredRoutes 1168 -> 1170 (ProductionRegisteredRoutes 1167 -> 1169,
+  ProductConsumedRoutes 967 -> 969): `GET /v1/admin/incidents/:id` and
+  `POST /v1/admin/incidents/:id/remediate`, both `requirePlatformAdmin`, both
+  consumed by `apps/web/app/(app)/admin/operations/page.tsx` (the Recover
+  panel). They inspect and recover report/package conditions, including those
+  with no workspace row.
+- TerminalWriters 1309 -> 1306, JOB_ATTRIBUTED_REACHABLE 124 -> 121: the four
+  unconditional `evidence.update` writes in `services/worker/src/ots-upgrade.processor.ts`
+  are replaced by ONE compare-and-set `evidence.updateMany` in
+  `services/worker/src/ots-state.ts` (`applyOtsTransition`). Every other id
+  change in the diff is a line shift.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

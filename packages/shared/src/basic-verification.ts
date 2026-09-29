@@ -17,6 +17,7 @@
  * not_issued | not_checked. "verified" means the check named in `basis` was
  * performed and passed — never "a record of it exists".
  */
+import { resolveOtsAnchorClaim } from "./ots.js";
 
 export const COMPONENT_VERIFICATION_STATES = [
   "verified",
@@ -64,7 +65,14 @@ export type BasicVerification = {
   };
   anchoring: {
     state: ComponentVerificationState;
-    basis: "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY" | null;
+    /**
+     * BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY: `ots verify` checked the proof's
+     * Bitcoin attestation against the chain (state verified).
+     * PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED: the proof carries a Bitcoin
+     * block attestation for this record (or was recorded anchored before the
+     * check existed) but the chain was not checked (state not_checked).
+     */
+    basis: "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY" | "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED" | null;
     /** When the anchor was confirmed — a fact that may post-date any report. */
     anchoredAtUtc: string | null;
     bitcoinTxid: string | null;
@@ -105,6 +113,8 @@ export function buildBasicVerification(input: {
   otsStatus: string | null;
   otsBitcoinTxid: string | null;
   otsAnchoredAtUtc: Date | string | null;
+  /** evidence.ots_anchor_check — BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
+  otsAnchorCheck?: string | null;
   latestReport: { version: number; generatedAtUtc: Date; pdfSha256: string | null } | null;
   pairedPackage: { reportVersion: number | null; version: number; generatedAtUtc: Date; packageFormatVersion: number | null } | null;
 }): BasicVerification {
@@ -130,16 +140,25 @@ export function buildBasicVerification(input: {
           ? "pending"
           : "not_issued";
 
-  const ots = String(input.otsStatus ?? "").toUpperCase();
-  const validTxid = typeof input.otsBitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(input.otsBitcoinTxid);
+  // The shared OTS claim (2026-09-29): a status or a txid is never enough for
+  // "verified" — only an anchor verified against the Bitcoin chain is.
+  const claim = resolveOtsAnchorClaim({
+    status: input.otsStatus,
+    anchoredAtUtc: input.otsAnchoredAtUtc,
+    anchorCheck: input.otsAnchorCheck ?? null,
+  });
   const anchoringState: ComponentVerificationState =
-    ots === "ANCHORED" && validTxid
+    claim === "VERIFIED"
       ? "verified"
-      : ots === "ANCHORED" || ots === "PENDING"
-        ? "pending"
-        : ots === "FAILED"
-          ? "failed"
-          : "not_issued";
+      : claim === "ANCHORED_NOT_CHECKED"
+        ? "not_checked"
+        : claim === "PENDING"
+          ? "pending"
+          : claim === "FAILED"
+            ? "failed"
+            : "not_issued";
+  const anchored = claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED";
+  const validTxid = typeof input.otsBitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(input.otsBitcoinTxid);
 
   const latest = input.latestReport;
   const pkg = input.pairedPackage;
@@ -167,9 +186,14 @@ export function buildBasicVerification(input: {
     },
     anchoring: {
       state: anchoringState,
-      basis: anchoringState === "verified" ? "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY" : null,
-      anchoredAtUtc: anchoringState === "verified" ? iso(input.otsAnchoredAtUtc) : null,
-      bitcoinTxid: anchoringState === "verified" ? input.otsBitcoinTxid : null,
+      basis:
+        claim === "VERIFIED"
+          ? "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY"
+          : claim === "ANCHORED_NOT_CHECKED"
+            ? "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
+            : null,
+      anchoredAtUtc: anchored ? iso(input.otsAnchoredAtUtc) : null,
+      bitcoinTxid: anchored && validTxid ? input.otsBitcoinTxid : null,
     },
     report: {
       issued: latest !== null,

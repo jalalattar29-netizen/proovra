@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "bf110727b7f77269e49d327365a969bcf697051de3dfed7ad7eeffc43777a2c8",
+  "capabilityRouteInventoryHash": "07c14ba7f8b2fa505b7eb84811af0026423b8c0d089fabbede70c4b05df07a6b",
   "totals": {
-    "routes": 1168,
+    "routes": 1170,
     "routesWithAnyTestCaller": 40,
     "testOnlyRoutes": 3,
     "testCallSites": 70,
@@ -468,6 +468,12 @@
     },
     {
       "routeId": "GET /v1/admin/incidents",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/incidents/:id",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3797,6 +3803,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/admin/incidents/:id/remediate",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/admin/incidents/:id/resolve",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7107,5 +7119,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "9b318f650fb962e9887b06ae40a3e1abfbd76de7168573976e1cce1abcaa6787"
+  "contentHash": "352782826327af7b1b0be709d6511327d337d555f505c16d94b22c80f6ea3830"
 }

@@ -44,11 +44,21 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     }
   });
 
-  it("only returns 'OpenTimestamps Bitcoin anchoring verified' when both ANCHORED + valid txid", () => {
+  it("returns 'OpenTimestamps Bitcoin anchoring verified' ONLY for an anchor verified against the chain (2026-09-29)", () => {
     const validTxid = "f".repeat(64);
+    const anchoredAtUtc = "2026-09-20T10:00:00.000Z";
+    expect(
+      mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck: "BITCOIN_VERIFIED" })
+    ).toBe("OpenTimestamps Bitcoin anchoring verified");
+    // A valid txid, an anchor time, even a structural proof check: anchored, NOT verified.
+    for (const anchorCheck of [null, "PROOF_STRUCTURE"]) {
+      const label = mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck });
+      expect(label).not.toContain("verified");
+      expect(label).toContain("not checked against the Bitcoin chain");
+    }
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid })
-    ).toBe("OpenTimestamps Bitcoin anchoring verified");
+    ).toContain("Bitcoin anchoring pending");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: null })
     ).toContain("Bitcoin anchoring pending");

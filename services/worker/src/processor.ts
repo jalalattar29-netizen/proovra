@@ -326,6 +326,9 @@ type PreparedAnchorPayload = {
   generatedAtUtc: string;
   transactionId?: string | null;
   anchoredAtUtc?: string | null;
+  /** The record's OTS state and how its anchor was established (2026-09-29). */
+  otsStatus?: string | null;
+  otsAnchorCheck?: string | null;
 };
 
 type ReportBuildParams = {
@@ -1138,6 +1141,8 @@ function buildFinalizedAnchorPayload(params: {
   anchorSummary: ReportAnchorSummary | null;
   otsBitcoinTxid?: string | null;
   otsAnchoredAtUtc?: string | null;
+  otsStatus?: string | null;
+  otsAnchorCheck?: string | null;
 }): PreparedAnchorPayload | null {
   if (params.anchorMode === "off") return null;
 
@@ -1161,6 +1166,8 @@ function buildFinalizedAnchorPayload(params: {
     anchoredAtUtc:
       params.anchorSummary?.anchoredAtUtc ??
       (params.otsBitcoinTxid ? params.otsAnchoredAtUtc ?? null : null),
+    otsStatus: params.otsStatus ?? null,
+    otsAnchorCheck: params.otsAnchorCheck ?? null,
   };
 }
 
@@ -1932,6 +1939,7 @@ async function prepareReportArtifacts(
       otsAnchoredAtUtc: true,
       otsUpgradedAtUtc: true,
       otsFailureReason: true,
+      otsAnchorCheck: true,
     },
   });
 
@@ -2760,6 +2768,8 @@ evidenceStructure:
       ? evidence.otsUpgradedAtUtc.toISOString()
       : null,
     otsFailureReason: evidence.otsFailureReason ?? null,
+    // How the anchor was established — only BITCOIN_VERIFIED may read verified.
+    otsAnchorCheck: evidence.otsAnchorCheck ?? null,
 
     anchor: anchorSummary,
     certifications,
@@ -4244,6 +4254,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   anchorSummary: prepared.anchorSummary,
   otsBitcoinTxid: prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
+  otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
+  otsAnchorCheck: prepared.reportEvidencePayload.otsAnchorCheck ?? null,
 });
         // Phase 31.14 — bounded intelligence projection for the
         // verification package. Returns null when no surfaceable
@@ -4383,6 +4395,8 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
               finalized.finalizedReportEvidencePayload.otsAnchoredAtUtc ?? null,
             upgradedAtUtc:
               finalized.finalizedReportEvidencePayload.otsUpgradedAtUtc ?? null,
+            anchorCheck:
+              finalized.finalizedReportEvidencePayload.otsAnchorCheck ?? null,
             failureReason:
               finalized.finalizedReportEvidencePayload.otsFailureReason ?? null,
           },

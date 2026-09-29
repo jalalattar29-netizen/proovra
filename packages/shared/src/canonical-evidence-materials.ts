@@ -208,6 +208,8 @@ export type CanonicalOtsStateMaterial = {
   otsBitcoinTxid: string | null;
   otsAnchoredAtUtc: string | null;
   otsUpgradedAtUtc: string | null;
+  /** How the anchor was established (BITCOIN_VERIFIED | PROOF_STRUCTURE | null). */
+  otsAnchorCheck: string | null;
   proofPresent: boolean;
   /**
    * Honesty rule (mirrors verification-package.ts:decideOtsPackageArtifact):
@@ -378,6 +380,7 @@ export type CanonicalMaterialsBuildInput = {
     otsBitcoinTxid: string | null;
     otsAnchoredAtUtc: string | Date | null | undefined;
     otsUpgradedAtUtc: string | Date | null | undefined;
+    otsAnchorCheck?: string | null;
     otsProofPresent: boolean;
     identityLevelSnapshot: string | null;
     workspaceNameSnapshot: string | null;
@@ -680,6 +683,7 @@ export function buildCanonicalOtsState(
     otsBitcoinTxid: txid,
     otsAnchoredAtUtc: anchoredAt,
     otsUpgradedAtUtc: toIsoOrNull(e.otsUpgradedAtUtc),
+    otsAnchorCheck: nonEmptyOrNull(e.otsAnchorCheck ?? null),
     proofPresent: Boolean(e.otsProofPresent),
     effectiveStatus: effective,
   };

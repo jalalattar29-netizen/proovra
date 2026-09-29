@@ -338,7 +338,10 @@ export function ArtifactHistorySection({
           const certifies = pkg.certifiesReportVersion ?? pkg.version;
           return metaChip(
             item,
-            `Certifies report v${certifies}${pkg.sealed ? " · sealed" : ""}`,
+            // A package issued before format 5 is immutable and is not rewritten:
+            // its signed anchoring statement predates the chain-check rule
+            // (2026-09-29), so the reader says so instead of repeating it.
+            `Certifies report v${certifies} · ${pkg.sealed ? "sealed" : "older format; anchoring not chain-checked"}`,
           );
         }}
       />

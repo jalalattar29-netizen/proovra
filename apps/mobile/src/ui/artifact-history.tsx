@@ -25,6 +25,11 @@ function versionMeta(v: ArtifactVersion): string {
     // A package names the report it certifies, so package v2 is never read as
     // proof for report v7 (2026-09-29; web parity).
     v.certifiesReportVersion != null ? `Certifies report v${v.certifiesReportVersion}` : null,
+    v.certifiesReportVersion != null
+      ? v.sealed
+        ? "Sealed"
+        : "Older format; anchoring not chain-checked"
+      : null,
     v.generatedAtIso ? formatUserDateTime(v.generatedAtIso) : null,
     formatArtifactSize(v.sizeBytes),
     v.latest ? "Latest" : null,

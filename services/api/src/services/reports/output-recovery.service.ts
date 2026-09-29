@@ -174,6 +174,12 @@ function readPackageBlocked(raw: unknown): boolean {
 export async function loadEvidenceOutputFacts(input: {
   evidenceIds: readonly string[];
   callerUserId?: string | null;
+  /**
+   * The caller is a PLATFORM OPERATOR whose route already proved that
+   * authority (requirePlatformAdmin). It may act on a record without being a
+   * member of its workspace; nothing else about the decision changes.
+   */
+  callerIsPlatformOperator?: boolean;
   /** Compute the storage estimate for a new version (single-record views). */
   includeNewVersionEstimate?: boolean;
 }): Promise<Map<string, LoadedOutputFacts>> {
@@ -274,7 +280,9 @@ export async function loadEvidenceOutputFacts(input: {
             }).catch(() => null)
           : Promise.resolve(null),
         isEvidenceUnderAnyLegalHold(ev.id).catch(() => true),
-        input.callerUserId
+        input.callerIsPlatformOperator
+          ? Promise.resolve(true)
+          : input.callerUserId
           ? resolveEvidenceRecordAccess({
               userId: input.callerUserId,
               evidenceId: ev.id,
@@ -442,11 +450,20 @@ export async function requestOutputRecovery(input: {
   regenerateReason: string;
   /** Operations only, after its own capability check and a recorded reason. */
   operatorSupersede?: boolean;
+  /** A platform operator, authorized by its route (see loadEvidenceOutputFacts). */
+  platformOperator?: boolean;
+  /**
+   * Repair EXACTLY the package for this report version (2026-09-29) — the
+   * version an incident names — rather than whatever the latest report is.
+   * Never mints a report; refused when that report does not exist.
+   */
+  packageForReportVersion?: number | null;
 }): Promise<OutputRecoveryResult & { loaded?: LoadedOutputFacts }> {
   const loaded = (
     await loadEvidenceOutputFacts({
       evidenceIds: [input.evidenceId],
       callerUserId: input.actorUserId,
+      callerIsPlatformOperator: input.platformOperator === true,
       includeNewVersionEstimate: input.intent === "NEW_VERSION",
     })
   ).get(input.evidenceId);
@@ -474,6 +491,35 @@ export async function requestOutputRecovery(input: {
           loaded,
         }
       : { kind: "declined", outcome: requested.outcome, reason: null, loaded };
+
+  // ---- The package for ONE named report version (2026-09-29) --------------
+  if (input.packageForReportVersion != null) {
+    const version = input.packageForReportVersion;
+    if (!loaded.facts.callerMayGenerate) {
+      return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: actions.verificationPackage.reason, loaded };
+    }
+    const [report, pkg] = await Promise.all([
+      prisma.report.count({ where: { evidenceId: input.evidenceId, version } }),
+      prisma.verificationPackage.count({ where: { evidenceId: input.evidenceId, version } }),
+    ]);
+    if (pkg > 0) return { kind: "declined", outcome: "NOTHING_TO_RECOVER", reason: "NOT_REQUIRED", loaded };
+    if (report === 0) {
+      // A package is built for a report that exists; a missing report is not
+      // repaired by minting one here.
+      return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: "CONSISTENCY_REVIEW_REQUIRED", loaded };
+    }
+    return fromRequested(
+      "PACKAGE_RECOVERY",
+      await requestReportGeneration({
+        ...base,
+        artifactType: "VERIFICATION_PACKAGE",
+        reportVersion: version,
+        forceRegenerate: false,
+        intent: "RECOVER",
+        ...(input.operatorSupersede ? { supersedeTechnicalTerminal: true } : {}),
+      }),
+    );
+  }
 
   // ---- An explicit new version ------------------------------------------
   if (input.intent === "NEW_VERSION") {
