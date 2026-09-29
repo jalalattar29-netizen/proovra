@@ -830,7 +830,11 @@ export async function completeUploadSession(
          SET "state" = 'COMPLETED',
              "completed_at_utc" = NOW(),
              "updated_at_utc" = NOW()
-         WHERE "id" = $1 AND "team_id" = $2 AND "state" <> 'COMPLETED'
+         WHERE "id" = $1 AND "team_id" = $2
+           -- ET-SEC-13: only a live session completes. The guard excluded
+           -- COMPLETED alone, so a session ABORTED/EXPIRED/FAILED between the
+           -- read above and this write could be flipped to COMPLETED.
+           AND "state" NOT IN ('COMPLETED', 'ABORTED', 'EXPIRED', 'FAILED')
          RETURNING "id", "team_id", "evidence_id", "actor_user_id", "state",
            "expected_part_count", "expected_total_bytes", "expected_sha256",
            "safe_note", "idempotency_key", "expires_at_utc",
@@ -840,8 +844,17 @@ export async function completeUploadSession(
       input.teamId,
     )) as RawSession[];
     if (rows.length === 0) {
-      // Race — another caller flipped it. Re-fetch.
-      return await fetchSession(input.teamId, input.sessionId, client);
+      // Race — another caller moved it. Completed by that caller: the same
+      // idempotent answer as above. Ended any other way: terminal, not success.
+      const now = (await client.$queryRawUnsafe(
+        `SELECT "state" FROM "evidence_upload_sessions" WHERE "id" = $1 AND "team_id" = $2 LIMIT 1`,
+        input.sessionId,
+        input.teamId,
+      )) as Array<{ state: string }>;
+      if (now[0]?.state === "COMPLETED") {
+        return await fetchSession(input.teamId, input.sessionId, client);
+      }
+      return { ok: false, reason: "session_already_terminal" };
     }
     bump("upload_session_completed_total");
     safeEmitSecurityEvent({

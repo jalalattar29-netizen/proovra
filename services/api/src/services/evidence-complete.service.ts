@@ -514,7 +514,19 @@ export async function completeEvidence(params: {
       const evidenceMime = normalizeObservedMimeType(evidence.mimeType);
 
       if (evidence.status === EvidenceStatus.REPORTED) {
+        // ET-SEC-11 — a REPORTED record is finalized too. Without
+        // alreadyFinalized a repeat /complete re-ran the one-time fan-out:
+        // a second EVIDENCE_COMPLETED custody event, the evidence.completed
+        // webhook, the malware scan and post-finalize work.
+        safeEmitSecurityEvent({
+          teamId: evidence.teamId,
+          eventType: "finalize_duplicate_detected",
+          severity: "INFO",
+          evidenceId: evidence.id,
+          details: { reason: "already_reported" },
+        });
         return {
+          alreadyFinalized: true,
           result: {
             id: evidence.id,
             status: evidence.status,
@@ -523,6 +535,7 @@ export async function completeEvidence(params: {
             signatureBase64: evidence.signatureBase64,
             signingKeyId: evidence.signingKeyId,
             signingKeyVersion: evidence.signingKeyVersion,
+            alreadyFinalized: true,
           },
           shouldEnqueueReport: false,
           retentionTargets: [],
