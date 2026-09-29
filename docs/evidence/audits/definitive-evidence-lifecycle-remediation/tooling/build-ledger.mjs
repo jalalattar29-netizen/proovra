@@ -41,7 +41,10 @@ const rows = audit.findings.map((f) => {
   const s = src.findings[f.id] ?? { disposition: "STILL_PRESENT" };
   if (!DISPOSITIONS.includes(s.disposition)) fail(`${f.id}: bad disposition ${s.disposition}`);
   const re = new RegExp(`\\b${f.id}\\b`);
-  const commits = log.filter((c) => re.test(c.text));
+  // Only commits that change product or test code count as remediation: a
+  // docs/artifact commit that merely cites the id (including the one that
+  // commits this ledger) would otherwise make the ledger self-referential.
+  const commits = log.filter((c) => re.test(c.text) && filesOf(c.sha).some((x) => /^(apps|services|packages)\//.test(x)));
   const productFiles = [...new Set(commits.flatMap((c) => filesOf(c.sha)).filter(isProduct))].sort();
   if (s.disposition === "FIXED_IN_THIS_TASK") {
     for (const k of ["rootCause", "canonicalAuthority", "greenTest"]) if (!s[k]) fail(`${f.id}: FIXED needs ${k}`);

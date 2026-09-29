@@ -235,7 +235,6 @@
       "migrationImpact": "none",
       "compatibilityImpact": "public payloadSummary is null for event types without a public label",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
@@ -301,7 +300,6 @@
       "migrationImpact": "none",
       "compatibilityImpact": "new LegalHoldError code destruction_committed (409)",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
@@ -365,7 +363,6 @@
       "migrationImpact": "owner-reviewed backfill recommended: evidence whose teamId was NULLed by a detach (teamId NULL with a cases.evidence_unlinked tenant audit naming a workspace); not automatic",
       "compatibilityImpact": "detach responses keep evidence.teamId",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
@@ -427,7 +424,6 @@
       "migrationImpact": "none",
       "compatibilityImpact": "links answer 404 when the actor may not change the record",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
@@ -491,7 +487,6 @@
       "migrationImpact": "none",
       "compatibilityImpact": "trustDecisionConsistency.source reads LIVE_SHARED_FALLBACK when live checks fail",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
@@ -556,7 +551,6 @@
       "migrationImpact": "none; a production scan is recommended for evidence_parts with uploaded_at_utc NULL on SIGNED/REPORTED records (pre-fix injections)",
       "compatibilityImpact": "POST /v1/evidence/:id/parts answers 404 (was 403) to a non-owner; upload sessions refuse sealed/foreign records with evidence_not_writable (409) or evidence_not_found (404)",
       "commits": [
-        "2e20879adf audit(evidence-truth): definitive capture-to-verify lifecycle audit at a40ca76f",
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
         "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
       ],
